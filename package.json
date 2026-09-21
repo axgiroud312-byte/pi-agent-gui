@@ -1,0 +1,85 @@
+{
+  "name": "pi-agent-ide",
+  "version": "0.1.0-dev.1",
+  "private": true,
+  "description": "Pi RPC 驱动的本地优先 Agent IDE",
+  "author": "Pi Agent IDE contributors",
+  "type": "module",
+  "main": "out/main.cjs",
+  "packageManager": "npm@11.9.0",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "start": "electron .",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . && node scripts/delivery.mjs",
+    "test": "node --import tsx --test tests/runtime/*.test.ts tests/host/*.test.ts",
+    "test:contract": "node --import tsx --test tests/contract/*.test.ts",
+    "test:e2e": "playwright test",
+    "build": "vite build && node scripts/build-host.mjs",
+    "package:dir": "npm run build && electron-builder --dir --publish never",
+    "package:win": "npm run build && electron-builder --win nsis --x64 --publish never",
+    "check": "npm run typecheck && npm run lint && npm test && npm run test:contract && npm run build && npm run test:e2e"
+  },
+  "dependencies": {
+    "@assistant-ui/react": "0.15.21",
+    "@earendil-works/pi-coding-agent": "0.87.0",
+    "class-variance-authority": "0.7.1",
+    "clsx": "2.1.1",
+    "cn": "^0.3.2",
+    "lucide-react": "1.47.0",
+    "radix-ui": "1.6.7",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "tailwind-merge": "3.7.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.5",
+    "@playwright/test": "1.63.0",
+    "@tailwindcss/vite": "4.3.3",
+    "@types/node": "26.6.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.1",
+    "electron": "44.4.3",
+    "electron-builder": "26.15.3",
+    "esbuild": "0.28.2",
+    "eslint": "9.39.4",
+    "globals": "17.12.0",
+    "shadcn": "4.21.0",
+    "tailwindcss": "4.3.3",
+    "tsx": "4.23.15",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.70.1",
+    "vite": "8.3.0"
+  },
+  "build": {
+    "appId": "dev.pi-agent.ide",
+    "productName": "Pi Agent IDE",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "out/**",
+      "dist/**",
+      "package.json",
+      "THIRD_PARTY_NOTICES.md"
+    ],
+    "asarUnpack": [
+      "node_modules/@earendil-works/**",
+      "**/*.node"
+    ],
+    "win": {
+      "target": "nsis",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": false
+    },
+    "artifactName": "Pi-Agent-IDE-${version}-${arch}.${ext}"
+  }
+}

@@ -1,0 +1,11 @@
+import { createServer } from 'vite';
+import { spawn } from 'node:child_process';
+import electron from 'electron';
+await import('./build-host.mjs');
+const server = await createServer();
+await server.listen();
+const env = { ...process.env, PI_IDE_RENDERER_URL: server.resolvedUrls.local[0] };
+delete env.ELECTRON_RUN_AS_NODE;
+const child = spawn(electron, ['.'], { env, stdio: 'inherit' });
+child.once('exit', async code => { await server.close(); process.exit(code ?? 0); });
+process.once('SIGINT', () => child.kill());
