@@ -59,3 +59,7 @@
 }
 html, body, #root { height: 100%; overflow: hidden; }
 pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* Radix exposes data-orientation; keep the installed separator's layout explicit. */
+[data-slot="separator"][data-orientation="horizontal"] { width: 100%; height: 1px; }
+[data-slot="separator"][data-orientation="vertical"] { width: 1px; align-self: stretch; }
