@@ -19,6 +19,7 @@
 
 当前处于 **规格阶段**，已建立 GitHub Issue 驱动的开发约定。本仓库目前提供需求与开发文档，可运行的 GUI 将通过后续实施 Issue 交付。
 
+- [主规格 #1：Pi Agent IDE 完整首版](https://github.com/axgiroud312-byte/pi-agent-gui/issues/1) — 84 条用户故事、34 组 Pi 能力、18 组 IDE 能力与 20 组验收场景。
 - [GitHub Issues：规格与任务的权威来源](https://github.com/axgiroud312-byte/pi-agent-gui/issues)
 - [可由 Agent 继续处理的 Issue](https://github.com/axgiroud312-byte/pi-agent-gui/issues?q=is%3Aissue%20is%3Aopen%20label%3Aready-for-agent)
 - [开发流程](CONTRIBUTING.md)
