@@ -8,7 +8,7 @@
 
 - 来源只认 `zai-org/ZCode@872ad960de7ec172591f7e1952f7849229f94521`（Apache-2.0）。
   `.oxlintrc.json` 已启用 `max-lines: 400`，忽略空白行和纯注释行；CLI AGENTS 要求运行 CLI lint/typecheck。
-- 脚本/配置预检后运行原 lint 脚本 `pnpm --dir apps/zcode-cli lint --concurrency=1 --force`，保存原始 stdout、stderr、退出码。串行无缓存执行避免并发 fail-fast 的半截任务日志，不更改包脚本或诊断规则。
+- 脚本/配置预检后运行原 lint 脚本 `pnpm --dir apps/zcode-cli lint --concurrency=1 --force --log-order=stream --log-prefix=task -- --format=default`，保存原始 stdout、stderr、退出码。串行无缓存执行避免并发 fail-fast 的半截任务日志；固定输出格式避免 GitHub Actions 自动分组/annotation 省略任务前缀。不更改包脚本或诊断规则。
   Turbo 会提前停止，所以另按所有包实际 lint 脚本逐包运行 JSON formatter，收齐结果。
 - 基线逐文件记录固定上游 blob、规则、诊断次数、有效行数和最大允许行数。
   只有既存 `eslint(max-lines)` error 可匹配；其他 error、未知超长文件、额外诊断、未批准增长均失败。
@@ -96,3 +96,9 @@ adapters 25、bootstrap 20、core 29、contracts 6、cli 2、telemetry 2、debug
 - 本地以相同 CI/Rayon 设置重跑，原并发 raw 输出完整；新 profile 接线被 gate 正确拒绝为上述 3 个文件各 +1 有效行。审阅 `111df63` 的 import/原表达式替换后，逐文件登记 blob 和精确额度，不增加通用预算。
 - 原命令改为串行无缓存执行，仍对未完成、被中断、非 lint 退出严格失败；新增负例保证其他已知超长错误不能替中断任务免责。逐包 JSON 全量扫描和所有拓扑/pragma/新错误保护不变。
 - 最终 CI 结果和整体验收见 `issue-32-acceptance.md`；本节不替代独立审查。
+
+### 已复现的云端原因与格式修复
+
+CI `35793283210` 新上传的 raw artifact 证明：`GITHUB_ACTIONS=true` 时 Turbo 默认按组输出，`Found ... errors` 行没有任务前缀，oxlint 同时切换到 GitHub annotation 格式。仅串行不足以修复。实际 adapters 已完成且为25个既有错误，检查器因找不到带前缀的结尾而拒绝，未隐藏真实失败。
+
+本地设置 `CI=true; GITHUB_ACTIONS=true` 后，修复前完整 gate 复现 `Unexplained raw lint failure`；显式固定 Turbo stream/task prefix 和 oxlint default formatter 后通过，仍是86个有界错误、53warnings、raw exit1。新增真实 Turbo+oxlint 临时 workspace 回归，在 GitHub 环境下检查实际退出及任务归因；并保留中断任务不能免责的负例。完整 raw/JSON 仍上传至非隐藏 artifact 路径。

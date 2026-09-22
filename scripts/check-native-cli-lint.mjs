@@ -9,6 +9,10 @@ import { parseArgs, stripVTControlCharacters } from "node:util";
 const CLI = "apps/zcode-cli";
 const RULE = "eslint(max-lines)";
 const UPSTREAM = "872ad960de7ec172591f7e1952f7849229f94521";
+// Explicit presentation avoids GitHub Actions' grouped/unprefixed Turbo and annotation formats.
+export const RAW_LINT_ARGUMENTS = Object.freeze([
+  "--concurrency=1", "--force", "--log-order=stream", "--log-prefix=task", "--", "--format=default",
+]);
 const read = (root, file) => readFileSync(join(root, file), "utf8");
 const json = (root, file) => JSON.parse(read(root, file));
 const lf = (text) => text.replaceAll("\r\n", "\n");
@@ -181,7 +185,7 @@ export function validateRawResult(raw, packages) {
   const stdout = stripVTControlCharacters(raw.stdout), stderr = stripVTControlCharacters(raw.stderr);
   const failed = [...stderr.matchAll(/ERROR\s+(\S+)#lint: command .+ exited \(1\)/g)].map(m => m[1]);
   ensure(failed.length > 0, "Unattributed raw lint failure (missing Turbo failed task)");
-  const completed = [...stdout.matchAll(/^(\S+):lint: Found (\d+) warnings and (\d+) errors\./gm)];
+  const completed = [...stdout.matchAll(/^(\S+):lint: Found (\d+) warnings? and (\d+) errors?\./gm)];
   for (const done of completed) {
     const pkg = packages.find(p => p.name === done[1]);
     ensure(pkg && Number(done[3]) === pkg.errors && Number(done[2]) === pkg.warnings,
@@ -196,7 +200,7 @@ export function validateRawResult(raw, packages) {
     ensure(pkg?.errors > 0 && done && Number(done[3]) === pkg.errors && Number(done[2]) === pkg.warnings,
       `Unexplained raw lint failure: ${name}`);
   }
-  for (const match of stdout.matchAll(/^\S+:lint:\s+x ([^:]+):/gm)) {
+  for (const match of stdout.matchAll(/^\S+:lint:\s+[x×] ([^:]+):/gm)) {
     ensure(match[1] === RULE, `Non-baseline raw lint error: ${match[1]}`);
   }
 }
@@ -247,7 +251,7 @@ export function checkNativeCliLint(root, { output, verifyUpstream = false } = {}
     // Turbo fail-fast can terminate another lint task before its final diagnostic summary.
     // Serialize uncached tasks so every reported failure has its own complete current output.
     // The independent JSON scan below still covers every original package/script scope.
-    raw = pnpm("raw-cli-lint", ["--dir", CLI, "lint", "--concurrency=1", "--force"]);
+    raw = pnpm("raw-cli-lint", ["--dir", CLI, "lint", ...RAW_LINT_ARGUMENTS]);
     const dry = pnpm("turbo-plan", ["--dir", CLI, "exec", "turbo", "run", "lint", "--dry=json"]);
     ensure(dry.status === 0 && !dry.error && !dry.signal, "Turbo lint discovery failed");
     const plan = JSON.parse(dry.stdout);

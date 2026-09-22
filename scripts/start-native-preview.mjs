@@ -1,4 +1,4 @@
-import { access, mkdir, open } from 'node:fs/promises';
+import { access, mkdir, open, readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { spawn } from 'node:child_process';
 import { homedir } from 'node:os';
@@ -12,7 +12,8 @@ const desktop = join(root, 'packages', 'desktop');
 const require = createRequire(join(desktop, 'package.json'));
 const electronRoot = dirname(require.resolve('electron/package.json'));
 const executable = join(electronRoot, 'dist', process.platform === 'win32' ? 'electron.exe' : 'electron');
-for (const path of [executable, join(desktop, 'out/main/index.js'), join(desktop, 'out/renderer/index.html')]) {
+const { main } = JSON.parse(await readFile(join(desktop, 'package.json'), 'utf8'));
+for (const path of [executable, join(desktop, main), join(desktop, 'out/main/index.js'), join(desktop, 'out/renderer/index.html')]) {
   await access(path).catch(() => { throw new Error(`Missing native build: ${path}. Run frozen pnpm installation, prepare:desktop-runtime and the desktop build first.`); });
 }
 const inherited = new Set(['PATH', 'SYSTEMROOT', 'WINDIR', 'PATHEXT', 'COMSPEC', 'SYSTEMDRIVE']);
@@ -20,7 +21,7 @@ const env = Object.fromEntries(Object.entries(process.env).filter(([key, value])
 Object.assign(env, {
   HOME: data, USERPROFILE: data, APPDATA: join(data, 'AppData', 'Roaming'), LOCALAPPDATA: join(data, 'AppData', 'Local'),
   TEMP: join(data, 'Temp'), TMP: join(data, 'Temp'), PROGRAMDATA: join(data, 'ProgramData'), ALLUSERSPROFILE: join(data, 'ProgramData'),
-  ZCODE_DATA_BASE_DIR: data, ZCODE_DESKTOP_HOME_DIR: data,
+  ZCODE_DATA_BASE_DIR: data, ZCODE_DESKTOP_HOME_DIR: data, ZCODE_DESKTOP_PROFILE_HOME: data,
   ZCODE_DESKTOP_APPLICATION_NAME: 'Pi Agent IDE Native Preview',
   ZCODE_DESKTOP_USER_DATA_DIR: join(data, 'electron'), ZCODE_DESKTOP_SESSION_DATA_DIR: join(data, 'electron-session'),
 });

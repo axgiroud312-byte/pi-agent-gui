@@ -86,6 +86,9 @@ jobs:
       - name: Real native profile paths preserve existing ZCode data
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: node apps/zcode-cli/test/run-product-policy.mjs packages/desktop/test/desktop-profile-native.test.mjs
+      - name: Saved workflow lifecycle preserves original ZCode files
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: node apps/zcode-cli/test/run-product-policy.mjs packages/desktop/test/saved-workflow-profile.test.mjs
       - name: Installed dependency licenses and committed notice freshness
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: node scripts/licenses.mjs check

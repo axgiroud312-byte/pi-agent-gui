@@ -2,11 +2,11 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { delimiter, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import {
-  assessReports, validateTopology, validateTaskPlan, validateSourcePragmas, validateRawResult, sourceBlob,
+  assessReports, validateTopology, validateTaskPlan, validateSourcePragmas, validateRawResult, sourceBlob, RAW_LINT_ARGUMENTS,
 } from "../check-native-cli-lint.mjs";
 
 const repo = fileURLToPath(new URL("../../", import.meta.url));
@@ -229,4 +229,23 @@ test("raw lint failure is only attributable to a completed matching lint task, n
   // A separate known max-lines failure cannot excuse a task with missing/truncated output.
   assert.throws(() => validateRawResult(interrupted, [...packages, { name: "@zcode/interrupted", errors: 1, warnings: 0 }]), /Unexplained raw lint failure: @zcode\/interrupted/);
   assert.throws(() => validateRawResult({ ...interrupted, stdout: raw.stdout + "@zcode/interrupted:lint: Found 0 warnings and 0 errors.\n" }, [...packages, { name: "@zcode/interrupted", errors: 0, warnings: 0 }]), /Unexplained raw lint failure: @zcode\/interrupted/);
+});
+
+test("real Turbo and oxlint under GitHub Actions keep attributable task diagnostics", (t) => {
+  const f = fixture(t);
+  json(f.root, "apps/zcode-cli/package.json", { name: "lint-ci-fixture", private: true, packageManager: "pnpm@10.33.2" });
+  json(f.root, "apps/zcode-cli/packages/example/package.json", { name: f.pkg.name, scripts: { lint: f.pkg.lint } });
+  json(f.root, "apps/zcode-cli/turbo.json", { tasks: { lint: { cache: false } } });
+  put(f.root, "apps/zcode-cli/pnpm-workspace.yaml", "packages:\n  - 'packages/*'\n");
+  put(f.root, "apps/zcode-cli/pnpm-lock.yaml", "lockfileVersion: '9.0'\nimporters:\n  .: {}\n  packages/example: {}\n");
+  const env = { ...process.env, CI: "true", GITHUB_ACTIONS: "true" };
+  const pathKey = Object.keys(env).find(key => key.toLowerCase() === "path") ?? "PATH";
+  env[pathKey] = [join(repo, "apps/zcode-cli/node_modules/.bin"), join(repo, "node_modules/.bin"), env[pathKey]].join(delimiter);
+  const raw = spawnSync(process.execPath, [join(repo, "node_modules/turbo/bin/turbo"), "run", "lint", ...RAW_LINT_ARGUMENTS], {
+    cwd: join(f.root, "apps/zcode-cli"), env, encoding: "utf8", timeout: 30000,
+  });
+  assert.equal(raw.status, 1, `${raw.stdout}\n${raw.stderr}`);
+  const reports = f.check();
+  assert.deepEqual(reports.failures, []);
+  assert.doesNotThrow(() => validateRawResult(raw, reports.packages), `${raw.stdout}\n${raw.stderr}`);
 });
