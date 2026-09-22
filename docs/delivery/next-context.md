@@ -1,6 +1,19 @@
-# 新上下文：执行原生 ZCode 导入与界面确认前阶段
+# 新上下文：原生 ZCode 底座验收与用户关卡
 
-## 当前状态
+## 最新实施状态（2026-09-23，优先于下方初始指令快照）
+
+- Claude 导入提交 `317d286` 后的修复在独立工作树 `C:\Users\niilo\AppData\Local\Temp\opencode\pi-native-32`，分支 `issue-32-native-zcode-fix`。原桌面目录的未提交报告/生成物仍保留，不覆盖。
+- 产品源码及可运行产物固定于 `0de01e26b86f7bc2ed023623516a0907f848819d`；之后是证据文档提交。新增 `eac5a22` 独立生产bootstrap/profile修复、`63da90a`全局工作流隔离、`0de01e2`GitHub lint输出格式回归。合并入口为PR #37，状态以GitHub最新记录为准。
+- 冻结依赖及原生生产构建已通过，无Vite降级；原版19组/50图、产品19组/53图实际Electron操作通过，26对截图已重新收集。真实默认入口测试通过17个split chunks，保留执行HOME/Git/SSH/终端，应用数据独立；凭据与历史迁移、Saved Workflow全生命周期有真实文件回归。
+- 已完成品牌/厂商服务边界、原生CI/来源字节修复、类型与测试边界、只读内建配置缓存修复。实际测试与剩余限制看 `issue-32-acceptance.md`，不要继续使用旧 report 的勾选或旧失败诊断作为当前结果。
+- `9ef5970…0de01e2` 两轴独立审查均PASS，无剩余可操作P1/P2。#32/#36由PR #37在最新HEAD CI完成后合并关闭；#33仍等待用户对实际版本明确确认；#34未开始。状态以最新GitHub评论/PR为准。
+- 待呈现材料：`docs/delivery/issue-32-parity/index.html`；构建后预览命令 `node scripts/start-native-preview.mjs`，独立profile，原Agent仅作UI对照。
+- 继承的19项发行许可材料缺口仍记录，完整安装/升级、物理IME、会话拆分及Pi能力不是本轮已通过项；后续按#5/#26/#27/#28完成。
+- 下一步：核对PR #37，若尚未合并，等待最新HEAD CI通过后合并；若已合并，直接在#33展示图集/预览并记录用户确认。没有明确确认不进入#34。
+- 云端历史：`35722545291`/`35793283210` 因CLI gate失败，不能记为通过。新artifact确认GitHub自动分组/annotation格式导致原检查器无法归因，已复现修复；源码版本 `0de01e2` 的PR CI `35795351582` **全部通过**，包括CLI gate、生产默认入口、真实GUI及清理。证据提交的新CI查看PR最新checks。
+- 最后的全局Saved Workflow旧目录访问P2已修复，4项回归及两位审阅者复核通过。Spec还重算4982个源码/6633个产物哈希、验证26对图，无漂移。下一具体动作：`gh pr view 37 --json state,mergeCommit,statusCheckRollup`，随后按上述关卡执行。
+
+## 初始路线快照（历史，最新状态见上）
 
 - 项目：`C:\Users\niilo\Desktop\pi-agent-gui`；仓库：`axgiroud312-byte/pi-agent-gui`。
 - 主规格 [#1](https://github.com/axgiroud312-byte/pi-agent-gui/issues/1) 已改为“ZCode 原生工作台 + Pi RPC”。2026-09-22 两轮 grill-with-docs 的七项决定已确认，见产品目标；不要重新解释成风格参考。

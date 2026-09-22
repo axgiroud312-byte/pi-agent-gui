@@ -1,87 +1,93 @@
 {
-  "name": "pi-agent-ide",
-  "version": "0.1.0-dev.1",
+  "name": "zcode",
+  "version": "3.14.0",
   "private": true,
-  "description": "Pi RPC 驱动的本地优先 Agent IDE",
-  "author": "Pi Agent IDE contributors",
+  "license": "Apache-2.0",
   "type": "module",
-  "main": "out/main.cjs",
-  "packageManager": "npm@11.9.0",
-  "engines": {
-    "node": ">=22.19.0"
-  },
   "scripts": {
-    "dev": "node scripts/dev.mjs",
-    "start": "electron .",
-    "typecheck": "tsc --noEmit",
-    "lint": "eslint . && node scripts/delivery.mjs",
-    "test": "node --import tsx --test tests/runtime/*.test.ts tests/host/*.test.ts",
-    "test:contract": "node --import tsx --test tests/contract/*.test.ts",
-    "test:e2e": "playwright test",
-    "test:package": "node scripts/smoke-packaged.mjs",
-    "install:electron": "node --use-env-proxy node_modules/electron/install.js",
-    "build": "vite build && node scripts/build-host.mjs",
-    "package:dir": "npm run build && electron-builder --dir --publish never",
-    "package:win": "npm run build && electron-builder --win nsis --x64 --publish never",
-    "check": "npm run typecheck && npm run lint && npm test && npm run test:contract && npm run build && npm run test:e2e"
+    "dev:web": "concurrently -k -n server,web -c blue,green \"pnpm --filter @zcode/server dev\" \"pnpm --filter @zcode/web dev\"",
+    "dev:desktop": "pnpm run dev:desktop:prod",
+    "dev:desktop:test": "node scripts/dev-desktop-env.mjs test",
+    "dev:desktop:prod": "node scripts/dev-desktop-env.mjs production",
+    "dev:desktop:bytecode": "node scripts/dev-desktop-env.mjs production --agent-bytecode",
+    "dev:desktop:remote-prod": "node scripts/dev-desktop-remote-prod.mjs",
+    "dev:server": "pnpm --filter @zcode/server dev",
+    "prepare": "husky",
+    "prepare:desktop-runtime": "pnpm --filter @zcode/desktop prepare:runtime-assets",
+    "dep:graph": "node scripts/dependency-graph.mjs",
+    "dep:refs": "node scripts/dep-refs.mjs",
+    "verify:pre-push": "pnpm run lint && pnpm run architecture:check -- --changed",
+    "build": "pnpm -r build",
+    "build:desktop-agent:bytecode": "node scripts/build-desktop-agent-bytecode.mjs",
+    "build:zcode": "node scripts/build-zcode.mjs",
+    "build:bootstrap": "pnpm -r --filter \"./packages/*\" --filter \"!@zcode/desktop\" build && pnpm --filter @zcode/desktop build:no-runtime-assets",
+    "build:sea": "pnpm --dir apps/zcode-cli build:sea",
+    "build:sea:all": "pnpm install && pnpm --dir apps/zcode-cli build:sea",
+    "build:native-search": "node scripts/build-native-search-tools.mjs",
+    "pack:native-search": "node scripts/package-native-search-tools.mjs",
+    "clean": "node scripts/clean.mjs",
+    "typecheck": "tsc -b packages/rpc packages/provider packages/provider-node packages/shared packages/services packages/client packages/server packages/zcode-server-cli packages/ui packages/web packages/desktop/tsconfig.host.json",
+    "bundle:desktop": "pnpm --filter @zcode/desktop run bundle --",
+    "fmt": "oxfmt",
+    "fmt:check": "oxfmt --check",
+    "knip": "knip",
+    "count-lines": "bash scripts/count-lines.sh",
+    "prepare:remote-assets": "pnpm --filter @zcode/desktop prepare:remote-assets",
+    "doctor:macos-release": "bash scripts/doctor-macos-release-app.sh",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix --fix-suggestions",
+    "bootstrap": "node scripts/bootstrap.mjs",
+    "bootstrap:with-remote": "node scripts/bootstrap.mjs --with-remote",
+    "release": "release-it",
+    "release:cli": "pnpm --dir apps/zcode-cli run release",
+    "release:cli:dry": "pnpm --dir apps/zcode-cli run release:dry",
+    "architecture:check": "node scripts/architecture/architecture-check.mjs check",
+    "architecture:report": "node scripts/architecture/architecture-check.mjs report",
+    "architecture:baseline:update": "node scripts/architecture/architecture-check.mjs baseline:update",
+    "architecture:context": "node scripts/architecture/architecture-check.mjs context"
   },
   "dependencies": {
-    "@assistant-ui/react": "0.15.21",
-    "@earendil-works/pi-coding-agent": "0.87.0",
-    "class-variance-authority": "0.7.1",
-    "clsx": "2.1.1",
-    "cn": "0.3.2",
-    "lucide-react": "1.47.0",
-    "radix-ui": "1.6.7",
-    "react": "19.3.0",
-    "react-dom": "19.3.0",
-    "tailwind-merge": "3.7.0"
+    "border-beam": "^1.0.1",
+    "d3-path": "^3.1.0",
+    "tailwind-scrollbar-hide": "^4.0.0"
   },
   "devDependencies": {
-    "@eslint/js": "9.39.5",
-    "@playwright/test": "1.63.0",
-    "@tailwindcss/vite": "4.3.3",
-    "@types/node": "26.6.2",
-    "@types/react": "19.3.0",
-    "@types/react-dom": "19.3.0",
-    "@vitejs/plugin-react": "6.1.1",
-    "electron": "44.4.3",
-    "electron-builder": "26.15.3",
-    "esbuild": "0.28.2",
-    "eslint": "9.39.4",
-    "globals": "17.12.0",
-    "shadcn": "4.21.0",
-    "tailwindcss": "4.3.3",
-    "tsx": "4.23.15",
-    "typescript": "6.0.3",
-    "typescript-eslint": "8.70.1",
-    "vite": "8.3.0"
+    "@release-it/conventional-changelog": "^10.0.6",
+    "@tanstack/react-virtual": "^3.13.23",
+    "@types/node": "^25.5.0",
+    "concurrently": "^9.1.2",
+    "conventional-changelog-conventionalcommits": "^9.3.1",
+    "conventional-changelog-writer": "^8.4.0",
+    "dotenv": "^17.4.2",
+    "husky": "^9.1.7",
+    "istanbul-lib-instrument": "6.0.3",
+    "knip": "^6.0.6",
+    "lint-staged": "^17.0.8",
+    "oxfmt": "^0.41.0",
+    "oxlint": "^1.57.0",
+    "postject": "1.0.0-alpha.6",
+    "release-it": "^19.2.4",
+    "ts-morph": "^28.0.0",
+    "tsx": "^4.19.4",
+    "turbo": "^2.4.0",
+    "typescript": "^6.0.2"
   },
-  "build": {
-    "appId": "dev.pi-agent.ide",
-    "productName": "Pi Agent IDE",
-    "directories": {
-      "output": "release"
+  "peerDependencies": {
+    "@tanstack/react-virtual": "^3.13.23"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "packageManager": "pnpm@10.33.2",
+  "pnpm": {
+    "overrides": {
+      "react": "19.2.7",
+      "react-dom": "19.2.7"
     },
-    "files": [
-      "out/**",
-      "dist/**",
-      "package.json",
-      "THIRD_PARTY_NOTICES.md"
-    ],
-    "asarUnpack": [
-      "node_modules/@earendil-works/**",
-      "**/*.node"
-    ],
-    "win": {
-      "target": "nsis",
-      "signAndEditExecutable": false
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "deleteAppDataOnUninstall": false
-    },
-    "artifactName": "Pi-Agent-IDE-${version}-${arch}.${ext}"
+    "patchedDependencies": {
+      "@arms/rum-electron@0.0.3": "patches/@arms__rum-electron@0.0.3.patch",
+      "@ai-sdk/openai-compatible@2.0.60": "patches/@ai-sdk__openai-compatible@2.0.60.patch",
+      "@ai-sdk/anthropic@3.0.81": "patches/@ai-sdk__anthropic@3.0.81.patch"
+    }
   }
 }

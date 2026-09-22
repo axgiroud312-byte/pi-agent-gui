@@ -1,5 +1,19 @@
-* text=auto
+# Deterministic source snapshots on Windows; original notice bytes are excepted below.
+* text=auto eol=lf
 *.md text eol=lf
 *.yml text eol=lf
 *.yaml text eol=lf
 *.json text eol=lf
+*.mjs text eol=lf
+*.sh text eol=lf
+
+# Preserve upstream license/NOTICE bytes, including original mixed line endings.
+# Source: zai-org/ZCode@872ad960de7ec172591f7e1952f7849229f94521/.gitattributes
+THIRD-PARTY-NOTICES.md -text -whitespace conflict-marker-size=32 linguist-generated=true
+third-party/upstream/** -text -whitespace
+third-party/native-search/licenses/** -text -whitespace
+third-party/runtime/*.txt -text -whitespace
+third-party/inventory.json linguist-generated=true
+
+# Vendored source evidence retains upstream whitespace (including Markdown hard breaks).
+.agents/skills/** -whitespace linguist-vendored=true

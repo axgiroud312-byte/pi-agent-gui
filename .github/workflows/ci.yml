@@ -1,4 +1,4 @@
-name: Windows checks
+name: Windows native checks
 
 on:
   push:
@@ -15,49 +15,123 @@ concurrency:
 jobs:
   windows:
     runs-on: windows-latest
-    timeout-minutes: 35
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: pwsh
     env:
       CI: 'true'
-      PI_OFFLINE: '1'
-      PI_TELEMETRY: '0'
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      NODE_OPTIONS: --max-old-space-size=4096
+      RAYON_NUM_THREADS: '2'
+      PNPM_CONFIG_WORKSPACE_CONCURRENCY: '1'
+      # Local Windows assets only; cross-platform remote assets are separate acceptance.
+      ZCODE_SKIP_REMOTE_ASSETS: '1'
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+          run_install: false
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'
-          cache: npm
-      - run: npm ci
-      - run: npm run typecheck
-      - run: npm run lint
-      - run: npm test
-      - name: Real Pi 0.87.0 protocol smoke (no model credentials)
-        run: npm run test:contract
-      - run: npm run build
-      - name: Electron GUI to RPC boundary E2E
-        run: npm run test:e2e
-      - name: Build Windows NSIS installer
-        run: npm run package:win
-      - name: Packaged app with bundled real Pi
-        run: npm run test:package
-      - name: Upload screenshots, traces, reports, and protocol evidence
+          node-version: '24.14.0'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Verify committed source and notice bytes (before install)
+        run: node scripts/check-native-provenance.mjs
+      - name: Provenance regression tests (Node only)
+        if: ${{ !cancelled() }}
+        run: node --test "scripts/test/native-provenance*.test.mjs"
+      - name: Install the native workspace from its frozen lockfile
+        id: install
+        if: ${{ !cancelled() }}
+        run: pnpm install --frozen-lockfile
+      # Explicit conditions collect independent failures without turning any into success.
+      # Do not add continue-on-error or fall back to the retired prototype scripts.
+      - name: Full native lint
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm run lint
+      - name: Full native typecheck
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm run typecheck
+      - name: Native CLI typecheck
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        # The frozen root hoisted installation owns Turbo's executable.
+        run: pnpm exec pnpm --dir apps/zcode-cli typecheck --concurrency=1
+      - name: Full CLI lint with explicit pinned upstream max-lines baseline
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: node scripts/check-native-cli-lint.mjs --output test-results/native-cli-lint
+      - name: CLI lint baseline cannot conceal new violations
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: node --test scripts/test/native-cli-lint.test.mjs
+      - name: Native marketplace product-policy behavior
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: node apps/zcode-cli/test/run-product-policy.mjs
+      - name: Native architecture check
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm run architecture:check
+      - name: Imported native service tests
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm --dir packages/services exec tsx --test --test-concurrency=1 "test/*.test.ts"
+      - name: Imported native UI tests with their project aliases
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm --dir packages/ui exec tsx --test --test-concurrency=1 "test/*.test.ts"
+      - name: Native product identity and vendor-service behavior
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: node --experimental-strip-types --test packages/shared/test/product.test.mjs
+      - name: Desktop profile policy
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: node --test packages/desktop/test/desktop-product-profile.test.mjs packages/desktop/test/profile-file-guard.test.mjs
+      - name: Real native profile paths preserve existing ZCode data
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: node apps/zcode-cli/test/run-product-policy.mjs packages/desktop/test/desktop-profile-native.test.mjs
+      - name: Saved workflow lifecycle preserves original ZCode files
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: node apps/zcode-cli/test/run-product-policy.mjs packages/desktop/test/saved-workflow-profile.test.mjs
+      - name: Installed dependency licenses and committed notice freshness
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: node scripts/licenses.mjs check
+      - name: Prepare local Windows runtime assets
+        id: runtime
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm run prepare:desktop-runtime
+      # The upstream build:no-runtime-assets runs tsup and Vite in parallel.
+      # Use its actual tools sequentially to bound peak Windows runner memory.
+      - name: Prepare desktop build metadata
+        id: metadata
+        if: ${{ !cancelled() && steps.runtime.outcome == 'success' }}
+        run: pnpm --filter @zcode/desktop run prepare:build-meta
+      - name: Clean desktop production output
+        id: clean
+        if: ${{ !cancelled() && steps.metadata.outcome == 'success' }}
+        run: node --input-type=module -e "import {cleanDesktopProductionOutput,resolveDesktopBuildCwd} from './packages/desktop/scripts/run-production-build.mjs'; await cleanDesktopProductionOutput({cwd:resolveDesktopBuildCwd()});"
+      - name: Build desktop main, host, scheduler and preload
+        id: host
+        if: ${{ !cancelled() && steps.clean.outcome == 'success' }}
+        env:
+          NODE_ENV: production
+        run: pnpm --dir packages/desktop exec tsup
+      - name: Build desktop renderer
+        id: renderer
+        if: ${{ !cancelled() && steps.host.outcome == 'success' }}
+        env:
+          NODE_ENV: production
+        run: pnpm --dir packages/desktop exec vite build
+      - name: Actual default product desktop smoke
+        if: ${{ !cancelled() && steps.renderer.outcome == 'success' }}
+        run: node scripts/native-desktop-smoke.mjs
+      - name: Actual split production entry selects the default Pi profile
+        if: ${{ !cancelled() && steps.renderer.outcome == 'success' }}
+        run: node packages/desktop/test/production-profile-entry.mjs --app-root packages/desktop
+      - name: Upload native desktop evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: windows-test-results
+          name: windows-native-parity-${{ github.sha }}
           path: |
-            test-results/**
-            playwright-report/**
-          if-no-files-found: warn
-          retention-days: 14
-      - name: Upload Windows installers
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-installers
-          path: |
-            release/*.exe
-            release/*.blockmap
-            release/latest.yml
+            test-results/native-parity/**
+            test-results/native-cli-lint/**
+            test-results/profile-default-entry/**
           if-no-files-found: warn
           retention-days: 14

@@ -1,0 +1,493 @@
+{
+  "upstream": "872ad960de7ec172591f7e1952f7849229f94521",
+  "note": "Real native Electron UI and original Agent; controlled loopback model. Not Pi execution. Human gate #33 is separate.",
+  "reports": {
+    "original": {
+      "head": "317d286b88c41a4c696dc71428b6372c0b07840b",
+      "sourceDigest": "74444a9982e36ee8274fe7aec6816bcc28de4b46a7281f4a3c22bddfa5a968e2",
+      "artifactDigest": "d59fa10e049b40f99f791e6dada7d547d79cf902a2883e6050bf54c3e90dcf5a",
+      "started": "2026-09-22T07:08:29.280Z",
+      "finished": "2026-09-22T07:09:53.332Z",
+      "nativeSmokePassed": true,
+      "summary": {
+        "passedActions": 19,
+        "screenshots": 50,
+        "modelRequests": 9
+      },
+      "actions": [
+        {
+          "name": "Onboarding: 使用 API key",
+          "status": "passed"
+        },
+        {
+          "name": "Onboarding: 暂时跳过",
+          "status": "passed"
+        },
+        {
+          "name": "Onboarding: 退出引导",
+          "status": "passed"
+        },
+        {
+          "name": "Settings: select Chinese UI locale through the native selector",
+          "status": "passed"
+        },
+        {
+          "name": "Workspace: Add project → Open folder → isolated OS chooser → real Git workspace",
+          "status": "passed"
+        },
+        {
+          "name": "Settings: generic provider → loopback URL/key → Chat Completions → model → composer selection",
+          "status": "passed"
+        },
+        {
+          "name": "Empty workbench and appearance: native theme controls, both window sizes",
+          "status": "passed"
+        },
+        {
+          "name": "Lexical: keyboard typing, Shift+Enter, browser IME composition/commit, draft/focus",
+          "status": "passed"
+        },
+        {
+          "name": "Lexical: / suggestions → keyboard navigation → Escape",
+          "status": "passed"
+        },
+        {
+          "name": "Lexical: @ local file suggestions → visible README selection",
+          "status": "passed"
+        },
+        {
+          "name": "Native Agent: send → controlled SSE → running timeline, both themes/sizes",
+          "status": "passed"
+        },
+        {
+          "name": "Terminal: native toggle → real PTY command → file on disk",
+          "status": "passed"
+        },
+        {
+          "name": "Workspace file tree → real README → native preview",
+          "status": "passed"
+        },
+        {
+          "name": "Native Agent: controlled Read tool → real file result → native tool timeline",
+          "status": "passed"
+        },
+        {
+          "name": "Native Agent: AskUserQuestion → real waiting UI → choose answer",
+          "status": "passed"
+        },
+        {
+          "name": "Native Agent: controlled HTTP 400 → visible error → recovery by a fresh prompt",
+          "status": "passed"
+        },
+        {
+          "name": "Native stop button → abort held loopback stream → composer ready",
+          "status": "passed"
+        },
+        {
+          "name": "Task sidebar: right-click native context menu, inspect split entry",
+          "status": "passed"
+        },
+        {
+          "name": "New-task navigation, command search shortcut/Escape, sidebar session restore",
+          "status": "passed"
+        }
+      ],
+      "unavailable": [
+        {
+          "action": "Conversation split create/drag/resize/focus/restore",
+          "reason": "No enabled native task-menu split entry in this build; no hidden component/store activation attempted.",
+          "source": "packages/ui/src/v4/ConversationHeader.tsx:64 and native task-menu feature gate"
+        }
+      ],
+      "pageErrors": [],
+      "boundaryCounts": {
+        "guard-active": 7,
+        "filesystem-probe-denied": 12,
+        "os-registration-intercepted": 2,
+        "registry-intercepted": 16,
+        "chromium-network-blocked": 6,
+        "utility-child": 2,
+        "node-network-blocked": 9,
+        "child": 28,
+        "directory-chooser": 1
+      },
+      "cleanup": {
+        "survivors": []
+      }
+    },
+    "product": {
+      "head": "0de01e26b86f7bc2ed023623516a0907f848819d",
+      "sourceDigest": "9397aacce95a74284295026246bd23ab2452e4a94ad01d86d4eedbeeb354fe4a",
+      "artifactDigest": "22c0700e01232df2f33be4c1455f512b799ef1de365909dd135bcc50f1aaaa69",
+      "started": "2026-09-22T23:02:35.039Z",
+      "finished": "2026-09-22T23:03:48.126Z",
+      "nativeSmokePassed": true,
+      "summary": {
+        "passedActions": 19,
+        "screenshots": 53,
+        "modelRequests": 9
+      },
+      "actions": [
+        {
+          "name": "Onboarding: 退出引导",
+          "status": "passed"
+        },
+        {
+          "name": "Settings: select Chinese UI locale through the native selector",
+          "status": "passed"
+        },
+        {
+          "name": "Native footer keeps preferences without vendor account actions",
+          "status": "passed"
+        },
+        {
+          "name": "Workspace: Add project → Open folder → isolated OS chooser → real Git workspace",
+          "status": "passed"
+        },
+        {
+          "name": "Settings: generic provider → loopback URL/key → Chat Completions → model → composer selection",
+          "status": "passed"
+        },
+        {
+          "name": "Empty workbench and appearance: native theme controls, both window sizes",
+          "status": "passed"
+        },
+        {
+          "name": "Lexical: keyboard typing, Shift+Enter, browser IME composition/commit, draft/focus",
+          "status": "passed"
+        },
+        {
+          "name": "Lexical: / suggestions → keyboard navigation → Escape",
+          "status": "passed"
+        },
+        {
+          "name": "Lexical: @ local file suggestions → visible README selection",
+          "status": "passed"
+        },
+        {
+          "name": "Native Agent: send → controlled SSE → running timeline, both themes/sizes",
+          "status": "passed"
+        },
+        {
+          "name": "Terminal: native toggle → real PTY command → file on disk",
+          "status": "passed"
+        },
+        {
+          "name": "Workspace file tree → real README → native preview",
+          "status": "passed"
+        },
+        {
+          "name": "Native Agent: controlled Read tool → real file result → native tool timeline",
+          "status": "passed"
+        },
+        {
+          "name": "Native Agent: AskUserQuestion → real waiting UI → choose answer",
+          "status": "passed"
+        },
+        {
+          "name": "Native Agent: controlled HTTP 400 → visible error → recovery by a fresh prompt",
+          "status": "passed"
+        },
+        {
+          "name": "Error feedback opens GitHub without auto-transferring diagnostics",
+          "status": "passed"
+        },
+        {
+          "name": "Native stop button → abort held loopback stream → composer ready",
+          "status": "passed"
+        },
+        {
+          "name": "Task sidebar: right-click native context menu, inspect split entry",
+          "status": "passed"
+        },
+        {
+          "name": "New-task navigation, command search shortcut/Escape, sidebar session restore",
+          "status": "passed"
+        }
+      ],
+      "unavailable": [
+        {
+          "action": "Conversation split create/drag/resize/focus/restore",
+          "reason": "No enabled native task-menu split entry in this build; no hidden component/store activation attempted.",
+          "source": "packages/ui/src/v4/ConversationHeader.tsx:64 and native task-menu feature gate"
+        }
+      ],
+      "pageErrors": [],
+      "boundaryCounts": {
+        "guard-active": 7,
+        "filesystem-probe-denied": 12,
+        "os-registration-intercepted": 2,
+        "registry-intercepted": 16,
+        "utility-child": 2,
+        "child": 28,
+        "directory-chooser": 1,
+        "open-external-intercepted": 1
+      },
+      "cleanup": {
+        "survivors": []
+      }
+    }
+  },
+  "pairs": [
+    {
+      "state": "model-settings",
+      "theme": "dark",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "original": "original-1280x800-dark-model-settings.png",
+      "product": "product-1280x800-dark-model-settings.png"
+    },
+    {
+      "state": "appearance",
+      "theme": "light",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "original": "original-1280x800-light-appearance.png",
+      "product": "product-1280x800-light-appearance.png"
+    },
+    {
+      "state": "empty",
+      "theme": "light",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "original": "original-1280x800-light-empty.png",
+      "product": "product-1280x800-light-empty.png"
+    },
+    {
+      "state": "appearance",
+      "theme": "dark",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "original": "original-1280x800-dark-appearance.png",
+      "product": "product-1280x800-dark-appearance.png"
+    },
+    {
+      "state": "empty",
+      "theme": "dark",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "original": "original-1280x800-dark-empty.png",
+      "product": "product-1280x800-dark-empty.png"
+    },
+    {
+      "state": "appearance",
+      "theme": "light",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "original": "original-1920x1080-light-appearance.png",
+      "product": "product-1920x1080-light-appearance.png"
+    },
+    {
+      "state": "empty",
+      "theme": "light",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "original": "original-1920x1080-light-empty.png",
+      "product": "product-1920x1080-light-empty.png"
+    },
+    {
+      "state": "appearance",
+      "theme": "dark",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "original": "original-1920x1080-dark-appearance.png",
+      "product": "product-1920x1080-dark-appearance.png"
+    },
+    {
+      "state": "empty",
+      "theme": "dark",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "original": "original-1920x1080-dark-empty.png",
+      "product": "product-1920x1080-dark-empty.png"
+    },
+    {
+      "state": "running",
+      "theme": "light",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "original": "original-1280x800-light-running.png",
+      "product": "product-1280x800-light-running.png"
+    },
+    {
+      "state": "running",
+      "theme": "dark",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "original": "original-1280x800-dark-running.png",
+      "product": "product-1280x800-dark-running.png"
+    },
+    {
+      "state": "running",
+      "theme": "light",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "original": "original-1920x1080-light-running.png",
+      "product": "product-1920x1080-light-running.png"
+    },
+    {
+      "state": "running",
+      "theme": "dark",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "original": "original-1920x1080-dark-running.png",
+      "product": "product-1920x1080-dark-running.png"
+    },
+    {
+      "state": "file-preview",
+      "theme": "light",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "original": "original-1280x800-light-file-preview.png",
+      "product": "product-1280x800-light-file-preview.png"
+    },
+    {
+      "state": "file-preview",
+      "theme": "dark",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "original": "original-1280x800-dark-file-preview.png",
+      "product": "product-1280x800-dark-file-preview.png"
+    },
+    {
+      "state": "file-preview",
+      "theme": "light",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "original": "original-1920x1080-light-file-preview.png",
+      "product": "product-1920x1080-light-file-preview.png"
+    },
+    {
+      "state": "file-preview",
+      "theme": "dark",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "original": "original-1920x1080-dark-file-preview.png",
+      "product": "product-1920x1080-dark-file-preview.png"
+    },
+    {
+      "state": "read-tool-expanded",
+      "theme": "dark",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "original": "original-1280x800-dark-read-tool-expanded.png",
+      "product": "product-1280x800-dark-read-tool-expanded.png"
+    },
+    {
+      "state": "waiting",
+      "theme": "light",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "original": "original-1280x800-light-waiting.png",
+      "product": "product-1280x800-light-waiting.png"
+    },
+    {
+      "state": "waiting",
+      "theme": "dark",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "original": "original-1280x800-dark-waiting.png",
+      "product": "product-1280x800-dark-waiting.png"
+    },
+    {
+      "state": "waiting",
+      "theme": "light",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "original": "original-1920x1080-light-waiting.png",
+      "product": "product-1920x1080-light-waiting.png"
+    },
+    {
+      "state": "waiting",
+      "theme": "dark",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "original": "original-1920x1080-dark-waiting.png",
+      "product": "product-1920x1080-dark-waiting.png"
+    },
+    {
+      "state": "error",
+      "theme": "light",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "original": "original-1280x800-light-error.png",
+      "product": "product-1280x800-light-error.png"
+    },
+    {
+      "state": "error",
+      "theme": "dark",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "original": "original-1280x800-dark-error.png",
+      "product": "product-1280x800-dark-error.png"
+    },
+    {
+      "state": "error",
+      "theme": "light",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "original": "original-1920x1080-light-error.png",
+      "product": "product-1920x1080-light-error.png"
+    },
+    {
+      "state": "error",
+      "theme": "dark",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "original": "original-1920x1080-dark-error.png",
+      "product": "product-1920x1080-dark-error.png"
+    }
+  ]
+}

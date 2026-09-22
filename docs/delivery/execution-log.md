@@ -1,5 +1,11 @@
 # 执行记录
 
+## 最新：原生 #32 修复与对照
+
+当前修复工作树 `C:\Users\niilo\AppData\Local\Temp\opencode\pi-native-32` / `issue-32-native-zcode-fix`，起点Claude `317d286`。固定pnpm安装1881包成功，原生生产构建使用Vite8.0.8/Electron41.0.3通过；typecheck4GiB通过，1.5GiB首次OOM如实记录。原版19组/50图，产品18组/52图（含真实nativeAgent本地受控模型、文件和PTY）通过；26对静态截图已在docs/delivery/issue-32-parity。
+
+已集成来源/CI、品牌、GUI smoke及修复：7377a78、4ff5899、0d7dce9、c9b1169、95a8b83、3cfeac7、821e453；后续个人provider缓存修复及最终证据正在本分支提交。来源6112项校验、7品牌回归、20来源/修复回归、原生服务/UI及architecture通过。当前没有#33实际用户确认，不开始Pi#34。剩余审查/CI/提交与确认记录以GitHub为准，详见issue-32-acceptance.md和next-context.md最新段。
+
 **当前路线已重议：** 最新执行入口为 [next-context.md](next-context.md)，按 [原生重建计划](native-rebase-plan.md) 先 #32、在 #33 等用户确认。下面旧实现日志作为历史保存。
 
 ## 2026-09-22 — 完整首版开始实施
