@@ -101,3 +101,31 @@ The scoped typecheck used the installed worktree only for the compiler/declarati
 
    Artifacts: `<prepared repo>/test-results/profile-default-entry/{report.json,boundaries.jsonl,cleanup.json}`. A passing report is written only after runtime assertions, process cleanup and boundary-log checks succeed.
 4. Run the existing native parity smoke, including Git/SSH/terminal, directory change/relaunch, credential/history continuity, diagnostic export and storage-manager paths. #32 remains open for these integration results; #33 remains open for the user's actual UI confirmation.
+
+## P2 follow-up: saved workflow lifecycle
+
+Integration update supplied by the main agent: `111df63` was integrated as `eac5a22`; at integration HEAD `8128828`, the full production build, real default-entry Electron regression (17 chunks, no legacy access, execution HOME preserved), 82 tests and 19 GUI groups passed. Those integration results supersede the earlier prepared-app gap above; they are not new runs in this exclusive worktree. Both independent reviewers subsequently identified this saved-workflow path gap, so #32 still requires re-review and #33 is not approved.
+
+Correction contract, before implementation:
+
+- The saved `.dwf.ts` archive's shared root resolver must use `options.homeDir ?? getApplicationProfileHome()`: an explicit `homeDir` remains authoritative (including the existing empty/relative option semantics); otherwise use `ZCODE_DESKTOP_PROFILE_HOME`, falling back to native `homedir()` when the profile variable is absent/blank.
+- Keep `<cwd>/.zcode/workflows`, default project scope, project-first shadowing and explicit scope selection unchanged. Global workflows stay anchored across `ZCODE_DATA_BASE_DIR` / `ZCODE_STORAGE_DIR` changes, matching the application anchor already used by legacy named `.workflow.js` lookup; the two file formats remain distinct.
+- SaveWorkflow's approval facts/write, store list/get/exists/shadowing/move, GUI list/get/update/delete/move, and saved-source run resolution must use the same root. No execution HOME mutation, automatic legacy import or legacy fallback is allowed.
+- Verify against actual temporary files and the native store/tool/API modules, with an original-home sentinel and file-access guard. Cover global round trips, project precedence/defaults, explicit home options, standalone defaults, and native run-source/draft resolution. Application/Agent execution and integration re-review remain the main agent's follow-up.
+
+Implementation: only `apps/zcode-cli/packages/core/src/tool/handlers/saved-workflows/store.ts` changes in production source. `savedWorkflowRoots` now delegates its default global home to the existing Node-only `getApplicationProfileHome`; the explicit `homeDir ??` remains outside that helper so an injected home cannot be overridden by the desktop profile. All existing store, tool and GUI callers inherit the correction without API/schema changes. Source/attribution remain the fixed Apache-2.0 ZCode base recorded above.
+
+### Follow-up evidence (owned worktree, Windows / Node 24.14.0)
+
+```powershell
+node apps/zcode-cli/test/run-product-policy.mjs packages/desktop/test/saved-workflow-profile.test.mjs
+```
+
+- Before the source fix: **2 failed / 2 passed**. The desktop lifecycle recorded a real `readdirSync` against the temporary legacy workflow archive; the save/options case recorded `statSync` and `mkdirSync` there. The guard rejected those accesses. Standalone absent/blank-profile cases already passed.
+- After the source fix: **4/4 passed**. Tests run the owned native code in fresh Node processes, with temporary execution HOME, a separate Pi profile, unrelated v2/storage overrides and a third explicit-home directory. Only installed dependencies/generated TypeScript standard-library text are borrowed read-only through `NODE_PATH`; no integration build or actual user data is involved.
+- Exercised actual SaveWorkflow normalization/approval facts, native script typechecking and file writes; ListSavedWorkflows; GUI list/get/metadata-update/delete/move; existence/overwrite/shadowing; byte-preserving moves and target-conflict rejection. `CreateWorkflow(saved)` reads the selected native definition and writes an actual byte-identical draft. Tests stop at run-source resolution: they do not claim model calls, workflow-engine execution or Electron GUI automation.
+- Original-home same-name and legacy-only `.dwf.ts` sentinels remain byte-identical. Desktop cases observe **zero** legacy archive probes/reads/writes, including failed lookup/update/delete/move and missing saved-source resolution. Execution HOME/USERPROFILE/homedir remain unchanged. Unscoped saves/GUI actions stay project-local; project-first lookup, explicit global lookup, explicit/empty/relative/undefined `homeDir`, and standalone absent/blank-profile defaults are preserved.
+- Scoped CLI lint: from `apps/zcode-cli/packages/core`, `oxlint src/tool/handlers/saved-workflows/store.ts --no-ignore` — **1 file, 0 warnings / 0 errors**. Root-tool lint of `packages/desktop/test/saved-workflow-profile.test.mjs` — **1 file, 0 warnings / 0 errors**.
+- Existing `scripts/architecture/architecture-check.mjs check --changed` — **0 violations**, using the same temporary ESM resolver for borrowed TypeScript/YAML dependencies as the previous stage. `git diff --check` passed.
+
+Delivery is limited to the root resolver, this regression file and this contract update. Full typecheck/build, integration CI/baseline refresh, GUI reruns and independent re-review are not performed by this follow-up. The main agent must obtain both reviewers' re-review before closing #32; #33 remains unapproved and #34 untouched.

@@ -17,8 +17,8 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
+import { getApplicationProfileHome } from "@zcode/shared/node";
 import {
   SAVED_WORKFLOW_FILE_EXTENSION,
   SAVED_WORKFLOW_GLOBAL_DIR,
@@ -40,8 +40,8 @@ export interface SavedWorkflowRoot {
 }
 
 /**
- * `savedWorkflowRoots` / 派生函数的可选参数。`homeDir` 只为测试注入：生产恒取
- * `os.homedir()`（agent 进程所在机器的家目录），**不**跟任何 `storage.dir` 配置走。
+ * `savedWorkflowRoots` / 派生函数的可选参数。显式 `homeDir` 保持注入语义；未给时取应用
+ * profile（独立 CLI 仍用 `os.homedir()`），**不**跟任何 `storage.dir` 配置走。
  */
 export interface SavedWorkflowRootsOptions {
   homeDir?: string;
@@ -50,7 +50,7 @@ export interface SavedWorkflowRootsOptions {
 /**
  * 本次会话的查找根，**按优先级排列**：`[project, global]`。
  *
- * 项目档落在会话工作目录的 `.zcode/workflows/`，全局档落在家目录的 `~/.zcode/workflows/`。
+ * 项目档落在会话工作目录的 `.zcode/workflows/`，全局档落在应用 home 的 `.zcode/workflows/`。
  * 所有查找按顺序 first-wins：项目里的那份永远赢过全局那份（同名遮蔽）。
  */
 export function savedWorkflowRoots(
@@ -59,7 +59,8 @@ export function savedWorkflowRoots(
 ): SavedWorkflowRoot[] {
   return [
     { scope: "project", dir: join(cwd, SAVED_WORKFLOW_PROJECT_DIR) },
-    { scope: "global", dir: join(options?.homeDir ?? homedir(), SAVED_WORKFLOW_GLOBAL_DIR) },
+    // 保存、GUI CRUD/move 和运行前解析共用此根；不能读写原版 HOME 而只让 run 查 Pi profile。
+    { scope: "global", dir: join(options?.homeDir ?? getApplicationProfileHome(), SAVED_WORKFLOW_GLOBAL_DIR) },
   ];
 }
 
