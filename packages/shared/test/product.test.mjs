@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { PRODUCT_NAME, productServiceFetch, requireProductCapability, productMessage, isVendorProductAssetUrl } from "./product.ts";
+import { PRODUCT_NAME, productServiceFetch, requireProductCapability, productMessage, isVendorProductAssetUrl } from "../src/product.ts";
 import { resolveDesktopProductIdentity, resolveWindowsAppUserModelIdForFlavor } from "../../desktop/scripts/desktop-product-identity.mjs";
 import { createCustomAboutDialogHtml } from "../../desktop/src/main/aboutWindow.ts";
 import { extractDeepLinkUrlFromArgs, extractWorkspaceOpenPath } from "../../desktop/src/main/desktopDeepLinkUrl.ts";

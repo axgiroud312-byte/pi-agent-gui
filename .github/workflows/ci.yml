@@ -57,9 +57,15 @@ jobs:
       - name: Native architecture check
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: pnpm run architecture:check
-      - name: Imported native service and UI tests (four test files)
+      - name: Imported native service tests
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: node --import tsx --test --test-concurrency=1 "packages/services/test/*.test.ts" "packages/ui/test/*.test.ts"
+        run: pnpm --dir packages/services exec tsx --test --test-concurrency=1 "test/*.test.ts"
+      - name: Imported native UI tests with their project aliases
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm --dir packages/ui exec tsx --test --test-concurrency=1 "test/*.test.ts"
+      - name: Native product identity and vendor-service behavior
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: node --experimental-strip-types --test packages/shared/test/product.test.mjs
       - name: Installed dependency licenses and committed notice freshness
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: node scripts/licenses.mjs check

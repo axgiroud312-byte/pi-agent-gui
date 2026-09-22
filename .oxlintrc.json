@@ -55,6 +55,8 @@
   },
   "globals": {},
   "ignorePatterns": [
+    // Historical prototype is preserved as source material, not compiled by this native app.
+    ".backup-old-prototype",
     "dist-release",
     "packages/ui/src/components/ui",
     "packages/ui/src/components/ai-elements",
