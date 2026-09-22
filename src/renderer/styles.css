@@ -1,0 +1,65 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--foreground);
+  --color-popover: var(--card);
+  --color-popover-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--foreground);
+  --color-muted: var(--secondary);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--secondary);
+  --color-accent-foreground: var(--foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--border);
+  --color-ring: var(--primary);
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 9px;
+  --radius-xl: 12px;
+}
+:root {
+  color-scheme: light;
+  --background: #fafaf8;
+  --foreground: #232823;
+  --card: #ffffff;
+  --primary: #326b53;
+  --primary-foreground: #ffffff;
+  --secondary: #eef0eb;
+  --muted-foreground: #677169;
+  --destructive: #a33434;
+  --border: #dce1d9;
+  font-family: "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif;
+  font-size: 14px;
+}
+.dark {
+  color-scheme: dark;
+  --background: #181b19;
+  --foreground: #e5e9e3;
+  --card: #1e2320;
+  --primary: #94c9ad;
+  --primary-foreground: #12281c;
+  --secondary: #2a302c;
+  --muted-foreground: #a5afa6;
+  --destructive: #f2a09a;
+  --border: #343c36;
+}
+@layer base {
+  * { @apply border-border; }
+  body { @apply m-0 bg-background text-foreground; }
+  button:not(:disabled), [role="button"]:not(:disabled) { cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+}
+html, body, #root { height: 100%; overflow: hidden; }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* Radix exposes data-orientation; keep the installed separator's layout explicit. */
+[data-slot="separator"][data-orientation="horizontal"] { width: 100%; height: 1px; }
+[data-slot="separator"][data-orientation="vertical"] { width: 1px; align-self: stretch; }

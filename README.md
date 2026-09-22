@@ -17,7 +17,7 @@
 
 ## 当前进度
 
-当前处于 **规格阶段**，已建立 GitHub Issue 驱动的开发约定。本仓库目前提供需求与开发文档，可运行的 GUI 将通过后续实施 Issue 交付。
+完整首版正在按 [覆盖账本](docs/delivery/coverage.md) 实施。目前已有可运行的桌面基础切片：本地工作区、独立 Pi RPC 会话、文本流式输出、运行/重试/失败状态、启动配置与诊断。其余能力继续由 #3–#28 跟踪；当前开发构建不是完整首版。
 
 - [主规格 #1：Pi Agent IDE 完整首版](https://github.com/axgiroud312-byte/pi-agent-gui/issues/1) — 84 条用户故事、34 组 Pi 能力、18 组 IDE 能力与 20 组验收场景。
 - [GitHub Issues：规格与任务的权威来源](https://github.com/axgiroud312-byte/pi-agent-gui/issues)
@@ -39,6 +39,42 @@
 | 测试 | 在 Pi 子进程边界替换测试进程，验收完整 GUI 操作链路 |
 
 上游基准为已发布的 `@earendil-works/pi-coding-agent@0.87.0`，实现时固定依赖和协议样例。旧仓库 `badlogic/pi-mono` 已跳转到 [earendil-works/pi](https://github.com/earendil-works/pi)。
+
+## 本地启动
+
+需要 Node.js `>=22.19.0`（开发验证使用 24.14.0）、npm 和 Git；主要验收平台是 Windows。
+
+```powershell
+npm ci
+npm run build
+npm start
+```
+
+开发界面热更新使用 `npm run dev`；修改桌面宿主后重启开发命令。Electron 首次启动会下载其固定二进制；使用环境代理时可先执行 `npm run install:electron`。
+
+1. 输入绝对目录路径或选择文件夹，点击“打开工作区”。普通文件夹也可使用。
+2. 默认使用安装包随附的 Pi 0.87.0；“启动配置”也可设置 Pi 可执行文件，或 Node 可执行文件与包含 Pi CLI 入口的 JSON 参数数组。RPC 模式参数由宿主添加。
+3. 可选配置目录对应 `PI_CODING_AGENT_DIR`，留空沿用 Pi 默认位置。模型认证由 Pi 管理，环境变量和原有 Pi 登录可继续使用。
+4. 点击“新建会话”，输入文本。Enter / Ctrl+Enter 发送，Shift+Enter 换行，中文输入法候选确认不会发送。
+5. 遇到认证失败，在恢复入口打开 Pi 登录终端，输入 `/login` 完成登录，再新建会话。协议或进程失败会保留诊断，不自动重放输入。
+
+宿主配置保存在 Electron userData 下的 `workbench.json`；可用 `--user-data-dir=<绝对路径>` 指定独立工作台配置。Pi 原生会话保存在其自身配置/会话目录，二者分开管理。
+
+## 检查与开发安装包
+
+```powershell
+npm run check
+npm run package:win
+npm run test:package
+```
+
+- `check`：类型、静态检查、合同/宿主边界测试、真实 Pi 无凭据协议测试、构建与 Electron E2E。
+- `test:e2e`：外部 RPC 子进程替身驱动完整 GUI，不调用真实模型；截图及结果在 `test-results/e2e/`。
+- `test:contract`：实际 npm Pi CLI 合同，凭据隔离；结果在 `test-results/contract/`。
+- `test:package`：Windows 打包应用启动其随附真实 Pi，验证原生会话与缺少认证的恢复状态；结果在 `test-results/package/`。
+- NSIS 安装包：`release/Pi-Agent-IDE-0.1.0-dev.1-x64.exe`；未打包目录：`release/win-unpacked/`。
+
+真实模型、全量扩展兼容、Windows 安装升级回退和外部环境验收分别在 #28 与对应实施票登记，离线通过不代替这些验收。开源来源见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
 ## Matt 工作流
 

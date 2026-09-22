@@ -21,4 +21,4 @@
 
 对应 Issue 的验收条件通过，必要检查完成，审查与实际结果一致后再关闭。父规格中每项必需能力都有交付与验收证据后才达到首版完成标准。若调整规格，在 GitHub Issue 留下原因与新的验收条件，避免仅在聊天中改变范围。
 
-当前仓库处于文档初始化阶段。第一张实施票需要建立真实的开发、类型检查、测试、构建和 Windows 打包命令，之后以这些脚本为准。
+当前脚本以 `package.json` 为准：`npm run typecheck`、`npm run lint`、`npm test`、`npm run test:contract`、`npm run build`、`npm run test:e2e`、`npm run package:win` 和 `npm run test:package`。主链路在 Windows CI 执行，截图、协议结果与开发安装包由 workflow 上传。真实模型和外部环境验收单独记录。
