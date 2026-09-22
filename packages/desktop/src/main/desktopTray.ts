@@ -1,6 +1,8 @@
 import { app, Menu, Tray } from "electron";
 import { join } from "node:path";
 import {
+  PRODUCT_CAPABILITIES,
+  productMessage,
   DesktopCommandIds,
   desktopMenuMessageIds,
   getDesktopMenuMessage,
@@ -41,7 +43,7 @@ export function createWindowsDesktopTray(options: {
   }
 
   const getLabel = (id: (typeof desktopMenuMessageIds)[keyof typeof desktopMenuMessageIds]) =>
-    getDesktopMenuMessage(options.getLocale(), id);
+    productMessage(getDesktopMenuMessage(options.getLocale(), id));
   const showTrayWindow = () => {
     void Promise.resolve(options.showCurrentWindow()).catch((error) => {
       options.logger.warn("[desktop-tray] failed to show current window", error);
@@ -73,7 +75,7 @@ export function createWindowsDesktopTray(options: {
         },
         { type: "separator" },
         // 更新入口跟随产品身份：Preview（含生产后端的 Preview）禁用更新器，托盘也不能露出入口。
-        ...(ZCODE_PRODUCT_FLAVOR === "production"
+        ...(PRODUCT_CAPABILITIES.vendorUpdates && ZCODE_PRODUCT_FLAVOR === "production"
           ? [
               {
                 label: getLabel(desktopMenuMessageIds.helpCheckForUpdates),

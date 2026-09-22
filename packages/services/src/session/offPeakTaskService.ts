@@ -11,6 +11,8 @@
 import { randomUUID } from "node:crypto";
 import { ZodError } from "zod";
 import {
+  PRODUCT_CAPABILITIES,
+  requireProductCapability,
   isOffPeakTerminalStatus,
   resolveWorkspaceKey,
   type OffPeakCodingPlanSupport,
@@ -146,6 +148,7 @@ export class OffPeakTaskService implements IOffPeakTaskService {
 
   /** Host 派发前的窄检查；最终执行仍由目标 Agent ModelFactory 重新校验。 */
   async validateDispatchModelSelection(selection: ModelSelection): Promise<boolean> {
+    if (!PRODUCT_CAPABILITIES.offPeak) return false;
     const resolved = await this.deps.resolveModelSelection({
       modelId: selection.modelId,
       ...(selection.options?.reasoningLevel
@@ -165,6 +168,7 @@ export class OffPeakTaskService implements IOffPeakTaskService {
 
   /** 创建即取号（取号成功才落库）；失败只返回稳定分类，绝不跨 RPC 返回 raw error。 */
   async createTask(params: ZCodeOffPeakTaskCreateParams): Promise<OffPeakTaskCreateResult> {
+    requireProductCapability("offPeak");
     let providerName = "";
     try {
       providerName = await this.deps.resolveTelemetryProviderName();
@@ -489,6 +493,7 @@ export class OffPeakTaskService implements IOffPeakTaskService {
   // ---- offPeakTaskSync：批量轮询 + 晋级写回 + 核销 outbox ----
 
   startSync(): void {
+    if (!PRODUCT_CAPABILITIES.offPeak) return;
     if (!this.syncStopped) return;
     this.syncStopped = false;
     // 启动即扫一次未核销终态（host 启动扫描）。
@@ -526,6 +531,7 @@ export class OffPeakTaskService implements IOffPeakTaskService {
 
   /** 单次同步周期；显式调用（测试/启动扫描）不受 stopSync 影响，仅自动重排循环受控。 */
   async runSyncCycle(): Promise<void> {
+    if (!PRODUCT_CAPABILITIES.offPeak) return;
     if (this.syncRunning) return;
     this.syncRunning = true;
     let nextDelay = OFF_PEAK_SYNC_MAX_INTERVAL_MS;

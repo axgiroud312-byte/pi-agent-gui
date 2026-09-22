@@ -1,3 +1,5 @@
+import { PRODUCT_CAPABILITIES } from "./product.js";
+
 export const ZCODE_RUNTIME_ENV_KEY = "ZCODE_RUNTIME_ENV";
 export const ZCODE_HTTP_PROXY_ENV_KEY = "ZCODE_HTTP_PROXY";
 export const ZCODE_NO_PROXY_ENV_KEY = "ZCODE_NO_PROXY";
@@ -175,6 +177,7 @@ function captureZCodeAgentTelemetryEnv(env: Record<string, string | undefined>):
 export function readZCodeAgentTelemetryEnv(
   env: Record<string, string | undefined>,
 ): Record<string, string> {
+  if (!PRODUCT_CAPABILITIES.vendorTelemetry) return {};
   const telemetryEnv: Record<string, string> = {};
   for (const key of SANITIZED_RUNTIME_ENV_KEYS) {
     if (!isZCodeAgentTelemetryEnvKey(key)) continue;

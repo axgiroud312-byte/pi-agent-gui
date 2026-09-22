@@ -16,6 +16,7 @@
  * 请求 403。Off-Peak 仍走 API key 通道，这也是上面"逻辑等价但完全独立"的又一个理由。
  */
 import {
+  PRODUCT_CAPABILITIES,
   OFFICIAL_MCP_AUTH_HEADER_NAMES,
   getModelProviderFamilySpec,
   zcodeProviderAccountAccessSchema,
@@ -284,6 +285,7 @@ function identityOnlyOutcome(identity: OfficialMcpIdentitySnapshot): OfficialMcp
 export async function resolveOfficialMcpCredentials(
   deps: OfficialMcpCredentialResolverDeps,
 ): Promise<OfficialMcpCredentialOutcome> {
+  if (!PRODUCT_CAPABILITIES.vendorAccount) return fail("official_auth_unavailable");
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const identity = await readIdentitySnapshot(deps);
     if (!identity.ok) {

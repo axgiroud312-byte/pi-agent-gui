@@ -1,4 +1,4 @@
-import { ZCODE_VERSION, type ZCodeEnv } from "@zcode/shared";
+import { PRODUCT_CAPABILITIES, ZCODE_VERSION, type ZCodeEnv } from "@zcode/shared";
 
 declare const __ZCODE_CDN_BASE_URL__: string | undefined;
 const DEFAULT_CDN_BASE_URL = "https://cdn-zcode.z.ai";
@@ -22,6 +22,8 @@ function normalizeBaseUrl(value: string): string {
 export function resolveRemoteCdnBaseUrls(options: ResolveRemoteCdnOptions = {}): string[] {
   const override = options.overrideBaseUrl?.trim();
   if (override) return [normalizeBaseUrl(override)];
+  // Bundled SSH/WSL assets remain usable. A replacement download service must be explicit.
+  if (!PRODUCT_CAPABILITIES.vendorCatalog) return [];
   const baseUrl =
     process.env.ZCODE_CDN_BASE_URL?.trim() ||
     (typeof __ZCODE_CDN_BASE_URL__ === "undefined" ? "" : __ZCODE_CDN_BASE_URL__) ||

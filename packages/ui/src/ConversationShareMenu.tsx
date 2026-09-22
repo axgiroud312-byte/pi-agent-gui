@@ -1,4 +1,5 @@
 import { ShareIcon } from "lucide-react";
+import { PRODUCT_CAPABILITIES } from "@zcode/shared";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
@@ -64,6 +65,8 @@ export function ConversationShareMenu({
       <ShareIcon className="size-4" />
     </Button>
   );
+
+  if (!PRODUCT_CAPABILITIES.cloudSharing) return null;
 
   return active ? (
     trigger

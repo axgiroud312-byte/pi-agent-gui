@@ -1,4 +1,5 @@
 import {
+  PRODUCT_CAPABILITIES,
   DEFAULT_ZCODE_ENDPOINT_ORIGIN,
   ZCODE_VERSION,
   buildZCodeEndpointUrls,
@@ -217,6 +218,7 @@ function formatForceUpdateDialogText(
 export async function maybeBlockStartupForForceUpdate(
   options: ForceUpdateGuardOptions,
 ): Promise<ForceUpdateGuardResult> {
+  if (!PRODUCT_CAPABILITIES.vendorUpdates) return { blocked: false };
   const requirement = await resolveDesktopForceUpdateRequirement({
     ...options,
     endpointOrigin: options.endpointOrigin,

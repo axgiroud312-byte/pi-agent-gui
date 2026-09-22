@@ -1,4 +1,5 @@
 import type { ComponentProps } from "react";
+import { PRODUCT_CAPABILITIES } from "@zcode/shared";
 import { Button } from "@/components/ui/button.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useOptionalCodingPlanUpgradeDialog } from "@/settings/CodingPlanUpgradeDialogProvider.js";
@@ -26,6 +27,7 @@ export function CodingPlanEntryButton({
 }: ComponentProps<typeof Button> & { bypassGate?: boolean }) {
   const gate = useCodingPlanEntryGate();
   const status = bypassGate ? "ready" : gate.status;
+  if (!PRODUCT_CAPABILITIES.vendorAccount) return null;
   return (
     <Button
       {...props}

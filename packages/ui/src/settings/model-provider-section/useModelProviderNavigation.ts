@@ -8,6 +8,7 @@ import type {
   ProviderFamilyDomain,
 } from "@zcode/shared";
 import {
+  PRODUCT_CAPABILITIES,
   BUILTIN_MODEL_PROVIDER_IDS,
   isStartPlanModelProviderId,
   resolveModelProviderFamilySpecByProviderId,
@@ -91,7 +92,7 @@ export function useModelProviderNavigation({
 
   const codingPlanItems = useMemo(
     () =>
-      CODING_PLAN_PROVIDER_SPECS.filter((spec) =>
+      (PRODUCT_CAPABILITIES.vendorAccount ? CODING_PLAN_PROVIDER_SPECS : []).filter((spec) =>
         shouldShowCodingPlanForProviderFamilyDomain(spec.oauthProviderId, providerFamilyDomain),
       ).map((spec) => {
         const provider = modelProviders.find((item) => item.providerId === spec.id) ?? null;
@@ -183,7 +184,7 @@ export function useModelProviderNavigation({
         id: "preset",
         title: intl.formatMessage({ id: "settings.modelProvider.presetTitle" }),
         items: [
-          ...presetProviders.map(({ id, displayName, provider }) => {
+          ...(PRODUCT_CAPABILITIES.vendorAccount ? presetProviders : []).map(({ id, displayName, provider }) => {
             const statusProvider = resolvePresetFamilyStatusProvider({
               presetId: id,
               provider,
@@ -223,7 +224,7 @@ export function useModelProviderNavigation({
       },
     ];
 
-    return groups;
+    return groups.filter((group) => group.id !== "preset" || group.items.length > 0);
   }, [
     customProviders,
     codingPlanItems,

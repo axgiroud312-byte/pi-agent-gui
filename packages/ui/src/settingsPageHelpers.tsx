@@ -6,6 +6,7 @@ import type {
   ZCodeInteractionBehavior,
 } from "@zcode/shared";
 import {
+  PRODUCT_CAPABILITIES,
   TID_SETTINGS_ASK_USER_QUESTION_AUTO_RESOLUTION_SWITCH,
   TID_SETTINGS_NATIVE_SEARCH_SWITCH,
 } from "@zcode/shared";
@@ -574,7 +575,7 @@ export function GeneralSectionContent({
                 />
               }
             />
-            <SettingsRow
+            {PRODUCT_CAPABILITIES.vendorUpdates && <SettingsRow
               label={intl.formatMessage({ id: "settings.receivePreviewUpdates" })}
               description={intl.formatMessage({
                 id: "settings.receivePreviewUpdatesDescription",
@@ -588,8 +589,8 @@ export function GeneralSectionContent({
                   }}
                 />
               }
-            />
-            <SettingsRow
+            />}
+            {PRODUCT_CAPABILITIES.vendorUpdates && <SettingsRow
               label={intl.formatMessage({
                 id: "settings.autoDownloadAndInstallUpdates",
               })}
@@ -607,7 +608,7 @@ export function GeneralSectionContent({
                   }}
                 />
               }
-            />
+            />}
           </>
         ) : null}
         <SettingsRow

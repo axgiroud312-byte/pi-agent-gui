@@ -14,6 +14,7 @@ import {
   IZCodeAgentService,
   IZCodeSessionService,
   IConversationShareService,
+  createUnsupportedConversationShareService,
   IFileWatcherService,
   IOAuthService,
   IModelSelectionService,
@@ -65,6 +66,7 @@ import {
   OAuthCredentialRepo,
 } from "@zcode/services/node";
 import {
+  PRODUCT_CAPABILITIES,
   BIGMODEL_PROVIDER_ID,
   buildRuntimeZCodeApiUrl,
   DEFAULT_ZCODE_MODEL_CONTEXT_BUDGET_STRATEGY,
@@ -184,13 +186,17 @@ export function createRemoteWorkspaceServiceCollection(params: {
     tokenProvider: async () =>
       (await localCredentialService.load(ZCODE_JWT_TOKEN_KEY))?.trim() || null,
   });
-  const conversationShareService = new ConversationShareService({
-    zcodeAgentService: params.connectionServices.zcodeAgentService,
-    client: conversationShareClient,
-    artifactSource: createRemoteConversationShareArtifactSource(
-      params.connectionServices.fileService,
-    ),
-  });
+  const conversationShareService = PRODUCT_CAPABILITIES.cloudSharing
+    ? new ConversationShareService({
+        zcodeAgentService: params.connectionServices.zcodeAgentService,
+        client: conversationShareClient,
+        artifactSource: createRemoteConversationShareArtifactSource(
+          params.connectionServices.fileService,
+        ),
+      })
+    : createUnsupportedConversationShareService({
+        message: "Pi Agent IDE has no configured cloud sharing service",
+      });
   const reportingRemoteZCodeTaskService = params.createReportingRemoteZCodeTaskService(
     params.connectionServices.zcodeTaskService,
   );

@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import {
+  PRODUCT_CAPABILITIES,
   normalizeProviderFamilyDomain,
   type AppSettings,
   type OffPeakCodingPlanSupport,
@@ -165,6 +166,7 @@ export const useOffPeakTaskStore = create<OffPeakTaskState>((set, get) => ({
   pendingCreateDraft: null,
 
   async initialize({ offPeakTaskService, codingPlanSubscriptionService }) {
+    if (!PRODUCT_CAPABILITIES.offPeak) return;
     // Bug 原因：New Task 与 Automations 在页面切换时可能短暂重叠挂载，两个 initialize
     // 会并发请求同一个 Team Plan availability，后到的全局 429 可能覆盖先到的成功结果。
     // Store 级 single-flight 保证所有入口共用一次完整准入检查。
@@ -198,6 +200,7 @@ export const useOffPeakTaskStore = create<OffPeakTaskState>((set, get) => ({
   },
 
   async refresh(service) {
+    if (!PRODUCT_CAPABILITIES.offPeak) return;
     try {
       const tasks = await service.list();
       set({ tasks, error: null });
@@ -207,6 +210,7 @@ export const useOffPeakTaskStore = create<OffPeakTaskState>((set, get) => ({
   },
 
   refreshCodingPlanSupport(service, freshnessKey) {
+    if (!PRODUCT_CAPABILITIES.offPeak) return Promise.resolve();
     // 两个入口收到同一 Registry/连接通知只检查一次；手动刷新无 key，始终重查。
     if (
       freshnessKey !== undefined &&

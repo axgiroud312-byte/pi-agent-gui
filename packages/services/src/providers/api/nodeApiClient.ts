@@ -1,4 +1,5 @@
 import {
+  productServiceFetch,
   ApiError,
   DEFAULT_ZCODE_ENDPOINT_ORIGIN,
   normalizeZCodeEndpointOrigin,
@@ -114,7 +115,7 @@ export class NodeApiClient implements ApiClient {
       if (signal?.aborted) {
         throw new DOMException("The operation was aborted.", "AbortError");
       }
-      const fetchImpl = this.fetchImpl ?? globalThis.fetch;
+      const fetchImpl = productServiceFetch(this.fetchImpl ?? globalThis.fetch);
       const requestHeaders = withRequestIdHeader(
         resolveRequestHeaders(requestInput, init?.headers, activeEndpointOrigin),
       );

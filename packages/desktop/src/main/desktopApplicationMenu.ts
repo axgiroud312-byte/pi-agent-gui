@@ -1,5 +1,7 @@
 import { app, BrowserWindow, Menu } from "electron";
 import {
+  PRODUCT_CAPABILITIES,
+  productMessage,
   DesktopCommandIds,
   desktopMenuMessageIds,
   getDesktopMenuMessage,
@@ -27,7 +29,7 @@ export function getDesktopMenuLabel(
   locale: Locale,
   id: (typeof desktopMenuMessageIds)[keyof typeof desktopMenuMessageIds],
 ) {
-  return getDesktopMenuMessage(locale, id);
+  return productMessage(getDesktopMenuMessage(locale, id));
 }
 
 export function resolveSystemApplicationLocale(): Locale {
@@ -118,7 +120,7 @@ function buildApplicationMenuTemplate(options: {
                 click: () => void options.executeDesktopCommand(DesktopCommandIds.ShowAbout),
               },
               // 更新入口跟随产品身份：Preview 禁用更新器，生产后端的 Preview 也不例外。
-              ...(ZCODE_PRODUCT_FLAVOR === "production"
+              ...(PRODUCT_CAPABILITIES.vendorUpdates && ZCODE_PRODUCT_FLAVOR === "production"
                 ? [
                     {
                       id: CHECK_FOR_UPDATE_MENU_ID,
@@ -259,7 +261,7 @@ function buildApplicationMenuTemplate(options: {
                 label: getLabel(desktopMenuMessageIds.helpAbout),
                 click: () => void options.executeDesktopCommand(DesktopCommandIds.ShowAbout),
               },
-              ...(ZCODE_PRODUCT_FLAVOR === "production"
+              ...(PRODUCT_CAPABILITIES.vendorUpdates && ZCODE_PRODUCT_FLAVOR === "production"
                 ? [
                     {
                       id: CHECK_FOR_UPDATE_MENU_ID,
@@ -290,7 +292,7 @@ function buildApplicationMenuTemplate(options: {
               { type: "separator" as const },
             ]
           : []),
-        ...(ZCODE_ENV === "test"
+        ...(PRODUCT_CAPABILITIES.vendorServices && ZCODE_ENV === "test"
           ? [
               {
                 label: getLabel(desktopMenuMessageIds.helpZCodeEndpoint),

@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { PRODUCT_CAPABILITIES } from "@zcode/shared";
 import {
   NodeProviderConfigRuntime,
   PERSONAL_PROVIDER_CONFIG_FILE_NAME,
@@ -35,8 +36,10 @@ export class ProviderConfigRuntime {
     const runtimeOptions: NodeProviderConfigRuntimeOptions = {
       zcodeBuiltinFilePath: options.zcodeBuiltinFilePath,
       zcodeBuiltinActiveFilePath: options.zcodeBuiltinActiveFilePath,
-      zcodeBuiltinRemote: options.zcodeBuiltinRemote,
-      zcodeBuiltinEnvironment: options.zcodeBuiltinEnvironment,
+      zcodeBuiltinRemote: PRODUCT_CAPABILITIES.vendorCatalog ? options.zcodeBuiltinRemote : undefined,
+      zcodeBuiltinEnvironment: PRODUCT_CAPABILITIES.vendorCatalog
+        ? options.zcodeBuiltinEnvironment
+        : undefined,
       onZCodeBuiltinRefreshError: options.onZCodeBuiltinRefreshError,
       onPersonalConfigRecovery: options.onPersonalConfigRecovery,
       onPersonalConfigPollingError: options.onPersonalConfigPollingError,

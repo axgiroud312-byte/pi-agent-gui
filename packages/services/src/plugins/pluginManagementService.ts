@@ -4,6 +4,7 @@
 // IZCodeAgentService，词表消费面从 UI 散点收拢到本文件一处。
 import type { IZCodeAgentService } from "../zcode-agent/zcodeAgent.js";
 import type { IPluginManagementService } from "./pluginManagement.js";
+import { requireProductCapability, ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID } from "@zcode/shared";
 
 interface PluginManagementServiceDependencies {
   zcodeAgentService: Pick<
@@ -42,7 +43,12 @@ export function createPluginManagementService(
     getPluginsOverview: (params) => agent.getPluginsOverview(params),
     addPluginMarketplace: (params) => agent.addPluginMarketplace(params),
     removePluginMarketplace: (params) => agent.removePluginMarketplace(params),
-    updatePluginMarketplace: (params) => agent.updatePluginMarketplace(params),
+    updatePluginMarketplace: (params) => {
+      if (params.marketplace === ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID) {
+        requireProductCapability("vendorCatalog");
+      }
+      return agent.updatePluginMarketplace(params);
+    },
     installPlugin: (params) => agent.installPlugin(params),
     cancelPluginOperation: (params) => agent.cancelPluginOperation(params),
     uninstallPlugin: (params) => agent.uninstallPlugin(params),

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { isVendorProductAssetUrl } from "@zcode/shared";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -258,7 +259,7 @@ export function ConversationDraftSuggestedPrompts({
                     className="flex w-full items-center gap-3 rounded-xl p-3 text-left text-ui-base text-foreground hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-input-border-focused disabled:opacity-50"
                   >
                     <span className="flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-md bg-surface p-px">
-                      <img
+                      {isVendorProductAssetUrl(item.iconUrl) ? <DraftSuggestedPromptIcon name={item.iconName} /> : <img
                         src={item.iconUrl}
                         alt=""
                         draggable={false}
@@ -267,7 +268,7 @@ export function ConversationDraftSuggestedPrompts({
                           // GitHub 素材自带白色方形底，再缩小一圈以露出与其他图标一致的外层留白。
                           item.iconUrl?.includes("/github/icon.png") ? "size-4.5" : "size-full",
                         )}
-                      />
+                      />}
                     </span>
                     <span className="min-w-0 flex-1 break-words">
                       {resolveDraftSuggestedPromptText(item.label, locale)}

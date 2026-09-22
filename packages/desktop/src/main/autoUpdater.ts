@@ -1,6 +1,7 @@
 /* eslint-disable max-lines -- autoUpdater 需要集中维护 Electron 事件、菜单状态与 IPC 交互，过度拆分会让更新状态流更难追踪 */
 import type { ISettingService } from "@zcode/services";
 import {
+  PRODUCT_CAPABILITIES,
   DEFAULT_LOCALE,
   DEFAULT_ZCODE_ENDPOINT_ORIGIN,
   desktopMenuMessageIds,
@@ -94,7 +95,7 @@ type UpdateDownloadedInfoLike = {
 type RuntimeUpdateFeedSource = { url: string };
 
 type AutoUpdaterMenuState = UpdateStatePayload;
-let menuState: AutoUpdaterMenuState = { kind: "idle", enabled: true };
+let menuState: AutoUpdaterMenuState = { kind: "idle", enabled: PRODUCT_CAPABILITIES.vendorUpdates };
 
 export type ForceAutoUpdateState =
   | { kind: "checking" }
@@ -152,7 +153,7 @@ function isDevAutoUpdateEnabled(): boolean {
 }
 
 function canUseAutoUpdaterInCurrentRuntime(): boolean {
-  return app.isPackaged || isDevAutoUpdateEnabled();
+  return PRODUCT_CAPABILITIES.vendorUpdates && (app.isPackaged || isDevAutoUpdateEnabled());
 }
 
 function shouldRelaunchForDevAutoUpdateInstall(): boolean {
@@ -1288,6 +1289,7 @@ export function setAutoUpdaterMenuLocale(locale: Locale) {
 }
 
 export async function hydratePendingPostUpdateReleaseNotes(settingService: SettingServiceLike) {
+  if (!PRODUCT_CAPABILITIES.vendorUpdates) return;
   const settings = await settingService.get();
   pendingPostUpdateReleaseNotes = settings.pendingPostUpdateReleaseNotes ?? null;
   deliveredPostUpdateReleaseNotesWebContentsId = null;
@@ -1460,7 +1462,7 @@ export async function acknowledgePostUpdateReleaseNotes(
 }
 
 export async function initAutoUpdater(options: InitAutoUpdaterOptions = {}): Promise<void> {
-  if (options.enabled === false) {
+  if (!PRODUCT_CAPABILITIES.vendorUpdates || options.enabled === false) {
     autoUpdaterDisabledForProductFlavor = true;
     if (autoUpdatePollTimer) {
       clearInterval(autoUpdatePollTimer);

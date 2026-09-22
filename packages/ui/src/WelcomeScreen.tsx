@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Loader2Icon, LoaderIcon, TriangleAlertIcon } from "lucide-react";
 import {
+  PRODUCT_CAPABILITIES,
   type OAuthProviderMeta,
   BIGMODEL_PROVIDER_ID,
   TID_LOGIN_USE_API_KEY_BUTTON,
@@ -89,7 +90,9 @@ function LoginPanel({ active, onComplete }: LoginPanelProps) {
   const loginEntryRequest = useZCodeStore((s) => s.loginEntryRequest);
   const clearLoginEntryRequest = useZCodeStore((s) => s.clearLoginEntryRequest);
   const markLoginEntryAttemptStatus = useZCodeStore((s) => s.markLoginEntryAttemptStatus);
-  const [loginMode, setLoginMode] = useState<"providers" | "apiKey">("providers");
+  const [loginMode, setLoginMode] = useState<"providers" | "apiKey">(
+    PRODUCT_CAPABILITIES.vendorAccount ? "providers" : "apiKey",
+  );
   const wasActiveRef = useRef(active);
   const consumedLoginRequestRef = useRef<number | null>(null);
   const observedOAuthSuccessSeqRef = useRef(oauthSuccessSeq);
@@ -146,7 +149,7 @@ function LoginPanel({ active, onComplete }: LoginPanelProps) {
   const visibleProviders = useMemo(() => resolveVisibleLoginProviders(providers), [providers]);
 
   useEffect(() => {
-    if (active) {
+    if (active && PRODUCT_CAPABILITIES.vendorAccount) {
       void refreshProviders();
     }
   }, [active, refreshProviders]);
@@ -244,7 +247,7 @@ function LoginPanel({ active, onComplete }: LoginPanelProps) {
   ]);
 
   const resetApiKeyForm = useCallback(() => {
-    setLoginMode("providers");
+    setLoginMode(PRODUCT_CAPABILITIES.vendorAccount ? "providers" : "apiKey");
   }, []);
 
   useEffect(() => {
@@ -356,7 +359,10 @@ function LoginPanel({ active, onComplete }: LoginPanelProps) {
 
         {status === "idle" && loginMode === "apiKey" ? (
           <LoginApiKeyForm
-            onCancel={() => setLoginMode("providers")}
+            onCancel={() => {
+              if (PRODUCT_CAPABILITIES.vendorAccount) setLoginMode("providers");
+              else void onComplete("skip");
+            }}
             onSaved={() => {
               resetApiKeyForm();
               return onComplete("apiKey");
@@ -477,7 +483,7 @@ function LoginPanelLogo() {
     // 登录 logo 壳是固定深色底，边框不能跟随浅色主题 token，否则浅色主题下边框过重。
     <div
       className="relative mb-1 flex size-16 items-center justify-center rounded-2xl bg-[linear-gradient(180deg,#000000_0%,#151718_100%)] text-[#ffffff] shadow-lg/20 before:pointer-events-none before:absolute before:inset-0 before:rounded-2xl before:border before:border-[rgba(255,255,255,0.1)]"
-      aria-label="ZCode"
+      aria-label="Pi Agent IDE"
       role="img"
     >
       <ZCodeAboutLogo className="h-auto w-10" />

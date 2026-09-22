@@ -1,4 +1,5 @@
 import {
+  PRODUCT_CAPABILITIES,
   buildZCodeEndpointUrls,
   buildZCodeSourceHeadersFromContext,
   ZCODE_ENV,
@@ -83,6 +84,7 @@ export function createElectronDesktopContextPromptConfigFetcher(options: {
   resolveEndpointOrigin: () => Promise<string>;
 }): (signal: AbortSignal) => Promise<unknown> {
   return async (signal) => {
+    if (!PRODUCT_CAPABILITIES.vendorServices) return { code: 0, data: { configs: {} } };
     const { net } = await import("electron");
     const endpointOrigin = await options.resolveEndpointOrigin();
     const url = new URL(`${buildZCodeEndpointUrls(endpointOrigin).origin}/api/v1/client/configs`);

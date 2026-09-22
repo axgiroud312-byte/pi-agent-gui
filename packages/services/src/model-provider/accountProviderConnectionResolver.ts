@@ -9,6 +9,7 @@ import type {
 } from "@zcode/provider";
 import { AccountProviderService, createAccountProviderConfigResolver } from "@zcode/provider";
 import {
+  PRODUCT_CAPABILITIES,
   type ApiClient,
   type ProviderFamilyConnectionSelectionSettings,
   type ProviderFamilyDomain,
@@ -76,6 +77,14 @@ export function createAccountProviderConnectionResolver(
 ): AccountProviderConnectionResolver {
   let previousScopes = new Map<string, string>();
   return async ({ configuredProviders, reasons = [] }) => {
+    // This source owns vendor app-account entitlements, not personal API-key providers.
+    if (!PRODUCT_CAPABILITIES.vendorAccount) {
+      return configuredProviders.entries().flatMap(([providerId, config]) =>
+        config.access?.type === "zhipu-account"
+          ? [{ providerId, status: "unavailable" as const, resetPrevious: true }]
+          : [],
+      );
+    }
     const settings = structuredClone(await options.readSettings());
     const forceCredentialRefresh = reasons.some(isCredentialRefreshReason);
     const accountIdentityByFamily = new Map<ProviderFamilyDomain, Promise<string | null>>();

@@ -6,7 +6,13 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { PluginDiagnostic, PluginManifest, PluginStoreListing } from "@zcode/contracts";
 import { isOfficialMarketplaceId, ZCODE_OFFICIAL_PLUGIN_MARKETPLACE } from "@zcode/contracts";
-import { DEFAULT_PLUGIN_MARKETPLACES, sanitizeZCodeRuntimeEnv } from "@zcode/shared";
+import {
+  DEFAULT_PLUGIN_MARKETPLACES,
+  PRODUCT_CAPABILITIES,
+  isVendorProductAssetUrl,
+  requireProductCapability,
+  sanitizeZCodeRuntimeEnv,
+} from "@zcode/shared";
 import { loadPluginMcpServerDefinitions, resolvePluginMcpServers } from "./mcp.js";
 import {
   appendPluginSourceCleanupError,
@@ -458,6 +464,8 @@ async function requestMarketplaceJson(
   let currentHeaders = headers;
   let currentUrl = url;
   for (let redirectCount = 0; redirectCount <= MARKETPLACE_JSON_MAX_REDIRECTS; redirectCount += 1) {
+    // Product CDN is not this fork's package service; check redirects as well as the initial URL.
+    if (isVendorProductAssetUrl(currentUrl)) requireProductCapability("vendorCatalog");
     const response = await client.request(
       {
         ...(currentHeaders ? { headers: currentHeaders } : {}),
@@ -498,8 +506,11 @@ export async function updateMarketplace(input: {
   signal?: AbortSignal;
   storageRoot: string;
 }): Promise<KnownMarketplaceRecord[]> {
+  if (input.marketplace === ZCODE_OFFICIAL_PLUGIN_MARKETPLACE) requireProductCapability("vendorCatalog");
   ensureDefaultPluginMarketplaces(input.storageRoot);
-  const known = loadKnownMarketplacesSync(input.storageRoot);
+  const known = loadKnownMarketplacesSync(input.storageRoot).filter(
+    (record) => PRODUCT_CAPABILITIES.vendorCatalog || record.id !== ZCODE_OFFICIAL_PLUGIN_MARKETPLACE,
+  );
   const selected = input.marketplace
     ? known.filter((record) => record.id === input.marketplace)
     : known;
@@ -592,6 +603,7 @@ export async function installMarketplacePlugin(input: {
   scope?: "user" | "workspace";
   allowCrossMarketplaces?: ReadonlySet<string>;
 }): Promise<MarketplaceInstallResult> {
+  if (input.marketplace === ZCODE_OFFICIAL_PLUGIN_MARKETPLACE) requireProductCapability("vendorCatalog");
   await ensureMarketplaceManifestAvailable({
     marketplace: input.marketplace,
     signal: input.signal,
@@ -613,6 +625,7 @@ export async function installMarketplacePlugin(input: {
   try {
     for (const pluginId of closure) {
       const { marketplace, name } = parsePluginId(pluginId);
+      if (marketplace === ZCODE_OFFICIAL_PLUGIN_MARKETPLACE) requireProductCapability("vendorCatalog");
       const manifest = loadMarketplaceManifestSync(input.storageRoot, marketplace);
       if (!manifest) throw new Error(`Marketplace not found: ${marketplace}`);
       const entry = manifest.plugins.find((plugin) => plugin.name === name);

@@ -15,6 +15,7 @@ import {
   OffPeakTaskRepo,
 } from "@zcode/services/node";
 import {
+  PRODUCT_CAPABILITIES,
   resolveWorkspaceKey,
   type ZCodeAutomation,
   type ZCodeAutomationTrigger,
@@ -100,7 +101,7 @@ async function tick(): Promise<void> {
         for (const manualRun of manualRuns) {
           await handleClaimedManual(manualRun.automation, manualRun.run);
         }
-        const offPeakClaimed = await offPeakRepo.claimDue(now);
+        const offPeakClaimed = PRODUCT_CAPABILITIES.offPeak ? await offPeakRepo.claimDue(now) : [];
         for (const task of offPeakClaimed) {
           await handleOffPeakClaimed(task, now);
         }

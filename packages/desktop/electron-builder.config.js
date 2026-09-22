@@ -456,10 +456,10 @@ export default {
   extraMetadata: {
     version: buildMetadata.appVersion,
     zcodeProductFlavor: desktopProductIdentity.flavor,
-    homepage: "https://zcode.z.ai",
+    homepage: "https://github.com/axgiroud312-byte/pi-agent-gui",
     author: {
-      name: "ZCode",
-      email: "dev@zcode.z.ai",
+      name: "Pi Agent IDE contributors",
+      email: "axgiroud312-byte@users.noreply.github.com",
     },
   },
   // macOS 签名阶段会对 Electron Framework 下每个语言包逐个 codesign。
@@ -649,9 +649,9 @@ export default {
   protocols: [
     {
       // 协议处理器的展示名之前使用小写 scheme，打包产物里的协议描述无法体现产品名。
-      // 展示名跟随安装包身份；scheme 仍保持 zcode，因此两个应用中最后注册者会成为默认 handler。
+      // Pi 使用自己的 scheme，避免占用原版 ZCode 的协议处理器。
       name: desktopProductIdentity.productName,
-      schemes: ["zcode"],
+      schemes: ["pi-agent-ide"],
     },
   ],
   mac: {
@@ -700,7 +700,7 @@ export default {
     // 与 /usr/share/icons/hicolor/*/apps/zcode.png 保持一致。
     executableName: desktopProductIdentity.linuxExecutableName,
     category: "Development",
-    maintainer: "ZCode <dev@zcode.z.ai>",
+    maintainer: "Pi Agent IDE contributors <axgiroud312-byte@users.noreply.github.com>",
   },
   deb: {
     // 生产版与 Preview 必须是两个 dpkg package；只改可执行名仍会让安装器把另一版本当成升级替换。

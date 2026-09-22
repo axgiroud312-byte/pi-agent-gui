@@ -8,6 +8,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
+import { PRODUCT_CAPABILITIES, ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID } from "@zcode/shared";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -199,6 +200,11 @@ export function PluginStoreInstallButton({
   const installing =
     actions.operationId === `plugin:install:${item.name}@${item.marketplace}` ||
     actions.operationId === `plugin:restore:${item.id}`;
+  if (
+    !PRODUCT_CAPABILITIES.vendorCatalog &&
+    item.marketplace === ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID &&
+    !item.restorable
+  ) return null;
   return (
     <Button
       type="button"

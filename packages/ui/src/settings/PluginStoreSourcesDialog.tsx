@@ -1,5 +1,6 @@
 import { AlertTriangle, Loader2, RefreshCw, Trash2 } from "lucide-react";
 import type { ZCodePluginMarketplaceSummary } from "@zcode/shared";
+import { PRODUCT_CAPABILITIES } from "@zcode/shared";
 import { Button } from "@/components/ui/button.js";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
@@ -102,7 +103,7 @@ export function PluginStoreSourcesDialog({
                       <PluginStoreSourceRefreshFailure failure={marketplace.refreshFailure} />
                     ) : null}
                   </div>
-                  <Button
+                  {(PRODUCT_CAPABILITIES.vendorCatalog || !isPublicStoreMarketplaceId(marketplace.id)) && <Button
                     type="button"
                     data-testid="plugin-store-source-update"
                     data-marketplace-id={marketplace.id}
@@ -118,7 +119,7 @@ export function PluginStoreSourcesDialog({
                       className={updating ? "size-3.5 animate-spin" : "size-3.5"}
                       aria-hidden="true"
                     />
-                  </Button>
+                  </Button>}
                   {isRemovableMarketplace(marketplace) ? (
                     <Button
                       type="button"

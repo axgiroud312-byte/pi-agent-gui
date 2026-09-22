@@ -7,6 +7,7 @@ import type {
   ZCodePluginStoreListing,
 } from "@zcode/shared";
 import {
+  PRODUCT_CAPABILITIES,
   sortPluginStoreEntries,
   compareDocumentPluginPriority,
   resolvePluginStoreCategory as resolveStoreCategory,
@@ -82,6 +83,10 @@ export function isPluginUpdatePending(
 export function canUpdatePluginItem(
   item: Pick<StorePluginItem, "installedMeta" | "orphaned"> | null | undefined,
 ): boolean {
+  if (
+    !PRODUCT_CAPABILITIES.vendorCatalog &&
+    item?.installedMeta?.marketplace === ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID
+  ) return false;
   return Boolean(item && !item.orphaned && isPluginUpdatePending(item.installedMeta?.updateStatus));
 }
 

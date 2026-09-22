@@ -3,7 +3,7 @@
    （由 idle plan per-turn provider 在 agent 进程内直连）。
    无内建重试：排队/退避语义在调用方（offPeakTaskService 轮询 / 适配层）。 */
 import { z } from "zod";
-import type { OffPeakTakeNumberAvailability } from "@zcode/shared";
+import { productServiceFetch, type OffPeakTakeNumberAvailability } from "@zcode/shared";
 import type { ServiceLogger } from "../logger/serviceLogger.js";
 import {
   withRequestIdHeader,
@@ -144,7 +144,7 @@ export interface OffPeakServerClient {
 }
 
 export function createOffPeakServerClient(deps: OffPeakServerClientDeps): OffPeakServerClient {
-  const fetchImpl = deps.fetchImpl ?? fetch;
+  const fetchImpl = productServiceFetch(deps.fetchImpl ?? fetch);
 
   async function request(method: "GET" | "POST", path: string, body?: unknown): Promise<unknown> {
     const credentials = await deps.resolveCredentials();

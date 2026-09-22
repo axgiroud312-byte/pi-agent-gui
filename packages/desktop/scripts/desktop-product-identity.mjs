@@ -7,19 +7,19 @@ export const ZCODE_PREVIEW_IDENTITY_ENV = "ZCODE_PREVIEW_IDENTITY";
 
 const PRODUCTION_IDENTITY = Object.freeze({
   flavor: "production",
-  appId: "dev.zcode.app",
-  productName: "ZCode",
-  linuxExecutableName: "zcode",
-  linuxPackageName: "zcode",
+  appId: "io.github.axgiroud312-byte.pi-agent-ide",
+  productName: "Pi Agent IDE",
+  linuxExecutableName: "pi-agent-ide",
+  linuxPackageName: "pi-agent-ide",
   cuaHelperInstallVariant: null,
 });
 
 const PREVIEW_IDENTITY = Object.freeze({
   flavor: "preview",
-  appId: "dev.zcode.app.preview",
-  productName: "ZCode Preview",
-  linuxExecutableName: "zcode-preview",
-  linuxPackageName: "zcode-preview",
+  appId: "io.github.axgiroud312-byte.pi-agent-ide.preview",
+  productName: "Pi Agent IDE Preview",
+  linuxExecutableName: "pi-agent-ide-preview",
+  linuxPackageName: "pi-agent-ide-preview",
   cuaHelperInstallVariant: "preview",
 });
 
@@ -84,7 +84,7 @@ export function resolveDesktopArtifactSuffix(env = process.env) {
  */
 export function resolveWindowsAppUserModelIdForFlavor(flavor, runtime = { isPackaged: true }) {
   if (runtime.isPackaged === false) {
-    return "cn.aminer.zcode";
+    return "io.github.axgiroud312-byte.pi-agent-ide.dev";
   }
   return desktopProductIdentities[flavor === "preview" ? "preview" : "production"].appId;
 }

@@ -8,10 +8,10 @@ import {
   type LinuxDeepLinkRegistrationLogger,
 } from "./desktopLinuxXdg.js";
 
-const LINUX_DEEP_LINK_DESKTOP_FILE = "zcode.desktop";
-const LINUX_DEEP_LINK_MIME_TYPE = "x-scheme-handler/zcode";
+const LINUX_DEEP_LINK_DESKTOP_FILE = "pi-agent-ide.desktop";
+const LINUX_DEEP_LINK_MIME_TYPE = "x-scheme-handler/pi-agent-ide";
 // 归属标记：用于识别用户级 zcode.desktop 是否由本应用写入（历史所有版本都带这行 Comment）。
-const LINUX_DESKTOP_ENTRY_OWNERSHIP_MARKER = "Comment=ZCode Desktop App";
+const LINUX_DESKTOP_ENTRY_OWNERSHIP_MARKER = "Comment=Pi Agent IDE";
 
 type LinuxDesktopEnv = {
   APPIMAGE?: string;
@@ -109,8 +109,8 @@ function createLinuxDeepLinkDesktopEntry(params: {
   productName?: string;
   iconName?: string;
 }): string {
-  const productName = params.productName ?? "ZCode";
-  const iconName = params.iconName ?? "zcode";
+  const productName = params.productName ?? "Pi Agent IDE";
+  const iconName = params.iconName ?? "pi-agent-ide";
   const command = {
     executablePath: params.executablePath,
     args: params.args ?? [],

@@ -2,6 +2,8 @@
 import type { Locale, UserInfo } from "@zcode/shared";
 import { memo, useCallback, useEffect, useState } from "react";
 import {
+  PRODUCT_CAPABILITIES,
+  PRODUCT_NAME,
   DesktopCommandIds,
   TID_LOGIN_MENU_ITEM,
   TID_LOGIN_TRIGGER,
@@ -34,7 +36,6 @@ import {
   Maximize,
   Palette,
   Settings,
-  User,
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
@@ -64,7 +65,7 @@ function getSidebarProfileName(user?: UserInfo | null): string {
     return username;
   }
 
-  return "ZCode";
+  return PRODUCT_NAME;
 }
 
 function getSidebarProfileBadge(
@@ -75,7 +76,9 @@ function getSidebarProfileBadge(
     return getSidebarProfileName(user);
   }
 
-  return formatMessage({ id: "sidebar.profile.notLoggedIn" });
+  return PRODUCT_CAPABILITIES.vendorAccount
+    ? formatMessage({ id: "sidebar.profile.notLoggedIn" })
+    : PRODUCT_NAME;
 }
 
 function getAvatarFallbackText(user: UserInfo | null | undefined): string {
@@ -135,7 +138,7 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
   const avatarKey = user?.avatarUrl ?? user?.id ?? "guest";
   const showAuthRestoreLoading = !user && isRestoringOAuthSession;
   const usageSummaryState = useWorkspaceSidebarFooterUsageSummaryState({
-    enabled: true,
+    enabled: PRODUCT_CAPABILITIES.vendorAccount,
     workspaceIdentity,
     workspacePath,
   });
@@ -155,7 +158,9 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
               <span className="sr-only">{intl.formatMessage({ id: "common.loading" })}</span>
             </>
           ) : (
-            <User className="size-4" />
+            <span className="text-lg font-semibold" aria-hidden="true">
+              π
+            </span>
           )}
         </AvatarFallback>
       </Avatar>
@@ -164,7 +169,9 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
           <span className="min-w-0 truncate text-ui-base font-semibold text-foreground">
             {profileBadge}
           </span>
-          {user ? <WorkspaceSidebarFooterPlanBadge state={usageSummaryState} /> : null}
+          {PRODUCT_CAPABILITIES.vendorAccount && user ? (
+            <WorkspaceSidebarFooterPlanBadge state={usageSummaryState} />
+          ) : null}
         </div>
       </div>
     </>
@@ -343,12 +350,14 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
               </DropdownMenuSub>
             ) : null}
             {/* 升级入口状态不再以菜单开关为生命周期边界。*/}
-            <WorkspaceSidebarFooterUsageSummaryContent
-              state={usageSummaryState}
-              onUsageClick={usageButtonClick}
-              onUpgradeClick={onUpgradeClick}
-            />
-            {onLogin && !user ? (
+            {PRODUCT_CAPABILITIES.vendorAccount && (
+              <WorkspaceSidebarFooterUsageSummaryContent
+                state={usageSummaryState}
+                onUsageClick={usageButtonClick}
+                onUpgradeClick={onUpgradeClick}
+              />
+            )}
+            {PRODUCT_CAPABILITIES.vendorAccount && onLogin && !user ? (
               <>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onSelect={onLogin} data-testid={TID_LOGIN_MENU_ITEM}>
@@ -357,7 +366,7 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
                 </DropdownMenuItem>
               </>
             ) : null}
-            {onLogout ? (
+            {PRODUCT_CAPABILITIES.vendorAccount && onLogout ? (
               <>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onSelect={onLogout} data-testid={TID_LOGOUT_BUTTON}>

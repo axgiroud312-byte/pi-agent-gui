@@ -1,5 +1,6 @@
 /* eslint-disable max-lines -- entitlement hook 集中处理缓存、共享 in-flight、轮询和 Team Plan 上下文，后续拆分需保持刷新策略一致。 */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { PRODUCT_CAPABILITIES } from "@zcode/shared";
 import type {
   UsageEntitlementSnapshot,
   ZCodeAccountAccess,
@@ -160,7 +161,8 @@ export function useUsageEntitlementWithService(
   const latestSnapshotRef = useRef<UsageEntitlementSnapshot | null>(null);
   // Web/SSR 场景可能只渲染侧栏或设置入口，没有挂载 ServiceProvider。
   // 这里降级为空快照，避免 Usage banner 因服务上下文缺失阻断整棵 UI。
-  const enabled = (options.enabled ?? true) && Boolean(usageStatsService);
+  const enabled =
+    PRODUCT_CAPABILITIES.vendorAccount && (options.enabled ?? true) && Boolean(usageStatsService);
   const includeSubscription = options.includeSubscription ?? false;
   const preferredProviderId = options.preferredProviderId;
   // Provider Settings schema 每次解析会产生等值新对象，不能因引用变化重启权益请求。

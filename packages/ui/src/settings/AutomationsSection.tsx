@@ -11,6 +11,7 @@ import {
 } from "react";
 import { CircleCheck, RotateCcw, TriangleAlert } from "lucide-react";
 import {
+  PRODUCT_CAPABILITIES,
   AUTOMATION_CREATE_LIMIT,
   BUILTIN_MODEL_PROVIDER_IDS,
   TID_AUTOMATION_ACTION_DELETE,
@@ -623,7 +624,7 @@ export function AutomationsSection({
   });
   const currentWorkspaceIsRemote = isRemoteAutomationWorkspace(activeWorkspaceTab);
   // 灰度中途翻转：只藏创建入口；有非终态存量仍展示并跑到终态。
-  const offPeakGrayEnabled = offPeakGrayConfig?.enabled === true;
+  const offPeakGrayEnabled = PRODUCT_CAPABILITIES.offPeak && offPeakGrayConfig?.enabled === true;
   const offPeakCreationEnabled = offPeakGrayEnabled && !currentWorkspaceIsRemote;
   // 扫描全部 provider 会把未选中的 Coding Plan 当成当前执行凭证。
   // mock 演示字段仍可覆盖；真实路径只接受与当前 family/selectedKey 一致的脱敏 resolver 快照。
@@ -633,7 +634,9 @@ export function AutomationsSection({
       !offPeakStoreLoading &&
       !isCurrentOffPeakCodingPlanSupported(offPeakCodingPlanSupport, sharedSettings));
   const offPeakVisible =
-    !currentWorkspaceIsRemote && (offPeakGrayEnabled || offPeakTasks.length > 0);
+    PRODUCT_CAPABILITIES.offPeak &&
+    !currentWorkspaceIsRemote &&
+    (offPeakGrayEnabled || offPeakTasks.length > 0);
   const hasAnyTasks = automations.length > 0 || offPeakTasks.length > 0;
   const visibleTabs = resolveVisibleAutomationTabs({
     hasAnyTasks,

@@ -19,6 +19,7 @@ import {
 } from "@/hooks/useCodingPlanEntryPlanList.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { reportCodingPlanUpgradeClick } from "@/lib/codingPlanFunnelTelemetry.js";
+import { PRODUCT_CAPABILITIES } from "@zcode/shared";
 
 interface CodingPlanUpgradeDialogContextValue {
   inventory: CodingPlanEntryInventory;
@@ -47,6 +48,7 @@ export function CodingPlanUpgradeDialogProvider({ children }: { children: ReactN
       nextTarget: CodingPlanUpgradeDialogTarget,
       observation?: { signal: AbortSignal; onResult: (opened: boolean) => void },
     ) => {
+      if (!PRODUCT_CAPABILITIES.vendorAccount) return false;
       // 所有入口统一守卫；查询完成后不自动重放之前被拦截的点击。
       const { status, entryPlanList } = inventoryRef.current;
       if (observation?.signal.aborted) return false;
@@ -92,7 +94,7 @@ export function CodingPlanUpgradeDialogProvider({ children }: { children: ReactN
   return (
     <CodingPlanUpgradeDialogContext.Provider value={value}>
       {children}
-      <CodingPlanUpgradeDialog
+      {PRODUCT_CAPABILITIES.vendorAccount && <CodingPlanUpgradeDialog
         key={openVersion}
         target={target}
         onClose={() => {
@@ -101,7 +103,7 @@ export function CodingPlanUpgradeDialogProvider({ children }: { children: ReactN
         }}
         onOpenResult={opening.current ?? undefined}
         onReopen={setTarget}
-      />
+      />}
     </CodingPlanUpgradeDialogContext.Provider>
   );
 }

@@ -1,3 +1,5 @@
+import { PRODUCT_CAPABILITIES } from "@zcode/shared";
+
 interface RootStartupGateState {
   isResolvingStartupAuthState: boolean;
   isResolvingProviderStartupState: boolean;
@@ -41,7 +43,7 @@ export function shouldShowRootStartupLoading(state: RootStartupLoadingVisibility
 }
 
 export function shouldEnableProviderAvailabilityLoginEntryGuard(): boolean {
-  return true;
+  return PRODUCT_CAPABILITIES.vendorAccount;
 }
 
 export function shouldResolveProviderStartupState(state: ProviderStartupResolutionState): boolean {

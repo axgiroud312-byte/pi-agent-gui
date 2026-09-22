@@ -1,5 +1,6 @@
 import { net } from "electron";
 import {
+  PRODUCT_CAPABILITIES,
   buildHelpAppConfigUrl,
   buildZCodeSourceHeadersFromContext,
   createHelpAppConfigReader,
@@ -13,6 +14,7 @@ export function createDesktopHelpConfigReader(options: {
 }) {
   const read = createHelpAppConfigReader({ fetchImpl: (input, init) => net.fetch(input, init) });
   return async () => {
+    if (!PRODUCT_CAPABILITIES.vendorServices) return {};
     const endpointOrigin = await options.resolveEndpointOrigin();
     return read(
       buildHelpAppConfigUrl(

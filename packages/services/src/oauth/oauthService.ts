@@ -1,6 +1,8 @@
 /* eslint-disable max-lines -- OAuthService 集中维护 OAuth 会话生命周期和 provider 切换边界，当前 review 修复只收窄后台迁移写入条件。 */
 import { randomBytes } from "node:crypto";
 import {
+  PRODUCT_CAPABILITIES,
+  requireProductCapability,
   ApiError,
   formatLogPrefix,
   type ApiClient,
@@ -164,6 +166,7 @@ export class OAuthService implements IOAuthService {
   }
 
   async getProviders(): Promise<OAuthProviderMeta[]> {
+    if (!PRODUCT_CAPABILITIES.vendorAccount) return [];
     return [...this.adapters.values()]
       .map((adapter) => adapter.meta)
       .filter((meta) => meta.enabled)
@@ -171,6 +174,7 @@ export class OAuthService implements IOAuthService {
   }
 
   async getActiveProvider(): Promise<OAuthProviderId | null> {
+    if (!PRODUCT_CAPABILITIES.vendorAccount) return null;
     return this.repo.getActiveProvider();
   }
 
@@ -180,6 +184,7 @@ export class OAuthService implements IOAuthService {
   }
 
   async restoreCachedSessionState(): Promise<OAuthCachedSessionRestoreResult> {
+    if (!PRODUCT_CAPABILITIES.vendorAccount) return { status: "signed-out" };
     const restoreGeneration = this.oauthSessionGeneration;
     const activeProvider = await this.repo.getActiveProvider();
     if (!activeProvider) {
@@ -514,6 +519,7 @@ export class OAuthService implements IOAuthService {
   }
 
   async restoreSession(): Promise<UserInfo | null> {
+    if (!PRODUCT_CAPABILITIES.vendorAccount) return null;
     const activeProvider = await this.repo.getActiveProvider();
     if (!activeProvider) {
       log("restoreSession skipped: no active provider");
@@ -592,6 +598,7 @@ export class OAuthService implements IOAuthService {
   }
 
   async startOAuthWithPolling(provider: OAuthProviderId): Promise<OAuthStartResponse> {
+    requireProductCapability("vendorAccount");
     if (provider !== ZAI_PROVIDER_ID && provider !== BIGMODEL_PROVIDER_ID) {
       return this.startOAuthInternal(provider);
     }
@@ -825,6 +832,7 @@ export class OAuthService implements IOAuthService {
   }
 
   private async startOAuthInternal(provider: OAuthProviderId): Promise<OAuthStartResponse> {
+    requireProductCapability("vendorAccount");
     const adapter = this.getEnabledAdapter(provider);
 
     // 同窗口快速连续点击不同 provider 时，旧 state 如果不先取消，
@@ -864,6 +872,7 @@ export class OAuthService implements IOAuthService {
   }
 
   async handleCallback(url: string): Promise<OAuthCallbackResult | null> {
+    requireProductCapability("vendorAccount");
     const pending = this.pendingState;
     if (!pending) {
       const callbackState = new URL(url).searchParams.get("state")?.trim();
@@ -1131,6 +1140,7 @@ export class OAuthService implements IOAuthService {
   }
 
   private getAdapter(provider: OAuthProviderId): OAuthProviderAdapter {
+    requireProductCapability("vendorAccount");
     const adapter = this.adapters.get(provider);
     if (!adapter) {
       throw new Error(`不支持的 OAuth provider: ${provider}`);

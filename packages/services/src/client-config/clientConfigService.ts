@@ -1,4 +1,5 @@
 import {
+  PRODUCT_CAPABILITIES,
   buildZCodeEndpointUrls,
   clientConfigReadOptionsSchema,
   parseClientConfigSnapshot,
@@ -64,6 +65,7 @@ export function createClientConfigService(dependencies: {
 
   return {
     async getSnapshot(options = {}) {
+      if (!PRODUCT_CAPABILITIES.vendorCatalog) return { pluginStoreOrder: null };
       const { forceRefresh } = clientConfigReadOptionsSchema.parse(options);
       const context = await dependencies.resolveRequestContext();
       const url = new URL(

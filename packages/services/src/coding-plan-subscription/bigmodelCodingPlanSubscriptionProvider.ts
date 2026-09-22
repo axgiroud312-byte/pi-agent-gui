@@ -54,6 +54,7 @@ import type {
 import type { ModelSelectionView } from "@zcode/provider";
 import type { OffPeakClientConfig } from "./codingPlanSubscription.js";
 import {
+  PRODUCT_CAPABILITIES,
   BIGMODEL_PROVIDER_ID,
   BUILTIN_MODEL_PROVIDER_IDS,
   CODING_PLAN_SYSTEM_BUSY,
@@ -210,6 +211,7 @@ export class BigModelCodingPlanSubscriptionProvider {
   }
 
   async getStartPlanPreview(): Promise<StartPlanPreviewConfig | null> {
+    if (!PRODUCT_CAPABILITIES.vendorAccount) return null;
     const payload = await this.getClientConfigs();
     return unwrapClientConfigStartPlanPreview(payload);
   }
@@ -219,6 +221,7 @@ export class BigModelCodingPlanSubscriptionProvider {
    * forceRefresh 供"打开 Automations 入口补拉"（1h 快照否则灰度翻转最长 1h 不可见）。
    */
   async getOffPeakClientConfig(options?: { forceRefresh?: boolean }): Promise<OffPeakClientConfig> {
+    if (!PRODUCT_CAPABILITIES.offPeak) return resolveOffPeakClientConfig({}, {});
     if (process.env["ZCODE_OFFPEAK_MOCK"] === "1") {
       // mock 已经明确替代远端曝光配置，不能再先等待 /client/configs：
       // 离线 Desktop E2E 会一直停在 Loading，根本无法进入闲时执行链。
@@ -246,6 +249,9 @@ export class BigModelCodingPlanSubscriptionProvider {
   async getDynamicWorkflowClientConfig(options?: {
     forceRefresh?: boolean;
   }): Promise<DynamicWorkflowClientConfig> {
+    if (!PRODUCT_CAPABILITIES.vendorServices) {
+      return resolveDynamicWorkflowClientConfig({ remote: undefined, env: process.env });
+    }
     // 覆盖合法即短路：判据（normalize）与快照构造（resolve）都留在 shared，这里不复述取值域。
     if (normalizeDynamicWorkflowMode(process.env[ZCODE_DYNAMIC_WORKFLOW_MODE_ENV])) {
       return resolveDynamicWorkflowClientConfig({ remote: undefined, env: process.env });
@@ -274,6 +280,7 @@ export class BigModelCodingPlanSubscriptionProvider {
   }
 
   async getForceUpdateConfig(): Promise<ForceUpdateConfig | null> {
+    if (!PRODUCT_CAPABILITIES.vendorUpdates) return null;
     const payload = await this.getClientConfigs();
     return unwrapClientConfigForceUpdate(payload);
   }

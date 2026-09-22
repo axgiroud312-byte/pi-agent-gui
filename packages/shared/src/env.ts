@@ -1,4 +1,5 @@
 import type { ZCodeRuntimeEnv } from "./runtimeEnv.js";
+import { PRODUCT_CAPABILITIES } from "./product.js";
 
 export type ZCodeEnv = "test" | "production";
 /** 安装包身份：决定应用名、app id、Electron 数据目录与更新策略；与后端环境 `ZCodeEnv` 是两个轴。 */
@@ -45,9 +46,8 @@ export const ZCODE_BUILD_COMMIT_ID_ENV = "ZCODE_BUILD_COMMIT_ID" as const;
 export const RUNTIME_ZCODE_DEBUG =
   typeof process !== "undefined" ? process.env.ZCODE_DEBUG : undefined;
 
-// 恢复原因：写死 false 会让运行时已配置的数仓/ARMS 永远空转。
-// 功能保持可用；实际出网由各出口的运行时端点检查决定，未配置不上报。
-export const ZCODE_TELEMETRY_ENABLED: boolean = true;
+// Pi 产品不使用上游数仓/ARMS；本地日志与诊断导出仍保留。
+export const ZCODE_TELEMETRY_ENABLED: boolean = PRODUCT_CAPABILITIES.vendorTelemetry;
 
 /** 数仓事件上报端点：由运行时环境变量提供，未配置即停用，构建产物不内嵌。 */
 export const ZCODE_TELEMETRY_REPORT_ENDPOINT =

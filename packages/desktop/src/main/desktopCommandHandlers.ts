@@ -4,6 +4,10 @@ import { join } from "node:path";
 import { app, BrowserWindow, dialog, session, shell } from "electron";
 import type { MessageBoxOptions } from "electron";
 import {
+  PRODUCT_CAPABILITIES,
+  PRODUCT_ISSUES_URL,
+  PRODUCT_REPOSITORY_URL,
+  requireProductCapability,
   DEFAULT_ZCODE_ENDPOINT_ORIGIN,
   DesktopCommandIds,
   PlatformChannels,
@@ -211,6 +215,7 @@ export async function resolveFeedbackUrl(options: {
     warn: (...args: unknown[]) => void;
   };
 }): Promise<string | undefined> {
+  if (!PRODUCT_CAPABILITIES.vendorFeedback) return PRODUCT_ISSUES_URL;
   return resolveRemoteAppConfigValue({
     ...options,
     logPrefix: "feedback",
@@ -226,6 +231,7 @@ export async function resolveCommunityUrl(options: {
     warn: (...args: unknown[]) => void;
   };
 }): Promise<string | undefined> {
+  if (!PRODUCT_CAPABILITIES.vendorServices) return PRODUCT_REPOSITORY_URL;
   let remoteConfig: unknown;
   try {
     remoteConfig = await fetchRemoteAppConfig(options.fetchRemoteConfig);
@@ -248,6 +254,10 @@ async function openFeedback(
   targetWindow?: BrowserWindow | null,
   fetchRemoteConfig?: () => Promise<unknown>,
 ) {
+  if (!PRODUCT_CAPABILITIES.vendorFeedback) {
+    await shell.openExternal(`${PRODUCT_ISSUES_URL}/new`);
+    return;
+  }
   let remoteConfig: unknown;
   let localConfig: unknown;
   try {
@@ -459,7 +469,11 @@ export async function openChangelog(
   locale: Locale,
   endpointOrigin = DEFAULT_ZCODE_ENDPOINT_ORIGIN,
 ) {
-  await shell.openExternal(resolveChangelogUrl(locale, endpointOrigin));
+  await shell.openExternal(
+    PRODUCT_CAPABILITIES.vendorUpdates
+      ? resolveChangelogUrl(locale, endpointOrigin)
+      : `${PRODUCT_REPOSITORY_URL}/commits/main/`,
+  );
 }
 
 async function resolveCurrentZCodeEndpointOrigin(settingService: {
@@ -590,7 +604,7 @@ export async function executeDesktopCommand(options: {
       return;
     case DesktopCommandIds.CheckForUpdates:
       // 按产品身份而不是后端环境放行：生产后端的 Preview 同样没有更新器。
-      if (ZCODE_PRODUCT_FLAVOR === "production") {
+      if (PRODUCT_CAPABILITIES.vendorUpdates && ZCODE_PRODUCT_FLAVOR === "production") {
         checkForUpdateMenuClick(targetWindow);
       } else {
         options.logger.info("[auto-update] Preview 已禁用手动更新检查");
@@ -625,6 +639,7 @@ export async function executeDesktopCommand(options: {
       });
       return;
     case DesktopCommandIds.SetZCodeEndpointProduction:
+      requireProductCapability("vendorServices");
       await setZCodeEndpointOverride({
         value: DEFAULT_ZCODE_ENDPOINT_ORIGIN,
         settingService: options.settingService,
@@ -633,6 +648,7 @@ export async function executeDesktopCommand(options: {
       });
       return;
     case DesktopCommandIds.SetZCodeEndpointTest:
+      requireProductCapability("vendorServices");
       await setZCodeEndpointOverride({
         value: options.zcodeEndpointEnvBaseOrigin ?? resolveRuntimeZCodeEndpointOrigin(),
         settingService: options.settingService,
@@ -641,6 +657,7 @@ export async function executeDesktopCommand(options: {
       });
       return;
     case DesktopCommandIds.SetZCodeEndpointCustom: {
+      requireProductCapability("vendorServices");
       const current =
         (await options.settingService.get()).zcodeEndpointOrigin ?? DEFAULT_ZCODE_ENDPOINT_ORIGIN;
       const value = await promptCustomZCodeEndpoint(targetWindow, current);

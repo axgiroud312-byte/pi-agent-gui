@@ -7,6 +7,7 @@ import type {
   UserInfo,
 } from "@zcode/shared";
 import {
+  PRODUCT_CAPABILITIES,
   DesktopCommandIds,
   resolveProviderFamilyDomainFromOAuthProvider,
   ZCODE_JWT_INVALID_BROADCAST_CHANNEL,
@@ -126,6 +127,11 @@ export function useRootOAuthEffects({
   const oauthLoginSuccessOwnerRef = useRef<"polling" | "deep-link" | null>(null);
 
   useEffect(() => {
+    if (!PRODUCT_CAPABILITIES.vendorAccount) {
+      setUser(null);
+      setIsRestoringOAuthSession(false);
+      return;
+    }
     let disposed = false;
     async function restoreOAuthSessionInBackground() {
       logger.info("[Root] 后台启动 OAuth 本地会话恢复");
@@ -203,7 +209,11 @@ export function useRootOAuthEffects({
   useEffect(() => {
     let disposed = false;
     const disposable = services.broadcastService.onMessage((message) => {
-      if (message.channel !== ZCODE_JWT_INVALID_BROADCAST_CHANNEL || disposed) {
+      if (
+        !PRODUCT_CAPABILITIES.vendorAccount ||
+        message.channel !== ZCODE_JWT_INVALID_BROADCAST_CHANNEL ||
+        disposed
+      ) {
         return;
       }
       void (async () => {
@@ -235,7 +245,7 @@ export function useRootOAuthEffects({
   }, [intl, onReauthenticationRequired, platform, requestAlert, services.broadcastService]);
 
   useEffect(() => {
-    if (!oauthPollingActive) {
+    if (!PRODUCT_CAPABILITIES.vendorAccount || !oauthPollingActive) {
       return;
     }
     oauthLoginSucceededRef.current = false;
@@ -320,6 +330,7 @@ export function useRootOAuthEffects({
   ]);
 
   useEffect(() => {
+    if (!PRODUCT_CAPABILITIES.vendorAccount) return;
     const disposeOAuth = platform.onOAuthCallback(async (url) => {
       try {
         const result = await services.oauthService.handleCallback(url);

@@ -5,6 +5,7 @@ import {
   type ProviderSettingsFormProvider,
 } from "@/lib/providerSettingsFormTypes.js";
 import {
+  PRODUCT_CAPABILITIES,
   BIGMODEL_PROVIDER_ID,
   BUILTIN_MODEL_PROVIDER_IDS,
   DesktopCommandIds,
@@ -1083,11 +1084,11 @@ export function ModelProviderSection({
           })}
         </p>
       ) : null}
-      {templatePickerOpen ? (
+      {templatePickerOpen || (!PRODUCT_CAPABILITIES.vendorAccount && !loading && !selectedNavItem) ? (
         <ProviderTemplatePicker
           templates={providerTemplates}
           creating={creatingProvider}
-          onBack={() => setTemplatePickerOpen(false)}
+          onBack={selectedNavItem ? () => setTemplatePickerOpen(false) : undefined}
           onCreateFromTemplate={(templateId) => {
             return handleCreateProvider({ templateId });
           }}

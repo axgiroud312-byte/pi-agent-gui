@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  PRODUCT_CAPABILITIES,
   getModelProviderFamilySpec,
   type CodingPlanStaticTeamProduct,
   type EnterpriseCodingPlanPricingResponse,
@@ -85,7 +86,7 @@ function tagEnterpriseProductsFamily(
  * 缺省 family 时保持 bigmodel，向后兼容既有调用点。
  */
 export function useEnterpriseCodingPlanProducts({
-  enabled,
+  enabled: requestedEnabled,
   authenticated,
   family = "bigmodel",
   staticOnly = false,
@@ -96,6 +97,7 @@ export function useEnterpriseCodingPlanProducts({
   authenticated: boolean;
   family?: ProviderFamilyDomain;
 }) {
+  const enabled = PRODUCT_CAPABILITIES.vendorAccount && requestedEnabled;
   const services = useOptionalServices();
   const service = services?.codingPlanSubscriptionService;
   const codingPlanProviderId = getModelProviderFamilySpec(family).individualCodingPlanProviderId;
