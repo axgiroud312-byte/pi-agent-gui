@@ -41,7 +41,7 @@ jobs:
         run: node scripts/check-native-provenance.mjs
       - name: Provenance regression tests (Node only)
         if: ${{ !cancelled() }}
-        run: node --test scripts/test/native-provenance.test.mjs
+        run: node --test "scripts/test/native-provenance*.test.mjs"
       - name: Install the native workspace from its frozen lockfile
         id: install
         if: ${{ !cancelled() }}

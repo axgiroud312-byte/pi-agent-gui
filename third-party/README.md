@@ -24,6 +24,26 @@ node scripts/licenses.mjs notices --dependency-root "C:\path\to\matching-install
 
 It checks the project set, complete workspace manifests, root manifest, workspace configuration and lockfile, then compares the full locked and installed production graphs. It scans actual installed notice bytes. Different manifests, even branding-only differences, are rejected. Do not point this at the pre-branding installation after integrating branding. `pnpm ls` runs serially per workspace from the workspace root to avoid Windows `EMFILE` and the old nested CLI lockfile.
 
+## An existing Windows worktree after the attributes fix
+
+Changing `.gitattributes` does not necessarily rewrite existing files. Git's cached stat data can still describe the former CRLF checkout, even with a correct LF blob in the index. `git status` may look clean and `git checkout-index --force` may skip the file. `text: unset` preserves license bytes; the inherited `eol: lf` value does not override `-text`. Some original notices intentionally contain CRLF or mixed endings.
+
+For an existing worktree, run the targeted repair **before** generating new notices:
+
+```powershell
+node scripts/repair-native-provenance-bytes.mjs --root .
+node scripts/repair-native-provenance-bytes.mjs --root . --write
+node scripts/repair-native-provenance-bytes.mjs --root .
+# The second dry run should report repairCount: 0 and blocked: [].
+node scripts/licenses.mjs notices
+node scripts/check-native-provenance.mjs
+node scripts/licenses.mjs check
+```
+
+The default invocation is read-only and prints the absolute worktree, Git directory, index path, planned file hashes and conflicts. `--write` checks the entire plan before writing: pinned license/notice blobs must match their declared SHA-256, while copied source and patches come from the **current index**, retaining staged/committed branding. Working bytes must differ from those blobs only by CRLF/LF. Non-EOL local edits, missing files, unstaged metadata, symlinks, wrong license blobs or a conflicting Git environment stop repair. Writes use raw Git blob buffers, not normalized text. Only declared material/copied roots/patches are eligible; it does not stage changes, edit metadata or run build/smoke scripts. Regeneration afterward records legitimate source/brand changes separately.
+
+For the diagnosed `3cfeac7` integration, a fresh detached checkout plus the matching existing installation regenerated only three inventory hash values (desktop manifest and two records for `ZCodeAboutLogo.tsx`); the aggregate notice bytes stayed unchanged. Detailed hashes and reproduction results are in `docs/delivery/issue-32-ci-provenance.md`.
+
 ## What the checks establish
 
 - `check-native-provenance.mjs` is a dependency-free, offline source/material check. It checks committed notice bytes, recorded inputs, copied-source snapshots, hash-named upstream and native-search snapshots, Node license snapshots, embedded notice/build evidence and patches. It reports all missing/changed files and all outstanding material reviews.
