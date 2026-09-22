@@ -56,4 +56,5 @@
 - 文档包括product-goal、ADR0001、native-rebase-plan、native-ui-parity、reuse-inventory和next-context；AGENTS/README/来源资料已纠正旧组件拼装方向。
 - 检查：`node --check scripts/delivery.mjs`及覆盖/拓扑检查通过，`--publish --sync-managed`已真实同步30项记录。规格更新校验84故事和P/I矩阵SHA不变（仅路线、T19增强和交付顺序调整）。
 - 回读GitHub核对通过：30项均为#1原生子Issue，71条native blocking edges与本地一致；唯一OPEN且无阻塞票为#32；#33为OPEN/ready-for-human；#2/#30维持CLOSED。ESLint交付脚本通过，产品源码无改动。
+- 两轴文档审查：Standards通过；Spec发现#18遗留强制Monaco Diff与原生`@pierre/diffs`冲突，已改为原生组件的行为验收并保留全部Git要求，同步GitHub后复核。
 - 下一步：完成本轮文档/Issue一致性审查并提交推送。下一个实施上下文按next-context领取#32，原生对照完成后在#33暂停。

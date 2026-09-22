@@ -237,7 +237,7 @@
     "blockedBy": ["editor"],
     "outcome": "用户审阅真实 staged/unstaged/untracked Diff，评论代码位置，stage/unstage、commit、分支同步及解决冲突。",
     "decisions": ["调用真实 Git，工作区总改动不声称由某会话产生；保留已有 dirty tree。", "评论保存文件、范围和 base revision，过期锚点可见；索引和工作树分开。"],
-    "acceptance": ["状态和 Monaco 行级 Diff 准确覆盖未跟踪/重命名/二进制/冲突。", "文件/行级 stage/unstage、commit、branch、pull/push 有真实退出结果与失败恢复。", "评论能带版本定位发给 Agent；基准变更后显示过期。", "冲突可比较并保存解决，普通目录明确无 Git 能力，已有改动不被误删。"],
+    "acceptance": ["保留ZCode原生Diff组件和操作路径，状态与行级Diff准确覆盖未跟踪/重命名/二进制/冲突；确有能力缺口时最小增补并记录兼容差异，不强制替换为旧原型编辑器。", "文件/行级 stage/unstage、commit、branch、pull/push 有真实退出结果与失败恢复。", "评论能带版本定位发给 Agent；基准变更后显示过期。", "冲突可比较并保存解决，普通目录明确无 Git 能力，已有改动不被误删。"],
     "tests": ["真实临时 Git repo + bare remote 测试 dirty tree、索引、提交同步、冲突。", "Electron Diff/评论/提交 E2E。"]
   },
   {
