@@ -5,6 +5,7 @@
 import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { homedir } from "node:os";
+import { getApplicationProfileHome } from "@zcode/shared/node";
 import type {
   CliMcpSource,
   LoadCliMcpFromUserDirectoryRequest,
@@ -74,7 +75,10 @@ function buildDirectoryConfigPath(
   scope: Exclude<McpScope, "common">,
   workspacePath?: string,
 ): string {
-  const baseDir = scope === "user" ? resolveUserHomeDir() : workspacePath;
+  const home = resolveUserHomeDir();
+  const baseDir = scope === "user"
+    ? descriptor.directorySource === "zcode" ? getApplicationProfileHome(home) : home
+    : workspacePath;
   if (!baseDir) {
     throw new Error(
       `Missing workspace path for ${descriptor.directorySource} workspace MCP config`,

@@ -7,6 +7,7 @@ import { homedir, uptime } from "node:os";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import type { WorkspaceHookTrustRecord, WorkspaceHookTrustStoreFile } from "@zcode/contracts";
+import { expandApplicationTilde, getApplicationProfileHome } from "@zcode/shared/node";
 import {
   WORKSPACE_HOOK_TRUST_STORE_SCHEMA_VERSION,
   workspaceHookTrustRecordSchema,
@@ -132,12 +133,12 @@ export async function resolveWorkspaceHookTrustStorePath(
 ): Promise<string> {
   const home = resolve(options.homeDir ?? homedir());
   const userConfigPath = resolve(
-    options.userConfigPath ?? join(home, ".zcode", "cli", "config.json"),
+    options.userConfigPath ?? join(getApplicationProfileHome(home), ".zcode", "cli", "config.json"),
   );
   const config = await readUserConfig(userConfigPath);
   const storage = isRecord(config.storage) ? config.storage : {};
   const configured = typeof storage.dir === "string" ? storage.dir.trim() : "";
-  const storageRoot = configured ? resolveTrustedUserPath(configured, home) : join(home, ".zcode");
+  const storageRoot = configured ? resolveTrustedUserPath(configured, home) : join(getApplicationProfileHome(home), ".zcode");
   return join(storageRoot, SECURITY_DIRECTORY, TRUST_STORE_FILE);
 }
 
@@ -541,7 +542,7 @@ async function readUserConfig(path: string): Promise<Record<string, unknown>> {
 }
 
 function resolveTrustedUserPath(path: string, home: string): string {
-  if (path.startsWith("~/")) return join(home, path.slice(2));
+  if (path.startsWith("~/")) return expandApplicationTilde(path, home);
   if (isAbsolute(path)) return resolve(path);
   // 安全原因：user config 中的相对 storage.dir 绑定用户目录，不能随 workspace cwd 漂移。
   return resolve(home, path);

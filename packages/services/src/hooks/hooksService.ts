@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
+import { expandApplicationTilde, getApplicationProfileHome } from "@zcode/shared/node";
 import type {
   Hook,
   HookEvent,
@@ -56,7 +57,7 @@ function resolveUserHomeDir(): string {
 function getRootDir(source: SettingsDirectorySource, workspacePath?: string): string {
   const baseDir = workspacePath ?? resolveUserHomeDir();
   if (source === "zcode") {
-    return workspacePath ? join(baseDir, ".zcode") : join(baseDir, ".zcode", "cli");
+    return workspacePath ? join(baseDir, ".zcode") : join(getApplicationProfileHome(baseDir), ".zcode", "cli");
   }
   return join(baseDir, source === "agents" ? ".agents" : ".claude");
 }
@@ -161,11 +162,11 @@ async function readPersistentWorkspaceHookTrustDigests(
   const home = resolveUserHomeDir();
   const storageRoot = configured
     ? configured.startsWith("~/")
-      ? join(home, configured.slice(2))
+      ? expandApplicationTilde(configured, home)
       : isAbsolute(configured)
         ? resolve(configured)
         : resolve(home, configured)
-    : join(home, ".zcode");
+    : join(getApplicationProfileHome(home), ".zcode");
   const trustFilePath = join(storageRoot, "security", "workspace-hook-trust-v1.json");
 
   // 异步读取 + ENOENT 区分：不用 existsSync 预检——同步调用会阻塞服务

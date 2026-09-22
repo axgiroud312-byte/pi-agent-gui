@@ -350,7 +350,11 @@ export function createSystemService(options: CreateSystemServiceOptions = {}): I
 
   return {
     async info(): Promise<SystemInfo> {
-      return { homedir: homedir(), platform: process.platform };
+      return {
+        homedir: homedir(),
+        platform: process.platform,
+        ...(env.ZCODE_DESKTOP_PROFILE_HOME ? { profileHome: env.ZCODE_DESKTOP_PROFILE_HOME } : {}),
+      };
     },
 
     async listIntegratedTerminalShells(): Promise<IntegratedTerminalShellOption[]> {

@@ -260,7 +260,9 @@ node apps/zcode-cli/test/run-product-policy.mjs
 - `git diff --check` 通过。未运行整仓 typecheck、Agent/desktop 构建或产品 E2E。主分支仍需执行完整 `pnpm --dir apps/zcode-cli lint` 并处理/登记以上基线检查阻塞，重新构建 Agent 与 renderer，再通过 guarded external-open smoke 验证反馈点击。
 - 本轮未改 `packages/shared/src/product.test.mjs`、主分支的新 `shared/test` 路径或 provider readonly-cache 修复。#33 保持未确认。
 
-## 默认桌面数据身份隔离合同
+## 4b43635 数据隔离方案与历史验证（已被独立审查否决）
+
+**不要按本节旧 HOME 改写方案继续实施。** 它的单入口测试没有覆盖生产多入口 ESM chunk 求值顺序，并破坏执行 HOME 与凭据/历史迁移。当前权威合同见 [desktop-profile-contract.md](desktop-profile-contract.md)。以下记录仅保留为失败方案的轨迹。
 
 已观察到旧 early bootstrap 先读取真实 HOME 的 `.zcode/v2/setting.json`，且 whenReady 再以其 dataBaseDir 覆盖环境变量，导致正常 Pi 启动可能读取/修改原版设置与调度库。本修正属于产品身份（允许差异 1），不是 Pi #34。
 
@@ -300,3 +302,15 @@ Windows / Node 24.14.0，在预批准临时目录内执行：
 4. 定向根 lint：8 files，**0 errors / 6 处 main/index.ts 原有 unused warnings**；CLI 目录单独检查修改的测试运行器：1 file、0 warnings / 0 errors；`git diff --check` 通过。
 
 这些子进程验证的是原生路径/设置/配置合同，不是 Electron host/scheduler 循环或 Agent app-server 启动验收。本工作树未安装依赖、未执行完整 typecheck/桌面/Agent 构建，未触碰真实用户 HOME。主分支需重建 main/host/scheduler 后，以默认启动环境和既有隔离 harness 分别补做 Electron smoke；实际机器正常启动会创建新的 Pi profile，不导入原版状态。`appCrashCaptureBootstrap.ts`、provider readonly-cache、shared 测试迁移路径和 #33 状态均未修改。
+
+## 替代 4b43635：稳定应用目录、真实生产启动边界
+
+当前实现、目录合同、源码映射、实际检查和集成步骤统一见 [desktop-profile-contract.md](desktop-profile-contract.md)。本节覆盖上述失败方案：
+
+- `package.main` 改为独立、无拆包的 `out/bootstrap.mjs`，先计算并写入应用环境，再间接动态导入原生 main；生产四入口的拆包行为保留。
+- 新增唯一应用锚点 `ZCODE_DESKTOP_PROFILE_HOME`；不改写执行 HOME/USERPROFILE/OS-test-home。设置和 Agent 历史/资源固定在 profile；活动 v2 数据目录按显式 env → Pi 设置 → profile 选择。
+- 原生 v2 迁移继续复制加密凭据；密钥使用的执行 HOME 不变。版本化 relaunch 参数区分原始调用者覆盖和内部计算值，数据目录变更后可正确重读设置。
+- 路径审查补齐 CLI 用户指令/命令/技能/hook-trust/workflow，以及诊断日志、资源管理器扫描等原版目录 fallback；普通 `~/`、`.agents`、Git/SSH 和工程内资源保持原生含义。
+- 实际通过 **22 项聚焦测试**、真实 tsup 生产 bootstrap/四入口 main 构建与 **17 个共享 chunk** 检查；新增边界代码的独立类型检查通过。真实加密凭据和 SQLite 历史已验证迁移、重启及恢复默认后的可读性。
+- 全量类型检查、全量 lint 仍有依赖/既有基线阻塞；完整 Electron 默认启动回归尚待集成 prepared-app 执行。详见合同中的逐条结果，不能沿用单入口测试宣称生产已通过。
+- `scripts/native-smoke/bootstrap.cjs` 集成时会有 add/add 冲突，只合并 package.main discovery 和 parity fixture profile 锚点。CI 与完整产物重建由集成分支接续；#32/#33 保持开启。

@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
+import { expandApplicationTilde, getApplicationProfileHome } from "@zcode/shared/node";
 
 const HOME_PREFIX = "~/";
 
@@ -40,7 +41,7 @@ export async function resolveZCodeStorageRoot(options?: SubagentStorageOptions):
 
 export function resolveConfigPath(path: string, options?: SubagentStorageOptions): string {
   const expanded = path.startsWith(HOME_PREFIX)
-    ? join(resolveUserHomeDir(options), path.slice(HOME_PREFIX.length))
+    ? expandApplicationTilde(path, resolveUserHomeDir(options))
     : path;
   return isAbsolute(expanded) ? expanded : resolve(expanded);
 }
@@ -50,7 +51,7 @@ async function readUserCliConfig(
 ): Promise<Record<string, unknown>> {
   try {
     const raw = await readFile(
-      join(resolveUserHomeDir(options), ".zcode", "cli", "config.json"),
+      join(getApplicationProfileHome(resolveUserHomeDir(options)), ".zcode", "cli", "config.json"),
       "utf8",
     );
     const parsed = JSON.parse(raw) as unknown;

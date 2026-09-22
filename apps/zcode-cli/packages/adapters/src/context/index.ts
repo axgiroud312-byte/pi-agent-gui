@@ -6,6 +6,7 @@ import { readFile, stat } from "node:fs/promises";
 import { arch, homedir, release } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { formatLocalIsoDate } from "@zcode/contracts";
+import { getApplicationProfileHome } from "@zcode/shared/node";
 import type {
   ContextSourceDiagnostic,
   ContextSourcePort,
@@ -234,7 +235,7 @@ async function findDefaultUserInstructionFile(
     return undefined;
   }
 
-  const filePath = join(resolveUserHomeDir(env), ".zcode", "AGENTS.md");
+  const filePath = join(getApplicationProfileHome(resolveUserHomeDir(env), env), ".zcode", "AGENTS.md");
   if (await isFile(filePath)) {
     return { filePath, fileName: "AGENTS.md" };
   }

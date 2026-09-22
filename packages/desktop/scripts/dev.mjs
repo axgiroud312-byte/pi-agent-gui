@@ -8,11 +8,14 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { prepareDevElectronAppBundle } from "./devElectronAppBundle.mjs";
 
 const root = resolve(import.meta.dirname, "..");
-const mainBundle = resolve(root, "out/main/index.js");
+const { main } = JSON.parse(await readFile(resolve(root, "package.json"), "utf8"));
+const mainBundle = resolve(root, main);
 const buildReadyMarkers = [
+  { name: "bootstrap", path: resolve(root, "out/.bootstrap-build-ready") },
   { name: "main", path: resolve(root, "out/.main-build-ready") },
   { name: "host", path: resolve(root, "out/.host-build-ready") },
   { name: "preload", path: resolve(root, "out/.preload-build-ready") },
+  { name: "scheduler", path: resolve(root, "out/.scheduler-build-ready") },
 ];
 const waitLogIntervalMs = 3_000;
 const require = createRequire(import.meta.url);

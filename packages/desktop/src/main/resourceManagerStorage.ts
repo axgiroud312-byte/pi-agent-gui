@@ -5,9 +5,9 @@
  * 而扫盘只是 fs 遍历，跑在 worker_threads 里不会阻塞 main 事件循环。
  */
 import { BrowserWindow, ipcMain, shell, type IpcMainInvokeEvent, type WebContents } from "electron";
-import { homedir } from "node:os";
 import { isAbsolute, relative, resolve } from "node:path";
 import { PlatformChannels, type StorageCleanRequest, type StorageRootSpec } from "@zcode/shared";
+import { getApplicationProfileHome } from "@zcode/shared/node";
 import {
   createFsStorageCleaner,
   createStorageRootsResolver,
@@ -21,7 +21,7 @@ import { createStorageScanWorkerRunner } from "./storageScanWorkerClient.js";
 let service: IStorageService | null = null;
 let latestJobId: string | null = null;
 let subscriber: WebContents | null = null;
-const rootsResolver = createStorageRootsResolver({ getHomeDir: homedir, getDataBaseDir });
+const rootsResolver = createStorageRootsResolver({ getHomeDir: getApplicationProfileHome, getDataBaseDir });
 
 function getService(): IStorageService {
   if (service) return service;

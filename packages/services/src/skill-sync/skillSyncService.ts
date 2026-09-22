@@ -4,6 +4,7 @@ import { existsSync } from "node:fs";
 import { cp, lstat, mkdir, readFile, readdir, realpath, rm, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join, relative } from "node:path";
+import { getApplicationProfileHome } from "@zcode/shared/node";
 import { parse as parseYaml } from "yaml";
 import type {
   SkillSyncArchiveExportResult,
@@ -131,7 +132,7 @@ function resolveUserHomeDir(): string {
 }
 
 function getUserZcodeSkillRoot(): string {
-  return join(resolveUserHomeDir(), ".zcode", "skills");
+  return join(getApplicationProfileHome(resolveUserHomeDir()), ".zcode", "skills");
 }
 
 function getUserAgentsSkillRoot(): string {

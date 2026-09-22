@@ -6,6 +6,8 @@ import { test } from "node:test";
 import {
   applyDesktopProductProfile,
   buildDesktopProfileRuntimeEnv,
+  initializeDesktopProductProfile,
+  installDesktopProfileRelaunch,
   resolveDesktopProductProfile,
   resolveDesktopSettingsFile,
 } from "../src/main/desktopProductProfile.ts";
@@ -44,17 +46,20 @@ test("default desktop reads only the Pi profile, ignoring a legacy redirect sent
 test("explicit data base wins before any bootstrap read, including conflicting desktop HOME", async (t) => {
   const home = await fixture(t);
   const env = { HOME: home, ZCODE_DESKTOP_HOME_DIR: home, ZCODE_DATA_BASE_DIR: " ./explicit " };
+  const reads = [];
   const profile = resolveDesktopProductProfile({
     env,
     homePath: home,
     cwd: home,
-    readSettings() { assert.fail("explicit base must not consult persisted redirects"); },
+    readSettings(file) { reads.push(file); return JSON.stringify({ dataBaseDir: home }); },
   });
+  assert.deepEqual(reads, [], "explicit base must not consult persisted redirects");
   assert.equal(profile.dataBaseDir, resolve(home, "explicit"));
-  assert.equal(profile.settingsHome, profile.dataBaseDir);
+  assert.equal(profile.settingsHome, join(home, ".pi-agent-ide"));
   applyDesktopProductProfile(profile, env);
   assert.equal(env.ZCODE_DATA_BASE_DIR, profile.dataBaseDir);
-  assert.equal(env.HOME, profile.dataBaseDir);
+  assert.equal(env.HOME, home);
+  assert.equal(env.ZCODE_DESKTOP_HOME_DIR, home);
   assert.equal(resolveDesktopSettingsFile(env), profile.settingsFile);
 });
 
@@ -68,13 +73,23 @@ test("Pi custom data directory restores while settings remain at the stable Pi a
   const profile = resolveDesktopProductProfile({ env, homePath: home });
   assert.equal(profile.dataBaseDir, custom);
   applyDesktopProductProfile(profile, env);
-  assert.equal(env.ZCODE_DESKTOP_HOME_DIR, anchor);
-  assert.equal(env.ZCODE_DATA_BASE_DIR, undefined, "computed main root must not become an explicit override on relaunch");
+  assert.equal(env.ZCODE_DESKTOP_PROFILE_HOME, anchor);
+  assert.equal(env.HOME, home);
+  assert.equal(env.USERPROFILE, home);
+  assert.equal(env.ZCODE_DATA_BASE_DIR, custom, "computed root must be set before shared chunks evaluate");
   assert.equal(resolveDesktopSettingsFile(env), file);
   await setting(file, { dataBaseDir: join(home, "next-data") });
-  const relaunched = resolveDesktopProductProfile({ env, homePath: home });
+  let restart;
+  const app = { relaunch: (options) => { restart = options; } };
+  installDesktopProfileRelaunch(app, profile, ["electron", "app"]);
+  app.relaunch();
+  const relaunched = initializeDesktopProductProfile(env, ["electron", ...restart.args]);
   assert.equal(relaunched.dataBaseDir, join(home, "next-data"));
   assert.equal(relaunched.settingsHome, anchor);
+  assert.equal(env.ZCODE_DATA_BASE_DIR, relaunched.dataBaseDir);
+  // A caller changing the env between launches must not be overridden by the old marker.
+  env.ZCODE_DATA_BASE_DIR = join(home, "caller-new-root");
+  assert.equal(initializeDesktopProductProfile(env, ["electron", ...restart.args]).dataBaseDir, env.ZCODE_DATA_BASE_DIR);
 });
 
 test("invalid/blank Pi settings stay in profile; persisted relative paths use its anchor", async (t) => {
@@ -97,13 +112,40 @@ test("host/scheduler and inherited Agent storage receive the same absolute root"
     HOME: home, USERPROFILE: home, ZCODE_DATA_BASE_DIR: home,
     ...buildDesktopProfileRuntimeEnv(base, anchor),
   };
-  assert.equal(env.HOME, base);
-  assert.equal(env.USERPROFILE, base);
+  assert.equal(env.HOME, home);
+  assert.equal(env.USERPROFILE, home);
   assert.equal(env.ZCODE_DATA_BASE_DIR, base);
-  assert.equal(env.ZCODE_DESKTOP_HOME_DIR, anchor);
-  assert.equal(env.ZCODE_STORAGE_DIR, join(base, ".zcode"));
+  assert.equal(env.ZCODE_DESKTOP_PROFILE_HOME, anchor);
+  assert.equal(env.ZCODE_STORAGE_DIR, join(anchor, ".zcode"));
   assert.equal(env.ZCODE_HOME, env.ZCODE_STORAGE_DIR);
-  assert.equal(env.ZCODE_LOG_DIR, join(base, ".zcode", "cli", "log"));
-  assert.equal(env.ZCODE_SESSION_DB_PATH, join(base, ".zcode", "cli", "db", "db.sqlite"));
+  assert.equal(env.ZCODE_LOG_DIR, join(anchor, ".zcode", "cli", "log"));
+  assert.equal(env.ZCODE_SESSION_DB_PATH, join(anchor, ".zcode", "cli", "db", "db.sqlite"));
   assert.equal(env.ZCODE_SESSION_DB, env.ZCODE_SESSION_DB_PATH);
+});
+
+test("explicit app anchor normalizes independently of OS/test HOME and movable data root", async (t) => {
+  const home = await fixture(t);
+  const env = { HOME: home, USERPROFILE: home, ZCODE_DESKTOP_HOME_DIR: join(home, "os-test-home"),
+    ZCODE_DESKTOP_PROFILE_HOME: " ./app-profile ", ZCODE_DATA_BASE_DIR: " ./movable-v2 " };
+  const profile = resolveDesktopProductProfile({ env, cwd: home });
+  applyDesktopProductProfile(profile, env);
+  assert.equal(env.ZCODE_DESKTOP_PROFILE_HOME, join(home, "app-profile"));
+  assert.equal(env.ZCODE_DATA_BASE_DIR, join(home, "movable-v2"));
+  assert.equal(env.ZCODE_DESKTOP_HOME_DIR, join(home, "os-test-home"));
+  assert.equal(env.HOME, home);
+  assert.equal(env.USERPROFILE, home);
+  assert.equal(profile.settingsFile, join(home, "app-profile", ".zcode/v2/setting.json"));
+});
+
+test("malformed, relative and duplicate relaunch markers fail before changing the environment", async (t) => {
+  const home = await fixture(t);
+  const prefix = "--pi-desktop-profile-relaunch=";
+  for (const value of ["broken", null, {}, { version: 2, derivedDataBaseDir: home, explicitDataBaseDir: null },
+    { version: 1, derivedDataBaseDir: "relative", explicitDataBaseDir: null },
+    { version: 1, derivedDataBaseDir: home, explicitDataBaseDir: "relative" }]) {
+    const env = { HOME: home };
+    assert.throws(() => initializeDesktopProductProfile(env, ["electron", prefix + encodeURIComponent(JSON.stringify(value))]));
+    assert.deepEqual(env, { HOME: home });
+  }
+  assert.throws(() => initializeDesktopProductProfile({ HOME: home }, ["electron", prefix, prefix]), /Multiple/);
 });

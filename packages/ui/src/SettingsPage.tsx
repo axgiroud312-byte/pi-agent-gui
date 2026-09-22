@@ -802,7 +802,7 @@ export function SettingsPage({
     localHostServices.systemService
       .info()
       .then((info) => {
-        setDefaultHomeDir(info.homedir);
+        setDefaultHomeDir(info.profileHome ?? info.homedir);
         setHostPlatform(info.platform);
         if (info.platform !== "win32") {
           setIntegratedTerminalShellOptions([]);

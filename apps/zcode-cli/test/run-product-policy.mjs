@@ -17,7 +17,7 @@ const sourceFile = (base) =>
     (candidate) => candidate.endsWith(".ts") && existsSync(candidate),
   );
 
-function external(specifier, importer) {
+export function external(specifier, importer) {
   const parents = [
     importer,
     ...dependencyPaths.map((path) => join(dirname(path), relative(root, importer))),
@@ -31,10 +31,10 @@ function external(specifier, importer) {
   }
   return require.resolve(specifier);
 }
-function workspace(specifier) {
+export function workspace(specifier) {
   const [name, ...rest] = specifier.slice("@zcode/".length).split("/");
   for (const base of [join(root, "packages", name), join(root, "apps/zcode-cli/packages", name)]) {
-    const direct = sourceFile(join(base, "src", rest.join("/") || "index"));
+    const direct = sourceFile(join(base, "src", rest.join("/").replace(/\.js$/, "") || "index"));
     if (direct) return direct;
     if (!existsSync(join(base, "package.json"))) continue;
     const entry = JSON.parse(readFileSync(join(base, "package.json"), "utf8")).exports?.[
@@ -50,49 +50,55 @@ function workspace(specifier) {
   throw new Error(`No native source for ${specifier}`);
 }
 
-const directory = await mkdtemp(join(tmpdir(), "pi-product-policy-tests-"));
-try {
-  const outfile = join(directory, "contracts.mjs");
-  await build({
-    entryPoints: [process.argv[2]
-      ? resolve(process.argv[2])
-      : fileURLToPath(new URL("product-marketplace.test.mjs", import.meta.url))],
-    outfile,
-    bundle: true,
-    platform: "node",
-    format: "esm",
-    target: "node24",
-    banner: {
-      js: "import { createRequire as __testRequire } from 'node:module'; const require = __testRequire(import.meta.url);",
-    },
-    plugins: [
-      {
-        name: "native-source-and-installed-dependencies",
-        setup(builder) {
-          builder.onResolve({ filter: /^@zcode\// }, ({ path }) => ({ path: workspace(path) }));
-          builder.onResolve({ filter: /^[^./]/ }, ({ path, importer }) => {
-            if (isAbsolute(path)) return undefined;
-            if (isBuiltin(path)) return { path, external: true };
-            if (path.startsWith("@zcode/")) return undefined;
-            if (path.startsWith("#")) return undefined;
-            return { path: pathToFileURL(external(path, importer)).href, external: true };
-          });
-          builder.onResolve({ filter: /^\.\/libs\.generated\.js$/ }, ({ importer }) => {
-            const base = join(dirname(importer), "libs.generated");
-            const path = sourceFile(base) ?? dependencyPaths
-              .map((dependency) => sourceFile(join(dirname(dependency), relative(root, base))))
-              .find(Boolean);
-            // Generated TypeScript standard-library text may be borrowed; all app logic stays local.
-            if (!path) throw new Error("Run dynamic-workflow/scripts/generate-libs.mjs first");
-            return { path };
-          });
-        },
+export async function runSourceContracts(entry = process.argv[2]) {
+  const directory = await mkdtemp(join(tmpdir(), "pi-product-policy-tests-"));
+  try {
+    const outfile = join(directory, "contracts.mjs");
+    await build({
+      entryPoints: [entry
+        ? resolve(entry)
+        : fileURLToPath(new URL("product-marketplace.test.mjs", import.meta.url))],
+      outfile,
+      bundle: true,
+      platform: "node",
+      format: "esm",
+      target: "node24",
+      banner: {
+        js: "import { createRequire as __testRequire } from 'node:module'; const require = __testRequire(import.meta.url);",
       },
-    ],
-  });
-  const result = spawnSync(process.execPath, ["--test", outfile], { stdio: "inherit" });
-  if (result.error) throw result.error;
-  process.exitCode = result.status ?? 1;
-} finally {
-  await rm(directory, { recursive: true, force: true });
+      plugins: [
+        {
+          name: "native-source-and-installed-dependencies",
+          setup(builder) {
+            builder.onResolve({ filter: /^@zcode\// }, ({ path }) => ({ path: workspace(path) }));
+            builder.onResolve({ filter: /^[^./]/ }, ({ path, importer }) => {
+              if (isAbsolute(path)) return undefined;
+              if (isBuiltin(path)) return { path, external: true };
+              if (path.startsWith("@zcode/")) return undefined;
+              if (path.startsWith("#")) return undefined;
+              return { path: pathToFileURL(external(path, importer)).href, external: true };
+            });
+            builder.onResolve({ filter: /^\.\/libs\.generated\.js$/ }, ({ importer }) => {
+              const base = join(dirname(importer), "libs.generated");
+              const path = sourceFile(base) ?? dependencyPaths
+                .map((dependency) => sourceFile(join(dirname(dependency), relative(root, base))))
+                .find(Boolean);
+              // Generated TypeScript standard-library text may be borrowed; all app logic stays local.
+              if (!path) throw new Error("Run dynamic-workflow/scripts/generate-libs.mjs first");
+              return { path };
+            });
+          },
+        },
+      ],
+    });
+    const result = spawnSync(process.execPath, ["--test", outfile], { stdio: "inherit" });
+    if (result.error) throw result.error;
+    process.exitCode = result.status ?? 1;
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  await runSourceContracts();
 }

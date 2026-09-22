@@ -4,7 +4,7 @@
   "description": "Pi Agent IDE — native desktop workbench",
   "author": "Pi Agent IDE contributors",
   "type": "module",
-  "main": "out/main/index.js",
+  "main": "out/bootstrap.mjs",
   "scripts": {
     "pre-dev": "node scripts/ensure-local-runtime-assets.mjs && node -e \"require('node:fs').rmSync('./out',{recursive:true,force:true})\"",
     "dev": "node ../../scripts/dev-desktop-env.mjs production",

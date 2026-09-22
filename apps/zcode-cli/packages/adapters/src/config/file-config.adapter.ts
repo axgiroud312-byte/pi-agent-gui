@@ -10,6 +10,7 @@ import {
 import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
+import { expandApplicationTilde } from "@zcode/shared/node";
 import type { RuntimeConfigPatch, UiLocale } from "@zcode/contracts";
 import { z } from "zod";
 import {
@@ -66,7 +67,7 @@ const DEFAULT_BASE_DIR = "~/.zcode/cli";
  */
 export function resolvePath(path: string): string {
   if (path.startsWith("~/")) {
-    return join(homedir(), path.slice(2));
+    return expandApplicationTilde(path, homedir());
   }
   return resolve(path);
 }

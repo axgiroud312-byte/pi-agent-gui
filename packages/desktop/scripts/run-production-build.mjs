@@ -13,6 +13,9 @@ export function resolveDesktopBuildCwd() {
 
 export function resolveDesktopProductionCleanPaths(cwd) {
   return [
+    resolve(cwd, "out/bootstrap.mjs"),
+    resolve(cwd, "out/bootstrap.mjs.map"),
+    resolve(cwd, "out/.bootstrap-build-ready"),
     resolve(cwd, "out/main"),
     resolve(cwd, "out/host"),
     resolve(cwd, "out/preload"),

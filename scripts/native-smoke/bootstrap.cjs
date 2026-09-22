@@ -1,5 +1,6 @@
 const { app, dialog, shell, utilityProcess } = require('electron');
 const { join } = require('node:path');
+const { readFileSync } = require('node:fs');
 const { pathToFileURL } = require('node:url');
 const allowed = new Set(['PATH', 'SYSTEMROOT', 'WINDIR', 'PATHEXT', 'COMSPEC', 'TEMP', 'TMP',
   'HOME', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'NODE_OPTIONS']);
@@ -8,6 +9,8 @@ for (const key of Object.keys(process.env)) {
 }
 const { record } = require('./guard.cjs');
 const home = process.env.HOME;
+// This controlled parity fixture deliberately pins app data; the default-entry regression does not.
+process.env.ZCODE_DESKTOP_PROFILE_HOME ??= home;
 const fork = utilityProcess.fork.bind(utilityProcess);
 utilityProcess.fork = (modulePath, args, options = {}) => {
   const child = fork(join(__dirname, 'utility-bootstrap.cjs'), [modulePath, ...(args ?? [])], { ...options,
@@ -42,7 +45,8 @@ app.on('session-created', ses => {
     callback({ cancel });
   });
 });
-// Do not await ready: the application's own early Electron initialization must run normally.
-import(pathToFileURL(join(app.getAppPath(), 'out/main/index.js')).href).catch(error => {
+// Do not await ready, and do not bypass the actual production package entry.
+const { main } = JSON.parse(readFileSync(join(app.getAppPath(), 'package.json'), 'utf8'));
+import(pathToFileURL(join(app.getAppPath(), main)).href).catch(error => {
   console.error(error); app.exit(1);
 });

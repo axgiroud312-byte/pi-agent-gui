@@ -4,6 +4,7 @@ import { dirname, resolve } from "node:path";
 const root = resolve(import.meta.dirname, "..");
 const target = process.argv[2];
 const readyMarkerNames = {
+  bootstrap: ".bootstrap-build-ready",
   main: ".main-build-ready",
   host: ".host-build-ready",
   preload: ".preload-build-ready",

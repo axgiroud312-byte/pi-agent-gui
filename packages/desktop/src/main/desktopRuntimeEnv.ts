@@ -560,7 +560,7 @@ export function buildHostProcessEnv(hostProcessLocalEnv: Record<string, string>)
     [ZCODE_APP_VERSION_ENV]: ZCODE_VERSION,
     ...buildDesktopProfileRuntimeEnv(
       dataBaseDir,
-      process.env.ZCODE_DESKTOP_HOME_DIR?.trim() || dataBaseDir,
+      process.env.ZCODE_DESKTOP_PROFILE_HOME?.trim() || dataBaseDir,
     ),
     ...(windowsAppInstallDir ? { [ZCODE_WINDOWS_APP_INSTALL_DIR_ENV]: windowsAppInstallDir } : {}),
     ...(bundledCuaHelperAppPath

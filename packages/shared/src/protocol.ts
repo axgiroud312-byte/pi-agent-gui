@@ -68,6 +68,8 @@ export interface WorkspaceFileEntry {
 
 export interface SystemInfo {
   homedir: string;
+  /** Desktop application settings anchor; distinct from execution homedir. */
+  profileHome?: string;
   platform: string;
 }
 

@@ -1,5 +1,5 @@
 /* eslint-disable max-lines */
-import "./desktopEarlyDataBaseDirBootstrap.js";
+// package.main selects the profile before dynamically importing this split module graph.
 import { createLocalTtftExporter } from "./localTtftExporter.js";
 import { resolveDesktopSettingsFile } from "./desktopProductProfile.js";
 import "./desktopEarlyChromiumHardwareAccelerationBootstrap.js";

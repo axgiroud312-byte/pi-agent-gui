@@ -2,6 +2,7 @@ import { stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import type { SkillRoot, SkillSource } from "@zcode/contracts";
+import { expandApplicationTilde, getApplicationProfileHome } from "@zcode/shared/node";
 
 const GIT_MARKER = ".git";
 const HOME_PREFIX = "~/";
@@ -99,7 +100,7 @@ function skillRootsForBase(
   // 合并而不是 fallback：用户可能同时安装原生 `.zcode` skill 和兼容 `.agents` skill。
   // 同一级别仍保持 `.zcode` 优先，后续同名按 root 顺序解析。
   return [
-    root(join(baseDirectory, ZCODE_DIR, SKILLS_DIR), scope, "zcode", nextPriority()),
+    root(join(scope === "user" ? getApplicationProfileHome(baseDirectory) : baseDirectory, ZCODE_DIR, SKILLS_DIR), scope, "zcode", nextPriority()),
     root(join(baseDirectory, AGENTS_DIR, SKILLS_DIR), scope, "agents", nextPriority()),
   ];
 }
@@ -120,7 +121,7 @@ function root(
 
 function resolveConfiguredRoot(path: string, workingDirectory: string): string {
   const expanded = path.startsWith(HOME_PREFIX)
-    ? join(homedir(), path.slice(HOME_PREFIX.length))
+    ? expandApplicationTilde(path, homedir())
     : path;
   return isAbsolute(expanded) ? expanded : resolve(workingDirectory, expanded);
 }
