@@ -1,6 +1,8 @@
 # #32 原生底座验收与 #33 用户检查材料
 
-日期：2026-09-22。固定上游 ZCode `872ad960de7ec172591f7e1952f7849229f94521`；本轮完成的是原生底座、品牌/厂商入口处理及运行对照。**Pi 适配 #34 未开始，#33 尚待用户确认。**
+更新日期：2026-09-23。固定上游 ZCode `872ad960de7ec172591f7e1952f7849229f94521`；本轮完成的是原生底座、品牌/厂商入口处理及运行对照。**Pi 适配 #34 未开始，#33 尚待用户确认。**
+
+最新本地产物与26对图集来自 `0de01e26b86f7bc2ed023623516a0907f848819d`，已包含独立启动器、保留执行 HOME 的数据隔离及全局工作流修复。该版本的独立 Standards / Spec 审查均 PASS、无剩余可操作发现，[Windows PR CI 35795351582](https://github.com/axgiroud312-byte/pi-agent-gui/actions/runs/35795351582) 全部通过（含生产默认入口和真实GUI/清理）。后续证据提交不改变此源码/产物；合并状态及最新HEAD检查以 [PR #37](https://github.com/axgiroud312-byte/pi-agent-gui/pull/37) 为准。
 
 ## 查看与启动
 
@@ -29,11 +31,16 @@
 | 原生运行资产 | 原 Agent bundle、插件运行资源、Windows ugrep/ripgrep 准备成功 |
 | 原生生产构建 | 原版、品牌后产品均通过；Vite 8.0.8 / tsup 8.5.1 / Electron 41.0.3，无降级 |
 | `pnpm typecheck` | 通过；修复测试跨 composite 边界引入的 TS5055 |
+| CLI typecheck | `pnpm exec pnpm --dir apps/zcode-cli typecheck --concurrency=1`，27个任务通过 |
+| CLI lint 导入基线 | 17包/14脚本全量核对通过；86个有界上游max-lines、53warnings，raw exit1如实保留。GitHub Actions真实格式回归及其余防绕过测试共17项通过 |
 | `pnpm lint` | 通过，0 errors；70 条上游/既有 warnings 如实保留，历史原型归档不按新工程规则编译/lint |
 | `pnpm architecture:check` | 通过，0 violations |
 | 原生服务/UI测试 | 原有服务10项、UI6项通过；新增个人目录 provider-cache 回归1项通过 |
 | 品牌服务边界测试 | 7通过 |
 | 来源/字节修复回归 | 20通过 |
+| 桌面profile策略/守卫 | 8通过；真实Git/SSH/终端、凭据和历史迁移合同另4项通过 |
+| 全局工作流隔离 | 4通过：真实SaveWorkflow、GUI操作函数、读/改/删/移动及运行前解析；旧目录访问0次，哨兵字节不变，独立CLI及project scope保留 |
+| 真实生产默认入口 | 完整原生生产构建的 `out/bootstrap.mjs` → 17个shared chunks，实际Electron/host启动通过；没有显式数据根覆盖，真实SDK getter为Pi目录，执行HOME保持不变 |
 | 来源检查 | 6112次哈希检查、2868输入、220个恢复材料通过 |
 | 许可标识/声明新鲜度 | 1734实装包检查通过；19项上游发行材料缺口仍保留，严格发行验收未通过 |
 | 原版实际 Electron smoke | 19组动作、50张截图、9次受控模型请求，通过 |
@@ -55,10 +62,13 @@
 - 厂商插件详情/ZIP重定向和混合市场refresh-all绕过已修复，保留本地及第三方源；新增10项真实源码/文件/ZIP/内存HTTP回归通过。
 - GitHub反馈提示改为准确的手动复制说明，实际GUI点击反馈已断言打开无诊断查询参数的项目Issue页面。
 - 原生CLI单独typecheck实际27个任务通过。根安装采用hoisted结构，需以 `pnpm exec pnpm --dir apps/zcode-cli typecheck` 保留根工具路径；没有切换工具版本。
-- 原CLI全量lint原始退出码为1，包含固定上游就存在的86个max-lines和53warnings，未宣称clean。使用[明确基线政策](native-cli-lint-policy.md)核对17包/14个脚本、逐文件规则/行数和3个接线文件精确哈希；只接纳已审查的原生源，新增错误/增长/抑制均失败。16项防绕过回归通过。
-- 首轮Windows CI的18组GUI动作通过，但CIM清理查询失败导致整项失败；不将其记为CI通过。查询已增加系统模块路径、cold-start时间和完整错误诊断，等待新CI实测结果。
+- 原CLI全量lint原始退出码为1，包含固定上游就存在的86个max-lines和53warnings，未宣称clean。使用[明确基线政策](native-cli-lint-policy.md)核对17包/14个脚本、逐文件规则/行数和6个接线文件精确哈希（3个厂商策略，3个profile helper各+1行）；新增错误/增长/抑制均失败。17项回归通过。
+- 首轮Windows CI的CIM清理失败已修复；`35722545291` 和 `35793283210` 的真实GUI/进程清理均通过，后者新增的真实生产默认入口也通过。这两轮整体仍因CLI gate失败，不能记为CI全通过。
+- `35793283210` 的完整raw日志定位到GitHub Actions自动切换输出格式：任务前缀缺失导致归因检查拒绝。串行并未单独解决；随后固定Turbo stream/task prefix及oxlint default formatter。相同 `CI=true; GITHUB_ACTIONS=true` 环境下修复前复现失败、修复后完整gate通过，新增真实Turbo/oxlint回归；原始错误未过滤、规则未放宽。
 - 厂商ARMS关闭时恢复原生本地CrashReporter（不上传），保留本地诊断能力；实际默认产品smoke检查上传开关。
-- 默认桌面profile已隔离为 `~/.pi-agent-ide/.zcode`，显式ZCODE_DATA_BASE_DIR优先，不读取旧ZCode bootstrap来重定向；main/host/scheduler/原生Agent保持一致。5项策略和4项真实进程合同证明旧profile访问为0、sentinel未改写；独立CLI默认行为不变。
+- 初版profile方案曾覆写HOME且未挡住生产shared chunk提前初始化；现由真正独立、不分包的package.main先建立应用根再动态加载main。默认应用目录为 `~/.pi-agent-ide/.zcode`，执行HOME/USERPROFILE保持不变，显式ZCODE_DATA_BASE_DIR优先。详情和迁移规则见 [desktop-profile-contract.md](desktop-profile-contract.md)。
+- 应用设置/Agent历史/资源使用稳定profile，只有v2数据按原生服务迁移；实际加密凭据移走/重启/重置后解密成功，SQLite会话连续。旧profile访问为0、sentinel未改写，Git/SSH/终端和独立CLI默认行为保留。
+- 复审发现Saved Workflow存储入口遗漏，已在 `63da90a` 统一全生命周期目录，并保留显式homeDir/project优先级；4项真实文件回归通过。工作流引擎和Pi工作流能力不是这些存储测试的通过范围。
 - Pi接入时须显式区分GUI profile与用户实际Pi配置/会话目录，保持P17/P18的CLI互通与凭据作用域；本轮没有将Pi引擎放入GUI私有HOME。
 
 ## 对照限制与后续任务
@@ -71,4 +81,6 @@
 
 ## 关卡与提交
 
-本地 smoke 是 #32 的技术证据，不是 #33 用户批准。独立 Standards/Spec 审查与最终 CI 通过后提交 #32；向用户展示上述成对截图及实际预览，在 #33 保存明确确认及对应提交后才能接 Pi。以 GitHub 最新状态为准。
+两轴独立审查覆盖 `9ef5970…0de01e2` 的完整变更，复审确认所有提出的P1/P2已修复。Spec复核4982个源码哈希、6633个产物哈希及全部52张成对图，无不一致。技术证据包括87项Node回归、19组真实GUI操作及独立的生产默认入口验证；CLI raw lint仍有明确披露的上游样式错误。
+
+#32 的技术结果不构成 #33 用户批准。PR #37 最新HEAD CI通过并合并后关闭#32/#36；向用户展示上述成对截图及实际预览，在 #33 保存明确确认及对应产品提交后才能接 Pi。当前用户确认链接仍为空；以GitHub最新状态为准。

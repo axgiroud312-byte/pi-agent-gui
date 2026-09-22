@@ -40,7 +40,7 @@
 
 - 关卡 Issue：[#33](https://github.com/axgiroud312-byte/pi-agent-gui/issues/33)，前置导入 [#32](https://github.com/axgiroud312-byte/pi-agent-gui/issues/32)。
 - 原版提交/构建：`317d286` 未改动的原生packages/CLI，4975源码文件与固定上游一致；实际生产构建及19组操作通过。
-- 产品提交/构建：`issue-32-native-zcode-fix`；源码/产物摘要和18组操作见 `issue-32-parity/evidence.json`，实际生产构建、真实工具/终端和UI路径验证通过。
+- 产品提交/构建：`0de01e26b86f7bc2ed023623516a0907f848819d`（`issue-32-native-zcode-fix`）；源码/产物摘要、19组操作/53张截图见 `issue-32-parity/evidence.json`，实际生产构建、默认profile入口、真实工具/终端和UI路径验证通过。
 - 成对截图与操作记录：[26对图集](issue-32-parity/index.html)；全部必需空/运行/等待/错误/预览状态覆盖两视口和明暗主题。
 - 用户确认链接：**无，关卡尚未通过**。
 
