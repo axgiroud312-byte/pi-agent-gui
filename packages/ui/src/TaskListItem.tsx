@@ -27,6 +27,7 @@ import { TaskListItemContextMenu } from "@/TaskListItemContextMenu.js";
 import { TaskInteractionBadge } from "@/TaskInteractionBadge.js";
 import { useTaskListItemContextActions } from "@/useTaskListItemContextActions.js";
 import { useFeedbackStore } from "@/feedback/feedbackStore.js";
+import { feedbackOpenedMessageId } from "@/feedback/feedbackOpenedMessage.js";
 import { useModelTrajectoryStore } from "@/store/modelTrajectoryStore.js";
 import { buildTaskFeedbackDescription } from "@/lib/taskFeedbackDraft.js";
 import { toast } from "@/components/ui/toast.js";
@@ -879,7 +880,7 @@ export function TaskListItemContextMenuContent({
       }),
       screenshots: [],
     });
-    toast(intl.formatMessage({ id: "taskList.feedbackOpened" }));
+    toast(intl.formatMessage({ id: feedbackOpenedMessageId("taskList.feedbackOpened") }));
   }, [
     intl,
     openFeedbackSubmit,

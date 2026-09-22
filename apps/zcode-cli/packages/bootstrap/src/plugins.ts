@@ -49,7 +49,12 @@ import type {
   PluginStoreListing,
 } from "@zcode/contracts";
 import { ZCODE_OFFICIAL_PLUGIN_MARKETPLACE, isOfficialMarketplaceId } from "@zcode/contracts";
-import { ZCODE_CUA_OFFICIAL_PLUGIN_ID, isZCodeCuaInternalFeatureEnabled } from "@zcode/shared";
+import {
+  PRODUCT_CAPABILITIES,
+  requireProductCapability,
+  ZCODE_CUA_OFFICIAL_PLUGIN_ID,
+  isZCodeCuaInternalFeatureEnabled,
+} from "@zcode/shared";
 import { resolveOfficialPluginRoots } from "./app/bundled-plugins.js";
 import {
   DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS,
@@ -509,6 +514,9 @@ export async function removeZCodePluginMarketplace(
 export async function updateZCodePluginMarketplace(
   options: UpdateZCodeMarketplaceOptions,
 ): Promise<ZCodeMarketplaceUpdateData> {
+  if (options.marketplace === ZCODE_OFFICIAL_PLUGIN_MARKETPLACE) {
+    requireProductCapability("vendorCatalog");
+  }
   const { configResult, pluginStorageRoot, workingDirectory } = resolvePluginContext(options);
   ensureDefaultPluginMarketplaces(pluginStorageRoot);
   const declared = resolveDeclaredMarketplaceSources({
@@ -570,7 +578,7 @@ export async function updateZCodePluginMarketplace(
   // map 回调只吃第一个参数：toMarketplaceSummaryData 的第二参是 featured，不能接 map 的 index。
   const records = loadKnownMarketplacesSync(pluginStorageRoot);
   const selectedFailures = records.flatMap((record): PluginLoadOutcome["diagnostics"] => {
-    if (options.marketplace && record.id !== options.marketplace) return [];
+    if (!targetIds.includes(record.id)) return [];
     if (!record.lastRefreshFailure) return [];
     return [
       {
@@ -1325,7 +1333,11 @@ function resolveMarketplaceRefreshTargetIds(input: {
   if (input.marketplace) return [input.marketplace];
   // refresh-all 只刷新已经物化的 Host known records；项目声明必须逐个显式物化，
   // 避免一次全量刷新把任意 Workspace 声明写进全局 marketplace 状态。
-  return [...new Set(input.knownIds)];
+  // The outer batch calls the adapter once per ID. Exclude official here, or its deliberate
+  // single-source rejection aborts the batch before any later custom source can refresh.
+  return [...new Set(input.knownIds)].filter(
+    (id) => PRODUCT_CAPABILITIES.vendorCatalog || id !== ZCODE_OFFICIAL_PLUGIN_MARKETPLACE,
+  );
 }
 
 function createMarketplaceSourceRepointDiagnostic(

@@ -25,6 +25,7 @@ import { buildTaskWorkspaceKey } from "@/lib/taskQueryCache.js";
 import { buildTaskFeedbackDescription } from "@/lib/taskFeedbackDraft.js";
 import { useTaskListItemContextActions } from "@/useTaskListItemContextActions.js";
 import { useFeedbackStore } from "@/feedback/feedbackStore.js";
+import { feedbackOpenedMessageId } from "@/feedback/feedbackOpenedMessage.js";
 import { getTaskListAttention, getTaskListRowActivity } from "@/v4/taskListRowActivity.js";
 import { GroupedTaskContextMenuContent } from "@/workspace-grouped-tasks/task-context-menu-content.js";
 import { TaskRowActionButton } from "@/workspace-grouped-tasks/task-row-action-button.js";
@@ -312,7 +313,7 @@ function GroupedTaskRowComponent({
       }),
       screenshots: [],
     });
-    toast(intl.formatMessage({ id: "taskList.feedbackOpened" }));
+    toast(intl.formatMessage({ id: feedbackOpenedMessageId("taskList.feedbackOpened") }));
   };
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.target !== event.currentTarget) {

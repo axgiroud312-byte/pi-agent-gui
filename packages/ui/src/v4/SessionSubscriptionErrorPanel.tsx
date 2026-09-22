@@ -3,6 +3,7 @@ import { TID_V4_RETRY_SUBSCRIBE } from "@zcode/shared";
 import { Button } from "@/components/ui/button.js";
 import { toast } from "@/components/ui/toast.js";
 import { useFeedbackStore } from "@/feedback/feedbackStore.js";
+import { feedbackOpenedMessageId } from "@/feedback/feedbackOpenedMessage.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { buildErrorFeedbackDescription } from "@/lib/errorFeedbackDraft.js";
 
@@ -43,7 +44,7 @@ export function SessionSubscriptionErrorPanel({
       }),
       screenshots: [],
     });
-    toast(intl.formatMessage({ id: "chat.error.feedbackOpened" }));
+    toast(intl.formatMessage({ id: feedbackOpenedMessageId("chat.error.feedbackOpened") }));
   }, [error, intl, openFeedbackSubmit, sessionId, workspacePath]);
 
   return (

@@ -9,7 +9,6 @@ import { isOfficialMarketplaceId, ZCODE_OFFICIAL_PLUGIN_MARKETPLACE } from "@zco
 import {
   DEFAULT_PLUGIN_MARKETPLACES,
   PRODUCT_CAPABILITIES,
-  isVendorProductAssetUrl,
   requireProductCapability,
   sanitizeZCodeRuntimeEnv,
 } from "@zcode/shared";
@@ -27,6 +26,10 @@ import { enumeratePluginComponents, type PluginComponentGroup } from "./plugin-c
 import { applyNetworkEgressEnv } from "../network/subprocess-env.js";
 import { createNodeWebFetchHttpClientAdapter } from "../http/index.js";
 import { writeCdnOfficialMarketplacePartitionSync } from "./official-marketplace.js";
+import {
+  assertPluginRemoteSourceAllowed,
+  assertPluginSourceResolutionAllowed,
+} from "./product-marketplace-policy.js";
 import {
   isZipPluginUrlSource,
   readZipPluginSourceSha256,
@@ -349,6 +352,7 @@ export async function addMarketplace(input: {
   // 不可信 manifest.name 作为 target，先 rm 掉本地官方目录再 cp，等守卫抛错时
   // 官方 manifest 已被污染；守卫通过后才持久化。
   throwIfPluginOperationAborted(input.signal);
+  assertPluginSourceResolutionAllowed(input.trustedId ?? input.expectedId ?? "", input.source);
   const operationSignal = input.signal;
   let loaded: LoadMarketplaceResult | undefined;
   let knownMarketplaceActivation: KnownMarketplaceActivation | undefined;
@@ -465,7 +469,7 @@ async function requestMarketplaceJson(
   let currentUrl = url;
   for (let redirectCount = 0; redirectCount <= MARKETPLACE_JSON_MAX_REDIRECTS; redirectCount += 1) {
     // Product CDN is not this fork's package service; check redirects as well as the initial URL.
-    if (isVendorProductAssetUrl(currentUrl)) requireProductCapability("vendorCatalog");
+    assertPluginRemoteSourceAllowed({ url: currentUrl });
     const response = await client.request(
       {
         ...(currentHeaders ? { headers: currentHeaders } : {}),
@@ -905,6 +909,7 @@ export async function validateMarketplaceSource(input: {
   const diagnostics: PluginValidationDiagnostic[] = [];
   let loaded: LoadMarketplaceResult | null = null;
   try {
+    assertPluginSourceResolutionAllowed(input.expectedId ?? "", input.source);
     loaded = await loadMarketplaceFromSource(input.source, input.storageRoot, {
       persist: false,
       signal: input.signal,
@@ -952,6 +957,12 @@ export async function validateMarketplaceSource(input: {
         name: entry.name,
         storageRoot: input.storageRoot,
       });
+      try {
+        assertPluginSourceResolutionAllowed(loaded.manifest.name, entry.source);
+      } catch (error) {
+        diagnostics.push(toValidationDiagnostic(error, `${entry.name}@${loaded.manifest.name}`));
+        continue;
+      }
       const deferred = getMarketplaceSourceValidationDeferral(entry, loaded.manifest.name);
       if (deferred) {
         diagnostics.push(deferred);
@@ -1209,6 +1220,8 @@ async function resolvePluginSourceRoot(input: {
 }): Promise<ResolvedPluginSourceRoot> {
   throwIfPluginOperationAborted(input.signal);
   const source = input.entry.source;
+  // describe/validate also resolve remote sources; gating only install left those paths live.
+  assertPluginSourceResolutionAllowed(input.marketplace, source);
   const marketplaceDir =
     input.sourceRoot ?? dirname(getMarketplaceManifestPath(input.storageRoot, input.marketplace));
   const manifest =

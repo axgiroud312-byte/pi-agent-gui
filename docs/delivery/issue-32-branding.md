@@ -213,3 +213,49 @@ packages/ui/src/v4/ConversationDraftSuggestedPrompts.tsx
 - 定向 `oxlint` 检查两份 locale 和 `ConversationDraftEmptyState.tsx`：3 files、0 warnings、0 errors。
 - `git diff --check` 通过；检索桌面/UI 旧 hero/splash 路径及 `assets/Z.svg` 引用已无命中。
 - 未安装依赖、构建或并行运行桌面。主代理需重新构建 renderer 并复跑产品 smoke；在明暗主题检查 π 水印及“配置”按钮真实落点。#33 仍等待用户对实际界面的明确确认。
+
+## PR #37 独立审查修正合同
+
+本轮基于 `dd97d00`；PR #37 未合并，#33 未确认。产品策略仍由 shared/product 持有，不更改通用模型能力或主分支的 provider 缓存/测试迁移。
+
+1. **插件源解析与下载**：describe、validate 与 install 共用的源解析边界必须在远程操作前拒绝被排除的官方市场来源；随包 filesystem/SEA、显式本地目录和已安装本地缓存可读。ZIP HTTP 边界逐次检查初始地址和每个重定向，不能通过第三方市场条目转跳厂商 CDN。只拦截产品市场身份/产品 CDN，不按模型供应商名字拦截普通第三方。
+2. **批量刷新**：bootstrap 的 refresh-all 选择 known records 时先排除官方市场；继续刷新自定义市场。显式刷新官方源仍返回清晰的不可用错误。被跳过官方源的历史失败不作为本次批量操作的新失败输出；不删除它的本地缓存。
+3. **反馈提示**：GitHub 手动反馈路径不自动传递草稿/诊断，toast 必须说明需要用户按需复制粘贴；原生反馈启用时仍可显示原有附带上下文的提示。保留现有按钮、布局与本地复制能力。
+4. **验证**：使用真实源解析/describe/validate/bootstrap API、临时本地插件及内存 HTTP transport 测试，断言厂商出网调用次数为零、重定向不触达厂商、第三方插件内容可读、混合官方/自定义批次完成自定义刷新。根 lint 和 CLI 包独立 lint 分别记录；完整构建与产品 smoke 由主分支串行执行。
+
+### 修正实现
+
+- `apps/zcode-cli/packages/adapters/src/plugins/product-marketplace-policy.ts`：集中检查远程 source 的官方市场身份与产品 CDN 地址。`marketplace.ts` 在 add/manifest 物化、单插件源解析及 dry-run validation 的 deferred 分支之前调用；本地 filesystem/SEA、目录、已安装缓存仍走原生读取。`zip-source.ts` 在初始 URL 校验和每次 redirect 的下一次传输之前执行相同检查。
+- `apps/zcode-cli/packages/bootstrap/src/plugins.ts`：在外层 refresh-all 的 known ID 选择中跳过官方源；显式指定官方源在入口拒绝。只收集本次 target IDs 的失败诊断，跳过旧官方失败且保留缓存记录。
+- `packages/ui/src/feedback/feedbackOpenedMessage.ts`：根据真实反馈能力选提示。ChatErrorBanner、SessionSubscriptionErrorPanel，以及审计发现的 TaskListItem/WorkspaceHeaderSections/grouped task row 共五处复用。新增中英 `feedback.external.manualCopyHint`，明确 GitHub 需手动填写、诊断未自动附带。FeedbackHost 的无查询参数 URL/清空草稿行为不改，也不自动复制到剪贴板。
+
+### 可复现合同测试
+
+```powershell
+node apps/zcode-cli/test/run-product-policy.mjs
+```
+
+运行器仅把 `product-marketplace.test.mjs` 引用的本工作树源码编译成临时 Node 测试入口，结束后删除；不生成 desktop/Agent 产物。复用 CLI 已声明的 esbuild/yazl 依赖。完整安装的集成工作树可直接执行；本次专用工作树没有 node_modules，因此设置 Node 标准 `NODE_PATH` 指向 `pi-native-32` 的 `node_modules`、`apps/zcode-cli/node_modules` 和 `node_modules/.pnpm/node_modules`，借用外部依赖及生成的 TypeScript 标准库文本。所有应用逻辑仍解析到本工作树源码，没有使用主分支的 marketplace/bootstrap 实现；临时目录限制在预批准的 opencode 目录内。
+
+唯一替身是 `NodeHttpClientAdapter.prototype.request` 的内存传输：不实际联网，其他 marketplace/bootstrap 调用、文件落盘、ZIP hash/解压和组件读取都是真实实现。
+
+实际结果：修复前 7 项中 **5 失败、2 通过**，复现详情/校验出网、redirect 越过排除与混合批次中断；修复后扩展为 **10/10 通过**：
+
+1. 官方 ZIP 的 describe 和单插件 validate：0 HTTP 调用。
+2. 官方 ZIP 改成其他域名：仍拒绝且 0 HTTP 调用。
+3. 官方 manifest 缺缓存且源域名改变：不发起补拉。
+4. 第三方市场引用厂商 ZIP：describe/全市场 validate 均拒绝，0 HTTP 调用。
+5. 普通 ZIP URL 重定向厂商 CDN：只请求初始普通 URL。
+6. manifest validation 重定向厂商 CDN：只请求初始普通 URL。
+7. filesystem、SEA、目录、已安装官方缓存：真实组件可读且 0 HTTP 调用。
+8. 第三方 ZIP：真实 hash 校验/解压后可读 skill 描述。
+9. official-first + custom 的外层 refresh-all：custom 完成更新/落盘，官方记录保持原样；显式官方 refresh 仍拒绝。
+10. 错误与任务 toast 在中英文中均提示 GitHub 手动输入，没有复用“已附带上下文”的提示。
+
+### 实际静态检查与尚未通过的 CLI 检查
+
+- 根工具定向 lint 8 个修改/新增 UI 文件：**0 warnings / 0 errors**。
+- 从 `apps/zcode-cli` 工作目录以 CLI 安装工具 lint 新策略和两个测试文件：**3 files，0 warnings / 0 errors**。
+- 分别在 adapters、bootstrap 包目录执行其真实 `lint` 脚本内容 **`oxlint src`**，使用 `pi-native-32/apps/zcode-cli/node_modules/.bin/oxlint.cmd`（实际 1.67.0），自动读取仓库规则。**adapters：203 files，18 warnings / 25 errors；bootstrap：222 files，22 warnings / 20 errors**。errors 全为已有超长文件的 `max-lines`，包含本批触及但此前已远超 400 行的 marketplace.ts、zip-source.ts、bootstrap/plugins.ts；还有 config、fs、MCP、storage、v4 等未修改文件。没有关闭规则、加忽略或借根 lint 的 CLI 排除宣称通过。
+- `git diff --check` 通过。未运行整仓 typecheck、Agent/desktop 构建或产品 E2E。主分支仍需执行完整 `pnpm --dir apps/zcode-cli lint` 并处理/登记以上基线检查阻塞，重新构建 Agent 与 renderer，再通过 guarded external-open smoke 验证反馈点击。
+- 本轮未改 `packages/shared/src/product.test.mjs`、主分支的新 `shared/test` 路径或 provider readonly-cache 修复。#33 保持未确认。

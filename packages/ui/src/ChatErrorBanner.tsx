@@ -27,6 +27,7 @@ import {
 import { cn } from "./components/lib/utils.js";
 import { toast } from "./components/ui/toast.js";
 import { useFeedbackStore } from "@/feedback/feedbackStore.js";
+import { feedbackOpenedMessageId } from "@/feedback/feedbackOpenedMessage.js";
 import { getProviderBusinessErrorMessageId } from "@/lib/providerBusinessError.js";
 import { buildErrorFeedbackDescription } from "@/lib/errorFeedbackDraft.js";
 import {
@@ -148,7 +149,7 @@ export function ChatErrorBanner({
       }),
       screenshots: [],
     });
-    toast(intl.formatMessage({ id: "chat.error.feedbackOpened" }));
+    toast(intl.formatMessage({ id: feedbackOpenedMessageId("chat.error.feedbackOpened") }));
   };
 
   const handleCopyError = async () => {

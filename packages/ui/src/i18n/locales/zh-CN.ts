@@ -5194,6 +5194,7 @@ const zhCN: Record<string, string> = {
   "chat.error.collapseDetails": "收起详情",
   "chat.error.feedback": "反馈问题",
   "chat.error.feedbackOpened": "已打开反馈，并自动带上报错现场",
+  "feedback.external.manualCopyHint": "GitHub 反馈需手动填写；诊断信息未自动附带，请按需复制粘贴。",
   "chat.error.noAvailableModel": "当前没有可用模型。请配置模型供应商、API 密钥和模型。",
   "chat.error.sendFailed": "发送失败，请稍后重试。",
   "chat.error.modelSettings": "模型设置",

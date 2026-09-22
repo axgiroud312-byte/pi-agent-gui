@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, posix, relative, resolve, sep } from "node:path";
 import * as yauzl from "yauzl";
 import { createNodeWebFetchHttpClientAdapter } from "../http/index.js";
+import { assertPluginRemoteSourceAllowed } from "./product-marketplace-policy.js";
 import {
   appendPluginSourceCleanupError,
   cleanupPluginSourceBestEffort,
@@ -460,6 +461,8 @@ function validateZipHeaders(headers: Record<string, string> | undefined): void {
 }
 
 function validateZipDownloadUrl(value: string): void {
+  // Used before temporary extraction and again before every redirect hop's HTTP request.
+  assertPluginRemoteSourceAllowed({ url: value });
   let url: URL;
   try {
     url = new URL(value);

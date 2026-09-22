@@ -5417,6 +5417,8 @@ const enUS: Record<string, string> = {
   "chat.error.collapseDetails": "Hide details",
   "chat.error.feedback": "Report issue",
   "chat.error.feedbackOpened": "Feedback opened with the error context attached",
+  "feedback.external.manualCopyHint":
+    "GitHub feedback requires manual entry. Diagnostics are not attached; copy and paste any details you want to share.",
   "chat.error.noAvailableModel": "No model available. Configure a provider, API key, and model.",
   "chat.error.sendFailed": "Failed to send. Try again later.",
   "chat.error.modelSettings": "Model settings",
