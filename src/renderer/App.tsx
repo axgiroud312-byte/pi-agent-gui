@@ -105,7 +105,7 @@ export default function App() {
   const sendPrompt = async (id: string, text: string): Promise<boolean> => {
     // Check the most recent host snapshot as well as the synchronous click lock.
     const currentSession = host.latest.current?.sessions.find((item) => item.id === id);
-    if (!text.trim() || !currentSession || !canSendPrompt(currentSession.phase) || sendLocks.current.has(id)) return false;
+    if (!text.trim() || !currentSession || !canSendPrompt(currentSession) || sendLocks.current.has(id)) return false;
     sendLocks.current.add(id);
     setSending((current) => ({ ...current, [id]: true }));
     setPromptErrors((current) => ({ ...current, [id]: '' }));

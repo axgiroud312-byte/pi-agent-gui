@@ -17,6 +17,10 @@ export function launchProfile(value: unknown): LaunchProfile {
   if (!Array.isArray(input.args) || input.args.length > 100 || input.args.some(arg => typeof arg !== 'string' || arg.includes('\0') || arg.length > 32_768)) {
     throw new Error('Pi 参数必须为最多 100 项的字符串数组');
   }
+  const reserved = new Set(['--session', '--session-id', '--continue', '-c', '--resume', '-r', '--fork', '--mode', '--print', '-p', '--export', '--version', '--help', '-h', '--list-models']);
+  for (const arg of input.args as string[]) {
+    if (reserved.has(arg.split('=')[0]!)) throw new Error(`启动配置不能包含 ${arg}；原生会话和 RPC 模式由宿主独占管理`);
+  }
   return { executable, args: input.args as string[], ...(input.agentDir ? { agentDir: text(input.agentDir, 'Pi 配置目录') } : {}) };
 }
 
@@ -24,6 +28,6 @@ export function errorMessage(error: unknown): string { return error instanceof E
 
 export function diagnosticText(value: string): string {
   return value.replace(/(Bearer\s+)[^\s"']+/gi, '$1[redacted]')
-    .replace(/((?:api[_-]?key|access_token|refresh_token|authorization)\s*[=:]\s*)[^\s,}]+/gi, '$1[redacted]')
+    .replace(/(["']?(?:api[_-]?key|access_token|refresh_token|authorization)["']?\s*[=:]\s*)(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s,}]+)/gi, '$1[redacted]')
     .slice(0, 8_192);
 }

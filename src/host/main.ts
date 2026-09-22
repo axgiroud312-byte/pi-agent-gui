@@ -2,7 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain } from 'electron';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { WorkspaceHost } from './workspace-host.js';
-import { errorMessage, launchProfile } from './validation.js';
+import { diagnosticText, errorMessage, launchProfile } from './validation.js';
 import { openLoginTerminal } from './login-terminal.js';
 
 const selectedDataDirectory = app.commandLine.getSwitchValue('user-data-dir');
@@ -34,9 +34,10 @@ async function start(): Promise<void> {
   window.webContents.on('will-navigate', event => event.preventDefault());
   window.webContents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
   const handle = (channel: string, operation: (...args: unknown[]) => unknown) => {
-    ipcMain.handle(channel, (event, ...args: unknown[]) => {
+    ipcMain.handle(channel, async (event, ...args: unknown[]) => {
       if (!window || event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame || event.senderFrame.url !== pageUrl) throw new Error('无效的宿主请求来源');
-      return operation(...args);
+      try { return await operation(...args); }
+      catch (error) { throw new Error(diagnosticText(errorMessage(error))); }
     });
   };
   handle('ide:snapshot', () => host.snapshot());
@@ -58,6 +59,6 @@ app.on('window-all-closed', () => app.quit());
 app.on('before-quit', event => {
   if (quitting || !host) return;
   event.preventDefault(); quitting = true;
-  void host.dispose().catch(error => { console.error(errorMessage(error)); }).finally(() => app.quit());
+  void host.dispose().catch(error => { console.error(diagnosticText(errorMessage(error))); }).finally(() => app.quit());
 });
-void start().catch(error => { dialog.showErrorBox('Pi Agent IDE 启动失败', errorMessage(error)); app.quit(); });
+void start().catch(error => { dialog.showErrorBox('Pi Agent IDE 启动失败', diagnosticText(errorMessage(error))); app.quit(); });

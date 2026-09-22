@@ -143,3 +143,15 @@ test('one RPC process crash leaves an independent background session running and
   const crashedPrompts = (await desktop.boundary()).filter(({ direction, record }) => direction === 'in' && record.type === 'prompt' && record.message === 'crash');
   expect(crashedPrompts.map(({ record }) => record.message)).toEqual(['crash']);
 });
+
+test('handled extension input remains usable and credential errors are redacted over IPC', async ({ desktop }) => {
+  await openWorkspace(desktop);
+  const session = await createSession(desktop);
+  await sendPrompt(desktop, '/handled');
+  await expect(desktop.page.getByTestId('run-phase')).toHaveText('就绪');
+  await sendPrompt(desktop, 'secret-error');
+  await expect(desktop.page.getByTestId('session-error')).toContainText('[redacted]');
+  await expect(desktop.page.getByTestId('session-error')).not.toContainText('SYNTHETIC_');
+  expect((await sessionSnapshot(desktop, session.id)).canSubmit).toBe(true);
+  await desktop.screenshot('handled-input-and-redacted-error');
+});

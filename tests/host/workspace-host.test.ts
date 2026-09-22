@@ -83,3 +83,62 @@ test('invalid workspace/profile and corrupt settings are rejected without overwr
     await restored.dispose();
   } finally { await context.cleanup(); }
 });
+
+test('handled input with no Run returns to idle, and rejected errors are sanitized at both public boundaries', async () => {
+  const context = await setup();
+  try {
+    const workspace = await context.host.openWorkspace(context.directory);
+    const session = await context.host.createSession(workspace.id);
+    await context.host.sendPrompt(session.id, '/handled');
+    assert.equal(context.host.snapshot().sessions[0]!.phase, 'idle');
+    assert.equal(context.host.snapshot().sessions[0]!.canSubmit, true);
+    await assert.rejects(context.host.sendPrompt(session.id, 'secret-error'), error => {
+      assert.doesNotMatch(String(error), /SYNTHETIC_/);
+      assert.match(String(error), /\[redacted\]/);
+      return true;
+    });
+    assert.doesNotMatch(JSON.stringify(context.host.snapshot()), /SYNTHETIC_/);
+    assert.equal(context.host.snapshot().sessions[0]!.canSubmit, true);
+  } finally { await context.cleanup(); }
+});
+
+test('pinned compaction events expose failures and recover overflow without retaining the prior error', async () => {
+  const context = await setup();
+  try {
+    const workspace = await context.host.openWorkspace(context.directory);
+    const session = await context.host.createSession(workspace.id);
+    await context.host.sendPrompt(session.id, 'compact-fail');
+    assert.equal(context.host.snapshot().sessions[0]!.phase, 'compacting');
+    await waitFor(() => context.host.snapshot().sessions[0]!.phase === 'error');
+    assert.match(context.host.snapshot().sessions[0]!.error!, /summary failed/);
+    await context.host.sendPrompt(session.id, 'compact-recover');
+    assert.equal(context.host.snapshot().sessions[0]!.phase, 'compacting');
+    await waitFor(() => context.host.snapshot().sessions[0]!.phase === 'settled');
+    assert.equal(context.host.snapshot().sessions[0]!.error, undefined);
+  } finally { await context.cleanup(); }
+});
+
+test('two hosts cannot write the same canonical native session file; leases release on close', async () => {
+  const context = await setup();
+  const other = new WorkspaceHost({ ...context.options, settingsPath: join(context.directory, 'other-workbench.json') });
+  try {
+    const profile = { ...context.options.profile, args: [fixture, `--fixture-session-file=${join(context.directory, 'native.jsonl')}`] };
+    await context.host.saveProfile(profile);
+    await other.initialize(profile);
+    const firstWorkspace = await context.host.openWorkspace(context.directory);
+    const otherWorkspace = await other.openWorkspace(context.directory);
+    const first = await context.host.createSession(firstWorkspace.id);
+    assert.equal(first.canSubmit, true);
+    const refused = await other.createSession(otherWorkspace.id);
+    assert.equal(refused.phase, 'error');
+    assert.equal(refused.canSubmit, false);
+    assert.match(refused.error!, /占用/);
+    await context.host.closeSession(first.id);
+    const acquired = await other.createSession(otherWorkspace.id);
+    assert.equal(acquired.phase, 'idle');
+    assert.equal(acquired.canSubmit, true);
+    for (const flag of ['--session', '--session-id', '--continue', '-c', '--resume', '-r', '--fork', '--mode']) {
+      await assert.rejects(context.host.saveProfile({ ...profile, args: [fixture, flag] }), /宿主独占/);
+    }
+  } finally { await other.dispose(); await context.cleanup(); }
+});

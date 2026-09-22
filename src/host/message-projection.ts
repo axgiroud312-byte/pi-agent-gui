@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { ChatMessage, MessageContent, SessionSnapshot } from '../shared/contracts.js';
-import { object } from './validation.js';
+import { diagnosticText, object } from './validation.js';
 
 function contentOf(value: unknown): MessageContent[] {
   if (typeof value === 'string') return [{ type: 'text', text: value }];
@@ -12,7 +12,8 @@ function contentOf(value: unknown): MessageContent[] {
 }
 
 export function projectMessage(rawValue: unknown, id: string = randomUUID()): ChatMessage {
-  const raw = object(rawValue);
+  const raw = { ...object(rawValue) };
+  if (typeof raw.errorMessage === 'string') raw.errorMessage = diagnosticText(raw.errorMessage);
   return { id, role: typeof raw.role === 'string' ? raw.role : 'unknown', content: contentOf(raw.content), raw,
     ...(typeof raw.timestamp === 'number' ? { timestamp: raw.timestamp } : {}) };
 }

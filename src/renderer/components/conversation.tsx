@@ -96,7 +96,7 @@ interface ConversationProps {
 export function Conversation({ session, draft, pending, onDraft, onSend }: ConversationProps) {
   const composing = useRef(false);
   const compositionEndedAt = useRef(-Infinity);
-  const enabled = canSendPrompt(session.phase) && !pending;
+  const enabled = canSendPrompt(session) && !pending;
   const onNew = useCallback(async (message: AppendMessage) => {
     const text = message.content.flatMap((part) => part.type === 'text' ? [part.text] : []).join('\n');
     await onSend(text);
@@ -170,7 +170,7 @@ export function Conversation({ session, draft, pending, onDraft, onSend }: Conve
             <Field orientation="horizontal" className="justify-between gap-3">
               <div id="composer-help" className="flex min-w-0 flex-col gap-1 text-xs text-muted-foreground">
                 <span>{pending ? '正在提交消息…' : enabled ? 'Enter / Ctrl+Enter 发送 · Shift+Enter 换行' : phaseDescriptions[session.phase]}</span>
-                {!enabled && <span>草稿保留在当前会话，运行期间不可发送。</span>}
+                {!enabled && <span>{session.submissionBlockedReason || '正在提交'}；草稿保留在当前会话。</span>}
               </div>
               <Button type="submit" disabled={!enabled || !draft.trim()}>
                 <ArrowUp data-icon="inline-start" />发送

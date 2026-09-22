@@ -68,7 +68,7 @@ npm run package:win
 npm run test:package
 ```
 
-- `check`：类型、静态检查、35 项合同/宿主边界测试、真实 Pi 无凭据协议测试、构建与 Electron E2E。
+- `check`：类型、静态检查、合同/宿主边界测试、真实 Pi 无凭据协议测试、构建与 Electron E2E。
 - `test:e2e`：外部 RPC 子进程替身驱动完整 GUI，不调用真实模型；截图及结果在 `test-results/e2e/`。
 - `test:contract`：实际 npm Pi CLI 合同，凭据隔离；结果在 `test-results/contract/`。
 - `test:package`：Windows 打包应用启动其随附真实 Pi，验证原生会话与缺少认证的恢复状态；结果在 `test-results/package/`。

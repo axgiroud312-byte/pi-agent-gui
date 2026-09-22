@@ -14,10 +14,10 @@
 | --- | --- |
 | `npm run typecheck` | 通过 |
 | `npm run lint` | 通过，包含 52 能力/84 故事/20 场景覆盖检查 |
-| `npm test` | 35 通过，0 失败；真实外部子进程与临时文件系统 |
+| `npm test` | 38 通过，0 失败；真实外部子进程与临时文件系统 |
 | `npm run test:contract` | 2 通过，真实 Pi npm CLI，无模型凭据 |
 | `npm run build` | 通过；renderer 主 chunk 567 kB，已如实保留 Vite 体积提示 |
-| `npm run test:e2e` | 7 通过；真实 Electron/宿主，RPC 子进程边界替身 |
+| `npm run test:e2e` | 8 通过；真实 Electron/宿主，RPC 子进程边界替身 |
 | `npm run package:win` | 通过，生成 Windows NSIS 开发安装包 |
 | `npm run package:dir` | 通过，含随附 Pi 的 Windows 目录产物 |
 | `npm run test:package` | 通过；实际打包 exe → 随附真实 Pi 0.87.0 → 原生 session/PID；缺失认证真实失败 |
@@ -48,3 +48,17 @@
 ## 尚未作为通过报告的首版项目
 
 此切片不等同于 P01/P04/I01/I18 全量完成。图片/工具/完整上下文在 #3，队列/停止在 #4，多会话布局/恢复在 #5，完整安装升级回退在 #27，真实模型和全部外部环境在 #28。没有以当前离线测试宣称真实模型调用或完整 Windows 安装验收通过。
+
+## 独立两轴审查与修复
+
+基线 `3749c24329fb2d5aef7a15d3ab366903d10a516f`，覆盖 PR #31 的全部提交。首轮 Standards 发现单写者限制、IPC 原始错误绕过脱敏和发送资格的前后端分歧；Spec 发现固定版 compaction 事件名和无运行的扩展输入卡住。
+
+修复集中在关联 #30：
+
+- 宿主为新会话分配原生 UUID，禁止 profile 绕过其会话/模式控制；原生会话文件采用排他 lease，规范路径解析，关闭后释放。第二个宿主不能写入相同文件。
+- `canSubmit` 和阻塞原因由宿主投影；关闭、启动失败和投递未知不再仅凭 `phase=error` 显示可发送。
+- IPC rejection、诊断与错误字段统一脱敏；含引号的 JSON 凭据字段也覆盖，GUI 回归证明合成密钥不显示。
+- 使用固定版 `compaction_start/end`，保留失败，成功 overflow 恢复消除旧错误。
+- prompt 接受后查询真实 state；固定版在普通 prompt 的 preflight 回调后同步标记会话运行。被扩展处理且没有 Run 的输入返回 idle，不伪造 settled。真实打包 Pi 的 `/llama` 被加入回归。
+
+首轮 GitHub Windows CI（修复前的 `bc5ee31`）实际通过：[run 35671083789](https://github.com/axgiroud312-byte/pi-agent-gui/actions/runs/35671083789)。修复仍需重新审查和 CI，通过后才合并。

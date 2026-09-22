@@ -81,7 +81,6 @@ async function runPrompt(text, run, signal) {
     emit({ type: 'message_start', message: { ...failed, content: [] } });
     endMessage(failed);
     emit({ type: 'turn_end', message: failed, toolResults: [] });
-    streaming = false;
     emit({ type: 'agent_end', messages: [user, failed], willRetry: true });
     emit({ type: 'auto_retry_start', attempt: 1, maxAttempts: 2, delayMs: 600, errorMessage: failed.errorMessage });
     await gate(run, 'retry', 600, signal);
@@ -104,9 +103,9 @@ async function runPrompt(text, run, signal) {
   endMessage(final);
   if (text === 'retry') emit({ type: 'auto_retry_end', success: true, attempt: 1 });
   emit({ type: 'turn_end', message: final, toolResults: [] });
-  streaming = false;
   emit({ type: 'agent_end', messages: [final], willRetry: false });
   await gate(run, 'settle', 1_000, signal);
+  streaming = false;
   emit({ type: 'agent_settled' });
 }
 
@@ -114,7 +113,7 @@ function handle(command) {
   audit('in', command);
   switch (command.type) {
     case 'get_state':
-      respond(command, { sessionId: 'workspace-fixture-session', sessionName: 'Offline fixture', model,
+      respond(command, { sessionId: option('--fixture-session-id') ?? `workspace-fixture-${process.pid}`, ...(option('--fixture-session-file') ? { sessionFile: option('--fixture-session-file') } : {}), sessionName: 'Offline fixture', model,
         thinkingLevel: 'off', isStreaming: streaming, isCompacting: false,
         steeringMode: 'one-at-a-time', followUpMode: 'one-at-a-time',
         autoCompactionEnabled: true, messageCount: messages.length, pendingMessageCount: 0 });
@@ -125,6 +124,36 @@ function handle(command) {
     case 'prompt': {
       if (command.message === 'fail') {
         respond(command, undefined, 'No API key for fixture provider; configure authentication and retry.');
+        break;
+      }
+      if (command.message === 'secret-error') {
+        respond(command, undefined, 'api_key=SYNTHETIC_SECRET {"access_token":"SYNTHETIC_TOKEN"}');
+        break;
+      }
+      if (command.message === '/handled') {
+        emit({ type: 'extension_ui_request', id: 'notice', method: 'notify', message: 'handled without a run' });
+        respond(command);
+        break;
+      }
+      if (command.message === 'compact-fail' || command.message === 'compact-recover') {
+        streaming = true;
+        respond(command);
+        emit({ type: 'agent_start' });
+        if (command.message === 'compact-recover') {
+          const failed = assistant('', Date.now(), { stopReason: 'error', errorMessage: 'context overflow' });
+          emit({ type: 'message_start', message: failed }); endMessage(failed);
+        }
+        emit({ type: 'compaction_start', reason: command.message === 'compact-fail' ? 'threshold' : 'overflow' });
+        setTimeout(() => {
+          if (command.message === 'compact-fail') emit({ type: 'compaction_end', reason: 'threshold', aborted: false, willRetry: false, errorMessage: 'summary failed' });
+          else {
+            emit({ type: 'compaction_end', reason: 'overflow', aborted: false, willRetry: true, result: { summary: 'compacted' } });
+            const recovered = assistant('recovered response', Date.now());
+            emit({ type: 'message_start', message: recovered }); endMessage(recovered);
+          }
+          streaming = false;
+          emit({ type: 'agent_settled' });
+        }, 200);
         break;
       }
       if (command.message === 'crash') {
@@ -139,6 +168,7 @@ function handle(command) {
       }
       const controller = new AbortController();
       activeRun = controller;
+      streaming = true;
       respond(command);
       void runPrompt(command.message, ++runNumber, controller.signal).catch((error) => {
         if (error.name !== 'AbortError') {

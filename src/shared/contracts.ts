@@ -15,6 +15,8 @@ export interface SessionSnapshot {
   workspaceId: string;
   generation: string;
   phase: RunPhase;
+  canSubmit: boolean;
+  submissionBlockedReason?: string;
   pid?: number;
   piVersion: string;
   nativeSessionId?: string;

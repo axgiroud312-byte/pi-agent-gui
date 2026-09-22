@@ -30,13 +30,19 @@ try {
   expect(snapshot.sessions[0].pid).toBeGreaterThan(0);
   expect(snapshot.profile.args[0]).toContain('app.asar');
   await page.screenshot({ path: join(output, 'real-pi-packaged-ready.png'), fullPage: true });
+  // Bundled extension handles /llama without an Agent run or agent_settled.
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('/llama');
+  await page.getByRole('button', { name: '发送', exact: true }).click();
+  await expect.poll(async () => (await page.evaluate(() => window.piIde.snapshot())).sessions[0].diagnostics.some(item => item.kind === 'extension')).toBe(true);
+  await expect(page.getByTestId('run-phase')).toHaveText('就绪');
+  expect((await page.evaluate(() => window.piIde.snapshot())).sessions[0].canSubmit).toBe(true);
   await page.getByRole('textbox', { name: '消息', exact: true }).fill('Credential-free package acceptance');
   await page.getByRole('button', { name: '发送', exact: true }).click();
   await expect(page.getByTestId('session-error')).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId('run-phase')).not.toHaveText('已完成');
   await page.screenshot({ path: join(output, 'real-pi-auth-recovery.png'), fullPage: true });
   await writeFile(join(output, 'result.json'), JSON.stringify({ passed: true, platform: process.platform, node: process.version, packaged: true, realPi: true, realModel: false, snapshot: await page.evaluate(() => window.piIde.snapshot()) }, null, 2));
-  console.log('PASS: packaged Windows app → bundled real Pi 0.87.0 → native session; missing authentication is recoverable. No real model call.');
+  console.log('PASS: packaged Windows app → bundled real Pi 0.87.0 → native session; no-run /llama remains usable; missing authentication is recoverable. No real model call.');
 } finally {
   await application?.close();
   await rm(sandbox, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });

@@ -1,5 +1,5 @@
 import { Badge } from '@/components/ui/badge';
-import type { RunPhase } from '../../shared/contracts';
+import type { RunPhase, SessionSnapshot } from '../../shared/contracts';
 
 export const phaseLabels: Record<RunPhase, string> = {
   starting: '正在启动',
@@ -34,8 +34,8 @@ export function isActiveRun(phase: RunPhase) {
     || phase === 'compacting' || phase === 'waiting';
 }
 
-export function canSendPrompt(phase: RunPhase) {
-  return phase === 'idle' || phase === 'settled' || phase === 'error';
+export function canSendPrompt(session: Pick<SessionSnapshot, 'canSubmit'>) {
+  return session.canSubmit;
 }
 
 export function RunPhaseBadge({ phase, live = false }: { phase: RunPhase; live?: boolean }) {
