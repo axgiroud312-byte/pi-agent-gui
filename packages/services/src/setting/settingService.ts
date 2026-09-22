@@ -338,7 +338,8 @@ export function createSettingServiceWithMigrations(): {
 
     async updateDataBaseDir(newDir: string | undefined): Promise<void> {
       const currentBaseDir = getDataBaseDir();
-      const targetBaseDir = newDir?.trim() || homedir();
+      const targetBaseDir =
+        newDir?.trim() || process.env.ZCODE_DESKTOP_HOME_DIR?.trim() || homedir();
       const validation = validateDataBaseDirTarget(targetBaseDir);
       if (!validation.ok) {
         // Windows 安装目录由安装器/自动更新管理，把 .zcode/v2 放进去可能在升级时被覆盖。

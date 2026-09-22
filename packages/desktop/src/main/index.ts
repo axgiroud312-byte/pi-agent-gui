@@ -1,6 +1,7 @@
-import { createLocalTtftExporter } from "./localTtftExporter.js";
 /* eslint-disable max-lines */
 import "./desktopEarlyDataBaseDirBootstrap.js";
+import { createLocalTtftExporter } from "./localTtftExporter.js";
+import { resolveDesktopSettingsFile } from "./desktopProductProfile.js";
 import "./desktopEarlyChromiumHardwareAccelerationBootstrap.js";
 import { powerMonitor, powerSaveBlocker } from "electron";
 import { crashCapturePaths } from "./appCrashCaptureBootstrap.js";
@@ -60,7 +61,6 @@ import {
   getDataBaseDir,
   getZCodeDataRootDir,
   normalizeRuntimeProcessEnv,
-  setDataBaseDir,
 } from "@zcode/services/node";
 import {
   desktopMenuMessageIds,
@@ -529,7 +529,7 @@ async function runBrowserCommandOnView(params: {
 let currentDesktopZoomLevel = 0;
 let currentDesktopWindowSize: DesktopWindowSize | undefined;
 const preloadPath = join(import.meta.dirname, "../preload/index.cjs");
-const settingsFile = join(homedir(), ".zcode", "v2", "setting.json");
+const settingsFile = resolveDesktopSettingsFile();
 let activeAppShutdownPolicy = resolveAppShutdownPolicy("normal", process.platform);
 let activeAppShutdownKind: AppShutdownKind | null = null;
 const WINDOWS_AGENT_FORCE_KILL_TIMEOUT_MS = 2_000;
@@ -1863,14 +1863,13 @@ app.whenReady().then(async () => {
   installBrowserRestoreBootstrapProtocol(
     session.fromPartition(EMBEDDED_BROWSER_PARTITION).protocol,
   );
-  // Bootstrap: 从设置文件读取自定义数据目录，在所有 host 进程启动前生效
+  // Data identity was fixed before imports; now restore ordinary Pi profile preferences.
   let loadedBootstrapLocale = false;
   let bootstrapSettings: AppSettings | undefined;
   try {
     bootstrapSettings = await mainSettingService.get();
-    if (bootstrapSettings.dataBaseDir) {
-      setDataBaseDir(bootstrapSettings.dataBaseDir);
-    }
+    // The early identity boundary already resolved the data root. Reapplying this field
+    // would override an explicit ZCODE_DATA_BASE_DIR and split main/host/profile state.
     if (bootstrapSettings.locale) {
       loadedBootstrapLocale = true;
       currentApplicationLocale = bootstrapSettings.locale;
@@ -1882,7 +1881,7 @@ app.whenReady().then(async () => {
     // 全局 keep-awake：启动时若设置已开，立刻持有 powerSaveBlocker，不必等设置变更事件。
     reconcileKeepAwakeBlocker();
   } catch {
-    // 读取失败不影响启动，使用默认 homedir
+    // 读取失败不影响启动，继续使用早期已隔离的 Pi profile。
   }
 
   // scheduler 也会打开 tasks-index；等 Host 完成统一准备，避免在启动页出现前抢先迁移。

@@ -259,3 +259,44 @@ node apps/zcode-cli/test/run-product-policy.mjs
 - 分别在 adapters、bootstrap 包目录执行其真实 `lint` 脚本内容 **`oxlint src`**，使用 `pi-native-32/apps/zcode-cli/node_modules/.bin/oxlint.cmd`（实际 1.67.0），自动读取仓库规则。**adapters：203 files，18 warnings / 25 errors；bootstrap：222 files，22 warnings / 20 errors**。errors 全为已有超长文件的 `max-lines`，包含本批触及但此前已远超 400 行的 marketplace.ts、zip-source.ts、bootstrap/plugins.ts；还有 config、fs、MCP、storage、v4 等未修改文件。没有关闭规则、加忽略或借根 lint 的 CLI 排除宣称通过。
 - `git diff --check` 通过。未运行整仓 typecheck、Agent/desktop 构建或产品 E2E。主分支仍需执行完整 `pnpm --dir apps/zcode-cli lint` 并处理/登记以上基线检查阻塞，重新构建 Agent 与 renderer，再通过 guarded external-open smoke 验证反馈点击。
 - 本轮未改 `packages/shared/src/product.test.mjs`、主分支的新 `shared/test` 路径或 provider readonly-cache 修复。#33 保持未确认。
+
+## 默认桌面数据身份隔离合同
+
+已观察到旧 early bootstrap 先读取真实 HOME 的 `.zcode/v2/setting.json`，且 whenReady 再以其 dataBaseDir 覆盖环境变量，导致正常 Pi 启动可能读取/修改原版设置与调度库。本修正属于产品身份（允许差异 1），不是 Pi #34。
+
+- 无覆盖时，Pi 的设置锚点是 `<启动 HOME>/.pi-agent-ide`；沿用原生结构，设置位于该锚点的 `.zcode/v2/setting.json`。
+- 显式 `ZCODE_DATA_BASE_DIR` 最高优先级：先归一化为绝对路径，bootstrap 不读取任何 setting.json 来决定数据根；该次启动设置也位于显式根。原生设置中的 dataBaseDir 不能在 whenReady 再覆盖它。
+- 没有显式数据根时，现有 `ZCODE_DESKTOP_HOME_DIR` 可显式指定设置锚点；否则使用上述 Pi 默认锚点。只从此锚点读取持久化 dataBaseDir；缺失/空/损坏时使用锚点本身，相对持久化路径相对锚点解析。
+- 主进程在任何 services/logger/crash 导入前，把桌面运行时的 HOME/USERPROFILE 设为选定业务根，把 ZCODE_DESKTOP_HOME_DIR 固定为设置锚点。这样上游仍通过 homedir 访问的 CLI 配置、历史、skills/MCP 等也进入 Pi 私有 profile；不会借用真实用户的原版 `.zcode`。独立 CLI/直接 services 入口不执行此 bootstrap，默认语义不改。
+- 自动选出的数据根不伪装成主进程的显式 ZCODE_DATA_BASE_DIR；重启沿固定锚点重新读取设置，避免设置迁移后仍被旧的内部环境值锁住。host/scheduler 获得最终绝对 ZCODE_DATA_BASE_DIR 和相同设置锚点，原生 Agent 继承业务 HOME 与绝对 storage/log/db 路径。
+- 本修正不搬移/导入原版数据，也不改 workspace 内 `.zcode`/`.agents` 文件名或绝对项目路径。默认 profile 内的工具 HOME/全局资源与原版隔离；已有工程继续通过原生目录选择器打开。设置中“恢复默认数据目录”必须回到 Pi 设置锚点，不能落回原版 HOME。
+- 验证以临时 HOME 中旧设置/CLI 配置的 sentinel 为依据：旧配置不能重定向新默认；显式环境优先；Pi 持久化自定义目录恢复；重启、main/host/scheduler/Agent 路径一致；原版 fixture 字节不变，且测试不接触真实用户 HOME 数据。
+
+### 隔离实现与目录布局
+
+`packages/desktop/src/main/desktopProductProfile.ts` 是仅依赖 node:fs/os/path 的桌面边界；不放入 renderer 可引用的 shared/product，也不导入 services。`desktopDataBaseDirBootstrap.ts` 改为调用此边界；`main/index.ts` 将 early bootstrap 放在第一个 import，移除 whenReady 的第二次 dataBaseDir 覆盖。窗口恢复与 Chromium 早期设置读取统一使用同一个 Pi 设置文件。`desktopRuntimeEnv.buildHostProcessEnv` 最后写入已解析的绝对 profile 环境，覆盖 .env/shell 的冲突值。`settingService.updateDataBaseDir(undefined)` 仅在已提供桌面 HOME 时使用设置锚点，否则维持独立服务原有 homedir 默认。
+
+```text
+默认设置锚点 = <启动 HOME>/.pi-agent-ide
+<设置锚点>/.zcode/v2/setting.json             # 包括自定义 dataBaseDir，始终固定
+
+业务根 = 显式 ZCODE_DATA_BASE_DIR / Pi 持久化 dataBaseDir / 设置锚点
+<业务根>/.zcode/v2/                           # 凭据、provider、tasks-index.sqlite 等
+<业务根>/.zcode/cli/config.json               # 原生 Agent 配置
+<业务根>/.zcode/cli/db/db.sqlite              # 原生 Agent 历史
+<业务根>/.zcode/cli/log/                      # 原生 Agent 日志
+<业务根>/.zcode/workspace/default/            # 原生非项目会话目录
+```
+
+`ZCODE_DATA_BASE_DIR`、`ZCODE_DESKTOP_HOME_DIR`、`ZCODE_HOME`、`ZCODE_STORAGE_DIR`、`ZCODE_LOG_DIR`、两种既有 session DB 环境键均保留原名；没有新增环境变量。只有桌面入口建立私有 runtime HOME/USERPROFILE；因此这个运行时的 `~` 和全局资源也属于 Pi profile，原版账户/配置不会自动继承。真实 workspace 的路径、布局、会话协议以及独立 CLI 的 API/defaults 没有替换。
+
+### 隔离修正实际验证
+
+Windows / Node 24.14.0，在预批准临时目录内执行：
+
+1. `node --test packages/desktop/test/desktop-product-profile.test.mjs`：**5/5 通过**。默认旧目录 sentinel、显式根零 bootstrap 读取、Pi 自定义路径及 relaunch 再解析、坏/空/相对设置、绝对子进程环境。
+2. `node apps/zcode-cli/test/run-product-policy.mjs packages/desktop/test/desktop-profile-native.test.mjs`：**4/4 通过**。独立 Node 子进程加载真正的 early bootstrap、services paths/setting service、CLI config factory；读取并写入 Pi 设置，验证任务库路径、CLI 用户配置、storage/session DB、主进程和继承环境。旧 profile 的 sync/async 文件读取与写入设检测钩子，访问计数为 0，旧 settings/CLI config 字节不变。另验证 Chromium 开关仅来自 Pi 锚点、恢复默认时真实复制回 Pi 锚点，以及无 bootstrap 的独立 services/CLI 保持原默认。
+3. 运行器借用已安装 worktree 的外部依赖，方式同上一节；仅临时编译测试入口。增加可选测试入口参数与内部 `#src` 解析，不变更主分支构建脚本或 CLI 产品代码。默认命令 `node apps/zcode-cli/test/run-product-policy.mjs` 回归：**10/10 通过**。
+4. 定向根 lint：8 files，**0 errors / 6 处 main/index.ts 原有 unused warnings**；CLI 目录单独检查修改的测试运行器：1 file、0 warnings / 0 errors；`git diff --check` 通过。
+
+这些子进程验证的是原生路径/设置/配置合同，不是 Electron host/scheduler 循环或 Agent app-server 启动验收。本工作树未安装依赖、未执行完整 typecheck/桌面/Agent 构建，未触碰真实用户 HOME。主分支需重建 main/host/scheduler 后，以默认启动环境和既有隔离 harness 分别补做 Electron smoke；实际机器正常启动会创建新的 Pi profile，不导入原版状态。`appCrashCaptureBootstrap.ts`、provider readonly-cache、shared 测试迁移路径和 #33 状态均未修改。

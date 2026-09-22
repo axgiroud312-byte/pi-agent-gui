@@ -4,7 +4,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { createRequire, isBuiltin } from "node:module";
 import { tmpdir } from "node:os";
-import { delimiter, dirname, isAbsolute, join, relative } from "node:path";
+import { delimiter, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 
@@ -54,7 +54,9 @@ const directory = await mkdtemp(join(tmpdir(), "pi-product-policy-tests-"));
 try {
   const outfile = join(directory, "contracts.mjs");
   await build({
-    entryPoints: [fileURLToPath(new URL("product-marketplace.test.mjs", import.meta.url))],
+    entryPoints: [process.argv[2]
+      ? resolve(process.argv[2])
+      : fileURLToPath(new URL("product-marketplace.test.mjs", import.meta.url))],
     outfile,
     bundle: true,
     platform: "node",
@@ -72,6 +74,7 @@ try {
             if (isAbsolute(path)) return undefined;
             if (isBuiltin(path)) return { path, external: true };
             if (path.startsWith("@zcode/")) return undefined;
+            if (path.startsWith("#")) return undefined;
             return { path: pathToFileURL(external(path, importer)).href, external: true };
           });
           builder.onResolve({ filter: /^\.\/libs\.generated\.js$/ }, ({ importer }) => {
