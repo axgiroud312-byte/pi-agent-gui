@@ -21,11 +21,16 @@ import {
 } from "./third-party-npm.mjs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseArgs } from "node:util";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const command = process.argv[2] || "notices";
 if (command === "notices") {
-  await generateThirdPartyNotices(ROOT);
+  const { values } = parseArgs({
+    args: process.argv.slice(3),
+    options: { "dependency-root": { type: "string" } },
+  });
+  await generateThirdPartyNotices(ROOT, { dependencyRoot: values["dependency-root"] ?? ROOT });
   process.exit(0);
 }
 

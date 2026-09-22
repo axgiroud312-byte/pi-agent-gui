@@ -7,7 +7,7 @@
 - **仓库**: https://github.com/zai-org/ZCode
 - **固定提交**: `872ad960de7ec172591f7e1952f7849229f94521`
 - **提交消息**: "feat: open source"
-- **提交日期**: 2026-09-XX (实际日期见 Git log)
+- **提交日期**: 2026-09-21（固定 Git 对象核实）
 - **许可证**: Apache License 2.0
 - **导入日期**: 2026-09-22
 - **导入分支**: `issue-32-native-zcode-import`
@@ -44,6 +44,13 @@
 - `LICENSE` - Apache 2.0 许可证全文
 - `NOTICE.md` - ZCode 功能说明与第三方组件声明
 - `THIRD-PARTY-NOTICES.md` - 完整第三方许可证列表
+
+### #32 来源修复（2026-09-22）
+
+- 补回 `third-party/inventory.json` 引用、初次导入遗漏的 220 个 `.agents/skills/` 文件：agent-browser、ai-elements、dogfood、electron、react-best-practices。来源仍为上述固定 ZCode Git 对象；这是上游来源材料，项目工作约定仍以本仓库根 `AGENTS.md`、`CONTRIBUTING.md` 和交付规格为准。
+- 恢复上游对原始许可和聚合声明的 `-text` 属性；两份 native-search 许可保留原始 CRLF，其他许可不批量改写。普通文本固定 LF，让 copied-source 字节哈希在 Windows 新检出中可重现。
+- 按当前实际源文件和与冻结锁文件匹配的安装图重新生成清单。固定上游原清单已落后于其自身 `package.json`、`packages/ui/src/lib/builtinSkillI18n.ts`；保留源文件，重生成对应哈希及原生成器产生的 19 项 `reviewRequired`，不清空这些未完成项。
+- 验证命令、范围及集成后的重生成步骤见 [#32 CI/来源报告](docs/delivery/issue-32-ci-provenance.md) 和 [第三方材料说明](third-party/README.md)。
 
 ### 上游文档（保留作为参考）
 - `README.md` → `docs/upstream/zcode-README.md`

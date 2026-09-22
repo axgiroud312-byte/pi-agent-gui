@@ -7,7 +7,8 @@ import {
   repositoryRoot,
 } from "./third-party-notices.mjs";
 
-export async function generateThirdPartyNotices(root = repositoryRoot) {
+export async function generateThirdPartyNotices(root = repositoryRoot, options = {}) {
+  const outputRoot = options.outputRoot ?? root;
   const inputs = {};
   const readInput = async (file) => {
     const bytes = await readFile(join(root, file));
@@ -27,7 +28,11 @@ export async function generateThirdPartyNotices(root = repositoryRoot) {
   await readInput("pnpm-lock.yaml");
   await readInput("pnpm-workspace.yaml");
   await readInput("third-party/native-search/sources.json");
-  const { packages, notInstalled, workspaceManifests } = await collectNpmNotices(root, overrides);
+  const { packages, notInstalled, workspaceManifests } = await collectNpmNotices(
+    root,
+    overrides,
+    options,
+  );
   // 修复：递归扫描会把 bundled-agents/mock-cdn 的可删除缓存当作源码输入，重建立即失效。
   // workspace 边界由 pnpm 解析，同一份项目集合用于依赖图和 manifest 新鲜度检查。
   for (const file of workspaceManifests) await readInput(file);
@@ -199,12 +204,12 @@ export async function generateThirdPartyNotices(root = repositoryRoot) {
         })),
     ],
   };
-  await writeFile(join(root, noticesFileName), bytes);
+  await writeFile(join(outputRoot, noticesFileName), bytes);
   await writeFile(
-    join(root, "third-party/inventory.json"),
+    join(outputRoot, "third-party/inventory.json"),
     `${JSON.stringify(inventory, null, 2)}\n`,
   );
   console.log(
-    `${relative(root, join(root, noticesFileName))}: ${packages.length} package versions, ${copied.length} copied components, ${native.inventory.archives.length} native archives, ${bytes.length} bytes`,
+    `${relative(outputRoot, join(outputRoot, noticesFileName))}: ${packages.length} package versions, ${copied.length} copied components, ${native.inventory.archives.length} native archives, ${bytes.length} bytes`,
   );
 }

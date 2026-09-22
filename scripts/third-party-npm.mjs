@@ -6,6 +6,15 @@ import { promisify } from "node:util";
 import { resolveSpawnRuntimeOptions } from "./spawn-command.mjs";
 
 const exec = promisify(execFile);
+async function listPnpm(root, args) {
+  const { stdout } = await exec("pnpm", args, {
+    cwd: root,
+    maxBuffer: 256 * 1024 * 1024,
+    ...resolveSpawnRuntimeOptions("pnpm"),
+  });
+  return JSON.parse(stdout);
+}
+const listWorkspace = (root) => listPnpm(root, ["-r", "ls", "--depth", "-1", "--json"]);
 export const hashBytes = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const unsupportedCanvas = new Set([
   "@napi-rs/canvas-android-arm64",
@@ -83,28 +92,31 @@ export function assertProductionGraphs(lockedProjects, installedProjects) {
 export async function readWorkspaceProductionGraph(root) {
   root = await realpath(root);
   // 修复：pnpm ls 默认读取安装快照，不能把旧图与当前锁文件哈希拼成有效声明。
-  const [locked, actual] = await Promise.all(
-    [true, false].map(async (lockfileOnly) => {
-      const { stdout } = await exec(
-        "pnpm",
-        [
-          "-r",
-          "ls",
-          "--prod",
-          "--json",
-          "--depth",
-          "Infinity",
-          ...(lockfileOnly ? ["--lockfile-only"] : []),
-        ],
-        {
-          cwd: root,
-          maxBuffer: 256 * 1024 * 1024,
-          ...resolveSpawnRuntimeOptions("pnpm"),
-        },
-      );
-      return JSON.parse(stdout);
-    }),
-  );
+  const workspace = await listWorkspace(root);
+  const locked = [];
+  const actual = [];
+  // pnpm 10's all-workspace infinite-depth walk exhausts Windows file handles.
+  // Retain every project and the full depth, but enumerate one project at a time.
+  for (const project of workspace) {
+    for (const [target, lockfileOnly] of [
+      [locked, true],
+      [actual, false],
+    ]) {
+      const graph = await listPnpm(root, [
+        "--filter",
+        project.name,
+        "ls",
+        "--prod",
+        "--json",
+        "--depth",
+        "Infinity",
+        ...(lockfileOnly ? ["--lockfile-only"] : []),
+      ]);
+      if (graph.length !== 1 || graph[0].name !== project.name)
+        throw new Error(`Unexpected pnpm project graph: ${project.name}`);
+      target.push(...graph);
+    }
+  }
   const required = assertProductionGraphs(locked, actual);
   return { required, projects: actual };
 }
@@ -158,11 +170,44 @@ export function missingProductionPackages(required, installed) {
   return missing;
 }
 
-export async function collectNpmNotices(root, overrides) {
+// A provenance-only worktree can reuse an existing install read-only. Never pair a
+// different lockfile or workspace manifest with that installation's notice text.
+export async function assertMatchingNoticeWorkspace(root, dependencyRoot, manifests) {
+  for (const file of new Set([
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
+    "package.json",
+    ...manifests,
+  ])) {
+    const [source, installed] = await Promise.all(
+      [root, dependencyRoot].map(async (directory) =>
+        (await readFile(join(directory, file), "utf8")).replaceAll("\r\n", "\n"),
+      ),
+    );
+    if (source !== installed)
+      throw new Error(
+        `Notice dependency workspace differs: ${file}. Use a matching frozen install.`,
+      );
+  }
+}
+
+export async function collectNpmNotices(root, overrides, { dependencyRoot = root } = {}) {
   root = await realpath(root);
-  const { required, projects } = await readWorkspaceProductionGraph(root);
+  dependencyRoot = await realpath(dependencyRoot);
+  const { required, projects } = await readWorkspaceProductionGraph(dependencyRoot);
+  const workspaceManifests = projects.map((project) =>
+    relative(dependencyRoot, join(project.path, "package.json")).replaceAll("\\", "/"),
+  );
+  if (root !== dependencyRoot) {
+    const sourceManifests = (await listWorkspace(root)).map((project) =>
+      relative(root, join(project.path, "package.json")).replaceAll("\\", "/"),
+    );
+    if (JSON.stringify([...workspaceManifests].sort()) !== JSON.stringify(sourceManifests.sort()))
+      throw new Error("Notice dependency workspace has a different set of projects.");
+    await assertMatchingNoticeWorkspace(root, dependencyRoot, workspaceManifests);
+  }
   // 修复：标识门禁和声明生成必须扫描同一安装集合，避免嵌套版本只进声明、不进门禁。
-  const installed = await scanInstalledPackages(root, projects);
+  const installed = await scanInstalledPackages(dependencyRoot, projects);
   const packages = [];
   const missing = [];
   const notInstalled = missingProductionPackages(required, installed);
@@ -203,8 +248,6 @@ export async function collectNpmNotices(root, overrides) {
   return {
     packages,
     notInstalled,
-    workspaceManifests: projects.map((project) =>
-      relative(root, join(project.path, "package.json")).replaceAll("\\", "/"),
-    ),
+    workspaceManifests,
   };
 }
