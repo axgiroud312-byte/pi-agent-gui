@@ -2,6 +2,8 @@
 
 日期：2026-09-22。分支 `issue-32-ci-provenance`，独占工作树 `C:\Users\niilo\AppData\Local\Temp\opencode\pi-ci-32`，起点 `317d286`。范围：Windows CI、许可/来源材料与检查、本文档。权威任务为 [#32](https://github.com/axgiroud312-byte/pi-agent-gui/issues/32)，父规格 #1；#32 无阻塞，#33 仍 OPEN 且无实际界面确认。
 
+代码/材料提交：**`734d8eb` — `fix: restore native CI and byte-exact provenance`**。下表的提交后复验在新建 detached worktree `C:\Users\niilo\AppData\Local\Temp\opencode\pi-ci-32-fresh-734d8eb` 完成。
+
 ## 交付内容
 
 1. `.github/workflows/ci.yml` 使用 **Windows、Node 24.14.0、pnpm 10.33.2、`pnpm install --frozen-lockfile`**。保留失败状态，同时继续收集独立检查结果；没有 `continue-on-error`。
@@ -31,7 +33,11 @@
 | `readVerifiedNotices()` | **通过**，1,975,825 bytes，所有记录输入匹配 |
 | `git checkout-index --all --prefix=…/pi-ci-32-verified-snapshot/` 后 `node scripts/check-native-provenance.mjs --root <snapshot>` | **通过**：6112 次哈希检查，2868 个 input，220 个 skill input；验证的是按暂存属性重新检出的文件，不依赖旧工作树 CRLF |
 | 同一新检出 `node scripts/check-native-provenance.mjs --strict` | **预期失败**，恰好列出上述 19 项待补材料；无输入/字节错误 |
+| 提交后 `git worktree add --detach …/pi-ci-32-fresh-734d8eb 734d8eb`，在其中运行来源检查、12 项回归、`readVerifiedNotices()`、`readNativeSearchNotices(undefined, {verify:true})` | **全部通过**；6112 次哈希 / 12 tests / 1,975,825 notice bytes / 118 native material components。没有 install、build 或 GUI smoke |
+| 新 detached checkout 中 `node scripts/licenses.mjs notices --dependency-root "…\pi-native-32"`，再 `git diff --exit-code -- THIRD-PARTY-NOTICES.md third-party/inventory.json` | **通过，零差异**；完整重新盘点后两份生成文件与提交字节一致，新 checkout 干净 |
 | 五个新增/修改许可脚本的 oxlint（读取 `pi-native-32` 现有安装） | **通过**：0 warnings / 0 errors |
+| 同五个脚本在提交后新检出的 `oxfmt --check` | **通过**；初次格式检查发现的长行/旧工作树换行问题已处理 |
+| workflow YAML 解析、固定版本/实际根 scripts/串行依赖检查 | **通过**；这是静态验证，不是 GitHub Actions 运行记录 |
 | 全仓 oxlint，使用同一现有工具、cwd 为 `pi-ci-32` | **失败：70 warnings / 1 error**。错误为 `.backup-old-prototype/src/runtime/pi-rpc-client.ts:571`，`max-lines` 505 > 400；属于既存旧原型备份。没有改规则或缩小 CI lint 范围来掩盖它 |
 | `git diff --cached --check` | 通过；原始 vendored 空白按上述路径属性保留 |
 
