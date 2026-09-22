@@ -1,8 +1,14 @@
 # Pi Agent GUI
 
-为 **Pi Coding Agent** 打造本地优先、功能完整的 **通用 Agent IDE**，使用 `pi --mode rpc` 的 JSONL 协议驱动 Agent。
+以 **ZCode 原生开源工程** 为底座，保留原生界面布局和用户交互，将 Agent 内核适配为 **Pi Coding Agent**，交付本地优先的 Windows 通用 Agent IDE。
 
-交互参考 Claude Code Desktop、Codex App 和 ZCode。首版覆盖完整开发工作台及固定版本 Pi 的全部产品能力；通过分阶段、分 Issue 实现，最终以完整功能矩阵验收。前端优先复用成熟的开源基础组件、Agent 组件与可复用项目代码。
+**当前路线：先原生 ZCode 跑通并建立对照 → 用户确认界面 → Pi RPC 后端替换 → 全量能力验收。** 默认保留原生组件、状态、布局和操作路径；仅移植颜色/圆角或重建一个类似界面不满足目标。
+
+- [产品目标与已确认边界](docs/product-goal.md)
+- [新开发计划](docs/delivery/native-rebase-plan.md)
+- [新上下文执行指令](docs/delivery/next-context.md)
+- [原生界面/交互验收](docs/delivery/native-ui-parity.md)
+- [旧分支与成果复用清单](docs/delivery/reuse-inventory.md)
 
 ## 首版产品范围
 
@@ -17,7 +23,7 @@
 
 ## 当前进度
 
-完整首版正在按 [覆盖账本](docs/delivery/coverage.md) 实施。目前已有可运行的桌面基础切片：本地工作区、独立 Pi RPC 会话、文本流式输出、运行/重试/失败状态、启动配置与诊断。其余能力继续由 #3–#28 跟踪；当前开发构建不是完整首版。
+当前进入**原生 ZCode 底座重建阶段**。#2/#30 经 PR #31 交付了旧自建桌面/RPC 基础，其他工作树保存了可复用 Pi/宿主功能。它们不是原生 ZCode 迁移的完成证明；原生源码导入、运行对照与用户界面关卡尚未完成。详见 [覆盖账本](docs/delivery/coverage.md)。
 
 - [主规格 #1：Pi Agent IDE 完整首版](https://github.com/axgiroud312-byte/pi-agent-gui/issues/1) — 84 条用户故事、34 组 Pi 能力、18 组 IDE 能力与 20 组验收场景。
 - [GitHub Issues：规格与任务的权威来源](https://github.com/axgiroud312-byte/pi-agent-gui/issues)
@@ -30,19 +36,18 @@
 
 | 领域 | 方案 |
 | --- | --- |
-| 桌面端 | Windows 为主要验收平台；Electron + React + TypeScript |
-| Agent 驱动 | 每个活动会话独立 Pi 子进程，stdin/stdout JSONL RPC；扩展能力桥接 |
-| 通用组件 | shadcn/ui、Radix、Tailwind CSS、Lucide |
-| Agent 组件 | assistant-ui，使用外部状态适配器承接 Pi 会话投影 |
-| 编辑器与终端 | Monaco Editor / Diff、xterm.js + node-pty |
-| 工作区体验 | 项目与会话导航、并行对话、编辑 / Diff / 预览面板、终端与任务区 |
-| 测试 | 在 Pi 子进程边界替换测试进程，验收完整 GUI 操作链路 |
+| 桌面与前端 | 固定 ZCode 原生 Electron 工程、React 组件、Lexical 输入框、时间线、布局状态与服务接口 |
+| Agent 驱动 | Pi 0.87.0 JSONL RPC；服务适配映射原生命令/订阅，每活动会话独立 Pi 运行隔离 |
+| 本地 IDE 服务 | 优先复用原生文件、Git、终端、预览和平台服务，补齐主规格差额 |
+| Pi 特有能力 | 原生菜单、设置、详情与 Side Pane 中最小增补；保持 Pi 真实语义 |
+| 首版发行 | Windows 桌面，包含 WSL/SSH 与 Pi CLI 互通；Web/独立 CLI 不作为首版产品 |
+| 测试 | 原版/产品逐屏逐操作对照，加原生 GUI → 服务适配 → Pi RPC/宿主真实链路 |
 
-上游基准为已发布的 `@earendil-works/pi-coding-agent@0.87.0`，实现时固定依赖和协议样例。旧仓库 `badlogic/pi-mono` 已跳转到 [earendil-works/pi](https://github.com/earendil-works/pi)。
+ZCode 基准：[`872ad960de7ec172591f7e1952f7849229f94521`](https://github.com/zai-org/ZCode/tree/872ad960de7ec172591f7e1952f7849229f94521)，第一方代码 Apache-2.0；保留许可和第三方声明。Pi 基准：`@earendil-works/pi-coding-agent@0.87.0`，MIT。技术选择调整见 [ADR 0001](docs/adr/0001-native-zcode-base.md)。
 
-## 本地启动
+## 当前代码的启动状态
 
-需要 Node.js `>=22.19.0`（开发验证使用 24.14.0）、npm 和 Git；主要验收平台是 Windows。
+以下命令仅运行现存的**旧基础原型**，用于复现历史协议/宿主验证，不是新目标的 ZCode 原生产品。需要 Node.js `>=22.19.0`（历史验证使用 24.14.0）。原生底座导入后会按实际脚本更新这里。
 
 ```powershell
 npm ci
@@ -60,7 +65,7 @@ npm start
 
 宿主配置保存在 Electron userData 下的 `workbench.json`；可用 `--user-data-dir=<绝对路径>` 指定独立工作台配置。Pi 原生会话保存在其自身配置/会话目录，二者分开管理。
 
-## 检查与开发安装包
+## 旧原型检查与开发安装包
 
 ```powershell
 npm run check
@@ -74,7 +79,7 @@ npm run test:package
 - `test:package`：Windows 打包应用启动其随附真实 Pi，验证原生会话与缺少认证的恢复状态；结果在 `test-results/package/`。
 - NSIS 安装包：`release/Pi-Agent-IDE-0.1.0-dev.1-x64.exe`；未打包目录：`release/win-unpacked/`。
 
-真实模型、全量扩展兼容、Windows 安装升级回退和外部环境验收分别在 #28 与对应实施票登记，离线通过不代替这些验收。开源来源见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+旧开发包不代表原生界面已验收。新产品的真实模型、全量扩展兼容、Windows 安装升级回退和外部环境仍由 #28 与对应实施票验收。开源来源见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
 ## Matt 工作流
 

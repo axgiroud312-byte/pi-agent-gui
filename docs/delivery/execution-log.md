@@ -1,5 +1,7 @@
 # 执行记录
 
+**当前路线已重议：** 最新执行入口为 [next-context.md](next-context.md)，按 [原生重建计划](native-rebase-plan.md) 先 #32、在 #33 等用户确认。下面旧实现日志作为历史保存。
+
 ## 2026-09-22 — 完整首版开始实施
 
 - 基线：`main`，`f4ea7778d22498788b1d60dc547e0a72f1661125`；初始工作区干净，仅规格文档。
@@ -42,3 +44,16 @@
 - 复审补充三项修复：嵌套诊断脱敏顺序、重叠锁释放等待同一个 Promise、扩展超时后无 Run 恢复。
 - 最新 `npm run check` 整体通过：typecheck/lint、39 runtime/host、2 real-Pi contracts、build、8 Electron E2E。
 - 下一步：提交本轮修复，完成 reviewer 复查和最终 Windows CI，再合并 #31、关闭 #2/#30 并立即领取无阻塞任务。
+
+## 2026-09-22 — 用户停工并确认原生 ZCode 重建
+
+- #31 已合并为 `46c34f1`，#2/#30 CLOSED；其后七个功能分支落盘提交均已盘点，见 reuse-inventory，不继续旧整合路线。
+- 用户明确指出“像ZCode的样式”不够，需要原生布局与用户交互；要求本轮只更新 Issues/目标文档，下一上下文再开发。
+- grill-with-docs 两轮七项确认：保留完整84/P/I/T范围；移除厂商专属入口并保留通用能力；Windows桌面；硬性交互一致；原生完整工程优先；Pi入口原生位置优先；设置一次实际界面用户确认关卡。
+- 当前文档分支 `docs/native-zcode-rebaseline`；产品代码保持 `46c34f1`，本轮没有功能开发。
+- #1 正文已更新；用户故事与P/I矩阵逐字保留。#32重写原生导入；新增#33 ready-for-human和#34原生服务Pi接入；所有原能力票重写共用验收约束并更新原生阻塞边。
+- 当前唯一可领取的新路线实施票为#32；#33没有用户对实际界面的确认记录，保持OPEN。
+- 文档包括product-goal、ADR0001、native-rebase-plan、native-ui-parity、reuse-inventory和next-context；AGENTS/README/来源资料已纠正旧组件拼装方向。
+- 检查：`node --check scripts/delivery.mjs`及覆盖/拓扑检查通过，`--publish --sync-managed`已真实同步30项记录。规格更新校验84故事和P/I矩阵SHA不变（仅路线、T19增强和交付顺序调整）。
+- 回读GitHub核对通过：30项均为#1原生子Issue，71条native blocking edges与本地一致；唯一OPEN且无阻塞票为#32；#33为OPEN/ready-for-human；#2/#30维持CLOSED。ESLint交付脚本通过，产品源码无改动。
+- 下一步：完成本轮文档/Issue一致性审查并提交推送。下一个实施上下文按next-context领取#32，原生对照完成后在#33暂停。

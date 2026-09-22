@@ -2,6 +2,8 @@
 
 核实日期：2026-09-22。这里记录可追溯的来源与复用方向；产品验收条件以 GitHub 规格 Issue 为准。
 
+**路线更新：** 用户已确认以 ZCode 原生工程为底座，目标与约束见 [product-goal.md](../product-goal.md) 和 [ADR 0001](../adr/0001-native-zcode-base.md)。旧的“独立组件拼装/assistant-ui 优先”选择已被替代。原 Pi 协议事实继续有效。
+
 ## Pi Coding Agent
 
 - 当前仓库：[earendil-works/pi](https://github.com/earendil-works/pi)，原 `badlogic/pi-mono` 会跳转到该仓库。
@@ -50,7 +52,7 @@
 
 ### 测试先例
 
-新仓库尚无测试套件，可借鉴上游测试目标而非照搬其内部 mock 结构：
+旧原型已建立 JSONL/宿主/真实 Pi/Electron 测试，见 #2/#31；迁入原生工程后需重新验证。以下是固定上游测试先例：
 
 - [JSONL framing](https://github.com/earendil-works/pi/blob/16787ad5b2dc748047f314ca1bfe7708f30f54f3/packages/coding-agent/test/rpc-jsonl.test.ts)：LF、CRLF、Unicode 分隔符和末尾无换行。
 - [Prompt response semantics](https://github.com/earendil-works/pi/blob/16787ad5b2dc748047f314ca1bfe7708f30f54f3/packages/coding-agent/test/rpc-prompt-response-semantics.test.ts)：接受与失败只产生一次命令响应、运行中排队及清空队列。
@@ -62,38 +64,50 @@
 | --- | --- | --- |
 | Claude Code Desktop | [官方 Desktop 文档](https://code.claude.com/docs/en/desktop) | 工作区选择、会话侧栏、固定输入区、工具详情折叠、改动审阅、运行中补充指令 |
 | Codex App | [官方功能页](https://developers.openai.com/codex/app/features) | 项目与聊天组织、任务状态、输入附件和渐进展示 |
-| ZCode | [README](https://github.com/zai-org/ZCode/blob/872ad960de7ec172591f7e1952f7849229f94521/README.en.md)、[设计系统](https://github.com/zai-org/ZCode/blob/872ad960de7ec172591f7e1952f7849229f94521/DESIGN.md) | 紧凑桌面工作区、独立面板、语义色、可读的工具时间线与键盘操作 |
+| ZCode | [README](https://github.com/zai-org/ZCode/blob/872ad960de7ec172591f7e1952f7849229f94521/README.en.md)、[设计系统](https://github.com/zai-org/ZCode/blob/872ad960de7ec172591f7e1952f7849229f94521/DESIGN.md) | 原生源码与交互基线；完整保留界面组织、组件、状态和操作路径，仅作已登记的必要差异 |
 
 Claude Code 仓库的 [LICENSE.md](https://github.com/anthropics/claude-code/blob/main/LICENSE.md) 声明 all rights reserved，并引用商业条款；本项目对其采用产品交互参考。`openai/codex` 的 [README](https://github.com/openai/codex/blob/main/README.md) 与目录展示的是开源 CLI、核心、SDK 等，许可证为 Apache-2.0；这不构成桌面 App UI 源码已开放的依据。
 
 ## 可复用组件与代码
 
-### 默认组件层
+### 组件资料与旧原型来源
+
+此表提供许可及模块资料，不要求替换原生 ZCode 已有组件。新产品以原生依赖与交互结构为准；旧 assistant-ui 代码可供协议投影研究，不作为对话界面的强制基础。
 
 | 项目 | 许可 | 用途 / 适配边界 |
 | --- | --- | --- |
 | [shadcn/ui](https://github.com/shadcn-ui/ui) | MIT | 侧栏、按钮、菜单、Dialog、Tabs、Tooltip 等通用交互；保持可访问性与一致主题 |
-| [assistant-ui](https://github.com/assistant-ui/assistant-ui) | MIT | Thread、Composer、消息和工具展示的基础；由本项目持有 Pi 状态 |
+| [assistant-ui](https://github.com/assistant-ui/assistant-ui) | MIT | 旧原型的 Thread/Composer/消息投影来源；新界面保留 ZCode 原生实现 |
 | [Monaco Editor](https://github.com/microsoft/monaco-editor) | MIT | 多文件编辑、Diff、代码导航和语言服务接入 |
 | [xterm.js](https://github.com/xtermjs/xterm.js) | MIT | 交互终端、选择复制与终端兼容展示 |
 | [node-pty](https://github.com/microsoft/node-pty) | MIT 许可文本，保留多方声明 | 本地 PTY 与 Windows ConPTY；需要随 Electron 验证原生打包 |
 | [react-resizable-panels](https://github.com/bvaughn/react-resizable-panels) | MIT | 可调整大小的工作台面板 |
 
-assistant-ui 的 [ExternalStoreRuntime](https://www.assistant-ui.com/docs/runtimes/custom/external-store) 支持外部 store 和能力回调，无需改用其模型后端。使用显式适配将 Pi 消息、工具结果和运行状态投影给组件。Pi 已拥有服务端队列；组件的本地队列不能成为第二套自动调度器。没有实现 Pi 对应能力时不提供编辑、重新生成等回调。
+旧原型使用 assistant-ui 的 [ExternalStoreRuntime](https://www.assistant-ui.com/docs/runtimes/custom/external-store) 投影 Pi。新原生前端通过服务适配投影 Pi 消息与运行；Pi 已拥有服务端队列，保留的前端状态不能成为第二套自动调度器。编辑、重新生成等原生入口必须映射真实 Pi 分支/能力。
 
 调研提交：shadcn/ui `98a1fe67b439324ddc857f47fbdce056600a4329`；assistant-ui `e525f14b0bd7acbd1f3b4d268aa21d175afa9a94`。实施时锁定实际兼容的已发布依赖版本，不能把调研 main 提交误当成发布版本。
 
-### ZCode 作为源代码参考
+### ZCode 作为原生工程底座
 
 仓库 [zai-org/ZCode](https://github.com/zai-org/ZCode) 的第一方代码为 Apache-2.0；固定调研提交 `872ad960de7ec172591f7e1952f7849229f94521`。其 README 明确包含 Electron、Web、共享 React UI 与 Agent runtime。
 
-可优先研究以下局部组件：
+需要保留和追踪的前端范围包括：
 
 - [通用 UI](https://github.com/zai-org/ZCode/tree/872ad960de7ec172591f7e1952f7849229f94521/packages/ui/src/components/ui)
 - [Agent 组件](https://github.com/zai-org/ZCode/tree/872ad960de7ec172591f7e1952f7849229f94521/packages/ui/src/components/ai-elements)：工具、reasoning、附件、输入区、队列和 context 展示。
 - [会话工作区](https://github.com/zai-org/ZCode/tree/872ad960de7ec172591f7e1952f7849229f94521/packages/ui/src/v4)：时间线、会话输入区、状态面板、队列面板及分栏。
 - [消息组件](https://github.com/zai-org/ZCode/blob/872ad960de7ec172591f7e1952f7849229f94521/packages/ui/src/components/ai-elements/message.tsx)：流式与完成态 Markdown、代码块、文件链接和工具栏处理。
 
-ZCode UI 依赖自身 services、store、provider、platform 和 i18n。优先抽取独立、适合 Pi 的展示层；单独评估局部代码复用成本，避免直接带入整套后端与账户业务。引用实际代码时核对 [LICENSE](https://github.com/zai-org/ZCode/blob/872ad960de7ec172591f7e1952f7849229f94521/LICENSE)、[NOTICE](https://github.com/zai-org/ZCode/blob/872ad960de7ec172591f7e1952f7849229f94521/NOTICE.md) 及对应第三方声明。
+ZCode UI 依赖 services、store、provider、platform 和 i18n。保留其原生交互状态及可复用宿主，通过 Agent service/session subscription 边界映射 Pi；仅更换模型 provider 不会更换原 Agent loop。导入时核对 [LICENSE](https://github.com/zai-org/ZCode/blob/872ad960de7ec172591f7e1952f7849229f94521/LICENSE)、[NOTICE](https://github.com/zai-org/ZCode/blob/872ad960de7ec172591f7e1952f7849229f94521/NOTICE.md)、[第三方总表](https://github.com/zai-org/ZCode/blob/872ad960de7ec172591f7e1952f7849229f94521/THIRD-PARTY-NOTICES.md) 和各资源自己的许可。
 
-本次交付为规格与来源整理，尚未引入上述项目的生产代码。
+原生边界事实（源码核实，尚未在本项目运行）：
+
+- 原 UI package 导出 TypeScript 源码并依赖内部 services/shared/rpc/provider；它不是可单独运行的皮肤包。
+- Electron renderer bootstrap → service accessor / platform → session pane / conversation transport → Agent/session service → process manager → 原 `app-server --stdio` / v4 协议。原生 ack、epoch、snapshot/delta、session index 必须映射，而非因同为 stdio 就透传 Pi JSONL。
+- 工作台涉及 pane tree、任务/会话绑定、拖拽/焦点/恢复；输入区使用 Lexical 和关联 mentions/slash/attachment 状态。应实际运行记录，而不是只移植 tokens。
+- 文件/Git/PTY/设置及远端目标服务与 Agent 能力分别识别。厂商账户、Coding Plan、分享/CDN等不是复制源码即取得的服务；公开 Computer Use 仅不可用占位，按已确认范围处理。
+- 上游文档锁定 Node 24.14.0、pnpm 10.33.2；桌面包固定 Electron 41.0.3。`bootstrap` 安装依赖/准备资源/构建，默认跳过远端资源。先核对并执行固定源码的真实脚本；旧原型 Electron 44/npm 版本不强制覆盖它。
+
+服务源码依据：[accessor](https://github.com/zai-org/ZCode/blob/872ad960de7ec172591f7e1952f7849229f94521/packages/services/src/accessor.ts)、[Agent service](https://github.com/zai-org/ZCode/blob/872ad960de7ec172591f7e1952f7849229f94521/packages/services/src/zcode-agent/zcodeAgent.ts)、[process manager](https://github.com/zai-org/ZCode/blob/872ad960de7ec172591f7e1952f7849229f94521/packages/services/src/zcode-agent/zcodeAgentProcessManager.ts)、[renderer bootstrap](https://github.com/zai-org/ZCode/blob/872ad960de7ec172591f7e1952f7849229f94521/packages/desktop/src/renderer/src/main.tsx)。
+
+旧 #32 工作树已做局部样式/组件适配，但没有保留全部原生应用结构；它的截图不是原版基线。分支及迁移边界见 [reuse-inventory.md](../delivery/reuse-inventory.md)。
