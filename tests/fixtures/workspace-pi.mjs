@@ -135,6 +135,16 @@ function handle(command) {
         respond(command);
         break;
       }
+      if (command.message === 'timed-dialog') {
+        emit({ type: 'extension_ui_request', id: 'timed-confirm', method: 'confirm', title: 'Timeout', message: 'Automatically resolves in Pi', timeout: 20 });
+        setTimeout(() => respond(command), 20);
+        break;
+      }
+      if (command.message === 'secret-notify') {
+        emit({ type: 'extension_ui_request', id: 'secret-notification', method: 'notify', message: '{"api_key":"SYNTHETIC_SECRET","access_token":"SYNTHETIC_TOKEN"}' });
+        respond(command);
+        break;
+      }
       if (command.message === 'compact-fail' || command.message === 'compact-recover') {
         streaming = true;
         respond(command);

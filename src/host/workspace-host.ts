@@ -6,7 +6,7 @@ import { basename, dirname, isAbsolute } from 'node:path';
 import { mkdir, readFile, realpath, rename, stat, writeFile } from 'node:fs/promises';
 import { PiRpcClient, PiRpcError } from '../runtime/pi-rpc-client.js';
 import { PI_VERSION, type AppSnapshot, type LaunchProfile, type SessionSnapshot, type Workspace } from '../shared/contracts.js';
-import { diagnosticText, errorMessage, launchProfile, object, text } from './validation.js';
+import { diagnosticRecord, diagnosticText, errorMessage, launchProfile, object, text } from './validation.js';
 import { MessageProjection, projectMessage } from './message-projection.js';
 import { acquireSessionLease } from './session-lease.js';
 
@@ -20,6 +20,7 @@ interface SessionRuntime {
   closing: boolean;
   uncertain: boolean;
   runError: boolean;
+  runStarted: boolean;
   releaseLease?: () => Promise<void>;
 }
 
@@ -142,7 +143,7 @@ export class WorkspaceHost extends EventEmitter<{ change: [] }> {
       id: randomUUID(), workspaceId: workspace.id, generation: randomUUID(), phase: 'starting', canSubmit: false, piVersion: version, messages: [], diagnostics: [],
     };
     const client = new PiRpcClient({ executable: profile.executable, args: [...profile.args, '--mode', 'rpc', '--session-id', randomUUID()], cwd: workspace.path, env });
-    const runtime: SessionRuntime = { snapshot, client, projection: new MessageProjection(), closing: false, uncertain: false, runError: false };
+    const runtime: SessionRuntime = { snapshot, client, projection: new MessageProjection(), closing: false, uncertain: false, runError: false, runStarted: false };
     this.sessions.set(snapshot.id, runtime);
     const current = () => !runtime.closing && this.sessions.get(snapshot.id) === runtime && !this.disposed;
     client.on('record', record => { if (current()) this.applyRecord(runtime, record); });
@@ -196,7 +197,7 @@ export class WorkspaceHost extends EventEmitter<{ change: [] }> {
     const snapshot = runtime.snapshot;
     runtime.projection.apply(snapshot, record);
     switch (record.type) {
-      case 'agent_start': snapshot.phase = 'running'; break;
+      case 'agent_start': runtime.runStarted = true; snapshot.phase = 'running'; break;
       case 'auto_retry_start': snapshot.phase = 'retrying'; break;
       case 'auto_retry_end':
         snapshot.phase = 'running';
@@ -218,7 +219,7 @@ export class WorkspaceHost extends EventEmitter<{ change: [] }> {
         runtime.runError = true; snapshot.error = diagnosticText(String(record.error ?? 'Pi 扩展失败')); break;
       case 'extension_ui_request': {
         if (['select', 'confirm', 'input', 'editor'].includes(String(record.method))) snapshot.phase = 'waiting';
-        snapshot.diagnostics.push({ kind: 'extension', message: diagnosticText(JSON.stringify(record)), time: new Date().toISOString() });
+        snapshot.diagnostics.push({ kind: 'extension', message: diagnosticText(JSON.stringify(diagnosticRecord(record))), time: new Date().toISOString() });
         break;
       }
       case 'message_end': {
@@ -244,6 +245,7 @@ export class WorkspaceHost extends EventEmitter<{ change: [] }> {
     runtime.snapshot.phase = 'submitting';
     runtime.snapshot.error = undefined;
     runtime.runError = false;
+    runtime.runStarted = false;
     this.changed();
     try {
       const response = await runtime.client.request({ type: 'prompt', message });
@@ -259,7 +261,7 @@ export class WorkspaceHost extends EventEmitter<{ change: [] }> {
         runtime.uncertain = true;
         throw new Error('扩展替换了原生会话；此运行时身份需要重新绑定，请新建会话。未向新身份重放输入。');
       }
-      if ((runtime.snapshot.phase as string) === 'accepted' && state.isStreaming === false && state.isCompacting === false && state.pendingMessageCount === 0) {
+      if (!runtime.runStarted && state.isStreaming === false && state.isCompacting === false && state.pendingMessageCount === 0) {
         runtime.snapshot.phase = runtime.runError ? 'error' : 'idle';
       }
       this.changed();

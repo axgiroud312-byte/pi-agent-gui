@@ -19,11 +19,9 @@ export async function acquireSessionLease(sessionFile: string): Promise<() => Pr
   }
   try { await handle.writeFile(JSON.stringify({ pid: process.pid, nonce: randomUUID(), sessionFile: canonical })); }
   catch (error) { await handle.close(); await unlink(lockPath); throw error; }
-  let released = false;
-  return async () => {
-    if (released) return;
-    released = true;
+  let releasePromise: Promise<void> | undefined;
+  return () => releasePromise ??= (async () => {
     await handle.close();
     await unlink(lockPath).catch(error => { if (object(error).code !== 'ENOENT') throw error; });
-  };
+  })();
 }

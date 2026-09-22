@@ -1,11 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { WorkspaceHost } from '../../src/host/workspace-host.js';
+import { acquireSessionLease } from '../../src/host/session-lease.js';
 
 const fixture = fileURLToPath(new URL('../fixtures/workspace-pi.mjs', import.meta.url));
 async function setup() {
@@ -92,6 +93,11 @@ test('handled input with no Run returns to idle, and rejected errors are sanitiz
     await context.host.sendPrompt(session.id, '/handled');
     assert.equal(context.host.snapshot().sessions[0]!.phase, 'idle');
     assert.equal(context.host.snapshot().sessions[0]!.canSubmit, true);
+    await context.host.sendPrompt(session.id, 'timed-dialog');
+    assert.equal(context.host.snapshot().sessions[0]!.phase, 'idle');
+    assert.equal(context.host.snapshot().sessions[0]!.canSubmit, true);
+    await context.host.sendPrompt(session.id, 'secret-notify');
+    assert.doesNotMatch(JSON.stringify(context.host.snapshot()), /SYNTHETIC_/);
     await assert.rejects(context.host.sendPrompt(session.id, 'secret-error'), error => {
       assert.doesNotMatch(String(error), /SYNTHETIC_/);
       assert.match(String(error), /\[redacted\]/);
@@ -99,6 +105,18 @@ test('handled input with no Run returns to idle, and rejected errors are sanitiz
     });
     assert.doesNotMatch(JSON.stringify(context.host.snapshot()), /SYNTHETIC_/);
     assert.equal(context.host.snapshot().sessions[0]!.canSubmit, true);
+  } finally { await context.cleanup(); }
+});
+
+test('overlapping lease-release callers both wait until the lock has been removed', async () => {
+  const context = await setup();
+  try {
+    const file = join(context.directory, 'concurrent-release.jsonl');
+    const release = await acquireSessionLease(file);
+    const first = release();
+    await release();
+    await assert.rejects(access(`${file}.pi-agent-ide.lock`), { code: 'ENOENT' });
+    await first;
   } finally { await context.cleanup(); }
 });
 

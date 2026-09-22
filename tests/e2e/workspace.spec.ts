@@ -149,6 +149,12 @@ test('handled extension input remains usable and credential errors are redacted 
   const session = await createSession(desktop);
   await sendPrompt(desktop, '/handled');
   await expect(desktop.page.getByTestId('run-phase')).toHaveText('就绪');
+  await sendPrompt(desktop, 'timed-dialog');
+  await expect.poll(async () => (await desktop.boundary(session)).some(({ record }) => record.id === 'timed-confirm')).toBe(true);
+  await expect(desktop.page.getByTestId('run-phase')).toHaveText('就绪');
+  await sendPrompt(desktop, 'secret-notify');
+  await expect.poll(async () => (await desktop.boundary(session)).some(({ record }) => record.id === 'secret-notification')).toBe(true);
+  expect(JSON.stringify(await sessionSnapshot(desktop, session.id))).not.toContain('SYNTHETIC_');
   await sendPrompt(desktop, 'secret-error');
   await expect(desktop.page.getByTestId('session-error')).toContainText('[redacted]');
   await expect(desktop.page.getByTestId('session-error')).not.toContainText('SYNTHETIC_');

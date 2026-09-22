@@ -31,3 +31,14 @@ export function diagnosticText(value: string): string {
     .replace(/(["']?(?:api[_-]?key|access_token|refresh_token|authorization)["']?\s*[=:]\s*)(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s,}]+)/gi, '$1[redacted]')
     .slice(0, 8_192);
 }
+
+/** Sanitize leaves before JSON encoding can hide quoted keys behind escapes. */
+export function diagnosticRecord(value: unknown, depth = 0): unknown {
+  if (depth > 30) return '[nested diagnostic omitted]';
+  if (typeof value === 'string') return diagnosticText(value);
+  if (Array.isArray(value)) return value.map(item => diagnosticRecord(item, depth + 1));
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key,
+    /^(api[_-]?key|access_token|refresh_token|authorization)$/i.test(key) ? '[redacted]' : diagnosticRecord(item, depth + 1),
+  ]));
+  return value;
+}

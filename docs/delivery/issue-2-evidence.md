@@ -14,7 +14,7 @@
 | --- | --- |
 | `npm run typecheck` | 通过 |
 | `npm run lint` | 通过，包含 52 能力/84 故事/20 场景覆盖检查 |
-| `npm test` | 38 通过，0 失败；真实外部子进程与临时文件系统 |
+| `npm test` | 39 通过，0 失败；真实外部子进程与临时文件系统 |
 | `npm run test:contract` | 2 通过，真实 Pi npm CLI，无模型凭据 |
 | `npm run build` | 通过；renderer 主 chunk 567 kB，已如实保留 Vite 体积提示 |
 | `npm run test:e2e` | 8 通过；真实 Electron/宿主，RPC 子进程边界替身 |
@@ -60,5 +60,8 @@
 - IPC rejection、诊断与错误字段统一脱敏；含引号的 JSON 凭据字段也覆盖，GUI 回归证明合成密钥不显示。
 - 使用固定版 `compaction_start/end`，保留失败，成功 overflow 恢复消除旧错误。
 - prompt 接受后查询真实 state；固定版在普通 prompt 的 preflight 回调后同步标记会话运行。被扩展处理且没有 Run 的输入返回 idle，不伪造 settled。真实打包 Pi 的 `/llama` 被加入回归。
+- 第二轮复查进一步修复：先脱敏嵌套诊断字符串再序列化；重叠 lease release 等待同一清理 Promise；Pi 自行超时的扩展对话按真实无 Run 状态恢复 idle。对应宿主与 Electron 回归已通过。
+
+最终本地 `npm run check` 实际整体通过（39 runtime/host、2 真 Pi 合同、8 Electron E2E）。`8e68a43` 的本地 NSIS 重建和实际打包 `/llama` smoke 已通过；后续修复由新 CI 重新打包验收。
 
 首轮 GitHub Windows CI（修复前的 `bc5ee31`）实际通过：[run 35671083789](https://github.com/axgiroud312-byte/pi-agent-gui/actions/runs/35671083789)。修复仍需重新审查和 CI，通过后才合并。

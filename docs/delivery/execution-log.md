@@ -35,3 +35,10 @@
 - Standards：原生单写者、错误脱敏、宿主发送资格；Spec：实际 compaction 事件、无 Run 扩展处理。已全部实现修复和针对性回归，仍需复审。
 - 修复后本地 typecheck/lint/build、38 项宿主/运行时测试、8 项 Electron E2E 通过。
 - 下一条操作：重新构建 Windows 包并执行含真实 `/llama` 的 package smoke，提交修复并让同两位 reviewer 复查；推送等待新 CI。
+
+### 第二轮复查后
+
+- `8e68a43` 已推送，实际 NSIS+package `/llama` smoke 通过。
+- 复审补充三项修复：嵌套诊断脱敏顺序、重叠锁释放等待同一个 Promise、扩展超时后无 Run 恢复。
+- 最新 `npm run check` 整体通过：typecheck/lint、39 runtime/host、2 real-Pi contracts、build、8 Electron E2E。
+- 下一步：提交本轮修复，完成 reviewer 复查和最终 Windows CI，再合并 #31、关闭 #2/#30 并立即领取无阻塞任务。
