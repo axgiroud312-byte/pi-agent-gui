@@ -1,11 +1,11 @@
 /**
- * 草稿态空态问候：时间问候语 + ZCode Logo。
+ * 草稿态空态问候：时间问候语 + Pi 产品水印。
  * 自旧版 ChatView/ChatViewEmptyState.tsx 恢复（该组件随旧 ChatView 删除，
  * i18n key `chat.empty.greeting.*` 一直保留）；边界时刻自动换档逻辑保真。
  * 手机远控复用同一组件，但继续保留 20px 紧凑标题；桌面草稿首页才按标题自身宽度适配。
  */
 import { type CSSProperties, useEffect, useLayoutEffect, useRef, useState } from "react";
-import darkEmptyStateLogoUrl from "@/assets/Z.svg";
+import darkEmptyStateLogoUrl from "@/assets/pi-watermark-dark.svg";
 import { cn } from "@/components/lib/utils.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
@@ -181,7 +181,7 @@ export function ConversationDraftEmptyState({ className }: { className?: string 
           "-translate-x-1/2 -translate-y-1/2 text-foreground-subtlest",
         )}
       >
-        <ZCodeEmptyStateLogo className="h-full w-full" />
+        <PiEmptyStateLogo className="h-full w-full" />
       </div>
       <p
         ref={greetingContainerRef}
@@ -209,7 +209,7 @@ export function ConversationDraftEmptyState({ className }: { className?: string 
   );
 }
 
-function ZCodeEmptyStateLogo({ className }: { className?: string }) {
+function PiEmptyStateLogo({ className }: { className?: string }) {
   return (
     <>
       {/* 夜间资源已自带渐变和透明度，公共容器叠加遮罩会让它重复变淡；渐隐效果只属于浅色线框。*/}
@@ -230,7 +230,7 @@ function ZCodeEmptyStateLogo({ className }: { className?: string }) {
         xmlns="http://www.w3.org/2000/svg"
       >
         <path
-          d="M398.97 0.5L147.576 319.5H1.03027L37.5996 273.081L120.167 169.603L120.171 169.598L215.342 47.5605L215.343 47.5615L252.424 0.5H398.97ZM264.544 273.271H372.527L336.082 319.498H189.886L202.642 303.307C217.584 284.34 240.398 273.271 264.544 273.271ZM209.164 0.5L202.786 8.58887C183.782 32.6885 154.782 46.752 124.091 46.752H25.9805L62.4268 0.5H209.164Z"
+          d="M1.03027 0.5H398.97V46.752H307.5V248C307.5 274 321.5 284 351.5 284V319.5C283.5 319.5 247.5 298 247.5 248V46.752H152.5V225C152.5 287 125.5 319.5 64.5 319.5V284C90.5 284 92.5 262 92.5 225V46.752H1.03027Z"
           stroke="currentColor"
         />
       </svg>

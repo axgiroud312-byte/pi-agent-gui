@@ -76,7 +76,7 @@
 6. WSL/SSH 的离线资源/显式资源服务仍需集成实测；无资源服务时不以原版厂商 CDN 兜底。Pi provider OAuth、通用分享、资源分发与产品更新仍是后续能力票，不计为本批已实现。
 7. #33 的确认记录必须包含用户原话、日期、具体产品提交和截图/操作材料链接。当前无确认，禁止据本批测试继续 #34。
 
-## 精确文件清单
+## 首批 aff8379 精确文件清单
 
 共 94 个文件：16 个生成的桌面图标，其余为小范围原生接线、策略、品牌资源、测试与本文档。可用 `git show --name-only <本批提交>` 复核。
 
@@ -176,3 +176,40 @@ packages/ui/src/settingsPageHelpers.tsx
 packages/ui/src/store/offPeakTaskStore.ts
 packages/ui/src/v4/ConversationDraftSuggestedPrompts.tsx
 ```
+
+## 集成 smoke 反馈修正：空模型文案与独立 SVG
+
+### 实际失败证据
+
+读取了集成工作树 `test-results/native-parity/product/failure.png` 和 `report.json`：
+
+- 运行提交 `95a8b833ce55a1fec302c70c23924939e38a4b4a`；原生工作台已出现，窗口标题为 Pi Agent IDE。
+- 1280×800、dark、中文：空模型横幅仍含“请订阅编程套餐或配置自定义模型”，中央仍是 Z 轮廓水印。
+- 报告 `nativeSmokePassed=false`、`fullIssue32Passed=false`；错误为 `A vendor product entry remains visible`。此前通过的操作仅有退出引导和语言选择；不能记为 #32 完成。
+
+### 本次补丁（基于 aff8379）
+
+| 来源 | 修正 | 保留内容 |
+| --- | --- | --- |
+| `packages/ui/src/i18n/locales/zh-CN.ts`、`en-US.ts` 的 `chat.error.noAvailableModel` | 改为“当前没有可用模型。请配置模型供应商、API 密钥和模型。” / “No model available. Configure a provider, API key, and model.” | 同一原生错误 key、横幅、配置/关闭控件与位置 |
+| `packages/ui/src/v4/ConversationDraftEmptyState.tsx` | 明亮主题内联路径改为 π 轮廓；私有组件命名改为 PiEmptyStateLogo | 400×320 viewBox、外层 5:4 容器、宽度/定位、opacity-70、70% 渐隐、问候语与字号逻辑 |
+| `packages/ui/src/assets/Z.svg` → `pi-watermark-dark.svg` | 深色水印两条 path 同步改为 π，组件引用新资源名 | 436×360 viewBox、原占位范围、opacity=0.15、1.2 模糊、全部渐变/透明度参数 |
+| `packages/desktop/src/renderer/index.html` | 审计发现 React 挂载前的启动 SVG 仍为 Z，改为 π | 118×100 尺寸、256×218 viewBox、96px 壳、56px mark 宽度与原动画；只换 path，不改 stylesheet |
+
+这次没有修改 Agent 名称、法律文件、通用 provider 图标或已禁用产品 OAuth 的归属图标。审计的桌面品牌面包含标题栏、折叠侧栏、welcome/onboarding、React startup、About、草稿 hero 及 React 前 HTML splash。剩余旧 Z 路径命中在独立 Web 入口 `packages/web/index.html`，不是本次 Windows 桌面启动入口。
+
+### “配置”按钮路径核对
+
+源码路径为 `ChatErrorBanner.onOpenModelSettings` → `ConversationComposer` → `SessionPane.handleOpenModelSettings` → `setPendingSettingsSectionIntent("modelProvider")` + `openSettingsTab()` → `SettingsPage` 的 `ModelProviderSection`。
+
+- 该 intent 不带商业 provider ID；设置导航会清掉旧的 provider-specific intent。
+- `vendorAccount=false` 时 `useModelProviderNavigation` 排除账户 preset/Coding Plan 导航；个人 `standard-personal` providers 保留。
+- 没有个人 provider 时，`ModelProviderSection` 显示原生 `ProviderTemplatePicker`；可以创建供应商、设置 API key/base URL/model。已有个人 provider 时可进入原生编辑卡片。
+- 因此无需修改路由或新增按钮。以上是源码链路核对，真实点击仍由集成 smoke 验证。
+
+### 本次实际验证与集成待办
+
+- Node 24 原生导入两份 locale 模块并断言空模型文案：中英两项均通过，无套餐/订阅/升级提示，包含 provider/API 配置引导，“配置”原 key 仍存在。未新增/移动测试文件，不碰主分支已迁到 `packages/shared/test` 的测试。
+- 定向 `oxlint` 检查两份 locale 和 `ConversationDraftEmptyState.tsx`：3 files、0 warnings、0 errors。
+- `git diff --check` 通过；检索桌面/UI 旧 hero/splash 路径及 `assets/Z.svg` 引用已无命中。
+- 未安装依赖、构建或并行运行桌面。主代理需重新构建 renderer 并复跑产品 smoke；在明暗主题检查 π 水印及“配置”按钮真实落点。#33 仍等待用户对实际界面的明确确认。
