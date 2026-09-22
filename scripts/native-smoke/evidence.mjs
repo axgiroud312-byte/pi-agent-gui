@@ -61,9 +61,13 @@ export class Evidence {
     if (this.f.baseline === 'original') return;
     assert.match(await this.page.title(), /Pi/i, 'Product renderer title must carry Pi branding');
     const text = await this.page.locator('body').innerText();
-    assert.doesNotMatch(text, /连接 (?:Z\.?ai|BigModel)|Coding\s*Plan|Start Plan|编程套餐|闲时任务|充值|云分享/i,
+    // BYOK provider templates may legitimately name a Coding Plan endpoint.
+    // Excluded product-account, purchase and entitlement actions must not exist.
+    assert.doesNotMatch(text, /连接 (?:Z\.?ai|BigModel)|(?:购买|升级|订阅|开通|Buy|Upgrade|Subscribe)[^\n]*Coding\s*Plan|Start Plan|编程套餐|闲时任务|充值|云分享/i,
       'A vendor product entry remains visible');
-    for (const tid of ['login-trigger', 'login-menu-item', 'coding-plan-upgrade-surface',
+    // Upstream's login-trigger is also the native preferences-menu trigger.
+    // Preserve that menu; the excluded login action must be absent when opened.
+    for (const tid of ['login-menu-item', 'coding-plan-upgrade-surface',
       'sidebar-coding-plan-usage-button', 'offpeak-create-button', 'conversation-share-trigger']) {
       assert.equal(await this.page.getByTestId(tid).isVisible(), false, `${tid} must be absent`);
     }

@@ -87,13 +87,12 @@ pnpm dev:desktop
 
 ## 当前进度
 
-当前进入**原生 ZCode 底座导入阶段**（Issue #32）。完整原生工程已导入，下一步：
+当前已导入并实际运行原生底座（Issue #32），原版/品牌后的产品均有 Electron 操作证据。Pi 接入 #34 尚未开始；先完成 #32 审查/CI并在 #33 等待用户实际界面确认。
 
-1. 执行 `pnpm bootstrap` 安装依赖
-2. 验证 `pnpm dev:desktop` 可启动
-3. 替换产品品牌和处理厂商入口
-4. 建立原版/产品对照截图和操作记录
-5. 提交证据到 #33 等待用户确认
+- [本轮验收与限制](docs/delivery/issue-32-acceptance.md)
+- [26对实际原版/产品截图](docs/delivery/issue-32-parity/index.html)
+- 构建后隔离预览：`node scripts/start-native-preview.mjs`。
+- 复现产品原生GUI smoke：`node scripts/native-desktop-smoke.mjs`，使用受控本地模型端点，不代表Pi或真实供应商验收。
 
 旧原型代码备份在 `.backup-old-prototype/`，可复用的 Pi 模块和测试记录在独立 worktree 中。详见 [覆盖账本](docs/delivery/coverage.md)。
 

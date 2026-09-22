@@ -72,6 +72,14 @@ export async function run() {
     });
     await evidence.shot('startup');
     await evidence.branding();
+    if (f.baseline === 'product') await evidence.action('Native footer keeps preferences without vendor account actions', async () => {
+      await page.getByTestId('login-trigger').filter({ visible: true }).click();
+      await page.getByRole('menuitem', { name: /语言|Language/ }).waitFor({ state: 'visible' });
+      assert.equal(await page.getByTestId('login-menu-item').isVisible(), false);
+      assert.doesNotMatch(await page.getByRole('menu').last().innerText(), /Coding\s*Plan|充值|登录|Log\s*in/i);
+      await evidence.shot('preferences-menu');
+      await page.keyboard.press('Escape');
+    });
     await scenarios(page, f, evidence);
     for (const state of ['empty', 'running', 'waiting', 'error', 'file-preview']) {
       assert.equal(report.screenshots.filter(s => s.state === state).length, 4, `${state} needs all four theme/size variants`);

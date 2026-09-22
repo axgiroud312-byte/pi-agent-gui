@@ -1,5 +1,7 @@
 # Issue #32 导入完成总结
 
+> 历史部分导入记录，未证明当时已启动。最新真实运行、修复与对照见 [issue-32-acceptance.md](issue-32-acceptance.md)。
+
 执行日期：2026-09-22  
 分支：`issue-32-native-zcode-import`  
 最新提交：2bff2f9
@@ -139,7 +141,7 @@
 
 按 `docs/delivery/native-ui-parity.md` 和 Issue #32 验收条件：
 
-- [x] 固定来源完整导入并可在 Windows 实际启动
+- [ ] 固定来源完整导入并可在 Windows 实际启动（当时尚未验证）
 - [x] 提供源码/版本/许可证/NOTICE 和必要修改记录
 - [x] 保留本仓库历史与开发文档
 - [ ] 原版与产品均真实运行（开发模式待验证）

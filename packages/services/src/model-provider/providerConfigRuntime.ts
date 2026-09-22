@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { PRODUCT_CAPABILITIES } from "@zcode/shared";
 import {
   NodeProviderConfigRuntime,
@@ -33,9 +33,17 @@ export class ProviderConfigRuntime {
   readonly #runtime: NodeProviderConfigRuntime;
 
   constructor(options: ProviderConfigRuntimeOptions) {
+    const personalFilePath =
+      options.personalFilePath ?? join(getAppConfigDir(), PERSONAL_PROVIDER_CONFIG_FILE_NAME);
     const runtimeOptions: NodeProviderConfigRuntimeOptions = {
       zcodeBuiltinFilePath: options.zcodeBuiltinFilePath,
-      zcodeBuiltinActiveFilePath: options.zcodeBuiltinActiveFilePath,
+      // Disabling vendor sync must not make the immutable bundled catalog its own
+      // writable cache/lock target. Keep materialization in the user's profile.
+      zcodeBuiltinActiveFilePath:
+        options.zcodeBuiltinActiveFilePath ??
+        (!PRODUCT_CAPABILITIES.vendorCatalog
+          ? join(dirname(personalFilePath), "provider-cache", "bundled-local.json")
+          : undefined),
       zcodeBuiltinRemote: PRODUCT_CAPABILITIES.vendorCatalog ? options.zcodeBuiltinRemote : undefined,
       zcodeBuiltinEnvironment: PRODUCT_CAPABILITIES.vendorCatalog
         ? options.zcodeBuiltinEnvironment
@@ -43,8 +51,7 @@ export class ProviderConfigRuntime {
       onZCodeBuiltinRefreshError: options.onZCodeBuiltinRefreshError,
       onPersonalConfigRecovery: options.onPersonalConfigRecovery,
       onPersonalConfigPollingError: options.onPersonalConfigPollingError,
-      personalFilePath:
-        options.personalFilePath ?? join(getAppConfigDir(), PERSONAL_PROVIDER_CONFIG_FILE_NAME),
+      personalFilePath,
       personalPollingIntervalMs: options.personalPollingIntervalMs,
       watch: options.watch,
       ...(options.readLegacyProviders

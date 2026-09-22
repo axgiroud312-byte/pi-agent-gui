@@ -7,6 +7,15 @@ async function configureModel(page, f, e) {
   await page.getByTestId('task-settings-button').filter({ visible: true }).click();
   await page.getByRole('button', { name: '模型设置', exact: true }).click();
   await e.branding();
+  if (f.baseline === 'product') {
+    // Keeping a user's provider API key is distinct from retaining a vendor app account.
+    await page.getByRole('button', { name: 'BigModel Coding Plan', exact: true }).click();
+    await page.getByTestId('model-provider-api-key-input').waitFor({ state: 'visible' });
+    assert.equal(await page.getByTestId('model-provider-api-key-input').isEditable(), true);
+    assert.equal(await page.getByTestId('login-menu-item').isVisible(), false);
+    await e.branding();
+    await e.shot('provider-byok-preserved');
+  }
   await page.getByTestId('model-provider-add-provider-button').click();
   await e.branding();
   await e.shot('model-templates');
