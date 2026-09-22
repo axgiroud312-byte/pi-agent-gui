@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { composer } from './composer.mjs';
 import { panels } from './panels.mjs';
 import { navigation } from './navigation.mjs';
@@ -101,6 +102,14 @@ export async function scenarios(page, f, e) {
     await send(page, 'PARITY_ERROR');
     await page.getByText(/PARITY_CONTROLLED_ERROR/).first().waitFor({ timeout: 25_000 });
     await e.matrix('error', async () => assert(await page.getByText(/PARITY_CONTROLLED_ERROR/).first().isVisible()));
+    if (f.baseline === 'product') await e.action('Error feedback opens GitHub without auto-transferring diagnostics', async () => {
+      await page.getByRole('button', { name: '反馈问题', exact: true }).last().click();
+      await page.getByText(/GitHub.*手动/).first().waitFor();
+      const boundaries = (await readFile(f.env.NATIVE_SMOKE_BOUNDARY_LOG, 'utf8')).trim().split('\n').map(JSON.parse);
+      const opened = boundaries.filter(entry => entry.type === 'open-external-intercepted').at(-1);
+      assert.equal(opened?.detail.url, 'https://github.com/axgiroud312-byte/pi-agent-gui/issues/new');
+      await e.shot('error-feedback');
+    });
     await send(page, 'PARITY_RECOVER');
     await page.getByText('PARITY_RECOVER_COMPLETE', { exact: true }).waitFor({ timeout: 25_000 });
     await e.shot('error-recovered');

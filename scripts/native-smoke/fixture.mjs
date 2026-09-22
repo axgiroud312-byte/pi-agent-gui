@@ -18,7 +18,7 @@ export async function fixture() {
   const sandbox = await mkdtemp(join(output, 'fixture-'));
   const home = join(sandbox, 'home');
   const workspace = join(sandbox, 'parity-workspace');
-  const allowed = new Set(['PATH', 'SYSTEMROOT', 'WINDIR', 'PATHEXT', 'COMSPEC', 'TEMP', 'TMP']);
+  const allowed = new Set(['PATH', 'SYSTEMROOT', 'SYSTEMDRIVE', 'WINDIR', 'PATHEXT', 'COMSPEC', 'TEMP', 'TMP']);
   const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => allowed.has(key.toUpperCase())));
   const realHome = (process.env.USERPROFILE ?? process.env.HOME ?? '').toLowerCase();
   for (const key of Object.keys(env)) {
@@ -27,6 +27,7 @@ export async function fixture() {
   Object.assign(env, {
     HOME: home, USERPROFILE: home, APPDATA: join(home, 'AppData/Roaming'),
     LOCALAPPDATA: join(home, 'AppData/Local'), TEMP: join(sandbox, 'tmp'), TMP: join(sandbox, 'tmp'),
+    PROGRAMDATA: join(sandbox, 'ProgramData'), ALLUSERSPROFILE: join(sandbox, 'ProgramData'),
     ZCODE_DATA_BASE_DIR: home, ZCODE_DESKTOP_HOME_DIR: home,
     ZCODE_DESKTOP_USER_DATA_DIR: join(home, 'electron'),
     ZCODE_DESKTOP_SESSION_DATA_DIR: join(home, 'electron-session'),
@@ -37,7 +38,7 @@ export async function fixture() {
     NATIVE_SMOKE_BOUNDARY_LOG: join(output, 'boundaries.jsonl'),
     NODE_OPTIONS: `--require=${JSON.stringify(fileURLToPath(new URL('./guard.cjs', import.meta.url)).replaceAll('\\', '/'))}`,
   });
-  await Promise.all([home, workspace, env.APPDATA, env.LOCALAPPDATA, env.TEMP,
+  await Promise.all([home, workspace, env.APPDATA, env.LOCALAPPDATA, env.TEMP, env.PROGRAMDATA,
     env.ZCODE_DESKTOP_USER_DATA_DIR, env.ZCODE_DESKTOP_SESSION_DATA_DIR].map(p => mkdir(p, { recursive: true })));
   await writeFile(join(workspace, 'README.md'), '# Native parity fixture\n\nReal local workspace for Issue #32.\n\n**Preview marker: NATIVE_PARITY_PREVIEW**\n');
   await writeFile(join(workspace, 'hello.txt'), 'Native parity file content\n');

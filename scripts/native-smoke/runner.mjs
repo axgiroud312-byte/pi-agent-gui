@@ -34,6 +34,10 @@ export async function run() {
       pid: process.pid,
     }));
     assert.match(report.paths.versions.electron, /^41\./, 'Use the prepared Electron 41 runtime');
+    if (f.baseline === 'product') {
+      report.crashUploadEnabled = await application.evaluate(({ crashReporter }) => crashReporter.getUploadToServer());
+      assert.equal(report.crashUploadEnabled, false, 'Product crash capture must remain local-only');
+    }
     for (const key of ['home', 'userData', 'sessionData']) {
       const rel = relative(f.sandbox, report.paths[key]);
       assert(!rel.startsWith('..') && !isAbsolute(rel), `${key} escaped fixture`);

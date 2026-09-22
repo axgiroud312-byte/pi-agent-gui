@@ -4,13 +4,27 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 const exec = promisify(execFile);
-async function processes(f) {
+export async function processes(f) {
   const systemRoot = f.env.SystemRoot ?? f.env.SYSTEMROOT ?? 'C:\\Windows';
-  const { stdout } = await exec(join(systemRoot, 'System32/WindowsPowerShell/v1.0/powershell.exe'),
-    ['-NoProfile', '-NonInteractive', '-Command',
-      'Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,CreationDate | ConvertTo-Json -Compress'],
-    { env: f.env, windowsHide: true, timeout: 15_000, maxBuffer: 4 * 1024 * 1024 });
-  return JSON.parse(stdout || '[]');
+  const psHome = join(systemRoot, 'System32/WindowsPowerShell/v1.0');
+  // The runner uses a deliberately empty HOME. Resolve the system CIM module
+  // explicitly and allow its cold start without widening access to user modules.
+  const command = "$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue'; "
+    + "[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new($false); "
+    + 'Get-CimInstance -ClassName Win32_Process -Property ProcessId,ParentProcessId,CreationDate -OperationTimeoutSec 30 '
+    + '| Select-Object ProcessId,ParentProcessId,CreationDate | ConvertTo-Json -Compress';
+  try {
+    const { stdout } = await exec(join(psHome, 'powershell.exe'),
+      ['-NoProfile', '-NonInteractive', '-Command', command],
+      { env: { ...f.env, PSModulePath: join(psHome, 'Modules') }, windowsHide: true, timeout: 60_000, maxBuffer: 4 * 1024 * 1024 });
+    const parsed = JSON.parse(stdout.trim() || '[]');
+    return Array.isArray(parsed) ? parsed : [parsed];
+  } catch (error) {
+    throw new Error(`Process inventory failed: ${JSON.stringify({
+      code: error.code, signal: error.signal, killed: error.killed,
+      stdout: error.stdout, stderr: error.stderr, message: error.message,
+    })}`, { cause: error });
+  }
 }
 
 export async function closeOwned(application, f) {

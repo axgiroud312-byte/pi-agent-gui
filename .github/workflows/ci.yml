@@ -24,6 +24,7 @@ jobs:
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
       NODE_OPTIONS: --max-old-space-size=4096
       RAYON_NUM_THREADS: '2'
+      PNPM_CONFIG_WORKSPACE_CONCURRENCY: '1'
       # Local Windows assets only; cross-platform remote assets are separate acceptance.
       ZCODE_SKIP_REMOTE_ASSETS: '1'
     steps:
@@ -54,6 +55,19 @@ jobs:
       - name: Full native typecheck
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: pnpm run typecheck
+      - name: Native CLI typecheck
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        # The frozen root hoisted installation owns Turbo's executable.
+        run: pnpm exec pnpm --dir apps/zcode-cli typecheck --concurrency=1
+      - name: Full CLI lint with explicit pinned upstream max-lines baseline
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: node scripts/check-native-cli-lint.mjs
+      - name: CLI lint baseline cannot conceal new violations
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: node --test scripts/test/native-cli-lint.test.mjs
+      - name: Native marketplace product-policy behavior
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: node apps/zcode-cli/test/run-product-policy.mjs
       - name: Native architecture check
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: pnpm run architecture:check
@@ -66,6 +80,12 @@ jobs:
       - name: Native product identity and vendor-service behavior
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: node --experimental-strip-types --test packages/shared/test/product.test.mjs
+      - name: Desktop profile policy
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: node --test packages/desktop/test/desktop-product-profile.test.mjs
+      - name: Real native profile paths preserve existing ZCode data
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: node apps/zcode-cli/test/run-product-policy.mjs packages/desktop/test/desktop-profile-native.test.mjs
       - name: Installed dependency licenses and committed notice freshness
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: node scripts/licenses.mjs check
@@ -105,5 +125,6 @@ jobs:
           name: windows-native-parity-${{ github.sha }}
           path: |
             test-results/native-parity/**
+            .scratch/native-cli-lint/**
           if-no-files-found: warn
           retention-days: 14

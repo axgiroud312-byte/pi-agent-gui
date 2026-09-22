@@ -116,15 +116,15 @@
       }
     },
     "product": {
-      "head": "821e4531de9fb29593faf20ae670879f32633c15",
-      "sourceDigest": "770fbacca1e9ef2e99b4f1c1d5dc4baf464e95365646cd00469a692cb9fbbd2b",
-      "artifactDigest": "438573d0a3b2e0bafb6d23e4992df97a80c202800ab6381e82816c2aa7ca61d6",
-      "started": "2026-09-22T08:27:36.443Z",
-      "finished": "2026-09-22T08:28:46.347Z",
+      "head": "a542f907b77e24a3b2ed2690725cff5aba7f8fe3",
+      "sourceDigest": "739c8c2aedf1fc7561358ff22a3862823bfa7ce8fbd47407c5fa8c3c37a9c098",
+      "artifactDigest": "216fa24f68e9b860acd1b7221c8e5246f9c04f33b7ee0f94f3319b8a7fe9bc53",
+      "started": "2026-09-22T10:37:02.004Z",
+      "finished": "2026-09-22T10:38:45.187Z",
       "nativeSmokePassed": true,
       "summary": {
-        "passedActions": 18,
-        "screenshots": 52,
+        "passedActions": 19,
+        "screenshots": 53,
         "modelRequests": 9
       },
       "actions": [
@@ -189,6 +189,10 @@
           "status": "passed"
         },
         {
+          "name": "Error feedback opens GitHub without auto-transferring diagnostics",
+          "status": "passed"
+        },
+        {
           "name": "Native stop button → abort held loopback stream → composer ready",
           "status": "passed"
         },
@@ -216,7 +220,8 @@
         "registry-intercepted": 16,
         "utility-child": 2,
         "child": 28,
-        "directory-chooser": 1
+        "directory-chooser": 1,
+        "open-external-intercepted": 1
       },
       "cleanup": {
         "survivors": []
