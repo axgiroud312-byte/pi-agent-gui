@@ -61,7 +61,7 @@ jobs:
         run: pnpm exec pnpm --dir apps/zcode-cli typecheck --concurrency=1
       - name: Full CLI lint with explicit pinned upstream max-lines baseline
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: node scripts/check-native-cli-lint.mjs
+        run: node scripts/check-native-cli-lint.mjs --output test-results/native-cli-lint
       - name: CLI lint baseline cannot conceal new violations
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: node --test scripts/test/native-cli-lint.test.mjs
@@ -82,7 +82,7 @@ jobs:
         run: node --experimental-strip-types --test packages/shared/test/product.test.mjs
       - name: Desktop profile policy
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: node --test packages/desktop/test/desktop-product-profile.test.mjs
+        run: node --test packages/desktop/test/desktop-product-profile.test.mjs packages/desktop/test/profile-file-guard.test.mjs
       - name: Real native profile paths preserve existing ZCode data
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: node apps/zcode-cli/test/run-product-policy.mjs packages/desktop/test/desktop-profile-native.test.mjs
@@ -118,6 +118,9 @@ jobs:
       - name: Actual default product desktop smoke
         if: ${{ !cancelled() && steps.renderer.outcome == 'success' }}
         run: node scripts/native-desktop-smoke.mjs
+      - name: Actual split production entry selects the default Pi profile
+        if: ${{ !cancelled() && steps.renderer.outcome == 'success' }}
+        run: node packages/desktop/test/production-profile-entry.mjs --app-root packages/desktop
       - name: Upload native desktop evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -125,6 +128,7 @@ jobs:
           name: windows-native-parity-${{ github.sha }}
           path: |
             test-results/native-parity/**
-            .scratch/native-cli-lint/**
+            test-results/native-cli-lint/**
+            test-results/profile-default-entry/**
           if-no-files-found: warn
           retention-days: 14

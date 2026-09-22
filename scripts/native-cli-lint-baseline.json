@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "upstream": { "repository": "https://github.com/zai-org/ZCode", "commit": "872ad960de7ec172591f7e1952f7849229f94521", "license": "Apache-2.0" },
   "wiringCommit": "c896a8de6e351f61007efd9eec85bd8fe448c5e3",
+  "profileWiringCommit": "111df6321257a21b0f98ab70dc49c9a29fc50a80",
   "oxlintVersion": "1.67.0",
   "rule": "eslint(max-lines)",
   "options": { "max": 400, "skipBlankLines": true, "skipComments": true },
@@ -55,6 +56,21 @@
     "apps/zcode-cli/packages/core/src/tool/handlers/generated/bash-command-registry.ts": "134107f306816d93f422ea6d6e2eddaf35189b23"
   },
   "allowances": {
+    "apps/zcode-cli/packages/adapters/src/config/file-config.adapter.ts": {
+      "lines": 1,
+      "blob": "d7d5b99d7562bfa91998496212c5358a1ac35c6e",
+      "reason": "#32/111df63: one Node-only profile helper import; replace existing application tilde expansion without changing native config behavior. Other ~/ paths keep execution HOME."
+    },
+    "apps/zcode-cli/packages/adapters/src/model/runner-debug.ts": {
+      "lines": 1,
+      "blob": "fafb940abcf6fafe25144312054d508c6a30bad2",
+      "reason": "#32/111df63: one profile helper import; anchor existing model log root to the application profile without rewriting execution HOME."
+    },
+    "apps/zcode-cli/packages/adapters/src/storage/workspace-hook-trust-store.ts": {
+      "lines": 1,
+      "blob": "a8d9e7cb0ef8b691ffda434f0faf1f51e4b28d7f",
+      "reason": "#32/111df63: one profile helper import; replace existing application config/default storage/tilde root expressions, retaining the native trust store and explicit external paths."
+    },
     "apps/zcode-cli/packages/adapters/src/plugins/marketplace.ts": {
       "lines": 24,
       "blob": "4662154247eb85eb619b54297d2971d43c31efaf",
@@ -73,7 +89,7 @@
   },
   "files": [
     { "file": "apps/zcode-cli/packages/adapters/src/plugins/mcp.ts", "rule": "eslint(max-lines)", "count": 1, "upstreamLines": 402, "maxLines": 402, "upstreamBlob": "61b43782ae6626980a2fb7d0761fcbf4bb8c645b" },
-    { "file": "apps/zcode-cli/packages/adapters/src/config/file-config.adapter.ts", "rule": "eslint(max-lines)", "count": 1, "upstreamLines": 509, "maxLines": 509, "upstreamBlob": "c2fc2cfeed726c9889de2c338213e5082c2a6932" },
+    { "file": "apps/zcode-cli/packages/adapters/src/config/file-config.adapter.ts", "rule": "eslint(max-lines)", "count": 1, "upstreamLines": 509, "maxLines": 510, "upstreamBlob": "c2fc2cfeed726c9889de2c338213e5082c2a6932" },
     { "file": "apps/zcode-cli/packages/adapters/src/mcp/pool.ts", "rule": "eslint(max-lines)", "count": 1, "upstreamLines": 428, "maxLines": 428, "upstreamBlob": "161739991888a5835f10a7aeecdbf5178fd57dcd" },
     { "file": "apps/zcode-cli/packages/adapters/src/mcp/oauth-interactive.ts", "rule": "eslint(max-lines)", "count": 1, "upstreamLines": 410, "maxLines": 410, "upstreamBlob": "a909278e78652405f21c5281f3e00076ca031bc2" },
     { "file": "apps/zcode-cli/packages/adapters/src/model/transform.ts", "rule": "eslint(max-lines)", "count": 1, "upstreamLines": 440, "maxLines": 440, "upstreamBlob": "18c6afef2bbff5e0e81926d5001fda3eedabcea1" },
@@ -89,14 +105,14 @@
     { "file": "apps/zcode-cli/packages/adapters/src/storage/session-store/migrations.ts", "rule": "eslint(max-lines)", "count": 1, "upstreamLines": 821, "maxLines": 821, "upstreamBlob": "a6ccefc5fc438f0824ae2790f4b285dc4f86a6ee" },
     { "file": "apps/zcode-cli/packages/adapters/src/plugins/zip-source.ts", "rule": "eslint(max-lines)", "count": 1, "upstreamLines": 458, "maxLines": 460, "upstreamBlob": "85548e54a0ae11516350188bd51566583250552f" },
     { "file": "apps/zcode-cli/packages/adapters/src/model/runner-stream.ts", "rule": "eslint(max-lines)", "count": 1, "upstreamLines": 1518, "maxLines": 1518, "upstreamBlob": "7516fe0948672cd97aeefde243e7cd716b7f26e9" },
-    { "file": "apps/zcode-cli/packages/adapters/src/storage/workspace-hook-trust-store.ts", "rule": "eslint(max-lines)", "count": 1, "upstreamLines": 472, "maxLines": 472, "upstreamBlob": "685a55c77a72b4bd94e169e76acd21781dec388b" },
+    { "file": "apps/zcode-cli/packages/adapters/src/storage/workspace-hook-trust-store.ts", "rule": "eslint(max-lines)", "count": 1, "upstreamLines": 472, "maxLines": 473, "upstreamBlob": "685a55c77a72b4bd94e169e76acd21781dec388b" },
     { "file": "apps/zcode-cli/packages/adapters/src/skills/index.ts", "rule": "eslint(max-lines)", "count": 1, "upstreamLines": 421, "maxLines": 421, "upstreamBlob": "4f078776fb347be518b546ad0ca8a2be5044f693" },
     { "file": "apps/zcode-cli/packages/adapters/src/storage/session-target.ts", "rule": "eslint(max-lines)", "count": 1, "upstreamLines": 422, "maxLines": 422, "upstreamBlob": "f39234b0fcfd7d0eafd0d752648d57d3f857f19c" },
     { "file": "apps/zcode-cli/packages/adapters/src/model/failure-classifier.ts", "rule": "eslint(max-lines)", "count": 1, "upstreamLines": 562, "maxLines": 562, "upstreamBlob": "6e670105cc99dbcdf83cde8bd075f14866265d5f" },
     { "file": "apps/zcode-cli/packages/adapters/src/plugins/index.ts", "rule": "eslint(max-lines)", "count": 1, "upstreamLines": 878, "maxLines": 878, "upstreamBlob": "8d86c288b4fe44090f75b71f438542e0489d734c" },
     { "file": "apps/zcode-cli/packages/adapters/src/model/runner-diagnostics.ts", "rule": "eslint(max-lines)", "count": 1, "upstreamLines": 427, "maxLines": 427, "upstreamBlob": "61270c0a2628cb8b4e6d37369e8861d859fb95ff" },
     { "file": "apps/zcode-cli/packages/adapters/src/storage/session-store/repositories/usage.ts", "rule": "eslint(max-lines)", "count": 1, "upstreamLines": 704, "maxLines": 704, "upstreamBlob": "8dbc3a280659bb49fb793f5ba2535649bddeaea2" },
-    { "file": "apps/zcode-cli/packages/adapters/src/model/runner-debug.ts", "rule": "eslint(max-lines)", "count": 1, "upstreamLines": 776, "maxLines": 776, "upstreamBlob": "00ba813a3d26d2ab90c417d66e242567d39e1b54" },
+    { "file": "apps/zcode-cli/packages/adapters/src/model/runner-debug.ts", "rule": "eslint(max-lines)", "count": 1, "upstreamLines": 776, "maxLines": 777, "upstreamBlob": "00ba813a3d26d2ab90c417d66e242567d39e1b54" },
     { "file": "apps/zcode-cli/packages/bootstrap/src/zcode-protocol/subagent-session-query.ts", "rule": "eslint(max-lines)", "count": 1, "upstreamLines": 456, "maxLines": 456, "upstreamBlob": "9ffeee18f0db63dcc252d0a5412e5917b34bb714" },
     { "file": "apps/zcode-cli/packages/bootstrap/src/zcode-protocol/interaction-broker.ts", "rule": "eslint(max-lines)", "count": 1, "upstreamLines": 584, "maxLines": 584, "upstreamBlob": "d7e8907c4ddf55ae32e8026a9224f881054ceca6" },
     { "file": "apps/zcode-cli/packages/bootstrap/src/app/create-app.ts", "rule": "eslint(max-lines)", "count": 1, "upstreamLines": 1148, "maxLines": 1148, "upstreamBlob": "596df226216c162ae15c6a05c61cac98f2f32a1d" },

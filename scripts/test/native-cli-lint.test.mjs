@@ -225,4 +225,8 @@ test("raw lint failure is only attributable to a completed matching lint task, n
   assert.throws(() => validateRawResult({ ...raw, stderr: " ERROR run failed" }, packages), /raw lint/);
   assert.throws(() => validateRawResult({ ...raw, stderr: raw.stderr + " ERROR unrelated tool failure\n" }, packages), /raw lint/);
   assert.throws(() => validateRawResult({ ...raw, stdout: raw.stdout.replace("0 warnings", "1 warnings") }, packages), /raw lint/);
+  const interrupted = { ...raw, stderr: raw.stderr + " ERROR  @zcode/interrupted#lint: command (fixture) pnpm run lint exited (1)\n" };
+  // A separate known max-lines failure cannot excuse a task with missing/truncated output.
+  assert.throws(() => validateRawResult(interrupted, [...packages, { name: "@zcode/interrupted", errors: 1, warnings: 0 }]), /Unexplained raw lint failure: @zcode\/interrupted/);
+  assert.throws(() => validateRawResult({ ...interrupted, stdout: raw.stdout + "@zcode/interrupted:lint: Found 0 warnings and 0 errors.\n" }, [...packages, { name: "@zcode/interrupted", errors: 0, warnings: 0 }]), /Unexplained raw lint failure: @zcode\/interrupted/);
 });

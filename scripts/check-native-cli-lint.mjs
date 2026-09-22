@@ -244,7 +244,10 @@ export function checkNativeCliLint(root, { output, verifyUpstream = false } = {}
   try {
     validateBaseline(baseline);
     validateTopology(root, baseline, { verifyUpstream });
-    raw = pnpm("raw-cli-lint", ["--dir", CLI, "lint"]);
+    // Turbo fail-fast can terminate another lint task before its final diagnostic summary.
+    // Serialize uncached tasks so every reported failure has its own complete current output.
+    // The independent JSON scan below still covers every original package/script scope.
+    raw = pnpm("raw-cli-lint", ["--dir", CLI, "lint", "--concurrency=1", "--force"]);
     const dry = pnpm("turbo-plan", ["--dir", CLI, "exec", "turbo", "run", "lint", "--dry=json"]);
     ensure(dry.status === 0 && !dry.error && !dry.signal, "Turbo lint discovery failed");
     const plan = JSON.parse(dry.stdout);
@@ -267,6 +270,7 @@ export function checkNativeCliLint(root, { output, verifyUpstream = false } = {}
     verifyUpstream, sourceCommit, baselineSha256: sha256(lf(baselineText)),
     gateSha256: sha256(lf(readFileSync(fileURLToPath(import.meta.url), "utf8"))),
     upstream: baseline.upstream, wiringCommit: baseline.wiringCommit,
+    profileWiringCommit: baseline.profileWiringCommit,
     oxlintVersion: baseline.oxlintVersion, nodeVersion: process.version, root, artifact, commands };
   writeFileSync(join(artifact, "summary.json"), JSON.stringify(summary, null, 2) + "\n");
   return summary;
