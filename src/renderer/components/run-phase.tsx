@@ -4,6 +4,7 @@ import type { RunPhase } from '../../shared/contracts';
 export const phaseLabels: Record<RunPhase, string> = {
   starting: '正在启动',
   idle: '就绪',
+  submitting: '正在提交',
   accepted: '已接收',
   running: '运行中',
   retrying: '重试中',
@@ -17,6 +18,7 @@ export const phaseLabels: Record<RunPhase, string> = {
 export const phaseDescriptions: Record<RunPhase, string> = {
   starting: '正在检查 Pi 版本并启动独立进程。',
   idle: '会话已就绪，可以发送消息。',
+  submitting: '正在等待 Pi 确认接收；不会自动重发。',
   accepted: 'Pi 已接收请求，运行尚未结束。',
   running: 'Pi 正在处理消息；运行结束后可继续发送。',
   retrying: 'Pi 正在自动重试，当前运行仍在继续。',
@@ -28,12 +30,12 @@ export const phaseDescriptions: Record<RunPhase, string> = {
 };
 
 export function isActiveRun(phase: RunPhase) {
-  return phase === 'accepted' || phase === 'running' || phase === 'retrying'
+  return phase === 'submitting' || phase === 'accepted' || phase === 'running' || phase === 'retrying'
     || phase === 'compacting' || phase === 'waiting';
 }
 
 export function canSendPrompt(phase: RunPhase) {
-  return phase === 'idle' || phase === 'settled';
+  return phase === 'idle' || phase === 'settled' || phase === 'error';
 }
 
 export function RunPhaseBadge({ phase, live = false }: { phase: RunPhase; live?: boolean }) {

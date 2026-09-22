@@ -7,7 +7,7 @@ export interface LaunchProfile {
 }
 
 export interface Workspace { id: string; path: string; name: string; target: 'local'; branch: string | null }
-export type RunPhase = 'starting' | 'idle' | 'accepted' | 'running' | 'retrying' | 'compacting' | 'waiting' | 'settled' | 'error' | 'exited';
+export type RunPhase = 'starting' | 'idle' | 'submitting' | 'accepted' | 'running' | 'retrying' | 'compacting' | 'waiting' | 'settled' | 'error' | 'exited';
 export interface MessageContent { type: string; text?: string; thinking?: string; [key: string]: unknown }
 export interface ChatMessage { id: string; role: string; content: MessageContent[]; timestamp?: number; raw: Record<string, unknown> }
 export interface SessionSnapshot {

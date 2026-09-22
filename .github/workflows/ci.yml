@@ -38,6 +38,8 @@ jobs:
         run: npm run test:e2e
       - name: Build Windows NSIS installer
         run: npm run package:win
+      - name: Packaged app with bundled real Pi
+        run: npm run test:package
       - name: Upload screenshots, traces, reports, and protocol evidence
         if: always()
         uses: actions/upload-artifact@v4
