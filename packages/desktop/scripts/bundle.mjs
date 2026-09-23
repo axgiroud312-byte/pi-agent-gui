@@ -86,6 +86,7 @@ const artifactArchHintsByArch = {
 };
 const commandStdoutMaxBuffer = 64 * 1024 * 1024;
 const requiredRuntimeModules = [
+  "@earendil-works/pi-coding-agent",
   "module-details-from-path",
   "pngjs",
   // Bugfix: telemetry 的 OTLP exporter 在启动阶段依赖 sdk-metrics；开发态 hoist 会掩盖

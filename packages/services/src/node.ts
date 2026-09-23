@@ -342,6 +342,7 @@ import { createObservableSettingService } from "./setting/observableSettingServi
 import { createCredentialService } from "./credential/credentialService.js";
 import { createBroadcastService } from "./broadcast/broadcastService.js";
 import { createZCodeAgentService } from "./zcode-agent/zcodeAgentService.js";
+import { createPiAgentService } from "./pi-agent/pi-agent-service.js";
 import type { ZCodeAgentCommandResolver } from "./zcode-agent/zcodeAgentProcessManager.js";
 import { buildAgentTelemetrySpawnEnv } from "./zcode-agent/agentTelemetryEnv.js";
 import { resolveZCodeAgentPresentationSurface } from "./zcode-agent/zcodeAgentPresentationSurface.js";
@@ -1311,6 +1312,8 @@ export function createLocalServices(options: {
   // 注入点：默认 resolver 已能覆盖 dev/桌面/SSH 远端三类形态；
   // 测试或特殊宿主想强制走自定义 binary/参数时从这里注入。
   zcodeAgentCommandResolver?: ZCodeAgentCommandResolver;
+  /** Product desktop Pi RPC entry; absence retains the isolated native reference/test assembly. */
+  piAgentRpcEntry?: string;
   /** Desktop Main 提前异步采集的本机 runtime 环境；Local Host 注入后不再同步启动 login shell。 */
   runtimeProcessEnvPatch?: Record<string, string>;
   /** 本地桌面上次 workspace 缺失时，仅用于 Agent 子进程 spawn.cwd 兜底。 */
@@ -2075,7 +2078,9 @@ export function createLocalServices(options: {
           resolveOffPeakClientConfig: () => codingPlanSubscriptionService.getOffPeakClientConfig(),
           resolveOffPeakTaskService: () => offPeakTaskServiceForAgent,
         };
-  const zcodeAgentService = createZCodeAgentService({
+  const zcodeAgentService = options?.piAgentRpcEntry
+    ? createPiAgentService(options.piAgentRpcEntry)
+    : createZCodeAgentService({
     ...(agentAccountProviderConfigSource
       ? { accountProviderConfigSource: agentAccountProviderConfigSource }
       : {}),

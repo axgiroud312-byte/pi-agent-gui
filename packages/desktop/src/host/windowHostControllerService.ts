@@ -98,6 +98,7 @@ function sessionOverlay(
     title: summary.title,
     ...(summary.titleSource ? { titleSource: summary.titleSource } : {}),
     updatedAt: summary.lastActivityAt,
+    createdAt: summary.createdAt,
     ...(summary.pendingInteraction
       ? {
           pendingInteraction: {
@@ -237,6 +238,12 @@ export function createWindowHostControllerRuntime(options: {
       throw new Error(
         scope.kind === "remote" ? "远程 source 当前离线，禁止列表写操作" : "本地 source 当前不可用",
       );
+    }
+    // A Pi-only row is projected from the native sessions index; legacy task
+    // mutations must never silently route that session into the ZCode engine.
+    if (!projection.hasTaskMembership(scope, address.taskId) &&
+      mutation.kind !== "open" && mutation.kind !== "resume") {
+      throw new Error(`Unsupported Pi session task mutation: ${mutation.kind}`);
     }
     const service = current.taskService;
     const base = mutationParams(address);
