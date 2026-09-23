@@ -33,4 +33,4 @@
 
 旧路线和历史检查保存在 [execution-log.md](execution-log.md)、[reuse-inventory.md](reuse-inventory.md) 及原提交；恢复工作时以本入口、最新执行文档及GitHub为准。
 
-下一具体操作：**仅恢复现有 `issue-34-native-pi-rpc` 工作树**，保留全部未提交工作，核对 #34 最新正文/评论及现有 GUI/打包证据，完成原生体验与 Pi 事实边界复验。旧自动连续开发指令不再生效。
+下一具体操作：**仅恢复现有 `C:\Users\niilo\AppData\Local\Temp\opencode\pi-native-pi-34` 工作树**。已推送 #34 初始提交 `388f672`、交互/服务增量 `b6c34a9`，同视口原版滚动对照证据随后保存；未跟踪 `%SystemDrive%/` 是缓存，原样保留且不要提交。Draft PR #39 的 Windows CI [35824489392](https://github.com/axgiroud312-byte/pi-agent-gui/actions/runs/35824489392) 失败，修复须先取得明确计划批准；独立 Standards/Spec 审查因合规模型不可用尚无结论。核对 #34 最新正文/评论、[实测与交接](handoff-2026-09-23-issue-34.md)和[原版/Pi 对照](issue-34-parity/README.md)，不要宣称 CI/审查已通过或自动领取后续票。旧自动连续开发指令不再生效。

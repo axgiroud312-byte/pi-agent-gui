@@ -6,6 +6,7 @@ export async function startModel(f) {
   const requests = [];
   const sockets = new Set();
   const holds = new Set();
+  let scrollFrames = 0;
   const server = createServer(async (req, res) => {
     let raw = '';
     for await (const chunk of req) raw += chunk;
@@ -44,6 +45,17 @@ export async function startModel(f) {
       choices: [{ index: 0, delta, finish_reason }],
     })}\n\n`);
     send({ role: 'assistant', content: '' });
+    if (prompt?.includes('PARITY_SCROLL')) {
+      send({ content: 'PARITY_SCROLL_START\n' + Array.from({ length: 100 }, (_, i) => `Line ${i}: native scrolling parity`).join('\n') + '\n' });
+      scrollFrames += 1;
+      for (let i = 1; i <= 18 && !res.destroyed; i++) {
+        await new Promise(resolve => setTimeout(resolve, 220));
+        send({ content: `\nPARITY_SCROLL_FRAME_${i}: more native content` });
+        scrollFrames += 1;
+      }
+      if (!res.destroyed) { send({}, 'stop'); res.end('data: [DONE]\n\n'); }
+      return;
+    }
     const tool = prompt?.includes('PARITY_READ') ? { name: 'Read', args: { file_path: join(f.workspace, 'README.md') } }
       : prompt?.includes('PARITY_WAIT') ? { name: 'AskUserQuestion', args: { questions: [{
         header: 'Parity', question: 'PARITY_QUESTION: choose a fixture option?', multiSelect: false,
@@ -64,6 +76,7 @@ export async function startModel(f) {
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   return { url: `http://127.0.0.1:${server.address().port}/v1`, requests,
     get held() { return holds.size; },
+    get scrollFrames() { return scrollFrames; },
     release: () => { for (const release of holds) release(); holds.clear(); },
     close: async () => { for (const socket of sockets) socket.destroy(); await new Promise(resolve => server.close(resolve)); },
   };

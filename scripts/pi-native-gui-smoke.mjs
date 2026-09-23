@@ -118,6 +118,13 @@ try {
     await page.keyboard.type(text);
     await page.getByTestId('v4-composer-send').filter({ visible: true }).first().click();
   };
+  await app.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows().find(window => window.isVisible())?.setContentSize(1280, 800);
+  });
+  await page.setViewportSize({ width: 1280, height: 800 });
+  report.scrollComparison = { width: 1280, height: 800,
+    theme: await page.evaluate(() => document.documentElement.classList.contains('dark') ? 'dark' : 'light') };
+  assert.equal(report.scrollComparison.theme, 'dark', 'Compare original and Pi streaming at the same native dark theme');
   const timeline = page.getByTestId('v4-timeline');
   const position = () => timeline.evaluate(node => ({ top: node.scrollTop,
     height: node.scrollHeight, viewport: node.clientHeight,
