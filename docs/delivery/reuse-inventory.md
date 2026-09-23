@@ -1,11 +1,11 @@
 # 重建前的旧成果与处置
 
-记录日期：2026-09-22。**保留这些分支和 worktree，不把它们作为待整批合并的产品主线。** 本表记录的是来源和已有证据，不是新原生工程的完成状态。
+资产盘点日期：2026-09-22。当前原生底座已由PR #37合并为`59362a3`，#33确认完成；下面是旧资产快照。**保留这些分支和worktree，按模块审查复用。** 本表记录来源和已有证据，不是新原生Pi工程的完成状态。
 
 ## 已合并的旧基础
 
-- `main`：`46c34f18011030024225cf71fd3e829dc31a57b4`，PR #31（#2/#30 CLOSED）。
-- 原生 ZCode 尚未导入；该提交是自建 Electron/shadcn/assistant-ui 原型。
+- 历史原型主线：`46c34f18011030024225cf71fd3e829dc31a57b4`，PR #31（#2/#30 CLOSED）。
+- 该历史提交尚未导入原生ZCode，是自建Electron/shadcn/assistant-ui原型；当前原生主线不以其前端为底座。
 - 实际检查提交 `b3dfa3e`：39 runtime/host、2 real-Pi contracts、8 Electron E2E、Windows NSIS 和打包真实 Pi smoke 通过。可复用协议、错误恢复和隔离测试；不证明原生交互一致。
 - [历史 CI](https://github.com/axgiroud312-byte/pi-agent-gui/actions/runs/35672418605)、[测试证据](https://github.com/axgiroud312-byte/pi-agent-gui/actions/runs/35672418605/artifacts/10671832965)、[旧开发包](https://github.com/axgiroud312-byte/pi-agent-gui/actions/runs/35672418605/artifacts/10671168594)。CI artifacts 有保留期限。
 

@@ -17,6 +17,8 @@
 - [产品目标与已确认边界](docs/product-goal.md)
 - [新开发计划](docs/delivery/native-rebase-plan.md)
 - [新上下文执行指令](docs/delivery/next-context.md)
+- **[后续任务一次性开发执行文档](docs/delivery/full-development.md)**：从#34连续完成剩余27张任务，含依赖、交付循环与最终验收
+- [实际原生界面用户确认记录（#33已通过）](docs/delivery/native-ui-confirmation.md)
 - [原生界面/交互验收](docs/delivery/native-ui-parity.md)
 - [旧分支与成果复用清单](docs/delivery/reuse-inventory.md)
 - [主规格 #1：Pi Agent IDE 完整首版](https://github.com/axgiroud312-byte/pi-agent-gui/issues/1)
@@ -38,7 +40,7 @@
 | 领域 | 方案 |
 | --- | --- |
 | 桌面与前端 | 固定 ZCode 原生 Electron 工程、React 组件、Lexical 输入框、时间线、布局状态与服务接口 |
-| Agent 驱动 | Pi 0.87.0 JSONL RPC；服务适配映射原生命令/订阅，每活动会话独立 Pi 运行隔离 |
+| Agent 目标（#34起实施） | Pi 0.87.0 JSONL RPC；服务适配映射原生命令/订阅，每活动会话独立 Pi 运行隔离 |
 | 本地 IDE 服务 | 优先复用原生文件、Git、终端、预览和平台服务，补齐主规格差额 |
 | Pi 特有能力 | 原生菜单、设置、详情与 Side Pane 中最小增补；保持 Pi 真实语义 |
 | 首版发行 | Windows 桌面，包含 WSL/SSH 与 Pi CLI 互通；Web/独立 CLI 不作为首版产品 |
@@ -87,7 +89,7 @@ pnpm dev:desktop
 
 ## 当前进度
 
-当前已导入并实际运行原生底座（Issue #32），原版/品牌后的产品均有 Electron 操作证据。Pi 接入 #34 尚未开始；先完成 #32 审查/CI并在 #33 等待用户实际界面确认。
+原生底座PR #37已合并（`59362a3`），#32/#36完成；用户于2026-09-23确认实际界面，#33已关闭。Pi接入#34尚未开始，下一次开发从#34推进至全部能力票和#28最终验收，使用上面的“一次性开发执行文档”。
 
 - [本轮验收与限制](docs/delivery/issue-32-acceptance.md)
 - [26对实际原版/产品截图](docs/delivery/issue-32-parity/index.html)
@@ -98,7 +100,7 @@ pnpm dev:desktop
 
 ## 贡献和开发流程
 
-见 [CONTRIBUTING.md](docs/pi-agent-ide-CONTRIBUTING.md) 和 [领域词汇](docs/pi-agent-ide-CONTEXT.md)。
+见当前 [CONTRIBUTING.md](CONTRIBUTING.md) 和 [领域词汇](CONTEXT.md)。
 
 ## 旧原型备份
 

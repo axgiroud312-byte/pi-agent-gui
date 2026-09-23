@@ -1,12 +1,21 @@
 # 执行记录
 
-## 最新：原生 #32 修复与对照
+## 最新：2026-09-23 — 原生用户关卡通过与后续全量交付文档
+
+- PR #37已合并为`59362a3`，#32/#36关闭；最终`36e3eb8`的两轮Windows CI通过，两轴独立审查通过。原版19组/50图、产品19组/53图、26对截图及生产默认入口均有实际证据，见[#32验收](issue-32-acceptance.md)。
+- 用户查看实际预览/对照后明确确认，原话及产品版本保存在[native-ui-confirmation.md](native-ui-confirmation.md)，GitHub #33已关闭；下一前沿是#34。
+- 本轮根据用户要求编写[full-development.md](full-development.md)，统一剩余27张任务、直接依赖、连续交付循环、数据/兼容边界和最终验收。恢复入口改为[next-context.md](next-context.md)，不再要求重复领取#32或等待已通过的#33。
+- 原覆盖命令随导入被归档，新增只读`check-delivery-plan.mjs`。实际核对30张管理票、71条原生阻塞关系和27行执行表一致，覆盖52能力/84故事/20场景；唯一就绪实施票#34。
+- 本轮为文档/跟踪更新，未实施#34或合并旧功能分支。当前文档分支`docs/post-native-gate`；主目录已有未提交工作保留。后续从包含本轮文档的最新`origin/main`继续。
+- 文档两轴独立审查均PASS；Spec核对27张后续票目标/决策/验收/测试零漂移、6批拓扑一致，87个本地链接有效；新只读脚本语法、定向lint和Git diff检查通过。#1只更新关卡进度，84故事/P/I矩阵/T场景原文SHA保持不变。
+
+## 历史快照：原生 #32 修复与对照（以下状态不作为当前入口）
 
 当前修复工作树 `C:\Users\niilo\AppData\Local\Temp\opencode\pi-native-32` / `issue-32-native-zcode-fix`，起点Claude `317d286`。固定pnpm安装1881包成功，原生生产构建使用Vite8.0.8/Electron41.0.3通过；typecheck4GiB通过，1.5GiB首次OOM如实记录。原版19组/50图，产品18组/52图（含真实nativeAgent本地受控模型、文件和PTY）通过；26对静态截图已在docs/delivery/issue-32-parity。
 
 已集成来源/CI、品牌、GUI smoke及修复：7377a78、4ff5899、0d7dce9、c9b1169、95a8b83、3cfeac7、821e453；后续个人provider缓存修复及最终证据正在本分支提交。来源6112项校验、7品牌回归、20来源/修复回归、原生服务/UI及architecture通过。当前没有#33实际用户确认，不开始Pi#34。剩余审查/CI/提交与确认记录以GitHub为准，详见issue-32-acceptance.md和next-context.md最新段。
 
-**当前路线已重议：** 最新执行入口为 [next-context.md](next-context.md)，按 [原生重建计划](native-rebase-plan.md) 先 #32、在 #33 等用户确认。下面旧实现日志作为历史保存。
+下面保留各时点的原始执行记录；当前状态以本文件顶部、[next-context.md](next-context.md)和GitHub为准。
 
 ## 2026-09-22 — 完整首版开始实施
 

@@ -1,5 +1,7 @@
 # Desktop application-data identity (#32)
 
+Delivery status (2026-09-23): this correction and the saved-workflow follow-up are integrated through PR #37. Actual full production/default-entry and GUI checks passed; see [acceptance](issue-32-acceptance.md). The user subsequently approved #33 ([record](native-ui-confirmation.md)). The owned-worktree verification and integration-gate notes below retain their historical scope; they do not reopen #32/#33.
+
 This supersedes the `4b43635` HOME-rewriting implementation. Review reproduced an early shared-chunk path snapshot, lost execution-home configuration, and credential/history breakage after a data-directory move. The original single-entry tests did not prove production startup ordering.
 
 ## Boundaries and priority
