@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -8,6 +9,8 @@ import { fileURLToPath } from "node:url";
 import { ProxyChannel } from "@zcode/rpc";
 import type { ZCodeAgentRuntimeLifecycleEvent } from "../src/zcode-agent/zcodeAgent.js";
 import { createPiAgentService } from "../src/pi-agent/pi-agent-service.js";
+import { TaskIndexRepo } from "../src/session/taskIndexRepo.js";
+import { createZCodeTaskIndexSyncer } from "../src/zcode-agent/zcodeTaskIndexSyncer.js";
 import { PiSessionSupervisor } from "../src/pi-agent/pi-session-supervisor.js";
 
 test("Host channel subscribes to real Pi lifecycle events without a legacy Agent", { timeout: 60_000 }, async () => {
@@ -19,6 +22,10 @@ test("Host channel subscribes to real Pi lifecycle events without a legacy Agent
   });
   const service = createPiAgentService(piEntry, supervisor);
   const channel = ProxyChannel.fromService<string>(service);
+  const oldIndexPath = join(workspacePath, "legacy-task-index.db");
+  const oldIndex = createZCodeTaskIndexSyncer({ agentService: service,
+    taskIndexRepo: new TaskIndexRepo(oldIndexPath), ingestAgentSessions: false });
+  oldIndex.ensureWorkspaceSubscription({ workspacePath });
   const events: ZCodeAgentRuntimeLifecycleEvent[] = [];
   const restarted: { workspaceKey: string }[] = [];
   const lifecycle = channel.listen<ZCodeAgentRuntimeLifecycleEvent>("host", "onAgentRuntimeLifecycle")(event => events.push(event));
@@ -62,12 +69,15 @@ test("Host channel subscribes to real Pi lifecycle events without a legacy Agent
       "deleting drafts must not tear down the workspace service");
     await create();
     assert.deepEqual(events.map(event => event.state), ["available"]);
+    assert.equal(existsSync(oldIndexPath), false,
+      "Pi sessions-index must not be imported into a ZCode task database");
     assert.deepEqual(restarted, [], "Pi child churn is not a Host runtime restart");
     await supervisor.dispose();
     service.disposeAll();
     await new Promise(resolve => setImmediate(resolve));
     assert.deepEqual(events.map(event => event.state), ["available", "unavailable"]);
   } finally {
+    oldIndex.disposeAll();
     lifecycle.dispose();
     restart.dispose();
     await supervisor.dispose();

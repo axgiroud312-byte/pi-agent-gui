@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { fixture } from './native-smoke/fixture.mjs';
 import { closeOwned } from './native-smoke/cleanup.mjs';
 import { startPiModel } from './native-smoke/pi-model.mjs';
+import { drag } from './native-smoke/panels.mjs';
 
 const f = await fixture();
 const packagedExecutable = process.env.NATIVE_PI_PACKAGED_EXE;
@@ -16,6 +17,7 @@ if (packagedExecutable) {
   f.workspace = join(f.home, '.zcode', 'workspace', 'default');
   await mkdir(f.workspace, { recursive: true });
   await writeFile(join(f.workspace, 'README.md'), '# Native parity fixture\n\n**Preview marker: NATIVE_PARITY_PREVIEW**\n');
+  await writeFile(join(f.workspace, 'hello.txt'), 'Native parity file content\n');
   f.env.ZCODE_DESKTOP_PROFILE_HOME = f.home;
   delete f.env.NODE_OPTIONS;
 }
@@ -39,7 +41,10 @@ await writeFile(join(piProfile, 'settings.json'), JSON.stringify({
 }));
 let app;
 const logs = [];
-const report = { at: new Date().toISOString(), workspace: f.workspace, pageErrors: [] };
+const report = { at: new Date().toISOString(), workspace: f.workspace, pageErrors: [],
+  modelBoundary: { endpoint: model.url, api: 'openai-completions',
+    inference: 'isolated deterministic loopback fixture, NOT an online provider',
+    tools: 'real pinned Pi 0.87.0 subprocess executes read against the isolated workspace' } };
 try {
   app = await f.playwright._electron.launch({ executablePath: f.electronPath,
     args: launchArgs, cwd: f.root, env: f.env, timeout: 60_000 });
@@ -113,8 +118,47 @@ try {
     await page.keyboard.type(text);
     await page.getByTestId('v4-composer-send').filter({ visible: true }).first().click();
   };
+  const timeline = page.getByTestId('v4-timeline');
+  const position = () => timeline.evaluate(node => ({ top: node.scrollTop,
+    height: node.scrollHeight, viewport: node.clientHeight,
+    gap: node.scrollHeight - node.clientHeight - node.scrollTop }));
+  await send('PI_SCROLL: demonstrate native scrolling while Pi streams');
+  for (let i = 0; i < 100 && model.scrollFrames < 3; i++) await page.waitForTimeout(100);
+  assert(model.scrollFrames >= 3, 'Real Pi text stream must still be producing frames');
+  await page.waitForFunction(() => {
+    const node = document.querySelector('[data-testid="v4-timeline"]');
+    return node && node.scrollHeight > node.clientHeight + 300
+      && node.scrollHeight - node.clientHeight - node.scrollTop < 65;
+  }, null, { timeout: 10_000 });
+  report.scrollAutoFollow = await position();
+  await page.screenshot({ path: join(f.output, 'pi-native-scroll-follow.png') });
+  await timeline.hover();
+  await page.mouse.wheel(0, -700);
+  await page.waitForTimeout(250);
+  report.scrollManualBefore = await position();
+  assert(report.scrollManualBefore.gap > 150, 'Native user scroll must leave the streaming bottom');
+  const framesBeforeManual = model.scrollFrames;
+  for (let i = 0; i < 60 && model.scrollFrames < framesBeforeManual + 4; i++) await page.waitForTimeout(100);
+  assert(model.scrollFrames >= framesBeforeManual + 4, 'Pi must append text after the user scrolls up');
+  await page.waitForTimeout(200);
+  report.scrollManualAfter = await position();
+  assert(report.scrollManualAfter.gap > 150,
+    'Native timeline must not steal manual scroll when Pi appends text');
+  await page.screenshot({ path: join(f.output, 'pi-native-scroll-manual.png') });
+  const latest = page.getByTestId('v4-timeline-bottom');
+  report.backToLatestVisible = await latest.isVisible();
+  assert(report.backToLatestVisible, 'Native return-to-latest control must appear after manual scroll');
+  await latest.click();
+  await page.getByRole('button', { name: '停止生成', exact: true }).waitFor({ state: 'hidden', timeout: 30_000 });
+  await page.waitForFunction(() => {
+    const node = document.querySelector('[data-testid="v4-timeline"]');
+    return node && node.scrollHeight - node.clientHeight - node.scrollTop < 65;
+  }, null, { timeout: 10_000 });
+  report.scrollAfterLatest = await position();
+  await page.screenshot({ path: join(f.output, 'pi-native-scroll-latest.png') });
   await send('PI_READ: read the workspace README.md');
   await page.getByText('PI_READ_COMPLETE', { exact: true }).waitFor({ timeout: 30_000 });
+  await page.getByRole('button', { name: '停止生成', exact: true }).waitFor({ state: 'hidden', timeout: 30_000 });
   const readTurn = page.locator('section[data-turn-id]').filter({ hasText: 'PI_READ: read the workspace README.md' }).first();
   const toolCard = readTurn.locator('[data-testid^="chat-tool-call-block"]').filter({ visible: true }).first();
   report.historyTriggerCount = await readTurn.locator('[data-testid^="chat-assistant-history-trigger"]').count();
@@ -230,6 +274,109 @@ try {
   }
   assert(report.readFileChipClickable && report.readPreviewMarkerVisible,
     'Native Read card must open the same workspace file that Pi executed');
+  const reopenedSend = async text => {
+    const composer = reopenedPage.getByTestId('v4-composer-input').filter({ visible: true }).first();
+    await composer.click(); await reopenedPage.keyboard.type(text);
+    await reopenedPage.getByTestId('v4-composer-send').filter({ visible: true }).first().click();
+  };
+  const firstSessionId = await reopenedPage.locator('[data-testid^="v4-session-pane"]').filter({ visible: true }).first()
+    .getAttribute('data-session-id');
+  await reopenedSend('PI_HELLO: read the workspace hello.txt');
+  await reopenedPage.getByText('PI_HELLO_COMPLETE', { exact: true }).waitFor({ timeout: 30_000 });
+  await reopenedPage.getByRole('button', { name: '停止生成', exact: true }).waitFor({ state: 'hidden', timeout: 30_000 });
+  const helloTurn = reopenedPage.locator('section[data-turn-id]').filter({ hasText: 'PI_HELLO: read the workspace hello.txt' }).first();
+  const helloCard = helloTurn.locator('[data-testid^="chat-tool-call-block"]').filter({ visible: true }).first();
+  report.helloDebug = { turn: (await helloTurn.innerText()).slice(-450),
+    triggers: await helloTurn.locator('[data-testid^="chat-assistant-history-trigger"]').count(),
+    modelRequests: model.requests.slice(-2) };
+  const helloHistory = helloTurn.locator('[data-testid^="chat-assistant-history-trigger"]').first();
+  if (!await helloCard.isVisible()) await helloHistory.click();
+  await helloHistory.and(reopenedPage.locator('[data-history-open="true"]')).waitFor();
+  // The original history uses an animated Radix Collapsible: wait for its
+  // enter transition before clicking the newly mounted native Read chip.
+  await reopenedPage.waitForTimeout(350);
+  report.helloDebug.card = await helloCard.isVisible() ? await helloCard.innerText() : null;
+  report.helloDebug.buttons = await helloCard.getByRole('button').allTextContents();
+  report.helloDebug.openPath = await helloCard.getByRole('button', { name: 'hello.txt', exact: true }).getAttribute('title');
+  await helloCard.getByRole('button', { name: 'hello.txt', exact: true }).click();
+  const helloPreview = reopenedPage.getByText('Native parity file content', { exact: false }).first();
+  report.helloFirstClickTabs = await reopenedPage.locator('[data-side-pane-tab-id]').allTextContents();
+  await helloPreview.waitFor({ timeout: 5000 }).catch(() => {});
+  report.helloFirstClickVisible = await helloPreview.isVisible();
+  report.helloPreviewDebug = {
+    markerVisible: await helloPreview.isVisible(),
+    tabs: await reopenedPage.locator('[data-side-pane-tab-id]').evaluateAll(nodes => nodes.map(node => ({
+      text: node.textContent, state: node.getAttribute('data-state'), id: node.getAttribute('data-side-pane-tab-id'),
+    }))),
+    paneText: (await reopenedPage.locator('#browser').innerText().catch(() => '')).slice(-1200),
+    modelRequests: model.requests.slice(-2),
+  };
+  assert(report.helloPreviewDebug.markerVisible, 'Second Pi read must open the actual hello.txt content');
+  const sideTabs = reopenedPage.locator('[data-side-pane-tab-id]');
+  assert.equal(await sideTabs.count(), 2, 'Opening a second Pi-read file must retain native Side Pane tabs');
+  const tabOrderBefore = await sideTabs.allTextContents();
+  const firstTab = await sideTabs.nth(0).boundingBox(), secondTab = await sideTabs.nth(1).boundingBox();
+  await drag(reopenedPage, sideTabs.nth(0), secondTab.x - firstTab.x + 30, 0);
+  report.tabOrderAfterDrag = await sideTabs.allTextContents();
+  assert.notDeepEqual(report.tabOrderAfterDrag, tabOrderBefore, 'Native file tab drag must reorder tabs');
+  await sideTabs.filter({ hasText: 'README.md' }).click();
+  if (await sideTabs.filter({ hasText: 'README.md' }).getAttribute('data-state') !== 'active') {
+    // The original SidePaneTabTrigger suppresses the first click after a drag.
+    await sideTabs.filter({ hasText: 'README.md' }).click();
+  }
+  await sideTabs.filter({ hasText: 'README.md' }).and(reopenedPage.locator('[data-state="active"]')).waitFor();
+  const widthBeforeResize = (await reopenedPage.locator('#browser').boundingBox()).width;
+  await drag(reopenedPage, reopenedPage.locator('[data-workspace-side-pane-resize-handle]'), -75, 0);
+  report.sidePaneWidth = { before: widthBeforeResize, after: (await reopenedPage.locator('#browser').boundingBox()).width };
+  assert(report.sidePaneWidth.after > widthBeforeResize + 30, 'Original Side Pane drag resize must still work');
+  await reopenedPage.screenshot({ path: join(f.output, 'pi-native-tabs-drag.png') });
+  await reopenedPage.getByText('新建任务', { exact: true }).first().click();
+  await reopenedSend('PI_TEXT: second Pi session is independent');
+  await reopenedPage.getByText('PI_TEXT_COMPLETE', { exact: true }).waitFor({ timeout: 30_000 });
+  const secondSessionId = await reopenedPage.locator('[data-testid^="v4-session-pane"]').filter({ visible: true }).first()
+    .getAttribute('data-session-id');
+  report.sessionSwitch = { firstSessionId, secondSessionId,
+    sidebarRows: await reopenedPage.locator('[data-testid^="task-item-"]').allTextContents() };
+  assert(firstSessionId && secondSessionId && firstSessionId !== secondSessionId,
+    'Native new-task action must allocate a distinct Pi session');
+  const requestsBeforeSwitch = model.requests.length;
+  await reopenedPage.locator('[data-testid^="task-item-"]')
+    .filter({ hasText: 'PI_TEXT: give me a short response' }).first().click();
+  await reopenedPage.getByText('PI_HELLO_COMPLETE', { exact: true }).waitFor();
+  report.sessionSwitch.restoredFirst = await reopenedPage.locator('[data-testid^="v4-session-pane"]')
+    .filter({ visible: true }).first().getAttribute('data-session-id');
+  await reopenedPage.locator('[data-testid^="task-item-"]')
+    .filter({ hasText: 'PI_TEXT: second Pi session is independent' }).first().click();
+  report.sessionSwitch.restoredSecond = await reopenedPage.locator('[data-testid^="v4-session-pane"]')
+    .filter({ visible: true }).first().getAttribute('data-session-id');
+  report.sessionSwitch.noReplay = model.requests.length === requestsBeforeSwitch;
+  report.modelRequestsFinal = model.requests;
+  assert.equal(report.sessionSwitch.restoredFirst, firstSessionId);
+  assert.equal(report.sessionSwitch.restoredSecond, secondSessionId);
+  assert(report.sessionSwitch.noReplay, 'Switching native Pi sessions must not replay either prompt');
+  await reopenedPage.screenshot({ path: join(f.output, 'pi-native-session-switch.png') });
+  await reopenedPage.locator('[data-testid^="task-item-"]')
+    .filter({ hasText: 'PI_TEXT: second Pi session is independent' }).first().click({ button: 'right' });
+  const split = reopenedPage.getByTestId('v4-task-open-in-split');
+  report.conversationSplit = {
+    nativeOriginal: 'unavailable in fixed #32 original runtime; see issue-32-parity/evidence.json',
+    entryVisible: await split.isVisible(), enabled: await split.isEnabled(),
+  };
+  if (report.conversationSplit.entryVisible && report.conversationSplit.enabled) {
+    await split.click();
+    const divider = reopenedPage.getByTestId('v4-split-divider');
+    await divider.waitFor();
+    const before = await divider.boundingBox();
+    await drag(reopenedPage, divider, 75, 0);
+    report.conversationSplit.resized = (await divider.boundingBox()).x !== before.x;
+    assert(report.conversationSplit.resized, 'If exposed, conversation split drag must work');
+    await reopenedPage.screenshot({ path: join(f.output, 'pi-native-conversation-split.png') });
+    await reopenedPage.getByTestId('v4-split-close').click();
+  } else {
+    report.conversationSplit.unavailable = 'Native task-menu split is not enabled; no hidden store activation';
+    await reopenedPage.screenshot({ path: join(f.output, 'pi-native-conversation-split-unavailable.png') });
+    await reopenedPage.keyboard.press('Escape');
+  }
   assert(report.hostAlive, 'Host must survive workspace subscription');
   assert.equal(report.pageErrors.length, 0, 'Renderer must not throw');
 } catch (error) {

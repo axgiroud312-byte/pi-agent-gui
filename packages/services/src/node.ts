@@ -2279,6 +2279,9 @@ export function createLocalServices(options: {
   const zcodeTaskIndexSyncer = createZCodeTaskIndexSyncer({
     agentService: zcodeAgentService,
     taskIndexRepo,
+    // Pi JSONL + Pi sessions-index are authoritative. The old task-index
+    // importer must not try readSession or write Pi rows into ZCode sqlite.
+    ingestAgentSessions: !options?.piAgentRpcEntry,
   });
   // The plugin can be toggled at runtime. Do not let a previously created resolver continue
   // health-checking/restarting Helper after disable, and create it lazily after enable.

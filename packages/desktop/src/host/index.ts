@@ -1838,6 +1838,9 @@ function wireLocalResourceTelemetry(services: ServiceCollection): void {
     services,
     postMessage: (message) => parentPort?.postMessage(message),
     runtimeSurface: "local",
+    // Pi does not publish the old Agent/MCP resource telemetry. Do not
+    // subscribe to a legacy source or imply that unavailable samples exist.
+    telemetrySupported: false,
     onError: (error) => logger.warn("local resource telemetry subscription failed", error),
   });
 }
