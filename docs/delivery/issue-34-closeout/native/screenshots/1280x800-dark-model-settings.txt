@@ -1,0 +1,72 @@
+命令面板
+
+搜索并执行当前工作区可用的命令。
+
+新建任务
+Ctrl+N
+搜索
+Ctrl+K
+自动化
+插件市场
+分组
+项目
+项目
+parity-workspace
+暂无任务
+任务
+还没有任务
+π
+Pi Agent IDE
+
+下午好呀，接下来交给我吧
+
+parity-workspace
+master
+
+
+
+
+向 Pi Agent IDE 提问，使用 @ 添加上下文，使用 / 选择命令或能力
+添加上下文
+变更前确认
+选择模型
+发送
+返回工作区
+基础设置
+常规
+外观
+模型设置
+浏览器控制
+键盘快捷键
+Agent 能力
+记忆
+子智能体
+插件
+MCP 服务器
+技能
+命令
+钩子
+数据与统计
+使用统计
+引导
+π
+Pi Agent IDE
+模型设置
+
+管理自定义模型供应商，配置后可在聊天时选择使用。
+
+添加供应商
+自定义供应商
+BigModel Coding Plan
+新供应商
+新供应商
+Base URL
+API 格式
+Chat Completions (/chat/completions)
+API Key
+模型列表
+添加模型
+parity-controlled
+200K
+新供应商 保存成功
+新供应商 / parity-controlled 保存成功

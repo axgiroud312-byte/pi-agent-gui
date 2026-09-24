@@ -7,6 +7,8 @@ import { fixture } from './native-smoke/fixture.mjs';
 import { closeOwned } from './native-smoke/cleanup.mjs';
 import { startPiModel } from './native-smoke/pi-model.mjs';
 import { drag } from './native-smoke/panels.mjs';
+import { resizeNativeWindow } from './native-smoke/evidence.mjs';
+import { configurePiProfile, isolatePiPackage, verifyPiPackageCleanup } from './native-smoke/pi-package.mjs';
 
 const f = await fixture();
 const packagedExecutable = process.env.NATIVE_PI_PACKAGED_EXE;
@@ -23,22 +25,10 @@ if (packagedExecutable) {
 }
 const launchArgs = packagedExecutable ? []
   : [fileURLToPath(new URL('./native-smoke/bootstrap.cjs', import.meta.url)), '--lang=zh-CN'];
+await isolatePiPackage(f);
 const model = await startPiModel();
-const piProfile = join(f.sandbox, 'pi-profile');
-await mkdir(piProfile, { recursive: true });
-// Target-side Pi identity is deliberately separate from the native app data root.
-f.env.PI_CODING_AGENT_DIR = piProfile;
-f.env.PI_OFFLINE = '1';
-await writeFile(join(piProfile, 'models.json'), JSON.stringify({ providers: {
-  'new-provider': { baseUrl: model.url, api: 'openai-completions', apiKey: 'fixture-not-a-secret',
-    models: [{ id: 'pi-native-test', name: 'Pi native deterministic test', reasoning: false,
-      input: ['text'], contextWindow: 32000, maxTokens: 1024,
-      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } }],
-} } }));
-await writeFile(join(piProfile, 'settings.json'), JSON.stringify({
-  defaultProvider: 'new-provider', defaultModel: 'pi-native-test',
-  enableInstallTelemetry: false, cacheWarming: 'off',
-}));
+// Target-side Pi identity stays separate from native application metadata.
+await configurePiProfile(f, { url: model.url, modelId: 'pi-native-test', apiKey: 'fixture-not-a-secret' });
 let app;
 const logs = [];
 const report = { at: new Date().toISOString(), workspace: f.workspace, pageErrors: [],
@@ -118,10 +108,7 @@ try {
     await page.keyboard.type(text);
     await page.getByTestId('v4-composer-send').filter({ visible: true }).first().click();
   };
-  await app.evaluate(({ BrowserWindow }) => {
-    BrowserWindow.getAllWindows().find(window => window.isVisible())?.setContentSize(1280, 800);
-  });
-  await page.setViewportSize({ width: 1280, height: 800 });
+  await resizeNativeWindow(app, page, { width: 1280, height: 800 });
   report.scrollComparison = { width: 1280, height: 800,
     theme: await page.evaluate(() => document.documentElement.classList.contains('dark') ? 'dark' : 'light') };
   assert.equal(report.scrollComparison.theme, 'dark', 'Compare original and Pi streaming at the same native dark theme');
@@ -238,10 +225,7 @@ try {
     'Pi read tool card must be visibly rendered live and after restart');
   report.layoutMatrix = [];
   for (const size of [{ width: 1280, height: 800 }, { width: 1920, height: 1080 }]) {
-    await app.evaluate(({ BrowserWindow }, target) => {
-      BrowserWindow.getAllWindows().find(window => window.isVisible())?.setContentSize(target.width, target.height);
-    }, size);
-    await reopenedPage.setViewportSize(size);
+    await resizeNativeWindow(app, reopenedPage, size);
     for (const theme of ['light', 'dark']) {
       await reopenedPage.getByTestId('task-settings-button').filter({ visible: true }).click();
       await reopenedPage.getByRole('button', { name: '外观', exact: true }).click();
@@ -327,7 +311,8 @@ try {
   report.tabOrderAfterDrag = await sideTabs.allTextContents();
   assert.notDeepEqual(report.tabOrderAfterDrag, tabOrderBefore, 'Native file tab drag must reorder tabs');
   await sideTabs.filter({ hasText: 'README.md' }).click();
-  if (await sideTabs.filter({ hasText: 'README.md' }).getAttribute('data-state') !== 'active') {
+  report.postDragFirstClickActive = await sideTabs.filter({ hasText: 'README.md' }).getAttribute('data-state') === 'active';
+  if (!report.postDragFirstClickActive) {
     // The original SidePaneTabTrigger suppresses the first click after a drag.
     await sideTabs.filter({ hasText: 'README.md' }).click();
   }
@@ -337,6 +322,11 @@ try {
   report.sidePaneWidth = { before: widthBeforeResize, after: (await reopenedPage.locator('#browser').boundingBox()).width };
   assert(report.sidePaneWidth.after > widthBeforeResize + 30, 'Original Side Pane drag resize must still work');
   await reopenedPage.screenshot({ path: join(f.output, 'pi-native-tabs-drag.png') });
+  await sideTabs.filter({ hasText: 'hello.txt' }).click();
+  await sideTabs.filter({ hasText: 'hello.txt' }).getByRole('button').click();
+  assert.equal(await sideTabs.count(), 1);
+  report.tabCloseRetainsReadme = await sideTabs.first().innerText();
+  await reopenedPage.screenshot({ path: join(f.output, 'pi-native-tab-closed.png') });
   await reopenedPage.getByText('新建任务', { exact: true }).first().click();
   await reopenedSend('PI_TEXT: second Pi session is independent');
   await reopenedPage.getByText('PI_TEXT_COMPLETE', { exact: true }).waitFor({ timeout: 30_000 });
@@ -384,11 +374,20 @@ try {
     await reopenedPage.screenshot({ path: join(f.output, 'pi-native-conversation-split-unavailable.png') });
     await reopenedPage.keyboard.press('Escape');
   }
+  await verifyPiPackageCleanup(f);
+  report.piPrivatePackageCleanupVerified = true;
+  const boundaries = (await readFile(f.env.NATIVE_SMOKE_BOUNDARY_LOG, 'utf8'))
+    .split('\n').filter(Boolean).map(JSON.parse);
+  report.filesystemBlocked = boundaries.filter(entry => entry.type === 'filesystem-blocked');
+  assert.deepEqual(report.filesystemBlocked, [], 'Pi must not write outside the isolated fixture');
   assert(report.hostAlive, 'Host must survive workspace subscription');
   assert.equal(report.pageErrors.length, 0, 'Renderer must not throw');
 } catch (error) {
   report.error = error.stack || String(error);
-  report.body = (await app?.windows()[0]?.locator('body').innerText().catch(() => ''))?.slice(0, 3500);
+  const failedPage = app?.windows()[0];
+  const details = failedPage?.getByTestId('chat-error-details-button');
+  if (await details?.isVisible().catch(() => false)) await details.click().catch(() => {});
+  report.body = (await failedPage?.locator('body').innerText().catch(() => ''))?.slice(0, 7000);
   process.exitCode = 1;
   console.error(error);
   await app?.windows()[0]?.screenshot({ path: join(f.output, 'pi-native-failure.png') }).catch(() => {});

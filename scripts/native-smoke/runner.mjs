@@ -9,10 +9,15 @@ import { Evidence } from './evidence.mjs';
 import { provenance } from './provenance.mjs';
 import { closeOwned } from './cleanup.mjs';
 import { finishReport, sanitize } from './report.mjs';
+import { configurePiProfile, isolatePiPackage, verifyPiPackageCleanup } from './pi-package.mjs';
 
 export async function run() {
   const f = await fixture();
   f.model = await startModel(f);
+  if (f.baseline === 'product') {
+    await isolatePiPackage(f);
+    await configurePiProfile(f, { url: f.model.url, modelId: 'parity-controlled', apiKey: 'parity-fixture-not-a-secret' });
+  }
   let application;
   const log = [];
   const report = { baseline: f.baseline, sandbox: f.sandbox, started: new Date().toISOString(),
@@ -49,6 +54,19 @@ export async function run() {
     page.on('requestfailed', req => report.network.push({ url: safeUrl(req.url()), failure: req.failure()?.errorText }));
     await application.context().tracing.start({ screenshots: true, snapshots: true, sources: false });
     await page.setViewportSize({ width: 1280, height: 800 });
+    const initialWindow = await application.browserWindow(page);
+    try {
+      await initialWindow.evaluate(window => new Promise((resolve, reject) => {
+        if (window.isVisible()) { resolve(); return; }
+        const onShow = () => { clearTimeout(timer); resolve(); };
+        const timer = setTimeout(() => {
+          window.off('show', onShow);
+          reject(new Error('Native window did not show within 30 seconds'));
+        }, 30_000);
+        window.once('show', onShow);
+      }));
+    } finally { await initialWindow.dispose(); }
+    // Native onboarding mounts after BrowserWindow.show, not at OS spawn.
     await page.waitForTimeout(6000);
     report.initialTitle = await page.title();
     report.rendererUrl = page.url();
@@ -85,7 +103,16 @@ export async function run() {
       await page.keyboard.press('Escape');
     });
     await scenarios(page, f, evidence);
-    for (const state of ['empty', 'running', 'waiting', 'error', 'file-preview']) {
+    if (f.baseline === 'product') {
+      await verifyPiPackageCleanup(f);
+      report.piPrivatePackageCleanupVerified = true;
+    }
+    // The original waiting matrix is retained; Pi extension UI is explicitly
+    // unavailable, not a passing equivalent. See the per-assertion acceptance map.
+    const requiredStates = ['empty', 'running', 'error', 'file-preview'];
+    if (f.baseline === 'original') requiredStates.push('waiting');
+    report.requiredScreenshotStates = requiredStates;
+    for (const state of requiredStates) {
       assert.equal(report.screenshots.filter(s => s.state === state).length, 4, `${state} needs all four theme/size variants`);
     }
     const after = await provenance(f, 'provenance-after.json');
@@ -96,6 +123,9 @@ export async function run() {
     report.error = error.stack; console.error(error); process.exitCode = 1;
     const failedPage = application?.windows()[0];
     if (failedPage && !failedPage.isClosed()) {
+      const details = failedPage.getByTestId('chat-error-details-button');
+      if (await details.isVisible().catch(() => false)) await details.click().catch(() => {});
+      await writeFile(join(f.output, 'failure.txt'), await failedPage.locator('body').innerText()).catch(() => {});
       await failedPage.screenshot({ path: join(f.output, 'failure.png') }).catch(() => {});
       await writeFile(join(f.output, 'failure.html'), await failedPage.content()).catch(() => {});
     }

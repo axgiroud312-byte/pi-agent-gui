@@ -2,6 +2,22 @@
 
 更新：2026-09-23（Asia/Shanghai）。权威验收以 GitHub #34 最新正文与评论为准；本文只记当前工作树和**实际取得**的证据。
 
+## 2026-09-24 恢复（优先于下方历史快照）
+
+用户已明确授权修复既有阻塞后提交/推送 PR #39，**先通过 Windows CI，再独立 Standards / Spec 复审**；不合并、不关闭 #34、不推进后续票。本轮已核对最新 PR/CI/Issue，复跑许可、provenance、46 项脚本回归及双 cwd transport，详见 [恢复核验](issue-34-closeout/resume-2026-09-24.md)。生产 S1–S8 本轮修复及两个集成回归已处理；服务81/81、新构建两条GUI、新Windows包和打包exe GUI均通过，见[最终本地证据](issue-34-closeout/final/README.md)。正在整理提交推送；尚无新绿CI或独立复审PASS。下文“不提交推送、只继续旧实例”的旧停点不再适用，旧证据仍保留。
+
+## 本轮收尾更新（优先于下方旧阶段快照）
+
+**后续收到 Standards / Spec 首轮 Request changes。** 核心生产阻塞仍存在；Spec 另指出 retry/compaction 后实时与恢复消息不收敛，主会话已核对代码缺口。不能以本轮 139 项测试通过抵销。详见 [联合发现、初核与精确化反馈](issue-34-standards-findings.md)；原两位审查正补审未提交增量/许可来源。主会话已完成第一批生产修复：admission 查询失败不降级、恢复先锁后启动、no-run 关联清理、Stop 代际与指定 command 投影、workspace 真实释放和在途启动栅栏。服务 64/64、相关类型/lint 通过；尚未解决的持久化对账、惰性恢复/崩溃重连、权限/扩展/状态/历史协调详见联合发现顶部。生产代码变动后旧 GUI/139 项记录只作历史证据，新 GUI/打包尚未重跑。不继续许可支线，不重复排队复审。
+
+- 继续唯一现有工作树；HEAD/远端仍为 `280e01e`。用户已批准原版/产品测试分流；主会话完成未提交修复，没有重新开发生产 UI/适配，没有提交/推送/合并。
+- [本轮断言映射](issue-34-ci-acceptance-map.md)逐项保留原版能力；Pi 使用实际 `read(path)` 和真实 `get_commands` / `compact` RPC 合同，GUI 命令菜单/扩展 waiting 不算通过，不偷做后续票。
+- [本轮完整证据](issue-34-closeout/README.md)：139 项测试通过；全仓 lint 0 errors/70 warnings，typecheck、architecture、CLI 门禁通过；18 组原生操作/48 图、真实 Pi 重启/滚动/工具/双会话及固定原版对应交互通过。图片读取仍被禁用，独立逐屏视觉审查未完成。
+- 许可与 provenance 基础门禁恢复；没有删依赖或增豁免。`proxy-agent-negotiate` 补入真实前身代码的 MIT 通知、不可变来源链及 npm 对照证据，待 Standards 独立裁定；原有 19 项严格发行材料差额不变。没有宣称最终法律/发行合规完成。
+- 只继续现有两位 Sol/max 审查：`pi34-standards` (`A-6b66cca3`) 和 `pi34-spec-evidence` (`A-f6fccc4f`)。实际 runner 选型已验证，审查尚无通过结论。旧 `pi34-spec` 已停，不恢复。原 `pi34-ci` 因调度策略禁用停止，主会话接手写入；按用户要求不派新任务、不擅换模型。
+- 审查可读全量/增量快照在 `D:/Temp/pi34-closeout/`；原始失败日志、模型请求、trace、守卫日志均保留。后续仅用 `SendMessage` 继续上述既有审查，必须复核全 PR 加增量。
+- 剩余：处理审查发现/视觉限制 → 对最终源码新打包复验 → 获准提交推送并核对最新 Windows CI → 仅在所有关卡通过后 ready/merge/关闭 #34。当前 Draft/OPEN，不推进其他票。C: 仅约 0.5 GiB 可用，新增大文件/临时构建放 D:，不清理用户/旧缓存资产。
+
 ## 用户最新边界与停点
 
 用户要求保留 **ZCode 原生前端的布局、组件、交互、动态反馈、流式显示、工具卡、滚动、标签和分栏体验**，并非保留旧 Agent 内部架构。Pi 是消息、工具执行、会话历史、运行状态和队列的唯一事实来源；前端只保存必要展示/交互状态。当前低成本 v4 适配可以继续，但不能以兼容旧接口为由假报成功。**先完成并实际演示 #34；原 #34→其余全部任务的自动连续执行已暂停。** 84故事／52能力／20场景保留待确认，不删除、不自动实施、不宣称完成；不切换 SDK，不推倒已有成果。说明已同步 [产品目标](../product-goal.md)、[适配合同](issue-34-pi-adapter-contract.md)、[原计划暂停说明](full-development.md) 与 [新上下文入口](next-context.md)，并记录于 [#34 最新澄清评论](https://github.com/axgiroud312-byte/pi-agent-gui/issues/34#issuecomment-5788677011) 和 [父规格 #1 评论](https://github.com/axgiroud312-byte/pi-agent-gui/issues/1#issuecomment-5788679880)。

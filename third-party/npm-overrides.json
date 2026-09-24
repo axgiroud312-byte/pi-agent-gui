@@ -1,5 +1,111 @@
 [
   {
+    "package": "proxy-agent-negotiate@1.1.0",
+    "file": "third-party/upstream/8d8c55319c7729d57be811c747452636688d54f19701ee0752b6b15ad3771d9a.txt",
+    "sha256": "8d8c55319c7729d57be811c747452636688d54f19701ee0752b6b15ad3771d9a",
+    "source": "https://raw.githubusercontent.com/TooTallNate/proxy-agents/663669853ea993d66da628aea9f9902e1a6916d8/packages/https-proxy-agent/LICENSE",
+    "sourceProvenance": {
+      "file": "docs/delivery/issue-34-license-provenance.json",
+      "explanation": "The npm archive omits LICENSE. This is the complete MIT notice from the actual code origin before extraction in upstream PR #420, not a package-shipped LICENSE or a license inferred from author metadata. Extraction f6335213978d7b7da610cb8f768596bf40929605 and release b7e5f7ccce1a3ac5b339cc4c587974e8989cbc16 have identical negotiate source blob 502bac67155ebc9a79ffeadc0971f0173e3b5db1. The new package independently declares MIT; original permission and copyright are retained byte-for-byte."
+    }
+  },
+  {
+    "package": "@aws-sdk/credential-provider-http@3.972.74",
+    "file": "third-party/upstream/edea91454b811f127fbdea3d86f378f6719bd372ed440abf82b232f6fca06c3d.txt",
+    "sha256": "edea91454b811f127fbdea3d86f378f6719bd372ed440abf82b232f6fca06c3d",
+    "source": "https://raw.githubusercontent.com/aws/aws-sdk-js-v3/c68e50e4a6e0469a20c2894fe8a29c140553ebb8/LICENSE"
+  },
+  {
+    "package": "@aws-sdk/credential-provider-login@3.972.79",
+    "file": "third-party/upstream/edea91454b811f127fbdea3d86f378f6719bd372ed440abf82b232f6fca06c3d.txt",
+    "sha256": "edea91454b811f127fbdea3d86f378f6719bd372ed440abf82b232f6fca06c3d",
+    "source": "https://raw.githubusercontent.com/aws/aws-sdk-js-v3/c68e50e4a6e0469a20c2894fe8a29c140553ebb8/LICENSE"
+  },
+  {
+    "package": "@aws-sdk/nested-clients@3.997.46",
+    "file": "third-party/upstream/edea91454b811f127fbdea3d86f378f6719bd372ed440abf82b232f6fca06c3d.txt",
+    "sha256": "edea91454b811f127fbdea3d86f378f6719bd372ed440abf82b232f6fca06c3d",
+    "source": "https://raw.githubusercontent.com/aws/aws-sdk-js-v3/c68e50e4a6e0469a20c2894fe8a29c140553ebb8/LICENSE"
+  },
+  {
+    "package": "@earendil-works/pi-coding-agent@0.87.0",
+    "file": "third-party/upstream/0457f5bcec3b3b211605dfb5d1a49042fd638f3686a410fe099c24a25af13c48.txt",
+    "sha256": "0457f5bcec3b3b211605dfb5d1a49042fd638f3686a410fe099c24a25af13c48",
+    "source": "https://raw.githubusercontent.com/earendil-works/pi/16787ad5b2dc748047f314ca1bfe7708f30f54f3/LICENSE"
+  },
+  {
+    "package": "@earendil-works/chord@0.87.1",
+    "file": "third-party/upstream/0457f5bcec3b3b211605dfb5d1a49042fd638f3686a410fe099c24a25af13c48.txt",
+    "sha256": "0457f5bcec3b3b211605dfb5d1a49042fd638f3686a410fe099c24a25af13c48",
+    "source": "https://raw.githubusercontent.com/earendil-works/pi/f07218c4d4bbc12bef056a7058c3dd49dfe41abe/LICENSE"
+  },
+  {
+    "package": "@earendil-works/pi-agent-core@0.87.1",
+    "file": "third-party/upstream/0457f5bcec3b3b211605dfb5d1a49042fd638f3686a410fe099c24a25af13c48.txt",
+    "sha256": "0457f5bcec3b3b211605dfb5d1a49042fd638f3686a410fe099c24a25af13c48",
+    "source": "https://raw.githubusercontent.com/earendil-works/pi/f07218c4d4bbc12bef056a7058c3dd49dfe41abe/LICENSE"
+  },
+  {
+    "package": "@earendil-works/pi-ai@0.87.1",
+    "file": "third-party/upstream/0457f5bcec3b3b211605dfb5d1a49042fd638f3686a410fe099c24a25af13c48.txt",
+    "sha256": "0457f5bcec3b3b211605dfb5d1a49042fd638f3686a410fe099c24a25af13c48",
+    "source": "https://raw.githubusercontent.com/earendil-works/pi/f07218c4d4bbc12bef056a7058c3dd49dfe41abe/LICENSE"
+  },
+  {
+    "package": "@earendil-works/pi-telemetry@0.87.1",
+    "file": "third-party/upstream/0457f5bcec3b3b211605dfb5d1a49042fd638f3686a410fe099c24a25af13c48.txt",
+    "sha256": "0457f5bcec3b3b211605dfb5d1a49042fd638f3686a410fe099c24a25af13c48",
+    "source": "https://raw.githubusercontent.com/earendil-works/pi/f07218c4d4bbc12bef056a7058c3dd49dfe41abe/LICENSE"
+  },
+  {
+    "package": "@earendil-works/pi-tui@0.87.1",
+    "file": "third-party/upstream/0457f5bcec3b3b211605dfb5d1a49042fd638f3686a410fe099c24a25af13c48.txt",
+    "sha256": "0457f5bcec3b3b211605dfb5d1a49042fd638f3686a410fe099c24a25af13c48",
+    "source": "https://raw.githubusercontent.com/earendil-works/pi/f07218c4d4bbc12bef056a7058c3dd49dfe41abe/LICENSE"
+  },
+  {
+    "package": "@esbuild/darwin-arm64@0.28.2",
+    "file": "third-party/upstream/b40ec5baec7bb34fa5b1c09521fa3cd52d5fad7adafed74932a2010d3612a681.txt",
+    "sha256": "b40ec5baec7bb34fa5b1c09521fa3cd52d5fad7adafed74932a2010d3612a681",
+    "source": "https://raw.githubusercontent.com/evanw/esbuild/609683d892977362a0f99026cb74b96263d728a9/LICENSE.md"
+  },
+  {
+    "package": "@esbuild/darwin-x64@0.28.2",
+    "file": "third-party/upstream/b40ec5baec7bb34fa5b1c09521fa3cd52d5fad7adafed74932a2010d3612a681.txt",
+    "sha256": "b40ec5baec7bb34fa5b1c09521fa3cd52d5fad7adafed74932a2010d3612a681",
+    "source": "https://raw.githubusercontent.com/evanw/esbuild/609683d892977362a0f99026cb74b96263d728a9/LICENSE.md"
+  },
+  {
+    "package": "@esbuild/linux-arm64@0.28.2",
+    "file": "third-party/upstream/b40ec5baec7bb34fa5b1c09521fa3cd52d5fad7adafed74932a2010d3612a681.txt",
+    "sha256": "b40ec5baec7bb34fa5b1c09521fa3cd52d5fad7adafed74932a2010d3612a681",
+    "source": "https://raw.githubusercontent.com/evanw/esbuild/609683d892977362a0f99026cb74b96263d728a9/LICENSE.md"
+  },
+  {
+    "package": "@esbuild/linux-x64@0.28.2",
+    "file": "third-party/upstream/b40ec5baec7bb34fa5b1c09521fa3cd52d5fad7adafed74932a2010d3612a681.txt",
+    "sha256": "b40ec5baec7bb34fa5b1c09521fa3cd52d5fad7adafed74932a2010d3612a681",
+    "source": "https://raw.githubusercontent.com/evanw/esbuild/609683d892977362a0f99026cb74b96263d728a9/LICENSE.md"
+  },
+  {
+    "package": "@esbuild/win32-arm64@0.28.2",
+    "file": "third-party/upstream/b40ec5baec7bb34fa5b1c09521fa3cd52d5fad7adafed74932a2010d3612a681.txt",
+    "sha256": "b40ec5baec7bb34fa5b1c09521fa3cd52d5fad7adafed74932a2010d3612a681",
+    "source": "https://raw.githubusercontent.com/evanw/esbuild/609683d892977362a0f99026cb74b96263d728a9/LICENSE.md"
+  },
+  {
+    "package": "@esbuild/win32-x64@0.28.2",
+    "file": "third-party/upstream/b40ec5baec7bb34fa5b1c09521fa3cd52d5fad7adafed74932a2010d3612a681.txt",
+    "sha256": "b40ec5baec7bb34fa5b1c09521fa3cd52d5fad7adafed74932a2010d3612a681",
+    "source": "https://raw.githubusercontent.com/evanw/esbuild/609683d892977362a0f99026cb74b96263d728a9/LICENSE.md"
+  },
+  {
+    "package": "standardwebhooks@1.1.1",
+    "file": "third-party/upstream/5ec8c7b26b64d881a6706617bed25c049f97f2f35de034c756de8546fd6dbe27.txt",
+    "sha256": "5ec8c7b26b64d881a6706617bed25c049f97f2f35de034c756de8546fd6dbe27",
+    "source": "https://raw.githubusercontent.com/standard-webhooks/standard-webhooks/b4d2c14fc5b4ccff3ff271e3b087dff812254c59/libraries/LICENSE"
+  },
+  {
     "package": "victory-vendor@37.3.6",
     "file": "third-party/upstream/34dee5fd5e5cc756efb5ad4d64652bce719bdf5e900ca5d7538253e737930bc4.txt",
     "sha256": "34dee5fd5e5cc756efb5ad4d64652bce719bdf5e900ca5d7538253e737930bc4",

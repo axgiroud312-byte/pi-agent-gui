@@ -2,6 +2,16 @@
 
 更新：2026-09-23。**原生底座已交付，用户已确认实际界面。** 用户新要求：暂停此前 #34→其余全部任务的自动连续开发；当前只完成、实测演示并审查 #34 原生 GUI→Pi 闭环。84故事／52能力／20场景保留为待确认范围，不自动实施或删除。先完整读取 [#34 实时交接](handoff-2026-09-23-issue-34.md)，再参考 [原全量任务依赖索引](full-development.md)；后者的自动推进指令已暂停。GitHub Issue 最新正文与评论仍为验收权威。
 
+## 2026-09-24 恢复的当前状态
+
+用户已授权只修 #34 的既有阻塞后整理提交、推送 PR #39，先过 Windows CI，再独立 Standards/Spec 复审。服务81/81、最终两条GUI、完整新Windows包及打包exe GUI通过，详见[最终本地证据](issue-34-closeout/final/README.md)与[恢复记录](issue-34-closeout/resume-2026-09-24.md)。尚无最新绿CI或复审PASS，不合并/关闭、不推进后续票；下文旧“不提交、仅续旧实例”等停点已被本轮用户要求替代。唯一工作树仍为 Temp/opencode/pi-native-pi-34，未跟踪 `%SystemDrive%/` 保留且不提交。
+
+## 本轮收尾补充（历史过程）
+
+**最新：Standards / Spec 首轮均 Request changes，不能继续仅按 CI 收尾。** [联合生产阻塞与主会话初核](issue-34-standards-findings.md)记录接纳/防重放、权限、先锁后 spawn、生命周期、真实状态、扩展边界、Stop 代际，以及 Spec 新增的 retry/compaction 实时/恢复消息不收敛；第一批生产整改已落地：admission 后查询失败保持 accepted、恢复先锁后启动、no-run 关联清理、Stop 代际与按 command 停止投影、workspace 实际释放及在途启动栅栏。服务 64/64、相关类型/lint 通过；持久化对账、惰性加载/崩溃恢复、权限/扩展、状态及历史协调仍未完成，GUI/新包未重测。两份首轮针对已提交 HEAD，已要求原两位审查补审最新增量并精确化发现，不派新任务。
+
+先读 [收尾证据与未过关卡](issue-34-closeout/README.md)和[原版/Pi 断言映射](issue-34-ci-acceptance-map.md)。用户批准的最小 CI 修复已在现有 #34 工作树完成本地验证：139 项测试、lint/typecheck/architecture、许可/provenance 基础检查、18 组原生动作/48 图、原版与 Pi 的滚动/工具/标签/双会话及 Pi 重启恢复。**尚未提交推送、无最新绿 CI、无独立审查通过、新包未重建、图片读取限制仍在；PR #39 Draft / #34 OPEN 不变。** 只继续已有 Sol/max Standards/Spec 实例，不派新任务；具体 ID、原始日志位置和当前唯一写入方见交接顶部。旧章节中的“尚未修复/没有合规审查运行环境”仅是历史快照。
+
 ## 已完成与权威记录
 
 - PR #37已合并到主线 `59362a37f044157a17b49950dc46b33c4d83842b`，#32/#36 CLOSED；产品源码/构建为 `0de01e26b86f7bc2ed023623516a0907f848819d`，证据提交为 `36e3eb811c1467c1b43646b5d2b3ff9a6c1e8cba`。

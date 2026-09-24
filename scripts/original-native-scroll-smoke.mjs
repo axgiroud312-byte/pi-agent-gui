@@ -8,9 +8,11 @@ import { fileURLToPath } from 'node:url';
 import { fixture } from './native-smoke/fixture.mjs';
 import { startModel } from './native-smoke/model.mjs';
 import { closeOwned } from './native-smoke/cleanup.mjs';
+import { originalInteractions } from './native-smoke/original-interactions.mjs';
 
 const originalRoot = resolve(process.env.NATIVE_ORIGINAL_ROOT ?? 'D:/Temp/pi-34-original-comparison');
 const f = await fixture();
+assert.equal(f.baseline, 'original', 'Pass --baseline original for this reference-only probe');
 f.root = originalRoot;
 f.env.NATIVE_SMOKE_ROOT = originalRoot;
 f.env.ZCODE_DESKTOP_PROFILE_HOME = f.home;
@@ -105,6 +107,7 @@ try {
     'Original native scroll behavior does not match its expected interaction');
   assert.equal(report.pageErrors.length, 0);
   await page.screenshot({ path: join(f.output, 'original-native-scroll-latest.png') });
+  await originalInteractions({ app, page, input, model, f, report });
 } catch (error) {
   report.error = error.stack || String(error);
   report.body = (await app?.windows()[0]?.locator('body').innerText().catch(() => ''))?.slice(-2500);

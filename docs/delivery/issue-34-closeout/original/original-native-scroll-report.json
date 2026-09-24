@@ -1,0 +1,227 @@
+{
+  "source": "original reference archive 317d286 / fixed upstream 872ad96",
+  "modelBoundary": {
+    "endpoint": "http://127.0.0.1:58237/v1",
+    "kind": "local deterministic OpenAI-compatible; old Agent, NOT Pi"
+  },
+  "workspace": "D:\\Temp\\pi34-closeout\\original-interactions-final\\fixture-MoJc4C\\parity-workspace",
+  "pageErrors": [],
+  "originalRoot": "D:\\Temp\\pi-34-original-comparison",
+  "scrollComparison": {
+    "width": 1280,
+    "height": 800,
+    "theme": "dark"
+  },
+  "modelRequestsBeforeScroll": [
+    {
+      "at": "2026-09-23T07:34:44.097Z",
+      "method": "POST",
+      "path": "/v1/chat/completions",
+      "model": "parity-controlled",
+      "stream": true,
+      "roles": [
+        "system",
+        "user",
+        "user",
+        "user"
+      ],
+      "tools": [
+        "Agent",
+        "AskUserQuestion",
+        "Bash",
+        "CronCreate",
+        "CronDelete",
+        "CronList",
+        "CronUpdate",
+        "Edit",
+        "EnterPlanMode",
+        "ExitPlanMode",
+        "Read",
+        "Skill",
+        "TaskOutput",
+        "TaskStop",
+        "TodoRead",
+        "TodoWrite",
+        "WebFetch",
+        "Write",
+        "OffPeakCreate",
+        "OffPeakList",
+        "SendMessage",
+        "ReadSessionContext"
+      ],
+      "toolResults": [],
+      "scenario": "PARITY_SCROLL",
+      "status": 200,
+      "finished": true,
+      "aborted": false
+    }
+  ],
+  "autoFollow": {
+    "top": 340.6666564941406,
+    "height": 1083,
+    "viewport": 743,
+    "gap": -0.666656494140625
+  },
+  "manualBefore": {
+    "top": 0,
+    "height": 1108,
+    "viewport": 743,
+    "gap": 365
+  },
+  "manualAfter": {
+    "top": 0,
+    "height": 1157,
+    "viewport": 743,
+    "gap": 414
+  },
+  "backToLatestVisible": true,
+  "afterLatest": {
+    "top": 540.6666870117188,
+    "height": 1283,
+    "viewport": 743,
+    "gap": -0.66668701171875
+  },
+  "requests": [
+    {
+      "at": "2026-09-23T07:34:44.097Z",
+      "method": "POST",
+      "path": "/v1/chat/completions",
+      "model": "parity-controlled",
+      "stream": true,
+      "roles": [
+        "system",
+        "user",
+        "user",
+        "user"
+      ],
+      "tools": [
+        "Agent",
+        "AskUserQuestion",
+        "Bash",
+        "CronCreate",
+        "CronDelete",
+        "CronList",
+        "CronUpdate",
+        "Edit",
+        "EnterPlanMode",
+        "ExitPlanMode",
+        "Read",
+        "Skill",
+        "TaskOutput",
+        "TaskStop",
+        "TodoRead",
+        "TodoWrite",
+        "WebFetch",
+        "Write",
+        "OffPeakCreate",
+        "OffPeakList",
+        "SendMessage",
+        "ReadSessionContext"
+      ],
+      "toolResults": [],
+      "scenario": "PARITY_SCROLL",
+      "status": 200,
+      "finished": true,
+      "aborted": false
+    },
+    {
+      "at": "2026-09-23T07:34:48.414Z",
+      "method": "POST",
+      "path": "/v1/chat/completions",
+      "model": "parity-controlled",
+      "roles": [
+        "system",
+        "user"
+      ],
+      "toolResults": [],
+      "scenario": "PARITY_SCROLL",
+      "status": 200,
+      "finished": true,
+      "aborted": false
+    }
+  ],
+  "actualReadResult": true,
+  "tabOrderBefore": [
+    "README.md",
+    "hello.txt"
+  ],
+  "tabOrderAfterDrag": [
+    "hello.txt",
+    "README.md"
+  ],
+  "postDragFirstClickActive": false,
+  "sidePaneWidth": {
+    "before": 739.802001953125,
+    "after": 814.802001953125
+  },
+  "tabCloseRetainsReadme": "README.md",
+  "sidebarRows": [
+    "PARITY_RECOVER_COMPLETEPARITY_RECOVER_COMPLETE刚刚",
+    "CONTROLLED_NATIVE_REPLY: **native timeline**CONTROLLED_NATIVE_REPLY: **native timeline**刚刚"
+  ],
+  "sessionSwitch": {
+    "first": "sess_c5f6ce44-33d6-455a-b9a3-17554f66cdd0",
+    "second": "sess_f913241b-49ba-4242-b4fe-9db0ab776f9d",
+    "noReplay": true
+  },
+  "conversationSplit": {
+    "entryVisible": true,
+    "enabled": false
+  },
+  "cleanup": {
+    "owned": [
+      {
+        "ProcessId": 28556,
+        "ParentProcessId": 28420,
+        "CreationDate": "/Date(1790148852994)/"
+      },
+      {
+        "ProcessId": 26132,
+        "ParentProcessId": 28556,
+        "CreationDate": "/Date(1790148853011)/"
+      },
+      {
+        "ProcessId": 38140,
+        "ParentProcessId": 26132,
+        "CreationDate": "/Date(1790148853552)/"
+      },
+      {
+        "ProcessId": 46296,
+        "ParentProcessId": 26132,
+        "CreationDate": "/Date(1790148853624)/"
+      },
+      {
+        "ProcessId": 12016,
+        "ParentProcessId": 26132,
+        "CreationDate": "/Date(1790148853739)/"
+      },
+      {
+        "ProcessId": 44588,
+        "ParentProcessId": 26132,
+        "CreationDate": "/Date(1790148854342)/"
+      },
+      {
+        "ProcessId": 46884,
+        "ParentProcessId": 26132,
+        "CreationDate": "/Date(1790148856658)/"
+      },
+      {
+        "ProcessId": 19172,
+        "ParentProcessId": 44588,
+        "CreationDate": "/Date(1790148867923)/"
+      },
+      {
+        "ProcessId": 44052,
+        "ParentProcessId": 44588,
+        "CreationDate": "/Date(1790148867967)/"
+      },
+      {
+        "ProcessId": 12312,
+        "ParentProcessId": 26132,
+        "CreationDate": "/Date(1790148888548)/"
+      }
+    ],
+    "forced": [],
+    "survivors": []
+  }
+}

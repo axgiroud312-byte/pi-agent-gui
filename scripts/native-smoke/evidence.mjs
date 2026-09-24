@@ -2,6 +2,20 @@ import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
+// Bind to the tested renderer; never silently select an unrelated visible window.
+export async function resizeNativeWindow(application, page, size) {
+  const handle = await application.browserWindow(page);
+  try {
+    await handle.evaluate((window, target) => {
+      if (window.isDestroyed()) throw new Error('The tested native window was destroyed');
+      if (window.isMinimized()) window.restore();
+      window.show();
+      window.setContentSize(target.width, target.height); window.focus();
+    }, size);
+  } finally { await handle.dispose(); }
+  await page.setViewportSize(size);
+}
+
 export class Evidence {
   constructor(page, application, f, report) {
     Object.assign(this, { page, application, f, report });
@@ -24,11 +38,7 @@ export class Evidence {
     await writeFile(join(this.f.output, 'screenshots', filename.replace('.png', '.txt')), await this.page.locator('body').innerText());
   }
   async resize(size) {
-    await this.application.evaluate(({ BrowserWindow }, size) => {
-      const window = BrowserWindow.getAllWindows().find(w => w.isVisible());
-      window.setContentSize(size.width, size.height); window.focus();
-    }, size);
-    await this.page.setViewportSize(size);
+    await resizeNativeWindow(this.application, this.page, size);
     this.size = size;
   }
   async setTheme(theme, captureSettings = false) {

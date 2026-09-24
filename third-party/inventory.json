@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "inputHashEncoding": "UTF-8 with CRLF normalized to LF; notice and source snapshot hashes remain byte-exact",
   "scope": "Production dependency union across current workspace projects, copied source/assets and native tools; not a per-installer SBOM or a certification of all licensing obligations.",
-  "noticesSha256": "05d366f61fe430c5a0c7ed6b27ac9bb6626591151331f2817cb9120649e4c67f",
+  "noticesSha256": "4598ef06b51e044f8d38dd09f2ae3923e0e4ae61c9c40aa18e82a60045566b31",
   "inputs": {
     ".agents/skills/agent-browser/references/authentication.md": "e2c3b0f4a1dc1368dee821f03c000d818a48421d09f3872525dddffe73f2112b",
     ".agents/skills/agent-browser/references/commands.md": "17522fc56d742663f47231ff06c4811abc87e12c7f78e11f94d253ddd540a909",
@@ -244,9 +244,10 @@
     "apps/zcode-cli/packages/tui/package.json": "097d5896b0b37a455eafaf015f21113dfbea7b05bb3f92666f423f7753720eb1",
     "apps/zcode-cli/tools/prompt-trajectory/package.json": "7f161fc87f36691f01eb8c2034bd89cf28107da36db02bc20e76f059edd36af6",
     "apps/zcode-cli/tools/typescript/package.json": "23d7e50d2089d205ce3022c5bafbb6b3e31d000e41ac678a5934e0b72627cf3a",
+    "docs/delivery/issue-34-license-provenance.json": "39db082563723b18372d6c5c5d0a439af8b0faef4fb1e4c2296e0d28842c0fae",
     "package.json": "fd17e8cdcefd36cf92a83b8e45468c4756a947bd77db4e529d11cf2a62d947ed",
     "packages/client/package.json": "e76f441549130dc3e5e68072a36b6cb9044e19a6625f1e813f19a4def2b1b689",
-    "packages/desktop/package.json": "7231289c16233645ca447e280e0895c4e5820c7bf6df18c2c2cffd795650ccef",
+    "packages/desktop/package.json": "a16b394e1d8190dba0e528fa9eca9980630ba9af59aaf4e67c92e3f0a16bc556",
     "packages/desktop/src/renderer/public/material-icons/3d.svg": "9527b849f0fba57ca7640e2717b3a19cb5f5e046712cbbd8b75d73af338c68fb",
     "packages/desktop/src/renderer/public/material-icons/abap.svg": "1335bd7eb9a0ed49deb622330d680c2e97731726a7a5eee8e4f46dc1e5db4de4",
     "packages/desktop/src/renderer/public/material-icons/abc.svg": "d1a68020e8f020ef29dca5f94dc8613b7ae8fb5b212d8b1cc23b0f975ac7acda",
@@ -2668,7 +2669,7 @@
     "patches/@ai-sdk__anthropic@3.0.81.patch": "d3a7c381eba7f5157f765a0528003af17cf84544911dfb7412c7800168e01c18",
     "patches/@ai-sdk__openai-compatible@2.0.60.patch": "9632fe9d821b3dc20939ae509cc35b968d90d018bbd1d812390718898182a38b",
     "patches/@arms__rum-electron@0.0.3.patch": "36855354851ea495bc47a03340b0484ff62836b739cad56904b8a69f18e2ae97",
-    "pnpm-lock.yaml": "a63f2497b6f61711d765be85aa3b6a4b543d792fdcc95a8c0effeaeb3d2292d5",
+    "pnpm-lock.yaml": "f68c49f0bc1f98a5ab957587252a50d7e442a724ab0852d774f019874a3357f3",
     "pnpm-workspace.yaml": "f18a18233e82cda1dc40be61bf2ad1bc99de25de63ad0be64bc652761a638372",
     "scripts/license-texts/Apache-2.0.txt": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
     "scripts/native-search-tools-config.mjs": "281d368464f61363fa2d8ab74f416962fe730dd0a0572db5564475f876bb65aa",
@@ -2790,12 +2791,13 @@
     "third-party/native-search/licenses/f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af.txt": "f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af",
     "third-party/native-search/licenses/f9c375a1be4a41f7b70301dd83c91cb89e41567478859b77eef375a52d782505.txt": "f9c375a1be4a41f7b70301dd83c91cb89e41567478859b77eef375a52d782505",
     "third-party/native-search/sources.json": "5a7b2d7abf5bd5f310712710cbbd0ca70dc9491e723cbf070b5c696fe155a962",
-    "third-party/npm-overrides.json": "08e2b41ea681c0058e7430f8d285e0693433af2ead0b0bc96d80aecbe7ecad19",
+    "third-party/npm-overrides.json": "9d137521c51fce289375aa23b63fda187bf18b22ee7c1e3a6901a47eff260f03",
     "third-party/runtime/node-22.16.0-LICENSE.txt": "1ae62e2015784ba438db7b04ebd33f3c4ff3efdb824c111c4ececd99945fd52d",
     "third-party/runtime/node-24.14.0-LICENSE.txt": "4573185d56580da2b890ba34a85a409257640f1c5632eade4300137266194d18",
     "third-party/runtime/sources.json": "b27bc8d81aeb71108e523602364ffbb6a1b19c2d5d47733fd43094b769006741",
     "third-party/upstream/000ffa2d773c511f4459fb31d89f841806f93bf5caf2050468ab2097c081b443.txt": "000ffa2d773c511f4459fb31d89f841806f93bf5caf2050468ab2097c081b443",
     "third-party/upstream/014bb31e83d5c2e76aea1cc6e82217346ab41362f32cb355ad0f5c10aa0aeaff.txt": "014bb31e83d5c2e76aea1cc6e82217346ab41362f32cb355ad0f5c10aa0aeaff",
+    "third-party/upstream/0457f5bcec3b3b211605dfb5d1a49042fd638f3686a410fe099c24a25af13c48.txt": "0457f5bcec3b3b211605dfb5d1a49042fd638f3686a410fe099c24a25af13c48",
     "third-party/upstream/0a7cda7d15aca7baaa3035e1f90466dde9ecc980c103cd230382d6675714bf2a.txt": "0a7cda7d15aca7baaa3035e1f90466dde9ecc980c103cd230382d6675714bf2a",
     "third-party/upstream/0ab717053f3e24736cd404a0801407fb305db75d1b58f7e6487d14feee30d28a.txt": "0ab717053f3e24736cd404a0801407fb305db75d1b58f7e6487d14feee30d28a",
     "third-party/upstream/0c74e86d37d6fc7e8f22b4b8e3b801f6737c263c27a71d81c86cd8de0b6a84e5.txt": "0c74e86d37d6fc7e8f22b4b8e3b801f6737c263c27a71d81c86cd8de0b6a84e5",
@@ -2829,6 +2831,7 @@
     "third-party/upstream/59c38e93a395817bc9d674d868af7c062fcea8b37468af8b3f6f075133eb1756.txt": "59c38e93a395817bc9d674d868af7c062fcea8b37468af8b3f6f075133eb1756",
     "third-party/upstream/5a5ee54c5001bbad1cdc1a57cc3dd4c42199b2da09d39c7ee41fab002d02967f.txt": "5a5ee54c5001bbad1cdc1a57cc3dd4c42199b2da09d39c7ee41fab002d02967f",
     "third-party/upstream/5aec868f669e384a22372a4e8a1a6cd7d44c64cd451f960ca69cc170d1e13acf.txt": "5aec868f669e384a22372a4e8a1a6cd7d44c64cd451f960ca69cc170d1e13acf",
+    "third-party/upstream/5ec8c7b26b64d881a6706617bed25c049f97f2f35de034c756de8546fd6dbe27.txt": "5ec8c7b26b64d881a6706617bed25c049f97f2f35de034c756de8546fd6dbe27",
     "third-party/upstream/5f745b8244890bde0a2258fe32342d60c577fad043e8601d923690a5bfe1b54f.txt": "5f745b8244890bde0a2258fe32342d60c577fad043e8601d923690a5bfe1b54f",
     "third-party/upstream/5f787c1dee3c56547f09ccc2906ab5f5293c4d8dd6c8654e573216c38e908dbd.txt": "5f787c1dee3c56547f09ccc2906ab5f5293c4d8dd6c8654e573216c38e908dbd",
     "third-party/upstream/66aa9feab8bb39aceebd69f2a357015d57ceab486d3c7a19ff8d3d4110a6d101.txt": "66aa9feab8bb39aceebd69f2a357015d57ceab486d3c7a19ff8d3d4110a6d101",
@@ -2838,6 +2841,7 @@
     "third-party/upstream/8405932022a556380c2d8c272eff154a923feb197233f348ce5f7334fb0a5ede.txt": "8405932022a556380c2d8c272eff154a923feb197233f348ce5f7334fb0a5ede",
     "third-party/upstream/8802fecf9da4367bc23bcf20b21cc143785fc6c92b152f3fa7fbe6ce08d344d6.txt": "8802fecf9da4367bc23bcf20b21cc143785fc6c92b152f3fa7fbe6ce08d344d6",
     "third-party/upstream/8a1efa755d19446b51a18e1c15f6308728da0b36283c4d38050698ad6954b69a.txt": "8a1efa755d19446b51a18e1c15f6308728da0b36283c4d38050698ad6954b69a",
+    "third-party/upstream/8d8c55319c7729d57be811c747452636688d54f19701ee0752b6b15ad3771d9a.txt": "8d8c55319c7729d57be811c747452636688d54f19701ee0752b6b15ad3771d9a",
     "third-party/upstream/91915f8ae056a68a3c5bdf05d9f6f78bb6903e27a8ca3a8434c9e4ac87300575.txt": "91915f8ae056a68a3c5bdf05d9f6f78bb6903e27a8ca3a8434c9e4ac87300575",
     "third-party/upstream/93f24a47f95aea2be1b0dad78de98dc6d3de01ce22c0b72dc73e453c7917b955.txt": "93f24a47f95aea2be1b0dad78de98dc6d3de01ce22c0b72dc73e453c7917b955",
     "third-party/upstream/9480271317925265e806a9a196aaa33410a962fa9d4d1e248a4a5187bc8c9df9.txt": "9480271317925265e806a9a196aaa33410a962fa9d4d1e248a4a5187bc8c9df9",
@@ -2850,6 +2854,7 @@
     "third-party/upstream/a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2.txt": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
     "third-party/upstream/af0d7d2cef91fc243cf4ad98570b03d1f26f5e0227cad0f5f4a7376e2feb3160.txt": "af0d7d2cef91fc243cf4ad98570b03d1f26f5e0227cad0f5f4a7376e2feb3160",
     "third-party/upstream/b1688598c3e32605b3973902a546225e0159349c05a0f74db67f76e08e116e65.txt": "b1688598c3e32605b3973902a546225e0159349c05a0f74db67f76e08e116e65",
+    "third-party/upstream/b40ec5baec7bb34fa5b1c09521fa3cd52d5fad7adafed74932a2010d3612a681.txt": "b40ec5baec7bb34fa5b1c09521fa3cd52d5fad7adafed74932a2010d3612a681",
     "third-party/upstream/b4f9adb7c568904834d0dd6cc98d16c390d21ca32fc17ae7a267715269bd5529.txt": "b4f9adb7c568904834d0dd6cc98d16c390d21ca32fc17ae7a267715269bd5529",
     "third-party/upstream/ba8f810f2455c2f08e2d56bb49b72f37fcf68f1f4fade38977cfd7372050ad64.txt": "ba8f810f2455c2f08e2d56bb49b72f37fcf68f1f4fade38977cfd7372050ad64",
     "third-party/upstream/bdb0a645ea18c60507d0368379b1ac5474b92255fcc2d115e07486a7672ba526.txt": "bdb0a645ea18c60507d0368379b1ac5474b92255fcc2d115e07486a7672ba526",
@@ -2867,6 +2872,7 @@
     "third-party/upstream/e2b35be49f7284a45b7baca8fc7b3ab7440e7902392b2528a457816b5bb2a15c.txt": "e2b35be49f7284a45b7baca8fc7b3ab7440e7902392b2528a457816b5bb2a15c",
     "third-party/upstream/e49e62397b603438476e0d6b5ca3b6e6d4f23a80594e596aff29ac04fa3e1b1c.txt": "e49e62397b603438476e0d6b5ca3b6e6d4f23a80594e596aff29ac04fa3e1b1c",
     "third-party/upstream/ebb2e920800c6353474e3e23d84f714ee8aaecd8f5a71851aa03594a4129d855.txt": "ebb2e920800c6353474e3e23d84f714ee8aaecd8f5a71851aa03594a4129d855",
+    "third-party/upstream/edea91454b811f127fbdea3d86f378f6719bd372ed440abf82b232f6fca06c3d.txt": "edea91454b811f127fbdea3d86f378f6719bd372ed440abf82b232f6fca06c3d",
     "third-party/upstream/f158b3bd10b867740fdbf81447216f1f8685473acf61e6a105ef91ba9fe8ebc3.txt": "f158b3bd10b867740fdbf81447216f1f8685473acf61e6a105ef91ba9fe8ebc3",
     "third-party/upstream/f18c12b8e7daf98d572518b7db133b2dc66a713921dac4825410dd656e0c1a1a.txt": "f18c12b8e7daf98d572518b7db133b2dc66a713921dac4825410dd656e0c1a1a",
     "third-party/upstream/f29b60ea39a2132e3baa98927c2d473b349a54143da44a0c6762b243e6459452.txt": "f29b60ea39a2132e3baa98927c2d473b349a54143da44a0c6762b243e6459452",
@@ -3051,6 +3057,26 @@
       ]
     },
     {
+      "name": "@anthropic-ai/sdk",
+      "version": "0.124.0",
+      "license": "MIT",
+      "repository": "github:anthropics/anthropic-sdk-typescript",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "8bf96984ff8bcfae7e48cae76a529e8a25317ba9e02abf7fd3cc64fdf95657a6"
+        },
+        {
+          "member": "README.md (license section)",
+          "sha256": "74f25d0c27ebb9682550ef434c92efaab82a8c2ce74871832efc6a2c29be4d59"
+        },
+        {
+          "member": "src/internal/qs/LICENSE.md",
+          "sha256": "d8c77eaffed7f1f874b97f66ee47a557ae24fd59bae8ae14f9b1b84f26a94d2f"
+        }
+      ]
+    },
+    {
       "name": "@arms/rum-browser",
       "version": "0.1.8",
       "license": "ISC",
@@ -3080,6 +3106,254 @@
         {
           "member": "https://registry.npmjs.org/%40arms%2frum-electron%400.0.3",
           "sha256": "38b6f63a0aa422b5c329e75f1aeecd2b02e83caab1747644c00810870d77bacb"
+        }
+      ]
+    },
+    {
+      "name": "@aws-sdk/client-bedrock-runtime",
+      "version": "3.1127.0",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/aws/aws-sdk-js-v3.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "18c295fdd68d4f68418b0209829f241481e93549d9e7b9fcd4b4c029322c8a45"
+        },
+        {
+          "member": "README.md (license section)",
+          "sha256": "3c70506f0b53f3cf3464b91cfc8e93236b03922d7a876a4b8f9377bdba58b384"
+        }
+      ]
+    },
+    {
+      "name": "@aws-sdk/core",
+      "version": "3.978.1",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/aws/aws-sdk-js-v3.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "edea91454b811f127fbdea3d86f378f6719bd372ed440abf82b232f6fca06c3d"
+        }
+      ]
+    },
+    {
+      "name": "@aws-sdk/credential-provider-env",
+      "version": "3.972.72",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/aws/aws-sdk-js-v3.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "d82ceb8cbd004a2d4834085c557d55459f528e30268d95159ee1e4030a693a6e"
+        }
+      ]
+    },
+    {
+      "name": "@aws-sdk/credential-provider-http",
+      "version": "3.972.74",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/aws/aws-sdk-js-v3.git",
+      "notices": [
+        {
+          "member": "https://raw.githubusercontent.com/aws/aws-sdk-js-v3/c68e50e4a6e0469a20c2894fe8a29c140553ebb8/LICENSE",
+          "sha256": "edea91454b811f127fbdea3d86f378f6719bd372ed440abf82b232f6fca06c3d"
+        }
+      ]
+    },
+    {
+      "name": "@aws-sdk/credential-provider-ini",
+      "version": "3.973.17",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/aws/aws-sdk-js-v3.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "d82ceb8cbd004a2d4834085c557d55459f528e30268d95159ee1e4030a693a6e"
+        }
+      ]
+    },
+    {
+      "name": "@aws-sdk/credential-provider-login",
+      "version": "3.972.79",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/aws/aws-sdk-js-v3.git",
+      "notices": [
+        {
+          "member": "https://raw.githubusercontent.com/aws/aws-sdk-js-v3/c68e50e4a6e0469a20c2894fe8a29c140553ebb8/LICENSE",
+          "sha256": "edea91454b811f127fbdea3d86f378f6719bd372ed440abf82b232f6fca06c3d"
+        }
+      ]
+    },
+    {
+      "name": "@aws-sdk/credential-provider-node",
+      "version": "3.972.84",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/aws/aws-sdk-js-v3.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "d82ceb8cbd004a2d4834085c557d55459f528e30268d95159ee1e4030a693a6e"
+        }
+      ]
+    },
+    {
+      "name": "@aws-sdk/credential-provider-process",
+      "version": "3.972.72",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/aws/aws-sdk-js-v3.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "2ef1e48ea743d9c82313e6887858f7c1feaddd636f5a3f43926aab0143e67ebd"
+        }
+      ]
+    },
+    {
+      "name": "@aws-sdk/credential-provider-sso",
+      "version": "3.973.16",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/aws/aws-sdk-js-v3.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "2ef1e48ea743d9c82313e6887858f7c1feaddd636f5a3f43926aab0143e67ebd"
+        }
+      ]
+    },
+    {
+      "name": "@aws-sdk/credential-provider-web-identity",
+      "version": "3.972.78",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/aws/aws-sdk-js-v3.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "2ef1e48ea743d9c82313e6887858f7c1feaddd636f5a3f43926aab0143e67ebd"
+        }
+      ]
+    },
+    {
+      "name": "@aws-sdk/eventstream-handler-node",
+      "version": "3.972.35",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/aws/aws-sdk-js-v3.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "07364a5f7d0177a59a05a0002187431f8f899320983c0dc049d72df015e8064c"
+        }
+      ]
+    },
+    {
+      "name": "@aws-sdk/middleware-eventstream",
+      "version": "3.972.30",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/aws/aws-sdk-js-v3.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "e345c2ee7df4446e739de7b91535f0c10ddcd909b9753889e943ee637b05db8c"
+        }
+      ]
+    },
+    {
+      "name": "@aws-sdk/middleware-websocket",
+      "version": "3.972.54",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/aws/aws-sdk-js-v3.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "07364a5f7d0177a59a05a0002187431f8f899320983c0dc049d72df015e8064c"
+        }
+      ]
+    },
+    {
+      "name": "@aws-sdk/nested-clients",
+      "version": "3.997.46",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/aws/aws-sdk-js-v3.git",
+      "notices": [
+        {
+          "member": "https://raw.githubusercontent.com/aws/aws-sdk-js-v3/c68e50e4a6e0469a20c2894fe8a29c140553ebb8/LICENSE",
+          "sha256": "edea91454b811f127fbdea3d86f378f6719bd372ed440abf82b232f6fca06c3d"
+        }
+      ]
+    },
+    {
+      "name": "@aws-sdk/signature-v4-multi-region",
+      "version": "3.996.47",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/aws/aws-sdk-js-v3.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "07364a5f7d0177a59a05a0002187431f8f899320983c0dc049d72df015e8064c"
+        }
+      ]
+    },
+    {
+      "name": "@aws-sdk/token-providers",
+      "version": "3.1127.0",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/aws/aws-sdk-js-v3.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "d82ceb8cbd004a2d4834085c557d55459f528e30268d95159ee1e4030a693a6e"
+        }
+      ]
+    },
+    {
+      "name": "@aws-sdk/token-providers",
+      "version": "3.1138.0",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/aws/aws-sdk-js-v3.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "d82ceb8cbd004a2d4834085c557d55459f528e30268d95159ee1e4030a693a6e"
+        }
+      ]
+    },
+    {
+      "name": "@aws-sdk/types",
+      "version": "3.974.6",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/aws/aws-sdk-js-v3.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "d82ceb8cbd004a2d4834085c557d55459f528e30268d95159ee1e4030a693a6e"
+        }
+      ]
+    },
+    {
+      "name": "@aws-sdk/xml-builder",
+      "version": "3.972.41",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/aws/aws-sdk-js-v3.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "d82ceb8cbd004a2d4834085c557d55459f528e30268d95159ee1e4030a693a6e"
+        }
+      ]
+    },
+    {
+      "name": "@aws/lambda-invoke-store",
+      "version": "0.3.0",
+      "license": "Apache-2.0",
+      "repository": "git+https://github.com/awslabs/aws-lambda-invoke-store.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b"
+        },
+        {
+          "member": "README.md (license section)",
+          "sha256": "f70d58a73c45add941df79b02a674642ffe534769f0ec565feaee73e5d9b0786"
         }
       ]
     },
@@ -3688,6 +3962,94 @@
       ]
     },
     {
+      "name": "@earendil-works/chord",
+      "version": "0.87.1",
+      "license": "MIT",
+      "repository": "git+https://github.com/earendil-works/pi.git",
+      "notices": [
+        {
+          "member": "https://raw.githubusercontent.com/earendil-works/pi/f07218c4d4bbc12bef056a7058c3dd49dfe41abe/LICENSE",
+          "sha256": "0457f5bcec3b3b211605dfb5d1a49042fd638f3686a410fe099c24a25af13c48"
+        }
+      ]
+    },
+    {
+      "name": "@earendil-works/pi-agent-core",
+      "version": "0.87.1",
+      "license": "MIT",
+      "repository": "git+https://github.com/earendil-works/pi.git",
+      "notices": [
+        {
+          "member": "README.md (license section)",
+          "sha256": "daf005969aac8cb4283b3777361f0244f4cce898b9a983a60b7f0d9e96f559bf"
+        },
+        {
+          "member": "https://raw.githubusercontent.com/earendil-works/pi/f07218c4d4bbc12bef056a7058c3dd49dfe41abe/LICENSE",
+          "sha256": "0457f5bcec3b3b211605dfb5d1a49042fd638f3686a410fe099c24a25af13c48"
+        }
+      ]
+    },
+    {
+      "name": "@earendil-works/pi-ai",
+      "version": "0.87.1",
+      "license": "MIT",
+      "repository": "git+https://github.com/earendil-works/pi.git",
+      "notices": [
+        {
+          "member": "README.md (license section)",
+          "sha256": "daf005969aac8cb4283b3777361f0244f4cce898b9a983a60b7f0d9e96f559bf"
+        },
+        {
+          "member": "https://raw.githubusercontent.com/earendil-works/pi/f07218c4d4bbc12bef056a7058c3dd49dfe41abe/LICENSE",
+          "sha256": "0457f5bcec3b3b211605dfb5d1a49042fd638f3686a410fe099c24a25af13c48"
+        }
+      ]
+    },
+    {
+      "name": "@earendil-works/pi-coding-agent",
+      "version": "0.87.0",
+      "license": "MIT",
+      "repository": "git+https://github.com/earendil-works/pi.git",
+      "notices": [
+        {
+          "member": "README.md (license section)",
+          "sha256": "daf005969aac8cb4283b3777361f0244f4cce898b9a983a60b7f0d9e96f559bf"
+        },
+        {
+          "member": "https://raw.githubusercontent.com/earendil-works/pi/16787ad5b2dc748047f314ca1bfe7708f30f54f3/LICENSE",
+          "sha256": "0457f5bcec3b3b211605dfb5d1a49042fd638f3686a410fe099c24a25af13c48"
+        }
+      ]
+    },
+    {
+      "name": "@earendil-works/pi-telemetry",
+      "version": "0.87.1",
+      "license": "MIT",
+      "repository": "git+https://github.com/earendil-works/pi.git",
+      "notices": [
+        {
+          "member": "README.md (license section)",
+          "sha256": "daf005969aac8cb4283b3777361f0244f4cce898b9a983a60b7f0d9e96f559bf"
+        },
+        {
+          "member": "https://raw.githubusercontent.com/earendil-works/pi/f07218c4d4bbc12bef056a7058c3dd49dfe41abe/LICENSE",
+          "sha256": "0457f5bcec3b3b211605dfb5d1a49042fd638f3686a410fe099c24a25af13c48"
+        }
+      ]
+    },
+    {
+      "name": "@earendil-works/pi-tui",
+      "version": "0.87.1",
+      "license": "MIT",
+      "repository": "git+https://github.com/earendil-works/pi.git",
+      "notices": [
+        {
+          "member": "https://raw.githubusercontent.com/earendil-works/pi/f07218c4d4bbc12bef056a7058c3dd49dfe41abe/LICENSE",
+          "sha256": "0457f5bcec3b3b211605dfb5d1a49042fd638f3686a410fe099c24a25af13c48"
+        }
+      ]
+    },
+    {
       "name": "@ecies/ciphers",
       "version": "0.2.6",
       "license": "MIT",
@@ -3724,6 +4086,78 @@
         {
           "member": "LICENSE",
           "sha256": "edab8abb78d9c5b36944c3e00aebf6a90eb32378993f49ac8a3904007029c629"
+        }
+      ]
+    },
+    {
+      "name": "@esbuild/darwin-arm64",
+      "version": "0.28.2",
+      "license": "MIT",
+      "repository": "git+https://github.com/evanw/esbuild.git",
+      "notices": [
+        {
+          "member": "https://raw.githubusercontent.com/evanw/esbuild/609683d892977362a0f99026cb74b96263d728a9/LICENSE.md",
+          "sha256": "b40ec5baec7bb34fa5b1c09521fa3cd52d5fad7adafed74932a2010d3612a681"
+        }
+      ]
+    },
+    {
+      "name": "@esbuild/darwin-x64",
+      "version": "0.28.2",
+      "license": "MIT",
+      "repository": "git+https://github.com/evanw/esbuild.git",
+      "notices": [
+        {
+          "member": "https://raw.githubusercontent.com/evanw/esbuild/609683d892977362a0f99026cb74b96263d728a9/LICENSE.md",
+          "sha256": "b40ec5baec7bb34fa5b1c09521fa3cd52d5fad7adafed74932a2010d3612a681"
+        }
+      ]
+    },
+    {
+      "name": "@esbuild/linux-arm64",
+      "version": "0.28.2",
+      "license": "MIT",
+      "repository": "git+https://github.com/evanw/esbuild.git",
+      "notices": [
+        {
+          "member": "https://raw.githubusercontent.com/evanw/esbuild/609683d892977362a0f99026cb74b96263d728a9/LICENSE.md",
+          "sha256": "b40ec5baec7bb34fa5b1c09521fa3cd52d5fad7adafed74932a2010d3612a681"
+        }
+      ]
+    },
+    {
+      "name": "@esbuild/linux-x64",
+      "version": "0.28.2",
+      "license": "MIT",
+      "repository": "git+https://github.com/evanw/esbuild.git",
+      "notices": [
+        {
+          "member": "https://raw.githubusercontent.com/evanw/esbuild/609683d892977362a0f99026cb74b96263d728a9/LICENSE.md",
+          "sha256": "b40ec5baec7bb34fa5b1c09521fa3cd52d5fad7adafed74932a2010d3612a681"
+        }
+      ]
+    },
+    {
+      "name": "@esbuild/win32-arm64",
+      "version": "0.28.2",
+      "license": "MIT",
+      "repository": "git+https://github.com/evanw/esbuild.git",
+      "notices": [
+        {
+          "member": "https://raw.githubusercontent.com/evanw/esbuild/609683d892977362a0f99026cb74b96263d728a9/LICENSE.md",
+          "sha256": "b40ec5baec7bb34fa5b1c09521fa3cd52d5fad7adafed74932a2010d3612a681"
+        }
+      ]
+    },
+    {
+      "name": "@esbuild/win32-x64",
+      "version": "0.28.2",
+      "license": "MIT",
+      "repository": "git+https://github.com/evanw/esbuild.git",
+      "notices": [
+        {
+          "member": "https://raw.githubusercontent.com/evanw/esbuild/609683d892977362a0f99026cb74b96263d728a9/LICENSE.md",
+          "sha256": "b40ec5baec7bb34fa5b1c09521fa3cd52d5fad7adafed74932a2010d3612a681"
         }
       ]
     },
@@ -3840,6 +4274,18 @@
         {
           "member": "LICENSE",
           "sha256": "0e4c9a9b6c71019cbbea3bdc20b01223110a9035700f9c960c8fcbf78c2325ce"
+        }
+      ]
+    },
+    {
+      "name": "@google/genai",
+      "version": "2.21.0",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/googleapis/js-genai.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
         }
       ]
     },
@@ -6659,6 +7105,22 @@
       ]
     },
     {
+      "name": "@silvia-odwyer/photon-node",
+      "version": "0.3.4",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/silvia-odwyer/photon",
+      "notices": [
+        {
+          "member": "LICENSE.md",
+          "sha256": "c984c291167af70cc5fb7c7f4cec9b4560565110b766a718b3e12aba650327a7"
+        },
+        {
+          "member": "README.md (license section)",
+          "sha256": "869b3dcd11be2c2158562c27ae0f5cc2d3757d591670c555ab682f514ce5d696"
+        }
+      ]
+    },
+    {
       "name": "@sindresorhus/is",
       "version": "4.6.0",
       "license": "MIT",
@@ -6679,6 +7141,90 @@
         {
           "member": "license",
           "sha256": "5c932d88256b4ab958f64a856fa48e8bd1f55bc1d96b8149c65689e0c61789d3"
+        }
+      ]
+    },
+    {
+      "name": "@smithy/core",
+      "version": "3.35.0",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/smithy-lang/smithy-typescript.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "07364a5f7d0177a59a05a0002187431f8f899320983c0dc049d72df015e8064c"
+        }
+      ]
+    },
+    {
+      "name": "@smithy/credential-provider-imds",
+      "version": "4.5.2",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/smithy-lang/smithy-typescript.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "d82ceb8cbd004a2d4834085c557d55459f528e30268d95159ee1e4030a693a6e"
+        }
+      ]
+    },
+    {
+      "name": "@smithy/fetch-http-handler",
+      "version": "5.8.0",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/smithy-lang/smithy-typescript.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "d82ceb8cbd004a2d4834085c557d55459f528e30268d95159ee1e4030a693a6e"
+        }
+      ]
+    },
+    {
+      "name": "@smithy/node-http-handler",
+      "version": "4.12.1",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/smithy-lang/smithy-typescript.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "d82ceb8cbd004a2d4834085c557d55459f528e30268d95159ee1e4030a693a6e"
+        }
+      ]
+    },
+    {
+      "name": "@smithy/signature-v4",
+      "version": "5.7.3",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/smithy-lang/smithy-typescript.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "d82ceb8cbd004a2d4834085c557d55459f528e30268d95159ee1e4030a693a6e"
+        }
+      ]
+    },
+    {
+      "name": "@smithy/types",
+      "version": "4.19.0",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/smithy-lang/smithy-typescript.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "07364a5f7d0177a59a05a0002187431f8f899320983c0dc049d72df015e8064c"
+        }
+      ]
+    },
+    {
+      "name": "@stablelib/base64",
+      "version": "1.0.1",
+      "license": "MIT",
+      "repository": "https://github.com/StableLib/stablelib",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "1605b77bebe018db1fc27bd22fbcdeed1335c617937a124299a8b042b42b0fb6"
         }
       ]
     },
@@ -7547,6 +8093,18 @@
       ]
     },
     {
+      "name": "@types/retry",
+      "version": "0.12.0",
+      "license": "MIT",
+      "repository": "https://github.com/DefinitelyTyped/DefinitelyTyped.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "dea9265341829002e2c23a7372393eb2ed6e26085fb623f38a4ba0af833f30a6"
+        }
+      ]
+    },
+    {
       "name": "@types/statuses",
       "version": "2.0.6",
       "license": "MIT",
@@ -8135,6 +8693,22 @@
       ]
     },
     {
+      "name": "base64-js",
+      "version": "1.5.1",
+      "license": "MIT",
+      "repository": "git://github.com/beatgammit/base64-js.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "5b37224c080cdcc97c871ada971c224e9926370fe74f11b539aa1cf9f3b1aca1"
+        },
+        {
+          "member": "README.md (license section)",
+          "sha256": "bcc62468ddfc1d8b468c44e6bef1f4d4149729eeafbdbbd86c6cfc87b6ab55f4"
+        }
+      ]
+    },
+    {
       "name": "baseline-browser-mapping",
       "version": "2.10.18",
       "license": "Apache-2.0",
@@ -8171,6 +8745,22 @@
         {
           "member": "README.md (license section)",
           "sha256": "0e00c860f4ae10ef7d21d31833d4dc187d866d2914b3a20e0037f3bd2c67d2fa"
+        }
+      ]
+    },
+    {
+      "name": "bignumber.js",
+      "version": "9.3.1",
+      "license": "MIT",
+      "repository": "https://github.com/MikeMcl/bignumber.js.git",
+      "notices": [
+        {
+          "member": "LICENCE.md",
+          "sha256": "def75ba75d6426f1c3f02addf8e175fbe6e0d8a82e541cbdffc16d2bd8fd7d6a"
+        },
+        {
+          "member": "README.md (license section)",
+          "sha256": "4a6030f6890a220bff69145ff2548eb50e40de83d8e05eac85043f3012665cde"
         }
       ]
     },
@@ -8243,6 +8833,34 @@
       ]
     },
     {
+      "name": "bowser",
+      "version": "2.14.1",
+      "license": "MIT",
+      "repository": "git+https://github.com/bowser-js/bowser.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "dfde54fedc270c2a305d9a9f993d93f706d34624455a2fd2d2a05ca34d8ae8c3"
+        },
+        {
+          "member": "README.md (license section)",
+          "sha256": "f0187f54f04e93df7c66f0ff8b7038157e036e19489bd6c5ef0ce384c579c271"
+        }
+      ]
+    },
+    {
+      "name": "brace-expansion",
+      "version": "5.0.12",
+      "license": "MIT",
+      "repository": "git+https://github.com/juliangruber/brace-expansion.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "9c63a23124d68cd30cd316a94a1a0bca34f032786df6df69fc4b5f136bac8d2e"
+        }
+      ]
+    },
+    {
       "name": "brace-expansion",
       "version": "5.0.5",
       "license": "MIT",
@@ -8311,6 +8929,18 @@
         {
           "member": "README.md (license section)",
           "sha256": "c6483fac297225119319fee0a87bb04bbd17dd65e30299f92317da30bcb9a9a1"
+        }
+      ]
+    },
+    {
+      "name": "buffer-equal-constant-time",
+      "version": "1.0.1",
+      "license": "BSD-3-Clause",
+      "repository": "git@github.com:goinstant/buffer-equal-constant-time.git",
+      "notices": [
+        {
+          "member": "LICENSE.txt",
+          "sha256": "751d0e80fb5c828f8c3de198cc760e1e05377e47c8263ab6ee2f10cdc19ba658"
         }
       ]
     },
@@ -8509,6 +9139,18 @@
     {
       "name": "chalk",
       "version": "5.6.2",
+      "license": "MIT",
+      "repository": "chalk/chalk",
+      "notices": [
+        {
+          "member": "license",
+          "sha256": "5c932d88256b4ab958f64a856fa48e8bd1f55bc1d96b8149c65689e0c61789d3"
+        }
+      ]
+    },
+    {
+      "name": "chalk",
+      "version": "6.0.0",
       "license": "MIT",
       "repository": "chalk/chalk",
       "notices": [
@@ -10159,6 +10801,18 @@
       ]
     },
     {
+      "name": "ecdsa-sig-formatter",
+      "version": "1.0.11",
+      "license": "Apache-2.0",
+      "repository": "git+ssh://git@github.com/Brightspace/node-ecdsa-sig-formatter.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "50a6b24f8defc31a078aa9799a91d776f83948071574854f12473362aee74d0d"
+        }
+      ]
+    },
+    {
       "name": "echarts",
       "version": "6.1.0",
       "license": "Apache-2.0",
@@ -10507,6 +11161,18 @@
         {
           "member": "LICENSE.md",
           "sha256": "9f655c5baa5a6f254d1e87f27e14d04acaff4bd0b489ea3c2f33723919da2f44"
+        }
+      ]
+    },
+    {
+      "name": "esbuild",
+      "version": "0.28.2",
+      "license": "MIT",
+      "repository": "git+https://github.com/evanw/esbuild.git",
+      "notices": [
+        {
+          "member": "LICENSE.md",
+          "sha256": "b40ec5baec7bb34fa5b1c09521fa3cd52d5fad7adafed74932a2010d3612a681"
         }
       ]
     },
@@ -10863,6 +11529,18 @@
       ]
     },
     {
+      "name": "fast-sha256",
+      "version": "1.3.0",
+      "license": "Unlicense",
+      "repository": "https://github.com/dchest/fast-sha256-js",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "88d9b4eb60579c191ec391ca04c16130572d7eedc4a86daa58bf28c6e14c9bcd"
+        }
+      ]
+    },
+    {
       "name": "fast-uri",
       "version": "3.1.0",
       "license": "BSD-3-Clause",
@@ -11175,6 +11853,38 @@
       ]
     },
     {
+      "name": "gaxios",
+      "version": "7.3.1",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/googleapis/google-cloud-node.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        },
+        {
+          "member": "README.md (license section)",
+          "sha256": "73d7af109004ca98799e1090a4607d2008815e77e7544b28624e85b2e59dd135"
+        }
+      ]
+    },
+    {
+      "name": "gcp-metadata",
+      "version": "8.1.2",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/googleapis/google-cloud-node-core.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        },
+        {
+          "member": "README.md (license section)",
+          "sha256": "d48f06f59469f0bb23146440ab01737350faeb705f8fbfdc4d29dac4397d7333"
+        }
+      ]
+    },
+    {
       "name": "gensync",
       "version": "1.0.0-beta.2",
       "license": "MIT",
@@ -11201,6 +11911,18 @@
     {
       "name": "get-east-asian-width",
       "version": "1.5.0",
+      "license": "MIT",
+      "repository": "sindresorhus/get-east-asian-width",
+      "notices": [
+        {
+          "member": "license",
+          "sha256": "5c932d88256b4ab958f64a856fa48e8bd1f55bc1d96b8149c65689e0c61789d3"
+        }
+      ]
+    },
+    {
+      "name": "get-east-asian-width",
+      "version": "1.6.0",
       "license": "MIT",
       "repository": "sindresorhus/get-east-asian-width",
       "notices": [
@@ -11371,6 +12093,34 @@
       ]
     },
     {
+      "name": "google-auth-library",
+      "version": "10.9.1",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/googleapis/google-cloud-node.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        },
+        {
+          "member": "README.md (license section)",
+          "sha256": "7dcd4ca22facbd7e067e5b2bb11623bd33a8a93654798f56093bb9e7c48bfcfd"
+        }
+      ]
+    },
+    {
+      "name": "google-logging-utils",
+      "version": "1.1.3",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/googleapis/google-cloud-node-core.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        }
+      ]
+    },
+    {
       "name": "gopd",
       "version": "1.2.0",
       "license": "MIT",
@@ -11419,6 +12169,22 @@
         {
           "member": "README.md (license section)",
           "sha256": "4084b9c2798a4862d57944deb3345b8e14020b3ce8d8294a7f3cc75325a6a9bf"
+        }
+      ]
+    },
+    {
+      "name": "grok-mermaid",
+      "version": "0.2.3",
+      "license": "Apache-2.0",
+      "repository": "github:xl0/grok-mermaid",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "d7aefc12620699f8cebff08097f5ec76b984d1ab19d4f5f10608b916fa62ba2f"
+        },
+        {
+          "member": "README.md (license section)",
+          "sha256": "fe3c5b9f73acebf2c86a13a2da97eb597c13d8600856d45a3bb45687e3f6b3a2"
         }
       ]
     },
@@ -11720,6 +12486,22 @@
     },
     {
       "name": "highlight.js",
+      "version": "10.7.3",
+      "license": "BSD-3-Clause",
+      "repository": "git://github.com/highlightjs/highlight.js.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "6c081431591d9df696c82dc598fe1423765b8a299b200ed00b281afd0f64c490"
+        },
+        {
+          "member": "README.md (license section)",
+          "sha256": "06bac7c6b8f864c5a48d7288bdc33ec11925dd97e29706fb4cee71a226dc3032"
+        }
+      ]
+    },
+    {
+      "name": "highlight.js",
       "version": "11.11.1",
       "license": "BSD-3-Clause",
       "repository": "git://github.com/highlightjs/highlight.js.git",
@@ -11747,6 +12529,18 @@
         {
           "member": "README.md (license section)",
           "sha256": "cc9f0f085dedbf396f90628d836896d4ebde5afa68c1188e889121cfa3f223a0"
+        }
+      ]
+    },
+    {
+      "name": "hosted-git-info",
+      "version": "9.0.3",
+      "license": "ISC",
+      "repository": "git+https://github.com/npm/hosted-git-info.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "c1476ec53119cd4c8370f91f5152ac76312a29b4fae2d49b5e0e0970fe0fa5ee"
         }
       ]
     },
@@ -11851,6 +12645,18 @@
       ]
     },
     {
+      "name": "http-proxy-agent",
+      "version": "9.1.0",
+      "license": "MIT",
+      "repository": "https://github.com/TooTallNate/proxy-agents.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "71368fd0f5b4129191e9afcd1e1ef2dc89a9090d3e4d80bbab92dafd032b3bef"
+        }
+      ]
+    },
+    {
       "name": "http2-wrapper",
       "version": "1.0.3",
       "license": "MIT",
@@ -11881,6 +12687,18 @@
     {
       "name": "https-proxy-agent",
       "version": "9.0.0",
+      "license": "MIT",
+      "repository": "https://github.com/TooTallNate/proxy-agents.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "8d8c55319c7729d57be811c747452636688d54f19701ee0752b6b15ad3771d9a"
+        }
+      ]
+    },
+    {
+      "name": "https-proxy-agent",
+      "version": "9.1.0",
       "license": "MIT",
       "repository": "https://github.com/TooTallNate/proxy-agents.git",
       "notices": [
@@ -11959,6 +12777,18 @@
       "version": "5.3.2",
       "license": "MIT",
       "repository": "git@github.com:kaelzhang/node-ignore.git",
+      "notices": [
+        {
+          "member": "LICENSE-MIT",
+          "sha256": "9c94db23dc4b1e9aaee5d195668b916afc71efed54af226b66cf0ccc4389c1c0"
+        }
+      ]
+    },
+    {
+      "name": "ignore",
+      "version": "7.0.8",
+      "license": "MIT",
+      "repository": "https://github.com/kaelzhang/node-ignore.git",
       "notices": [
         {
           "member": "LICENSE-MIT",
@@ -12503,6 +13333,22 @@
       ]
     },
     {
+      "name": "jiti",
+      "version": "2.7.0",
+      "license": "MIT",
+      "repository": "unjs/jiti",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "46231df5a7733c3f52f11b71f3df61813007745b62b09031acfb45fb42d75082"
+        },
+        {
+          "member": "README.md (license section)",
+          "sha256": "24ecd65dd35fdf6c51fbf38377a669ac750cdccffcbf4eb3a32f03220afe121f"
+        }
+      ]
+    },
+    {
       "name": "jose",
       "version": "6.2.2",
       "license": "MIT",
@@ -12587,6 +13433,18 @@
       ]
     },
     {
+      "name": "json-bigint",
+      "version": "1.0.0",
+      "license": "MIT",
+      "repository": "git@github.com:sidorares/json-bigint.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "def82c085d05e795fe6a9cb5b70c48e022212355afc0e91d4de047cade28df06"
+        }
+      ]
+    },
+    {
       "name": "json-buffer",
       "version": "3.0.1",
       "license": "MIT",
@@ -12611,6 +13469,18 @@
         {
           "member": "LICENSE.md",
           "sha256": "50627796eb4236cd05674e71d090e594447995225b7d94cd59e57c25fa3a0217"
+        }
+      ]
+    },
+    {
+      "name": "json-schema-to-ts",
+      "version": "3.1.1",
+      "license": "MIT",
+      "repository": "git+https://github.com/ThomasAribart/json-schema-to-ts.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "18a2bfd070b08bd1cc538c90f59989a9523e070e72fe9a9068593c3e82f44fa7"
         }
       ]
     },
@@ -12735,6 +13605,38 @@
         {
           "member": "README.markdown (license section)",
           "sha256": "dba96b09a408c2b05eba8afc951c146611f6571e54921463bd2560eea441d712"
+        }
+      ]
+    },
+    {
+      "name": "jwa",
+      "version": "2.0.1",
+      "license": "MIT",
+      "repository": "git://github.com/brianloveswords/node-jwa.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "3320319f8a5f42bc4254e65471eca7a5ea4dc8c883c4c24b4868e36b14890bcf"
+        },
+        {
+          "member": "README.md (license section)",
+          "sha256": "94b72aa2a34c202e3114f3b523f8f74777a53fb2e9b51d79e70b28cd67b98fca"
+        }
+      ]
+    },
+    {
+      "name": "jws",
+      "version": "4.0.1",
+      "license": "MIT",
+      "repository": "git://github.com/brianloveswords/node-jws.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "3320319f8a5f42bc4254e65471eca7a5ea4dc8c883c4c24b4868e36b14890bcf"
+        },
+        {
+          "member": "readme.md (license section)",
+          "sha256": "50199f34d0d8d526997144726b01554ba9f287728ed5e9fbe0c2f2b18fb4b2e5"
         }
       ]
     },
@@ -13132,6 +14034,18 @@
     },
     {
       "name": "lru-cache",
+      "version": "11.5.1",
+      "license": "BlueOak-1.0.0",
+      "repository": "git+ssh://git@github.com/isaacs/node-lru-cache.git",
+      "notices": [
+        {
+          "member": "LICENSE.md",
+          "sha256": "8a1af140fdfbf5afd3df27f7e662f989c5b963a300020dfafce42033cae9e004"
+        }
+      ]
+    },
+    {
+      "name": "lru-cache",
       "version": "5.1.1",
       "license": "ISC",
       "repository": "git://github.com/isaacs/node-lru-cache.git",
@@ -13266,6 +14180,22 @@
       "notices": [
         {
           "member": "LICENSE.md",
+          "sha256": "8e3a3f82f59a60958f56ca08f445647c32a4733dc7ca6c2c46f6eb898471ab9c"
+        },
+        {
+          "member": "README.md (license section)",
+          "sha256": "9432aa108cccae3962e4d284c49478ba528fb74e0fb68c4af719e8a338bb15da"
+        }
+      ]
+    },
+    {
+      "name": "marked",
+      "version": "18.0.11",
+      "license": "MIT",
+      "repository": "git+https://github.com/markedjs/marked.git",
+      "notices": [
+        {
+          "member": "LICENSE",
           "sha256": "8e3a3f82f59a60958f56ca08f445647c32a4733dc7ca6c2c46f6eb898471ab9c"
         },
         {
@@ -14319,6 +15249,18 @@
       ]
     },
     {
+      "name": "minimatch",
+      "version": "10.2.6",
+      "license": "BlueOak-1.0.0",
+      "repository": "git@github.com:isaacs/minimatch",
+      "notices": [
+        {
+          "member": "LICENSE.md",
+          "sha256": "2c7c5d22ed5a8ee968c64757710979afcd77438c48b4a265b94e615babd8a901"
+        }
+      ]
+    },
+    {
       "name": "minimist",
       "version": "1.2.8",
       "license": "MIT",
@@ -14887,6 +15829,26 @@
       ]
     },
     {
+      "name": "openai",
+      "version": "6.40.0",
+      "license": "Apache-2.0",
+      "repository": "github:openai/openai-node",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "636eb7d79da9bb6d515a4b3fd417aa26679eb3cf16396ddab4bc55fa74e616e4"
+        },
+        {
+          "member": "src/_vendor/zod-to-json-schema/LICENSE",
+          "sha256": "7beaa85b57d7211f6684af6c1d97e6d9ef7ec1851f779152043a47a8700306a9"
+        },
+        {
+          "member": "src/internal/qs/LICENSE.md",
+          "sha256": "d8c77eaffed7f1f874b97f66ee47a557ae24fd59bae8ae14f9b1b84f26a94d2f"
+        }
+      ]
+    },
+    {
       "name": "ora",
       "version": "8.2.0",
       "license": "MIT",
@@ -14947,6 +15909,18 @@
         {
           "member": "readme.md (license section)",
           "sha256": "0b8c7c0c5579b689ab841976b473ebe9269aa46347fc1295431e0fc3f2452d36"
+        }
+      ]
+    },
+    {
+      "name": "p-retry",
+      "version": "4.6.2",
+      "license": "MIT",
+      "repository": "sindresorhus/p-retry",
+      "notices": [
+        {
+          "member": "license",
+          "sha256": "48da2f39e100d4085767e94966b43f4fa95ff6a0698fba57ed460914e35f94a0"
         }
       ]
     },
@@ -15175,6 +16149,22 @@
         {
           "member": "README.md (license section)",
           "sha256": "6afb719574c7e2a5a3d7fc168e9ba0dfdfb6600993ea8b4e121dc302ae156ca3"
+        }
+      ]
+    },
+    {
+      "name": "partial-json",
+      "version": "0.1.7",
+      "license": "MIT",
+      "repository": "https://github.com/promplate/partial-json-parser-js",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "cd519ad3d7e012427f978dfb2e3b92ee403d189d7b859ba6bf68fd7e12ca456f"
+        },
+        {
+          "member": "README.md (license section)",
+          "sha256": "87437885411a3d756727e37adc1dba9ee459a7cf2efc4183f46382ddd0ef922d"
         }
       ]
     },
@@ -15667,6 +16657,22 @@
       ]
     },
     {
+      "name": "proper-lockfile",
+      "version": "4.1.2",
+      "license": "MIT",
+      "repository": "git@github.com:moxystudio/node-proper-lockfile.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "aaa78451b6fecd1b9c4594c796c133c0e90cad100372ff8bc6de615e9ef9adf1"
+        },
+        {
+          "member": "README.md (license section)",
+          "sha256": "ae23bc497387d4df92901cf403625e16c228dc6ef366a5f74d9ba0117a3bfce0"
+        }
+      ]
+    },
+    {
       "name": "property-information",
       "version": "7.1.0",
       "license": "MIT",
@@ -15711,6 +16717,18 @@
         {
           "member": "README.md (license section)",
           "sha256": "b63c1498c008bad41ef805fd849003b331f188eff153a060b665be52757e87e9"
+        }
+      ]
+    },
+    {
+      "name": "proxy-agent-negotiate",
+      "version": "1.1.0",
+      "license": "MIT",
+      "repository": "https://github.com/TooTallNate/proxy-agents.git",
+      "notices": [
+        {
+          "member": "https://raw.githubusercontent.com/TooTallNate/proxy-agents/663669853ea993d66da628aea9f9902e1a6916d8/packages/https-proxy-agent/LICENSE",
+          "sha256": "8d8c55319c7729d57be811c747452636688d54f19701ee0752b6b15ad3771d9a"
         }
       ]
     },
@@ -16499,6 +17517,38 @@
       ]
     },
     {
+      "name": "retry",
+      "version": "0.12.0",
+      "license": "MIT",
+      "repository": "git://github.com/tim-kos/node-retry.git",
+      "notices": [
+        {
+          "member": "License",
+          "sha256": "01ad164273e8e095abc9dbd1c21e194594a671af7d528cb43ee7b4c903ba7da3"
+        },
+        {
+          "member": "README.md (license section)",
+          "sha256": "4065d2ca50b8827ab26a82470cfdd6d3e71dfa72889caabc0a0ccaf3f4e93f44"
+        }
+      ]
+    },
+    {
+      "name": "retry",
+      "version": "0.13.1",
+      "license": "MIT",
+      "repository": "git://github.com/tim-kos/node-retry.git",
+      "notices": [
+        {
+          "member": "License",
+          "sha256": "01ad164273e8e095abc9dbd1c21e194594a671af7d528cb43ee7b4c903ba7da3"
+        },
+        {
+          "member": "README.md (license section)",
+          "sha256": "4065d2ca50b8827ab26a82470cfdd6d3e71dfa72889caabc0a0ccaf3f4e93f44"
+        }
+      ]
+    },
+    {
       "name": "rettime",
       "version": "0.11.7",
       "license": "MIT",
@@ -16695,6 +17745,22 @@
       ]
     },
     {
+      "name": "safe-buffer",
+      "version": "5.2.1",
+      "license": "MIT",
+      "repository": "git://github.com/feross/safe-buffer.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "c7cc929b57080f4b9d0c6cf57669f0463fc5b39906344dfc8d3bc43426b30eac"
+        },
+        {
+          "member": "README.md (license section)",
+          "sha256": "4001f409f2886ac791b0be2131ca3ed8770b896314579ecb5d1eaf7a6e6f3eb8"
+        }
+      ]
+    },
+    {
       "name": "safer-buffer",
       "version": "2.1.2",
       "license": "MIT",
@@ -16777,6 +17843,18 @@
     {
       "name": "semver",
       "version": "7.7.4",
+      "license": "ISC",
+      "repository": "git+https://github.com/npm/node-semver.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "4ec3d4c66cd87f5c8d8ad911b10f99bf27cb00cdfcff82621956e379186b016b"
+        }
+      ]
+    },
+    {
+      "name": "semver",
+      "version": "7.8.5",
       "license": "ISC",
       "repository": "git+https://github.com/npm/node-semver.git",
       "notices": [
@@ -17199,6 +18277,18 @@
         {
           "member": "LICENSE",
           "sha256": "d06b5d27bbbbe22c36b1fd88406b1208876e2d37d795f5b8eaed951a459a3111"
+        }
+      ]
+    },
+    {
+      "name": "standardwebhooks",
+      "version": "1.1.1",
+      "license": "MIT",
+      "repository": "https://github.com/standard-webhooks/standard-webhooks",
+      "notices": [
+        {
+          "member": "https://raw.githubusercontent.com/standard-webhooks/standard-webhooks/b4d2c14fc5b4ccff3ff271e3b087dff812254c59/libraries/LICENSE",
+          "sha256": "5ec8c7b26b64d881a6706617bed25c049f97f2f35de034c756de8546fd6dbe27"
         }
       ]
     },
@@ -17755,6 +18845,18 @@
       ]
     },
     {
+      "name": "ts-algebra",
+      "version": "2.0.0",
+      "license": "MIT",
+      "repository": "git+https://github.com/ThomasAribart/ts-algebra.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "18a2bfd070b08bd1cc538c90f59989a9523e070e72fe9a9068593c3e82f44fa7"
+        }
+      ]
+    },
+    {
       "name": "ts-dedent",
       "version": "2.2.0",
       "license": "MIT",
@@ -17895,6 +18997,18 @@
       ]
     },
     {
+      "name": "typebox",
+      "version": "1.3.27",
+      "license": "MIT",
+      "repository": "https://github.com/sinclairzx81/typebox",
+      "notices": [
+        {
+          "member": "license",
+          "sha256": "e8a7cc256941a26ba8234f04390165243a4d42f74fd6491934140605bf7eae2d"
+        }
+      ]
+    },
+    {
       "name": "typescript",
       "version": "5.9.3",
       "license": "Apache-2.0",
@@ -18021,6 +19135,26 @@
     {
       "name": "undici",
       "version": "7.25.0",
+      "license": "MIT",
+      "repository": "git+https://github.com/nodejs/undici.git",
+      "notices": [
+        {
+          "member": "lib/web/fetch/LICENSE",
+          "sha256": "a21d6c8d3fc631198b97e57584697f7f9c37805c71c6cf9a12e4442b40394b88"
+        },
+        {
+          "member": "LICENSE",
+          "sha256": "a6db8096b2707bc0102d256917d4d33f298ba36d8c3f25de067a2b5bb379db27"
+        },
+        {
+          "member": "README.md (license section)",
+          "sha256": "daf005969aac8cb4283b3777361f0244f4cce898b9a983a60b7f0d9e96f559bf"
+        }
+      ]
+    },
+    {
+      "name": "undici",
+      "version": "8.10.2",
       "license": "MIT",
       "repository": "git+https://github.com/nodejs/undici.git",
       "notices": [
@@ -19298,15 +20432,305 @@
   "notInstalled": [
     {
       "name": "@napi-rs/canvas-android-arm64",
-      "version": "0.1.100"
+      "version": "0.1.100",
+      "reason": "Optional lockfile package is outside the configured installation platforms",
+      "constraints": {
+        "os": [
+          "android"
+        ],
+        "cpu": [
+          "arm64"
+        ]
+      }
     },
     {
       "name": "@napi-rs/canvas-linux-arm-gnueabihf",
-      "version": "0.1.100"
+      "version": "0.1.100",
+      "reason": "Optional lockfile package is outside the configured installation platforms",
+      "constraints": {
+        "os": [
+          "linux"
+        ],
+        "cpu": [
+          "arm"
+        ]
+      }
     },
     {
       "name": "@napi-rs/canvas-linux-riscv64-gnu",
-      "version": "0.1.100"
+      "version": "0.1.100",
+      "reason": "Optional lockfile package is outside the configured installation platforms",
+      "constraints": {
+        "os": [
+          "linux"
+        ],
+        "cpu": [
+          "riscv64"
+        ],
+        "libc": [
+          "glibc"
+        ]
+      }
+    },
+    {
+      "name": "@esbuild/aix-ppc64",
+      "version": "0.28.2",
+      "reason": "Optional lockfile package is outside the configured installation platforms",
+      "constraints": {
+        "os": [
+          "aix"
+        ],
+        "cpu": [
+          "ppc64"
+        ]
+      }
+    },
+    {
+      "name": "@esbuild/android-arm",
+      "version": "0.28.2",
+      "reason": "Optional lockfile package is outside the configured installation platforms",
+      "constraints": {
+        "os": [
+          "android"
+        ],
+        "cpu": [
+          "arm"
+        ]
+      }
+    },
+    {
+      "name": "@esbuild/android-arm64",
+      "version": "0.28.2",
+      "reason": "Optional lockfile package is outside the configured installation platforms",
+      "constraints": {
+        "os": [
+          "android"
+        ],
+        "cpu": [
+          "arm64"
+        ]
+      }
+    },
+    {
+      "name": "@esbuild/android-x64",
+      "version": "0.28.2",
+      "reason": "Optional lockfile package is outside the configured installation platforms",
+      "constraints": {
+        "os": [
+          "android"
+        ],
+        "cpu": [
+          "x64"
+        ]
+      }
+    },
+    {
+      "name": "@esbuild/freebsd-arm64",
+      "version": "0.28.2",
+      "reason": "Optional lockfile package is outside the configured installation platforms",
+      "constraints": {
+        "os": [
+          "freebsd"
+        ],
+        "cpu": [
+          "arm64"
+        ]
+      }
+    },
+    {
+      "name": "@esbuild/freebsd-x64",
+      "version": "0.28.2",
+      "reason": "Optional lockfile package is outside the configured installation platforms",
+      "constraints": {
+        "os": [
+          "freebsd"
+        ],
+        "cpu": [
+          "x64"
+        ]
+      }
+    },
+    {
+      "name": "@esbuild/linux-arm",
+      "version": "0.28.2",
+      "reason": "Optional lockfile package is outside the configured installation platforms",
+      "constraints": {
+        "os": [
+          "linux"
+        ],
+        "cpu": [
+          "arm"
+        ]
+      }
+    },
+    {
+      "name": "@esbuild/linux-ia32",
+      "version": "0.28.2",
+      "reason": "Optional lockfile package is outside the configured installation platforms",
+      "constraints": {
+        "os": [
+          "linux"
+        ],
+        "cpu": [
+          "ia32"
+        ]
+      }
+    },
+    {
+      "name": "@esbuild/linux-loong64",
+      "version": "0.28.2",
+      "reason": "Optional lockfile package is outside the configured installation platforms",
+      "constraints": {
+        "os": [
+          "linux"
+        ],
+        "cpu": [
+          "loong64"
+        ]
+      }
+    },
+    {
+      "name": "@esbuild/linux-mips64el",
+      "version": "0.28.2",
+      "reason": "Optional lockfile package is outside the configured installation platforms",
+      "constraints": {
+        "os": [
+          "linux"
+        ],
+        "cpu": [
+          "mips64el"
+        ]
+      }
+    },
+    {
+      "name": "@esbuild/linux-ppc64",
+      "version": "0.28.2",
+      "reason": "Optional lockfile package is outside the configured installation platforms",
+      "constraints": {
+        "os": [
+          "linux"
+        ],
+        "cpu": [
+          "ppc64"
+        ]
+      }
+    },
+    {
+      "name": "@esbuild/linux-riscv64",
+      "version": "0.28.2",
+      "reason": "Optional lockfile package is outside the configured installation platforms",
+      "constraints": {
+        "os": [
+          "linux"
+        ],
+        "cpu": [
+          "riscv64"
+        ]
+      }
+    },
+    {
+      "name": "@esbuild/linux-s390x",
+      "version": "0.28.2",
+      "reason": "Optional lockfile package is outside the configured installation platforms",
+      "constraints": {
+        "os": [
+          "linux"
+        ],
+        "cpu": [
+          "s390x"
+        ]
+      }
+    },
+    {
+      "name": "@esbuild/netbsd-arm64",
+      "version": "0.28.2",
+      "reason": "Optional lockfile package is outside the configured installation platforms",
+      "constraints": {
+        "os": [
+          "netbsd"
+        ],
+        "cpu": [
+          "arm64"
+        ]
+      }
+    },
+    {
+      "name": "@esbuild/netbsd-x64",
+      "version": "0.28.2",
+      "reason": "Optional lockfile package is outside the configured installation platforms",
+      "constraints": {
+        "os": [
+          "netbsd"
+        ],
+        "cpu": [
+          "x64"
+        ]
+      }
+    },
+    {
+      "name": "@esbuild/openbsd-arm64",
+      "version": "0.28.2",
+      "reason": "Optional lockfile package is outside the configured installation platforms",
+      "constraints": {
+        "os": [
+          "openbsd"
+        ],
+        "cpu": [
+          "arm64"
+        ]
+      }
+    },
+    {
+      "name": "@esbuild/openbsd-x64",
+      "version": "0.28.2",
+      "reason": "Optional lockfile package is outside the configured installation platforms",
+      "constraints": {
+        "os": [
+          "openbsd"
+        ],
+        "cpu": [
+          "x64"
+        ]
+      }
+    },
+    {
+      "name": "@esbuild/openharmony-arm64",
+      "version": "0.28.2",
+      "reason": "Optional lockfile package is outside the configured installation platforms",
+      "constraints": {
+        "os": [
+          "openharmony"
+        ],
+        "cpu": [
+          "arm64"
+        ]
+      }
+    },
+    {
+      "name": "@esbuild/sunos-x64",
+      "version": "0.28.2",
+      "reason": "Optional lockfile package is outside the configured installation platforms",
+      "constraints": {
+        "os": [
+          "sunos"
+        ],
+        "cpu": [
+          "x64"
+        ]
+      }
+    },
+    {
+      "name": "@esbuild/win32-ia32",
+      "version": "0.28.2",
+      "reason": "Optional lockfile package is outside the configured installation platforms",
+      "constraints": {
+        "os": [
+          "win32"
+        ],
+        "cpu": [
+          "ia32"
+        ]
+      }
     }
   ],
   "copied": [

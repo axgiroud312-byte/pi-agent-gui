@@ -1,0 +1,108 @@
+命令面板
+
+搜索并执行当前工作区可用的命令。
+
+新建任务
+Ctrl+N
+搜索
+Ctrl+K
+自动化
+插件市场
+分组
+项目
+项目
+parity-workspace
+
+PARITY_RUNNING
+
+刚刚
+任务
+还没有任务
+π
+Pi Agent IDE
+返回任务
+parity-workspace
+.git
+.zcodeignore
+U
+hello.txt
+U
+pty-proof.txt
+README.md
+U
+PARITY_RUNNING
+更改
++6
+-0
+PARITY_RUNNING
+复制
+已处理
+
+CONTROLLED_NATIVE_REPLY: native timeline
+
+text
+复制
+15:30
+PARITY_READ
+复制
+已处理
+
+PARITY_READ_COMPLETE
+
+复制
+15:30
+PARITY_ERROR
+复制
+PARITY_RECOVER
+复制
+已处理
+
+PARITY_RECOVER_COMPLETE
+
+复制
+15:30
+PARITY_RUNNING_STOP
+复制
+已停止
+
+CONTROLLED_NATIVE_REPLY: native timeline
+
+text
+
+
+
+
+提出后续修改要求
+添加上下文
+变更前确认
+新供应商/parity-controlled
+开启
+关闭
+开启
+发送
+终端
+PowerShell
+parity-workspace
+Windows PowerShell
+Copyright (C) Microsoft Corporation. All rights reserved.
+PS D:\Temp\pi34-closeout\split-product-smoke-final\fixture-YgYBzj\parity-workspace> echo NATIVE_PARITY_PTY > "D:\Temp\pi34-closeout\spl
+it-product-smoke-final\fixture-YgYBzj\parity-workspace\pty-proof.txt"
+PS D:\Temp\pi34-closeout\split-product-smoke-final\fixture-YgYBzj\parity-workspace> echo NATIVE_PARITY_PTY_VISIBLE
+NATIVE_PARITY_PTY_VISIBLE
+PS D:\Temp\pi34-closeout\split-product-smoke-final\fixture-YgYBzj\parity-workspace>  
+README.md
+Draggable item code-viewer:D:\Temp\pi34-closeout\split-product-smoke-final\fixture-YgYBzj\parity-workspace:file:D:\Temp\pi34-closeout\split-product-smoke-final\fixture-YgYBzj\parity-workspace\README.md was dropped over droppable area code-viewer:D:\Temp\pi34-closeout\split-product-smoke-final\fixture-YgYBzj\parity-workspace:file:D:\Temp\pi34-closeout\split-product-smoke-final\fixture-YgYBzj\parity-workspace\hello.txt
+parity-workspace
+README.md
+置顶任务
+重命名任务
+归档任务
+标记为未读
+在分屏打开
+在资源管理器中打开
+复制路径
+复制任务路径
+复制日志路径
+复制会话 ID
+查看调用轨迹
+反馈问题

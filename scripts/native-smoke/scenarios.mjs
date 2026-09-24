@@ -34,7 +34,9 @@ async function configureModel(page, f, e) {
   await page.getByTestId('settings-back-button').click();
   await page.getByTestId('settings-page').waitFor({ state: 'hidden' });
   await page.getByTestId('chat-model-select-trigger').click();
-  await page.getByRole('menuitem', { name: '新供应商', exact: true }).hover();
+  // Open the native submenu by keyboard; OS mouse motion must not collapse it
+  // between hovering the provider and selecting the model on Windows.
+  await page.getByRole('menuitem', { name: '新供应商', exact: true }).press('ArrowRight');
   await page.getByText('parity-controlled', { exact: true }).click();
   assert.match(await page.getByTestId('chat-model-select-trigger').innerText(), /parity-controlled/);
 }
@@ -74,6 +76,12 @@ export async function scenarios(page, f, e) {
     await page.getByText('PARITY_READ_COMPLETE', { exact: false }).first().waitFor({ timeout: 30_000 });
     await page.getByRole('button', { name: '停止生成', exact: true }).waitFor({ state: 'hidden' });
     assert(f.model.requests.some(r => r.toolResults?.some(t => t.content.includes('NATIVE_PARITY_PREVIEW'))), 'Native Read returns real fixture content');
+    if (f.baseline === 'product') {
+      const request = f.model.requests.find(r => r.scenario === 'PARITY_READ');
+      assert(request?.tools.includes('read'), 'The real Pi process must offer read(path)');
+      assert(!request.tools.includes('Read') && !request.tools.includes('AskUserQuestion'),
+        'Do not test the Pi product against the original Agent tool catalog');
+    }
     const history = page.locator('[data-testid^="chat-assistant-history-trigger-"]').last();
     await page.waitForTimeout(350);
     if (await history.getAttribute('data-history-open') === 'true') await history.click();
@@ -89,15 +97,22 @@ export async function scenarios(page, f, e) {
     await page.getByText('读取', { exact: true }).waitFor({ state: 'hidden' });
     await e.shot('read-tool-collapsed');
   });
-  await e.action('Native Agent: AskUserQuestion → real waiting UI → choose answer', async () => {
-    await send(page, 'PARITY_WAIT');
-    await page.getByText('PARITY_QUESTION: choose a fixture option?', { exact: true }).waitFor({ timeout: 30_000 });
-    await e.matrix('waiting', async () => assert(await page.getByText('PARITY_QUESTION: choose a fixture option?', { exact: true }).isVisible()));
-    await page.getByText('Fixture A', { exact: true }).click();
-    await page.getByText('PARITY_WAIT_COMPLETE', { exact: true }).waitFor({ timeout: 20_000 });
-    assert(f.model.requests.some(r => r.toolResults?.some(t => t.content.includes('Fixture A'))));
-    await e.shot('wait-answered');
-  });
+  if (f.baseline === 'original') {
+    await e.action('Native Agent: AskUserQuestion → real waiting UI → choose answer', async () => {
+      await send(page, 'PARITY_WAIT');
+      await page.getByText('PARITY_QUESTION: choose a fixture option?', { exact: true }).waitFor({ timeout: 30_000 });
+      await e.matrix('waiting', async () => assert(await page.getByText('PARITY_QUESTION: choose a fixture option?', { exact: true }).isVisible()));
+      await page.getByText('Fixture A', { exact: true }).click();
+      await page.getByText('PARITY_WAIT_COMPLETE', { exact: true }).waitFor({ timeout: 20_000 });
+      assert(f.model.requests.some(r => r.toolResults?.some(t => t.content.includes('Fixture A'))));
+      await e.shot('wait-answered');
+    });
+  } else {
+    e.report.unavailable ??= [];
+    e.report.unavailable.push({ action: 'AskUserQuestion / waiting four-state matrix / answer round trip',
+      reason: 'AskUserQuestion belongs to the original Agent, not pinned Pi. Pi extension UI projection is not implemented or passed in #34.',
+      issues: '#13 (P25/P26); original waiting assertions remain enabled for --baseline original' });
+  }
   await e.action('Native Agent: controlled HTTP 400 → visible error → recovery by a fresh prompt', async () => {
     await send(page, 'PARITY_ERROR');
     await page.getByText(/PARITY_CONTROLLED_ERROR/).first().waitFor({ timeout: 25_000 });
