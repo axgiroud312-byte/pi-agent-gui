@@ -4,7 +4,7 @@
 
 ## 2026-09-24 恢复的当前状态
 
-用户当前指令：**只收尾 #34，唯一执行目录是 `C:\Users\niilo\Desktop\pi-agent-gui`，分支 `issue-34-native-pi-rpc`；不新建工作树，不触碰 `D:\Temp` 的对照/审查快照。** PR #39 保持 Draft、#34 保持 OPEN。对 `4fd60df` 的 12 条 Standards/Spec 意见逐项处理和多轮本地、Windows CI 反馈见[收口记录](issue-34-closeout/review-resolution-2026-09-24.md)。`30c35ad`、`8f8e0e3`、`22ac217`、`255495c`、`0124ccf`、`9483c76`、`b1adfba` 的 Windows CI 均未全绿。`b1adfba` 已消除隔离 Host 的运行时 `Add-Type` 冷编译超时，最新失败是 Pi GUI smoke 在 CI 慢渲染时错过仅 900 毫秒的部分文本；页面最终完整显示回复且退出清理成功。当前隔离模型保持部分帧直到 GUI 真正观察到文本与停止按钮，再放行完成帧；开发版和同一未变的已打包 exe 均通过。产品仍保留 PID/父 PID/创建时间校验与失败保锁。本地完成 Pi 相关服务 108/108 复跑及本次受影响测试 39/39、类型/定向 lint、170.5 MiB Windows 安装包、包内 exe 的真实 GUI，以及 18 项动作 / 48 个截图状态的原生完整 GUI smoke。下一步只提交 #34 文件并等待该提交的 push/PR Windows CI 全绿，再续同一轮 Standards/Spec 全 PR 加新增改动复审。复审通过后停下等用户确认，未经确认不合并、不关闭 #34、不开始 #3–#28。下文 Temp/opencode 路径、旧计数与“先取得计划批准”等内容均为历史快照，不再作为操作指令；未跟踪 `%SystemDrive%/` 保留且不提交。
+用户当前指令：**只收尾 #34，唯一执行目录是 `C:\Users\niilo\Desktop\pi-agent-gui`，分支 `issue-34-native-pi-rpc`；不新建工作树，不触碰 `D:\Temp` 的对照/审查快照。** PR #39 保持 Draft、#34 保持 OPEN。`4fd60df` 的 12 条 Standards/Spec 意见与多轮本地/CI 收口见[逐项记录](issue-34-closeout/review-resolution-2026-09-24.md)。最新源码 `f3189dd` 的 Windows [push CI](https://github.com/axgiroud312-byte/pi-agent-gui/actions/runs/36004174575) 和 [PR CI](https://github.com/axgiroud312-byte/pi-agent-gui/actions/runs/36004181294) 均 SUCCESS；PR 原始报告含真实 Pi 文本部分流、`read`、Stop、重启恢复、双会话，以及原生 GUI 18/18、48 个截图状态。此前本地受影响测试 39/39、完整 typecheck、定向 lint、170.5 MiB Windows 新包及包内 exe GUI 均通过。**尚无独立 Standards/Spec 复审 PASS**：原两位 reviewer 实例在当前运行环境中不可达，主会话自检和绿色 CI 不代替他们的结论。下一步仅续两轴全 PR 加新增改动审查；通过后停下等用户确认，未经确认不合并、不关闭 #34、不开始 #3–#28。下文 Temp/opencode 路径、旧计数与“先取得计划批准”等均为历史快照，不再作为操作指令；未跟踪 `%SystemDrive%/` 保留且不提交。
 
 ## 本轮收尾补充（历史过程）
 
