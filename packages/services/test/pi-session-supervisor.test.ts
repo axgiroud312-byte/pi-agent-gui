@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import { PiSessionSupervisor } from "../src/pi-agent/pi-session-supervisor.js";
 
-test("supervisor owns independent pinned Pi processes and stops one without affecting the other", { timeout: 30_000 }, async () => {
+test("supervisor owns independent pinned Pi processes; idle Stop is a no-op and closing one preserves the other", { timeout: 30_000 }, async () => {
   const workspacePath = await mkdtemp(join(tmpdir(), "pi-native-supervisor-"));
   const piEntry = fileURLToPath(import.meta.resolve("@earendil-works/pi-coding-agent/rpc-entry"));
   const supervisor = new PiSessionSupervisor({
@@ -24,8 +24,8 @@ test("supervisor owns independent pinned Pi processes and stops one without affe
     assert.notEqual(first.pid, second.pid);
     assert.equal((await supervisor.getState(first.sessionId)).sessionId, first.sessionId);
     assert.deepEqual(await supervisor.getMessages(second.sessionId), []);
-    await supervisor.stop(first.sessionId);
-    assert.equal(supervisor.getSession(first.sessionId)?.phase, "stopped");
+    assert.equal(await supervisor.stop(first.sessionId), "idle");
+    assert.equal(supervisor.getSession(first.sessionId)?.phase, "idle");
     assert.equal((await supervisor.getState(second.sessionId)).sessionId, second.sessionId);
     await supervisor.closeSession(first.sessionId);
     assert.equal(supervisor.getSession(first.sessionId), undefined);

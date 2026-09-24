@@ -9,7 +9,7 @@ import { conversationTopicWireFrameSchema } from '@zcode/shared/zcode-protocol-v
 import { PiNativeV4Service } from '../src/pi-agent/pi-native-v4-service.js';
 import type { PiSessionSupervisor } from '../src/pi-agent/pi-session-supervisor.js';
 
-test('a bookmark failure after accepted Pi input is visible but never changes ACK to failed or replays input', async () => {
+test('a bookmark failure after accepted Pi input preserves its ACK and blocks a later uncorrelatable input', async () => {
   const workspacePath = await mkdtemp(join(tmpdir(), 'pi-bookmark-ack-'));
   const sessionId = randomUUID();
   const sessionFile = join(workspacePath, 'pi-history.jsonl');
@@ -47,8 +47,9 @@ test('a bookmark failure after accepted Pi input is visible but never changes AC
         commandId: randomUUID(), clientId: 'bookmark-ack', sessionId, type: 'sendText',
         issuedAt: Date.now(), payload: { text: 'second explicit user action' },
       } });
-      assert.equal(next.status, 'accepted');
-      assert.equal(promptCalls, 2, 'only explicit actions can send Pi prompts');
+      assert.equal(next.status, 'failed');
+      assert.match(next.message ?? '', /filesystem unavailable|persist Pi input correlation/);
+      assert.equal(promptCalls, 1, 'storage failure cannot admit a second uncorrelatable side effect');
     } finally { listener.dispose(); }
   } finally { await service.dispose(); await rm(workspacePath, { recursive: true, force: true }); }
 });

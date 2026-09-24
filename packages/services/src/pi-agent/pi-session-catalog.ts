@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, readdir, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import type { SessionSummary } from "@zcode/shared/zcode-protocol-v4";
 
 export interface PiSessionBookmark {
   sessionId: string;
@@ -10,6 +11,15 @@ export interface PiSessionBookmark {
   workspaceId: string;
   createdAt: number;
   lastActivityAt: number;
+  // Small app-owned display metadata, never a second copy of Pi JSONL.
+  title?: SessionSummary["title"];
+  titleSource?: SessionSummary["titleSource"];
+  phase?: SessionSummary["phase"];
+  sessionEnded?: SessionSummary["sessionEnded"];
+  commandAnchors?: { textHash: string; commandId: string }[];
+  rowIds?: Record<string, number>;
+  uncertainDelivery?: boolean;
+  pendingIntent?: { textHash: string; commandId: string; priorUserCount: number };
 }
 
 function bookmark(value: unknown): value is PiSessionBookmark {
@@ -17,7 +27,21 @@ function bookmark(value: unknown): value is PiSessionBookmark {
   const row = value as Record<string, unknown>;
   return ["sessionId", "sessionFile", "workspacePath", "workspaceKey", "workspaceId"]
     .every(key => typeof row[key] === "string" && row[key].length > 0) &&
-    Number.isFinite(row.createdAt) && Number.isFinite(row.lastActivityAt);
+    Number.isFinite(row.createdAt) && Number.isFinite(row.lastActivityAt) &&
+    (row.title === undefined || (typeof row.title === "string" && row.title.length > 0)) &&
+    (row.titleSource === undefined || ["default", "generated", "custom"].includes(String(row.titleSource))) &&
+    (row.phase === undefined || ["draft", "prewarming", "running", "completedSuccess", "completedInterrupted", "error"].includes(String(row.phase))) &&
+    (row.sessionEnded === undefined || typeof row.sessionEnded === "boolean") &&
+    (row.uncertainDelivery === undefined || typeof row.uncertainDelivery === "boolean") &&
+    (row.pendingIntent === undefined || (typeof row.pendingIntent === "object" && row.pendingIntent !== null &&
+      typeof (row.pendingIntent as Record<string, unknown>).textHash === "string" &&
+      typeof (row.pendingIntent as Record<string, unknown>).commandId === "string" &&
+      Number.isSafeInteger((row.pendingIntent as Record<string, unknown>).priorUserCount) &&
+      Number((row.pendingIntent as Record<string, unknown>).priorUserCount) >= 0)) &&
+    (row.rowIds === undefined || (typeof row.rowIds === "object" && row.rowIds !== null &&
+      Object.values(row.rowIds).every(id => Number.isSafeInteger(id) && (id as number) > 0))) &&
+    (row.commandAnchors === undefined || (Array.isArray(row.commandAnchors) && row.commandAnchors.every(anchor =>
+      typeof anchor === "object" && anchor !== null && typeof anchor.textHash === "string" && typeof anchor.commandId === "string")));
 }
 
 /** App-owned index contains only Pi session pointers; JSONL stays with the target Pi profile. */

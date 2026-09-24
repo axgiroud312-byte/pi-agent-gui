@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { test } from "node:test";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -50,6 +51,46 @@ test("Pi stream and final history produce native text/tool rows with cumulative 
   assert.equal(restored.find(row => row.kind === "assistantText")?.text, "最终答复");
   assert.equal(restored.find(row => row.kind === "toolCall")?.status, "success");
   assert.equal(restored.find(row => row.kind === "toolCall")?.output?.text, "ok\n");
+});
+
+test("a delayed Stop projection only interrupts its captured command, never a subsequent turn", () => {
+  const projection = new PiMessageRows();
+  const input = (commandId: string) => {
+    const message = { role: "user", content: commandId, timestamp: Date.now() };
+    projection.expectUserCommand(commandId);
+    projection.apply({ type: "message_start", message });
+    projection.apply({ type: "message_end", message });
+  };
+  input("run-A");
+  const stoppedCommand = projection.currentCommandId();
+  input("run-B");
+  projection.markStopped(stoppedCommand);
+  const turns = projection.getRows().filter(row => row.kind === "turnHeader");
+  assert.equal(turns[0]?.sourceCommandId, "run-A");
+  assert.equal(turns[0]?.state, "completedInterrupted");
+  assert.equal(turns[1]?.sourceCommandId, "run-B");
+  assert.equal(turns[1]?.state, "running");
+  assert.deepEqual(projection.markStopped(undefined), []);
+});
+
+test("retry/compaction reconciliation converges live and restored rows while preserving a native command anchor", () => {
+  const projection = new PiMessageRows();
+  const user = { role: "user", content: "retry once", timestamp: 1000 };
+  const failed = { role: "assistant", content: [{ type: "text", text: "overloaded" }], stopReason: "error", timestamp: 1001 };
+  const final = { role: "assistant", content: [{ type: "text", text: "done" }], stopReason: "stop", timestamp: 1002 };
+  projection.expectUserCommand("native-retry");
+  projection.apply({ type: "message_start", message: user });
+  projection.apply({ type: "message_end", message: user });
+  projection.apply({ type: "message_start", message: failed });
+  projection.apply({ type: "message_end", message: failed });
+  projection.apply({ type: "agent_settled" });
+  const changes = projection.reconcile([user, final]);
+  assert.ok(changes.some(change => change.op === "row.upserted"));
+  const live = projection.getRows();
+  const anchors = [{ textHash: createHash("sha256").update("retry once").digest("hex"), commandId: "native-retry" }];
+  const restored = new PiMessageRows().restore([user, final], anchors);
+  assert.deepEqual(live, restored);
+  assert.equal(live.find(row => row.kind === "userInput")?.sourceCommandId, "native-retry");
 });
 
 test("Pi read card opens the same workspace file that Pi read from its cwd", () => {

@@ -44,7 +44,7 @@ export function createPiAgentService(
     syncAppRuntimePreferences: async () => {},
     getWorkspaceRuntimeIdentity: async (params: ZCodeAgentWorkspaceTarget) => bridge.getWorkspaceRuntimeIdentity(params),
     hasActiveCuaOperationTurn: () => false,
-    disposeWorkspace: async (_params: ZCodeAgentWorkspaceTarget) => {},
+    disposeWorkspace: (params: ZCodeAgentWorkspaceTarget) => bridge.disposeWorkspace(params),
     disposeAll: () => { void bridge.dispose(); },
     disposeAllAndWait: () => bridge.dispose(),
   };

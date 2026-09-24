@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { isAbsolute, resolve } from "node:path";
 import type { ConversationDelta, ConversationRow } from "@zcode/shared/zcode-protocol-v4";
 
@@ -5,6 +6,10 @@ type Data = Record<string, unknown>;
 
 function object(value: unknown): Data {
   return value !== null && typeof value === "object" && !Array.isArray(value) ? value as Data : {};
+}
+
+function textHash(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
 }
 
 function text(value: unknown): string {
@@ -60,15 +65,21 @@ export class PiMessageRows {
     if (index >= 0) this.userCommands.splice(index, 1);
   }
 
-  restore(messages: unknown[]): ConversationRow[] {
+  restore(messages: unknown[], anchors: { textHash: string; commandId: string }[] = [],
+    rowIds: Record<string, number> = {}): ConversationRow[] {
     this.messages = messages.map(message => object(message));
     this.activeMessageIndex = undefined;
     this.tools.clear();
     this.rowIds.clear();
+    for (const [key, id] of Object.entries(rowIds)) {
+      if (/^\d+:(turn|user|text:\d+|thinking:\d+|tool:\d+)$/u.test(key) &&
+        Number.isSafeInteger(id) && id > 0) this.rowIds.set(key, id);
+    }
     this.sourceByMessageIndex.clear();
     this.turnStates.clear();
     this.userCommands.length = 0;
     this.nextRowId = 1;
+    for (const id of this.rowIds.values()) this.nextRowId = Math.max(this.nextRowId, id + 1);
     let lastUserIndex: number | undefined;
     for (const [index, item] of this.messages.entries()) {
       if (item.role === "user") lastUserIndex = index;
@@ -77,12 +88,64 @@ export class PiMessageRows {
           : item.stopReason === "aborted" ? "completedInterrupted" : "completedSuccess");
       }
     }
+    // App metadata correlates native commands; Pi JSONL remains the sole
+    // authority for the actual text and message order.
+    const unused = [...anchors];
+    for (const [index, item] of this.messages.entries()) {
+      if (item.role !== "user") continue;
+      const found = unused.findIndex(anchor => anchor.textHash === textHash(text(item.content)));
+      if (found >= 0) this.sourceByMessageIndex.set(index, unused.splice(found, 1)[0]!.commandId);
+    }
     this.rows = this.buildRows();
     return [...this.rows];
   }
 
+  /** Reconcile at Pi's settled boundary; keep native command anchors for surviving user inputs. */
+  reconcile(messages: unknown[]): ConversationDelta[] {
+    const authoritative = messages.map(object);
+    const anchors = new Map<string, string[]>();
+    for (const [index, item] of this.messages.entries()) {
+      const source = this.sourceByMessageIndex.get(index);
+      if (item.role !== "user" || !source) continue;
+      const key = text(item.content);
+      anchors.set(key, [...(anchors.get(key) ?? []), source]);
+    }
+    const samePositions = authoritative.length === this.messages.length &&
+      authoritative.every((item, index) => item.role === this.messages[index]?.role &&
+        (item.role !== "user" || text(item.content) === text(this.messages[index]?.content)));
+    this.messages = authoritative;
+    this.activeMessageIndex = undefined;
+    this.tools.clear();
+    this.sourceByMessageIndex.clear();
+    this.turnStates.clear();
+    if (!samePositions) this.rowIds.clear();
+    let lastUser: number | undefined;
+    for (const [index, item] of authoritative.entries()) {
+      if (item.role === "user") {
+        lastUser = index;
+        const source = anchors.get(text(item.content))?.shift();
+        if (source) this.sourceByMessageIndex.set(index, source);
+      }
+      if (item.role === "assistant" && lastUser !== undefined) {
+        this.turnStates.set(`pi-turn-${lastUser}`, item.stopReason === "error" ? "failed"
+          : item.stopReason === "aborted" ? "completedInterrupted" : "completedSuccess");
+      }
+    }
+    if (lastUser !== undefined && !this.turnStates.has(`pi-turn-${lastUser}`)) {
+      this.turnStates.set(`pi-turn-${lastUser}`, "completedSuccess");
+    }
+    const next = this.buildRows();
+    const deltas = this.diff(this.rows, next);
+    this.rows = next;
+    return deltas;
+  }
+
   getRows(): ConversationRow[] {
     return [...this.rows];
+  }
+
+  getRowIds(): Record<string, number> {
+    return Object.fromEntries(this.rowIds);
   }
 
   apply(record: Data): ConversationDelta[] {
@@ -143,8 +206,18 @@ export class PiMessageRows {
     return deltas;
   }
 
-  markStopped(): ConversationDelta[] {
-    this.settleCurrentTurn(true);
+  currentCommandId(): string | undefined {
+    return this.userCommands[0] ?? this.sourceByMessageIndex.get(
+      this.messages.findLastIndex(item => item.role === "user"));
+  }
+
+  markStopped(commandId: string | undefined): ConversationDelta[] {
+    if (!commandId) return [];
+    const entry = [...this.sourceByMessageIndex].find(([, source]) => source === commandId);
+    if (!entry) return [];
+    // Stop belongs to the captured command, never whichever turn is latest after
+    // asynchronous abort/persistence. A subsequent run may already have begun.
+    this.turnStates.set(`pi-turn-${entry[0]}`, "completedInterrupted");
     const next = this.buildRows();
     const deltas = this.diff(this.rows, next);
     this.rows = next;

@@ -1,5 +1,6 @@
 import type {
   ConversationSnapshot,
+  QueueItem,
   SessionActionAvailability,
   SessionControl,
 } from "@zcode/shared/zcode-protocol-v4";
@@ -66,11 +67,13 @@ export function createPiV4Snapshot(
     canStop: running && view.phase !== "stopping",
     stopState: view.phase === "stopping" ? "stopping" : running ? "stoppable" : "idle",
     stopTargetKind: view.phase === "compacting" ? "compact" : running ? "assistant" : "unknown",
-    activeWorks: running ? [{ kind: "primaryTurn", startedAt: runStartedAt }] : [],
+    activeWorks: running ? [{ kind: "primaryTurn", startedAt: runStartedAt,
+      ...(view.foregroundExecutionId ? { foregroundExecutionId: view.foregroundExecutionId } : {}) }] : [],
     lastError: view.error ? {
-      code: view.uncertainDelivery ? "pi.deliveryUnknown" : "pi.runtimeError",
+      code: view.uncertainDelivery ? "pi.deliveryUnknown"
+        : view.reconciliationRequired ? "pi.reconciliationRequired" : "pi.runtimeError",
       message: view.error,
-      recoverable: !view.uncertainDelivery,
+      recoverable: !view.uncertainDelivery && !view.reconciliationRequired,
       at: errorAt,
       source: "runtime",
     } : state.piBookmarkError === true ? {
@@ -80,7 +83,9 @@ export function createPiV4Snapshot(
       at: typeof state.piBookmarkErrorAt === "number" ? state.piBookmarkErrorAt : now,
       source: "runtime",
     } : null,
-    apiRetry: null,
+    apiRetry: view.phase === "retrying" && typeof state.piRetryAttempt === "number"
+      ? { attempt: state.piRetryAttempt, maxAttempts: Number(state.piRetryMaxAttempts) || state.piRetryAttempt,
+        nextRetryAt: Number(state.piRetryAt) || now, reasonCode: "pi.autoRetry" } : null,
   };
   return {
     protocolVersion: 1,
@@ -92,7 +97,7 @@ export function createPiV4Snapshot(
     availability: availability(),
     inputRouting: running
       ? { mode: "reject", reasonCode: "pi.busyInputRequiresQueueTicket" }
-      : view.uncertainDelivery || view.phase === "exited"
+      : view.uncertainDelivery || view.reconciliationRequired || view.phase === "exited"
         ? { mode: "reject", reasonCode: "pi.sessionUnavailable" }
         : { mode: "startNow" },
     meta: { title: typeof state.sessionName === "string" ? state.sessionName : "", titleSource: "default" },
@@ -109,7 +114,10 @@ export function createPiV4Snapshot(
       contextWindow: null,
       cumulative: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
     },
-    queue: { items: [], autoDrain: true },
+    queue: { items: (state.piQueueItems as QueueItem[] | undefined) ?? [],
+      autoDrain: state.piStoppedQueue !== true,
+      ...(state.piStoppedQueue === true ? { pauseReason: "stopped" as const } : {}) },
+
     pendingInteractions: [],
     pendingCommands: [],
     backgroundWorks: [],

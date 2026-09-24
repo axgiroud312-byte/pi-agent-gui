@@ -3,12 +3,12 @@ import { once } from 'node:events';
 import { resolve } from 'node:path';
 import { test, type TestContext } from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
+import { fileURLToPath } from 'node:url';
 import { PiRpcClient, PiRpcError, RPC_LIMITS, type PiRpcClientOptions, type RpcDiagnostic, type RpcExit } from '../src/pi-agent/pi-rpc-client.js';
 
-// Test scripts run from the repository root, including an isolated worktree
-// before the main scaffold supplies its ESM package metadata.
+// Keep the caller's cwd under test, but resolve the executable fixture from this module.
 const cwd = process.cwd();
-const fixture = resolve(cwd, 'packages/services/test/fixtures/pi-rpc-child.mjs');
+const fixture = fileURLToPath(new URL('./fixtures/pi-rpc-child.mjs', import.meta.url));
 const testOptions = { timeout: 15_000 };
 
 function recordOnce(client: PiRpcClient, type: string): Promise<Record<string, unknown>> {

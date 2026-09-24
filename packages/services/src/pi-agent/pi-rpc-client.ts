@@ -159,6 +159,20 @@ export class PiRpcClient extends EventEmitter<ClientEvents> {
     return this.child?.pid;
   }
 
+  get isRunning(): boolean {
+    return this.state === 'running' && !this.exitResult;
+  }
+
+  /** abort_bash acknowledges cancellation before the corresponding bash response settles. */
+  async waitForPendingCommand(command: string, timeoutMs: number): Promise<boolean> {
+    const pending = () => [...this.pending.values()].some(request => request.command === command);
+    const deadline = Date.now() + timeoutMs;
+    while (pending() && Date.now() < deadline && this.state === 'running') {
+      await new Promise(resolve => setTimeout(resolve, 25));
+    }
+    return !pending();
+  }
+
   /** Resolves on OS spawn, without issuing get_state or any other command. */
   start(): Promise<void> {
     if (this.disposed) return Promise.reject(this.unavailableError());

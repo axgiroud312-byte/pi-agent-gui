@@ -1,9 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
-import { stat } from "node:fs/promises";
+import { realpath, stat } from "node:fs/promises";
 import { isAbsolute } from "node:path";
 import { PiRpcClient, PiRpcError, type RpcDiagnostic, type RpcExit } from "./pi-rpc-client.js";
 import { PiSessionLease } from "./pi-session-lease.js";
+import { settlePiSessionBeforeClose } from "./pi-session-teardown.js";
+import { getPiHistoryMessages } from "./pi-session-history.js";
 
 export type PiSessionPhase =
   | "starting"
@@ -25,6 +27,9 @@ export interface PiSessionView {
   pid: number;
   phase: PiSessionPhase;
   uncertainDelivery: boolean;
+  reconciliationRequired?: boolean;
+  foregroundExecutionId?: string;
+  clearedQueue?: { steering: string[]; followUp: string[] };
   error?: string;
 }
 
@@ -87,6 +92,20 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
     client.on("record", record => {
       if (!current()) return;
       this.emit("record", view.sessionId, record);
+      // Pi RPC advertises UI dialogs to extensions, but #34 has no GUI reply
+      // bridge. Cancel only blocking dialogs; never grant permissions by default.
+      if (record.type === "extension_ui_request" && typeof record.id === "string" &&
+        ["select", "confirm", "input", "editor"].includes(String(record.method))) {
+        void client.notify({ type: "extension_ui_response", id: record.id, cancelled: true })
+          .catch(error => {
+            view.uncertainDelivery = true;
+            view.error = `Could not cancel Pi extension dialog: ${message(error)}`;
+            view.phase = "error";
+            this.publish(runtime);
+            // A failed cancellation cannot leave an extension waiting forever.
+            void client.dispose();
+          });
+      }
       if (runtime.stopping || !runtime.acceptRunEvents) return;
       switch (record.type) {
         case "agent_start":
@@ -124,6 +143,7 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
           break;
         case "agent_settled":
           view.phase = runtime.hadRunError ? "error" : "settled";
+          view.foregroundExecutionId = undefined;
           runtime.acceptRunEvents = false;
           break;
         // agent_end is a low-level cycle boundary, not completion.
@@ -153,26 +173,47 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
     });
   }
 
-  private async start(workspacePath: string, args: string[], expectedId?: string): Promise<PiSessionView> {
+  private async start(workspacePath: string, args: string[], expectedId?: string, knownSessionFile?: string): Promise<PiSessionView> {
     if (this.disposed) throw new Error("Pi session supervisor is disposed");
     if (!isAbsolute(workspacePath) || !(await stat(workspacePath)).isDirectory()) {
       throw new Error("Pi workspace path must be an existing absolute directory");
     }
-    const client = (this.options.clientFactory ?? (options => new PiRpcClient(options)))({
-      executable: this.options.executable ?? process.execPath,
-      args: [this.options.piEntry, ...args, ...(this.options.rpcArgs ?? [])],
-      cwd: workspacePath,
-      // Inherit the execution target's Pi identity. Desktop metadata profile is separate.
-      env: { ...process.env, ...this.options.env, ELECTRON_RUN_AS_NODE: "1" },
-    });
+    let client: PiRpcClient | undefined;
     let lease: PiSessionLease | undefined;
+    let bootstrapDialog: ((record: Record<string, unknown>) => void) | undefined;
     try {
+      // Resume already knows its canonical file. Claim it before any Pi startup
+      // can read/write the JSONL or execute extension session_start hooks.
+      if (knownSessionFile) lease = await PiSessionLease.acquire(knownSessionFile);
+      if (this.disposed) throw new Error("Pi session supervisor is disposed");
+      client = (this.options.clientFactory ?? (options => new PiRpcClient(options)))({
+        executable: this.options.executable ?? process.execPath,
+        args: [this.options.piEntry, ...args, ...(this.options.rpcArgs ?? [])],
+        cwd: workspacePath,
+        // Inherit target Pi identity, separate from desktop metadata.
+        env: { ...process.env, ...this.options.env, ELECTRON_RUN_AS_NODE: "1" },
+      });
+      // Extension session_start hooks can ask for a dialog *before* get_state
+      // returns and before the runtime is registered. Cancel them at bootstrap.
+      const bootClient = client;
+      bootstrapDialog = record => {
+        if (record.type === "extension_ui_request" && typeof record.id === "string" &&
+          ["select", "confirm", "input", "editor"].includes(String(record.method))) {
+          void bootClient.notify({ type: "extension_ui_response", id: record.id, cancelled: true })
+            .catch(() => { void bootClient.dispose(); });
+        }
+      };
+      client.on("record", bootstrapDialog);
       await client.start();
       const response = await client.request({ type: "get_state" });
       if (!response.success) throw new Error(response.error ?? "Pi get_state failed");
       const state = object(response.data);
       if (typeof state.sessionId !== "string" || typeof state.sessionFile !== "string") {
         throw new Error("Pi get_state omitted session identity");
+      }
+      if (this.disposed) throw new Error("Pi session supervisor is disposed");
+      if (knownSessionFile && await realpath(state.sessionFile) !== knownSessionFile) {
+        throw new Error("Pi restored a different history file than the leased file");
       }
       if (expectedId && state.sessionId !== expectedId) {
         throw new Error(`Pi restored a different session (${state.sessionId}) than requested (${expectedId})`);
@@ -181,7 +222,7 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
         throw new Error("Pi session is already owned by an active process");
       }
       if (!client.pid) throw new Error("Pi process has no PID");
-      lease = await PiSessionLease.acquire(state.sessionFile);
+      lease ??= await PiSessionLease.acquire(state.sessionFile);
       const view: PiSessionView = {
         sessionId: state.sessionId,
         sessionFile: state.sessionFile,
@@ -189,6 +230,7 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
         pid: client.pid,
         phase: state.isCompacting ? "compacting" : state.isStreaming ? "running" : "idle",
         uncertainDelivery: false,
+        foregroundExecutionId: state.isStreaming || state.isCompacting ? randomUUID() : undefined,
       };
       const runtime: SessionRuntime = {
         view,
@@ -202,11 +244,14 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
       this.sessions.set(view.sessionId, runtime);
       this.sessionFiles.set(view.sessionFile, view.sessionId);
       this.attach(runtime);
+      client.off("record", bootstrapDialog);
+      bootstrapDialog = undefined;
       this.publish(runtime);
       return { ...view };
     } catch (error) {
-      await client.dispose();
-      await lease?.release();
+      if (bootstrapDialog) client?.off("record", bootstrapDialog);
+      try { await client?.dispose(); }
+      finally { await lease?.release(); }
       throw error;
     }
   }
@@ -220,7 +265,8 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
     if (!isAbsolute(sessionFile) || !(await stat(sessionFile)).isFile()) {
       throw new Error("Pi session history file does not exist");
     }
-    return this.start(workspacePath, ["--session", sessionFile], expectedId);
+    const canonicalFile = await realpath(sessionFile);
+    return this.start(workspacePath, ["--session", canonicalFile], expectedId, canonicalFile);
   }
 
   getSession(sessionId: string): PiSessionView | undefined {
@@ -232,6 +278,15 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
     const runtime = this.sessions.get(sessionId);
     if (!runtime) throw new Error(`Pi session is not active: ${sessionId}`);
     return runtime;
+  }
+
+  requireReconciliation(sessionId: string, uncertainDelivery: boolean): PiSessionView {
+    const runtime = this.requireSession(sessionId);
+    runtime.view.uncertainDelivery ||= uncertainDelivery;
+    runtime.view.reconciliationRequired = true;
+    runtime.view.error = "Pi session recovered after an uncertain run; inspect history before any new input";
+    this.publish(runtime);
+    return { ...runtime.view };
   }
 
   async getState(sessionId: string): Promise<Record<string, unknown>> {
@@ -251,9 +306,13 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
     return messages;
   }
 
+  async getHistoryMessages(sessionId: string): Promise<unknown[]> {
+    return getPiHistoryMessages(this.requireSession(sessionId).client, () => this.getMessages(sessionId));
+  }
+
   async setModel(sessionId: string, provider: string, modelId: string, thinkingLevel?: string): Promise<void> {
     const runtime = this.requireSession(sessionId);
-    if (runtime.view.uncertainDelivery) throw new Error("Pi session requires reconciliation before model change");
+    if (runtime.view.uncertainDelivery || runtime.view.reconciliationRequired) throw new Error("Pi session requires reconciliation before model change");
     const model = await runtime.client.request({ type: "set_model", provider, modelId });
     if (!model.success) throw new Error(model.error ?? "Pi rejected the model");
     if (thinkingLevel) {
@@ -262,39 +321,61 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
     }
   }
 
-  async sendText(sessionId: string, text: string): Promise<void> {
+  async sendText(sessionId: string, text: string): Promise<"run" | "noRun" | "reconcile"> {
     const runtime = this.requireSession(sessionId);
-    if (runtime.view.uncertainDelivery) throw new Error("Previous Pi input delivery is uncertain; inspect the session first");
+    if (runtime.view.uncertainDelivery || runtime.view.reconciliationRequired) {
+      throw new Error("Pi session requires reconciliation before another input");
+    }
     if (!["idle", "settled", "stopped", "error"].includes(runtime.view.phase)) throw new Error("Pi session is already busy");
     if (text.trim().length === 0) throw new Error("Pi input is empty");
     runtime.hadRunError = false;
     runtime.acceptRunEvents = true;
     runtime.view.error = undefined;
     runtime.view.phase = "accepted";
+    runtime.view.clearedQueue = undefined;
+    // Allocate before sending: events may arrive before the admission response.
+    // This is an execution identity, distinct from the process generation.
+    runtime.view.foregroundExecutionId = randomUUID();
     this.publish(runtime);
     try {
       const response = await runtime.client.request({ type: "prompt", message: text });
       if (!response.success) throw new Error(response.error ?? "Pi rejected the prompt");
-      // Response confirms admission only. agent_settled is the run boundary.
-      const state = await this.getState(sessionId);
-      if (runtime.view.phase === "accepted" && state.isStreaming === false && state.isCompacting === false && state.pendingMessageCount === 0) {
-        // An extension command may have handled the prompt without a model run.
-        runtime.view.phase = "idle";
-        runtime.acceptRunEvents = false;
-        this.publish(runtime);
-      }
     } catch (error) {
       runtime.acceptRunEvents = false;
       if (error instanceof PiRpcError && error.delivery === "unknown") runtime.view.uncertainDelivery = true;
+      else runtime.view.foregroundExecutionId = undefined;
       runtime.view.phase = "error";
       runtime.view.error = message(error);
       this.publish(runtime);
       throw error;
     }
+    // Successful prompt response is irrevocable admission. A later read-only
+    // query failure cannot invite a second prompt or discard still arriving events.
+    try {
+      const state = await this.getState(sessionId);
+      if (runtime.view.phase === "accepted" && state.isStreaming === false && state.isCompacting === false && state.pendingMessageCount === 0) {
+        runtime.view.phase = "idle";
+        runtime.view.foregroundExecutionId = undefined;
+        runtime.acceptRunEvents = false;
+        this.publish(runtime);
+        return "noRun";
+      }
+      return "run";
+    } catch (error) {
+      runtime.view.reconciliationRequired = true;
+      runtime.view.error = `Pi accepted the input, but state reconciliation failed: ${message(error)}`;
+      this.publish(runtime);
+      return "reconcile";
+    }
   }
 
-  async stop(sessionId: string): Promise<void> {
+  async stop(sessionId: string, expectedExecutionId?: string): Promise<"stopped" | "idle" | "stale" | "stopping"> {
     const runtime = this.requireSession(sessionId);
+    if (!runtime.view.foregroundExecutionId) return "idle";
+    if (expectedExecutionId !== runtime.view.foregroundExecutionId) return "stale";
+    if (runtime.stopping) return "stopping";
+    // Check and claim synchronously, before clear_queue/abort can yield. A new
+    // admission cannot enter while this generation's Stop is pending.
     runtime.stopping = true;
     runtime.acceptRunEvents = false;
     runtime.view.phase = "stopping";
@@ -303,6 +384,11 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
       // Pi's abort continues queued work unless the queues are cleared first.
       const clear = await runtime.client.request({ type: "clear_queue" });
       if (!clear.success) throw new Error(clear.error ?? "Pi clear_queue failed");
+      const returned = object(clear.data);
+      runtime.view.clearedQueue = {
+        steering: Array.isArray(returned.steering) ? returned.steering.filter((value): value is string => typeof value === "string") : [],
+        followUp: Array.isArray(returned.followUp) ? returned.followUp.filter((value): value is string => typeof value === "string") : [],
+      };
       const abort = await runtime.client.request({ type: "abort" });
       if (!abort.success) throw new Error(abort.error ?? "Pi abort failed");
       const state = await this.getState(sessionId);
@@ -310,7 +396,10 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
         throw new Error("Pi did not settle after stop");
       }
       runtime.view.phase = "stopped";
+      runtime.view.foregroundExecutionId = undefined;
+      runtime.view.reconciliationRequired = false;
       runtime.view.error = undefined;
+      return "stopped";
     } catch (error) {
       if (error instanceof PiRpcError && error.delivery === "unknown") runtime.view.uncertainDelivery = true;
       runtime.view.phase = "error";
@@ -328,8 +417,12 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
     runtime.generation = randomUUID();
     this.sessions.delete(sessionId);
     this.sessionFiles.delete(runtime.view.sessionFile);
-    try { await runtime.client.dispose(); }
-    finally { await runtime.lease.release(); }
+    try {
+      await settlePiSessionBeforeClose(runtime.client, Boolean(runtime.view.foregroundExecutionId));
+    } finally {
+      try { await runtime.client.dispose(); }
+      finally { await runtime.lease.release(); }
+    }
   }
 
   dispose(): Promise<void> {

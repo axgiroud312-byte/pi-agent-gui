@@ -5332,6 +5332,8 @@ const zhCN: Record<string, string> = {
   "chat.permission.fileChange.mixedMany": "更新 {count} 个文件",
 
   // 模式
+  "pi.mode.directTools": "Pi 工具直接执行",
+  "pi.mode.noApproval": "Pi 可直接修改文件和运行命令，不会在每次变更前征求批准；当前不支持逐项审批。",
   "mode.plan": "计划",
   "mode.label.glm.build": "变更前确认",
   "mode.label.glm.edit": "自动编辑",
