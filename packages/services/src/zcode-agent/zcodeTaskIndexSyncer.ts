@@ -174,6 +174,8 @@ export interface ZCodeTaskIndexSyncer {
 interface CreateZCodeTaskIndexSyncerOptions {
   agentService: IZCodeAgentService;
   taskIndexRepo: TaskIndexRepo;
+  /** Pi sessions use their own index; never ingest them as legacy ZCode tasks. */
+  ingestAgentSessions?: boolean;
 }
 
 /** phase 终态集合（sessions-index 的 conflated 最新态里判定迁移用）。 */
@@ -1604,6 +1606,7 @@ export function createZCodeTaskIndexSyncer(
       );
 
   function ensureWorkspaceSubscription(target: ZCodeAgentWorkspaceTarget): void {
+    if (options.ingestAgentSessions === false) return;
     if (disposed) {
       return;
     }

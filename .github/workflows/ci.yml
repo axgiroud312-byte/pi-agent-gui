@@ -43,6 +43,9 @@ jobs:
       - name: Provenance regression tests (Node only)
         if: ${{ !cancelled() }}
         run: node --test "scripts/test/native-provenance*.test.mjs"
+      - name: Original and Pi smoke model contracts remain distinct
+        if: ${{ !cancelled() }}
+        run: node --test scripts/test/native-smoke-model.test.mjs
       - name: Install the native workspace from its frozen lockfile
         id: install
         if: ${{ !cancelled() }}
@@ -74,6 +77,9 @@ jobs:
       - name: Imported native service tests
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: pnpm --dir packages/services exec tsx --test --test-concurrency=1 "test/*.test.ts"
+      - name: Pi transport root-cwd regression and native Host projection
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm exec tsx --test packages/services/test/pi-rpc-client.test.ts packages/desktop/src/host/windowHostControllerProjection.test.ts
       - name: Imported native UI tests with their project aliases
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: pnpm --dir packages/ui exec tsx --test --test-concurrency=1 "test/*.test.ts"
@@ -118,9 +124,12 @@ jobs:
         env:
           NODE_ENV: production
         run: pnpm --dir packages/desktop exec vite build
-      - name: Actual default product desktop smoke
+      - name: Actual native product interactions with pinned Pi
         if: ${{ !cancelled() && steps.renderer.outcome == 'success' }}
-        run: node scripts/native-desktop-smoke.mjs
+        run: node scripts/native-desktop-smoke.mjs --baseline product
+      - name: Actual Pi history restart, streaming scroll and session isolation
+        if: ${{ !cancelled() && steps.renderer.outcome == 'success' }}
+        run: node scripts/pi-native-gui-smoke.mjs --output test-results/pi-native-gui
       - name: Actual split production entry selects the default Pi profile
         if: ${{ !cancelled() && steps.renderer.outcome == 'success' }}
         run: node packages/desktop/test/production-profile-entry.mjs --app-root packages/desktop
@@ -131,6 +140,7 @@ jobs:
           name: windows-native-parity-${{ github.sha }}
           path: |
             test-results/native-parity/**
+            test-results/pi-native-gui/**
             test-results/native-cli-lint/**
             test-results/profile-default-entry/**
           if-no-files-found: warn

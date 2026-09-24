@@ -342,6 +342,7 @@ import { createObservableSettingService } from "./setting/observableSettingServi
 import { createCredentialService } from "./credential/credentialService.js";
 import { createBroadcastService } from "./broadcast/broadcastService.js";
 import { createZCodeAgentService } from "./zcode-agent/zcodeAgentService.js";
+import { createPiAgentService } from "./pi-agent/pi-agent-service.js";
 import type { ZCodeAgentCommandResolver } from "./zcode-agent/zcodeAgentProcessManager.js";
 import { buildAgentTelemetrySpawnEnv } from "./zcode-agent/agentTelemetryEnv.js";
 import { resolveZCodeAgentPresentationSurface } from "./zcode-agent/zcodeAgentPresentationSurface.js";
@@ -1311,6 +1312,8 @@ export function createLocalServices(options: {
   // 注入点：默认 resolver 已能覆盖 dev/桌面/SSH 远端三类形态；
   // 测试或特殊宿主想强制走自定义 binary/参数时从这里注入。
   zcodeAgentCommandResolver?: ZCodeAgentCommandResolver;
+  /** Product desktop Pi RPC entry; absence retains the isolated native reference/test assembly. */
+  piAgentRpcEntry?: string;
   /** Desktop Main 提前异步采集的本机 runtime 环境；Local Host 注入后不再同步启动 login shell。 */
   runtimeProcessEnvPatch?: Record<string, string>;
   /** 本地桌面上次 workspace 缺失时，仅用于 Agent 子进程 spawn.cwd 兜底。 */
@@ -1694,7 +1697,9 @@ export function createLocalServices(options: {
     });
   const defaultCuaProductHelperLifecycle =
     new CuaHelperLifecycleManager<ManagedDefaultCuaProductHelper>(async (managed) => {
-      await managed.helper.host.stop();
+      // The desktop Pi path registers the disposer even when CUA was never
+      // acquired. Its unavailable helper manager may call back with no owner.
+      if (managed) await managed.helper.host.stop();
     });
   const createManagedDefaultCuaProductHelper = (
     context?: CuaProductMcpServerResolverContext,
@@ -2075,7 +2080,9 @@ export function createLocalServices(options: {
           resolveOffPeakClientConfig: () => codingPlanSubscriptionService.getOffPeakClientConfig(),
           resolveOffPeakTaskService: () => offPeakTaskServiceForAgent,
         };
-  const zcodeAgentService = createZCodeAgentService({
+  const zcodeAgentService = options?.piAgentRpcEntry
+    ? createPiAgentService(options.piAgentRpcEntry)
+    : createZCodeAgentService({
     ...(agentAccountProviderConfigSource
       ? { accountProviderConfigSource: agentAccountProviderConfigSource }
       : {}),
@@ -2274,6 +2281,9 @@ export function createLocalServices(options: {
   const zcodeTaskIndexSyncer = createZCodeTaskIndexSyncer({
     agentService: zcodeAgentService,
     taskIndexRepo,
+    // Pi JSONL + Pi sessions-index are authoritative. The old task-index
+    // importer must not try readSession or write Pi rows into ZCode sqlite.
+    ingestAgentSessions: !options?.piAgentRpcEntry,
   });
   // The plugin can be toggled at runtime. Do not let a previously created resolver continue
   // health-checking/restarting Helper after disable, and create it lazily after enable.
@@ -2747,6 +2757,11 @@ export function disposeServiceResources(services: ServiceCollection): void {
 }
 
 export async function disposeServiceResourcesAndWait(services: ServiceCollection): Promise<void> {
+  const failures: unknown[] = [];
+  const settle = async (operation: () => void | Promise<void>): Promise<void> => {
+    try { await operation(); }
+    catch (error) { failures.push(error); }
+  };
   // app 关闭时 host 需要等 agent 进程树完成 graceful + force 清理。
   // 旧的同步 dispose 会在 host 退出时丢掉强杀 timer，导致 zcode-cli/app-server 变成孤儿进程。
   const disposableServices = [
@@ -2758,29 +2773,26 @@ export async function disposeServiceResourcesAndWait(services: ServiceCollection
     services.getOptional(IOffPeakTaskService),
   ].filter((service) => service !== undefined);
 
+  // Preserve owner ordering, but an earlier failure must never skip Pi or any
+  // later owner. Report aggregate failure only after every cleanup has settled.
   for (const service of disposableServices) {
-    if (hasDisposeAllAndWait(service)) {
-      await service.disposeAllAndWait();
-    } else if (hasDisposeAll(service)) {
-      service.disposeAll();
-    }
+    await settle(async () => {
+      if (hasDisposeAllAndWait(service)) await service.disposeAllAndWait();
+      else if (hasDisposeAll(service)) service.disposeAll();
+    });
   }
 
   // 等待托管的 Computer Use Helper 终止（best-effort）：Helper 是长生命周期高权限进程，服务释放语义必须显式
   // 收口它，不能只靠 launcher-pid watchdog / 进程退出兜底。
   const managedCuaHelperHost = managedCuaHelperHosts.get(services);
-  if (managedCuaHelperHost) {
-    await managedCuaHelperHost.stop().catch(() => {});
-  }
+  if (managedCuaHelperHost) await settle(() => managedCuaHelperHost.stop());
   // 关闭共享 tasks-index sqlite 句柄（同 disposeServiceResources，异步收口路径也要释放）
-  for (const repo of sharedSqliteRepos.get(services) ?? []) repo.close();
+  for (const repo of sharedSqliteRepos.get(services) ?? []) await settle(() => repo.close());
   sharedSqliteRepos.delete(services);
-  providerRuntimes.get(services)?.dispose();
-  for (const dispose of providerProvisioningTriggerDisposers.get(services) ?? []) dispose();
+  await settle(() => providerRuntimes.get(services)?.dispose());
+  for (const dispose of providerProvisioningTriggerDisposers.get(services) ?? []) await settle(dispose);
   providerProvisioningTriggerDisposers.delete(services);
   providerProvisioningSources.delete(services);
-  await managedHostApiNetworkTransports
-    .get(services)
-    ?.disposeAndWait()
-    .catch(() => {});
+  await settle(async () => { await managedHostApiNetworkTransports.get(services)?.disposeAndWait(); });
+  if (failures.length) throw new AggregateError(failures, "Host service cleanup failed");
 }

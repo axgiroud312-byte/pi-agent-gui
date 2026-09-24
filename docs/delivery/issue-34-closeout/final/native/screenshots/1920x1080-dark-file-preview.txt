@@ -1,0 +1,77 @@
+命令面板
+
+搜索并执行当前工作区可用的命令。
+
+新建任务
+Ctrl+N
+搜索
+Ctrl+K
+自动化
+插件市场
+分组
+项目
+项目
+parity-workspace
+
+PARITY_RUNNING
+
+刚刚
+任务
+还没有任务
+π
+Pi Agent IDE
+返回任务
+parity-workspace
+.git
+.zcodeignore
+U
+hello.txt
+U
+pty-proof.txt
+README.md
+U
+PARITY_RUNNING
+更改
++6
+-0
+PARITY_RUNNING
+复制
+已处理
+
+CONTROLLED_NATIVE_REPLY: native timeline
+
+text
+复制
+11:34
+
+
+
+
+提出后续修改要求
+添加上下文
+Pi 工具直接执行
+新供应商/parity-controlled
+开启
+关闭
+开启
+发送
+终端
+PowerShell
+parity-workspace
+Windows PowerShell
+Copyright (C) Microsoft Corporation. All rights reserved.
+PS D:\Temp\pi34-final-native-smoke-7\fixture-V54c3w\parity-workspace> echo NATIVE_PARITY_PTY > "D:\Temp\pi34-final-native-smoke-7\fixtu
+re-V54c3w\parity-workspace\pty-proof.txt"
+PS D:\Temp\pi34-final-native-smoke-7\fixture-V54c3w\parity-workspace> echo NATIVE_PARITY_PTY_VISIBLE
+NATIVE_PARITY_PTY_VISIBLE
+PS D:\Temp\pi34-final-native-smoke-7\fixture-V54c3w\parity-workspace>  
+hello.txt
+README.md
+Draggable item code-viewer:D:\Temp\pi34-final-native-smoke-7\fixture-V54c3w\parity-workspace:file:D:\Temp\pi34-final-native-smoke-7\fixture-V54c3w\parity-workspace\README.md was dropped over droppable area code-viewer:D:\Temp\pi34-final-native-smoke-7\fixture-V54c3w\parity-workspace:file:D:\Temp\pi34-final-native-smoke-7\fixture-V54c3w\parity-workspace\hello.txt
+parity-workspace
+README.md
+Native parity fixture
+
+Real local workspace for Issue #32.
+
+Preview marker: NATIVE_PARITY_PREVIEW

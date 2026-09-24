@@ -5557,6 +5557,8 @@ const enUS: Record<string, string> = {
   "chat.permission.fileChange.mixedMany": "Update {count} files",
 
   // Modes
+  "pi.mode.directTools": "Pi tools run directly",
+  "pi.mode.noApproval": "Pi may edit files and run commands without asking before each change. Per-action approval is not available.",
   "mode.plan": "Plan",
   "mode.label.glm.build": "Ask before changes",
   "mode.label.glm.edit": "Edit automatically",

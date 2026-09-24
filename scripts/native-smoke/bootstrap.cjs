@@ -3,7 +3,8 @@ const { join } = require('node:path');
 const { readFileSync } = require('node:fs');
 const { pathToFileURL } = require('node:url');
 const allowed = new Set(['PATH', 'SYSTEMROOT', 'WINDIR', 'PATHEXT', 'COMSPEC', 'TEMP', 'TMP',
-  'HOME', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'NODE_OPTIONS']);
+  'HOME', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'NODE_OPTIONS',
+  'PI_CODING_AGENT_DIR', 'PI_PACKAGE_DIR', 'PI_OFFLINE']);
 for (const key of Object.keys(process.env)) {
   if (!allowed.has(key.toUpperCase()) && !key.startsWith('NATIVE_SMOKE_') && !key.startsWith('ZCODE_')) delete process.env[key];
 }

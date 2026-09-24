@@ -11,17 +11,15 @@ interface AppShutdownPolicySelection {
   upgraded: boolean;
 }
 
+// Host concurrently closes remote services and Pi; Pi RPC cancellation can take
+// 21s, then its identity-checked process-tree cleanup up to 35s. The 65s Host
+// alarm leaves startup/drain margin; Main must not preempt that owner.
 const STRICT_SHUTDOWN_POLICY: AppShutdownPolicy = {
-  forceKillDelayMs: 7_500,
-  waitTimeoutMs: 9_000,
+  forceKillDelayMs: 75_000,
+  waitTimeoutMs: 80_000,
 };
 
-const WINDOWS_NORMAL_SHUTDOWN_POLICY: AppShutdownPolicy = {
-  // 普通退出仍给 Host 内部 3.5 秒进程树兜底留出执行时间，
-  // 但不再承担更新前资源锁扫描所需的额外余量。
-  forceKillDelayMs: 4_000,
-  waitTimeoutMs: 4_500,
-};
+const WINDOWS_NORMAL_SHUTDOWN_POLICY: AppShutdownPolicy = STRICT_SHUTDOWN_POLICY;
 
 export function resolveAppShutdownPolicy(
   kind: AppShutdownKind,

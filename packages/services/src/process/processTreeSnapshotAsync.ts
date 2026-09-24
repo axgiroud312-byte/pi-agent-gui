@@ -26,9 +26,16 @@ function parseWindowsCreationTimeMs(startTime: string): number | undefined {
   }
 }
 
-function collectDescendants(
+function parseWindowsCreationTimeUs(startTime: string): bigint | undefined {
+  if (!startTime.startsWith(WINDOWS_START_TIME_PREFIX)) return undefined;
+  try { return BigInt(startTime.slice(WINDOWS_START_TIME_PREFIX.length)); }
+  catch { return undefined; }
+}
+
+export function collectWindowsDescendants(
   rootPid: number,
   identities: readonly ProcessIdentity[],
+  rootCreatedAtUs: bigint,
 ): ProcessIdentity[] {
   const childrenByParentPid = new Map<number, ProcessIdentity[]>();
   for (const identity of identities) {
@@ -38,15 +45,19 @@ function collectDescendants(
   }
   const descendants: ProcessIdentity[] = [];
   const seen = new Set<number>([rootPid]);
-  const visit = (pid: number) => {
+  const visit = (pid: number, parentCreatedAtUs: bigint) => {
     for (const child of childrenByParentPid.get(pid) ?? []) {
       if (seen.has(child.pid)) continue;
+      // ParentProcessId can outlive its original process. An older child of a
+      // recycled PID cannot belong to this root, even if its PPID matches.
+      const createdAtUs = parseWindowsCreationTimeUs(child.startTime);
+      if (createdAtUs === undefined || createdAtUs < parentCreatedAtUs) continue;
       seen.add(child.pid);
       descendants.push(child);
-      visit(child.pid);
+      visit(child.pid, createdAtUs);
     }
   };
-  visit(rootPid);
+  visit(rootPid, rootCreatedAtUs);
   return descendants;
 }
 
@@ -81,12 +92,15 @@ export async function captureProcessTreeSnapshotAsync(
   const ownedProcessExitedAtMs =
     options.ownedProcessExitedAtMs ?? options.resolveOwnedProcessExitedAtMs?.();
   const rootIdentity = processList.find((identity) => identity.pid === child.pid);
-  // 查询期间原 root 退出后，PID 可能在 Node exit 回调与 CIM 返回之间
+  const rootCreatedAtUs = rootIdentity && parseWindowsCreationTimeUs(rootIdentity.startTime);
+  // 查询期间原 root 退出后，PID 可能在 Node exit 回调与进程快照返回之间
   // 被复用。查询完成时间不是受管进程的退出时间；一旦已观察到 child 退出，只能使用
   // 调用方记录的可信退出上界恢复旧后代，绝不能把同 PID 的当前进程认作原 root。
   const identities =
-    rootIdentity && !childExitedDuringQuery
-      ? [rootIdentity, ...collectDescendants(child.pid, processList)]
+    rootIdentity && rootCreatedAtUs !== undefined && !childExitedDuringQuery
+      ? [rootIdentity, ...collectWindowsDescendants(
+          child.pid, processList, rootCreatedAtUs,
+        )]
       : collectExitedRootDescendants(
           child.pid,
           processList,
@@ -121,7 +135,7 @@ function collectExitedRootDescendants(
     const createdAtMs = parseWindowsCreationTimeMs(identity.startTime);
     return createdAtMs !== undefined && createdAtMs >= startedAtMs && createdAtMs < exitedAtMs;
   });
-  return collectDescendants(rootPid, lifecycleCandidates);
+  return collectWindowsDescendants(rootPid, lifecycleCandidates, BigInt(Math.trunc(startedAtMs)) * 1_000n);
 }
 
 export async function captureExitedRootDescendantsSnapshotAsync(

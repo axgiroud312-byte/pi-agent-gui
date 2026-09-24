@@ -15,6 +15,7 @@
  */
 import { createHostDatabaseStartup } from "./hostDatabaseStartup.js";
 import { randomUUID } from "node:crypto";
+import { fileURLToPath } from "node:url";
 import {
   MessagePortProtocol,
   ChannelServer,
@@ -1837,6 +1838,9 @@ function wireLocalResourceTelemetry(services: ServiceCollection): void {
     services,
     postMessage: (message) => parentPort?.postMessage(message),
     runtimeSurface: "local",
+    // Pi does not publish the old Agent/MCP resource telemetry. Do not
+    // subscribe to a legacy source or imply that unavailable samples exist.
+    telemetrySupported: false,
     onError: (error) => logger.warn("local resource telemetry subscription failed", error),
   });
 }
@@ -2148,19 +2152,24 @@ async function disposeHostResources(reason: string): Promise<HostShutdownResult>
           name: "remote-registry-dispose",
           run: () => windowRemoteConnectionRegistry.dispose(),
           timeoutMs: 6_000,
+          mustComplete: true,
         },
         ...(servicesToDispose
           ? [
               {
                 name: "service-dispose",
                 run: () => disposeServiceResourcesAndWait(servicesToDispose),
-                timeoutMs: 3_500,
+                // clear_queue + abort + abort_bash + owned tree identity/force
+                // share this Host owner barrier; expiration only logs, never exits.
+                timeoutMs: 65_000,
+                mustComplete: true,
               },
             ]
           : []),
       ],
       {
         phaseTimeoutMs: 5_000,
+        concurrent: true,
         log: (message, details) => logger.warn(message, details),
       },
     );
@@ -2804,6 +2813,7 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
           log: (message, details) => logger.warn(message, details),
           establishOwner: () => {
             const initializedServices = createLocalServices({
+              piAgentRpcEntry: fileURLToPath(import.meta.resolve("@earendil-works/pi-coding-agent/rpc-entry")),
               parentPort,
               settingService,
               prepareLegacyAccountConnections,
@@ -2902,6 +2912,10 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
   }
 });
 
+function rejectUnimplementedPiRemoteRuntime(): void {
+  throw new Error("Remote workspace Agent is not Pi-backed yet; this execution target is unavailable.");
+}
+
 async function setupRemoteConnection(
   target: RemoteTarget,
   remoteAssets: RemoteAssetDirs,
@@ -2911,6 +2925,10 @@ async function setupRemoteConnection(
   deployLockMode: DeployLockMode = "remote",
   signal?: AbortSignal,
 ): Promise<HostRemoteConnection> {
+  // The shipped remote zcode-server still constructs the old Agent. Until
+  // a Pi-owned remote target is implemented, fail before connecting rather
+  // than silently use the wrong engine. Keep the native UI entry and error.
+  rejectUnimplementedPiRemoteRuntime();
   // 延迟加载 remote backend，避免 local 模式下因 ssh2 依赖链进入 asar 后崩溃
   const { createRemoteBackend, connectRemote, pickRemoteRuntimeEnv } =
     await import("@zcode/server/remote");

@@ -128,9 +128,15 @@ async function buildWorkspaceGroupsFromSessions(params: {
     const scopeTaskIndexItems = taskIndexItems.filter(
       (task) => buildTaskWorkspaceKey(task.workspacePath, task.workspaceIdentity) === scopeKey,
     );
+    const indexedIds = new Set(scopeTaskIndexItems.map(task => task.taskId));
+    // A Pi session has a Pi-owned JSONL history and app-owned bookmark, not a
+    // ZCode task-index row. Use its native sessions-index fact as a list row;
+    // never create a legacy task or route execution into the old agent.
+    const sessionOnly = scopeSessions.filter(session =>
+      !indexedIds.has(session.taskId) && session.status !== undefined);
     // "workspace" 视图规则 = !pinned && !archived，与 "timeline" 同（matchesTaskMembership）。
     const result = buildTaskListResult({
-      taskIndexItems: scopeTaskIndexItems,
+      taskIndexItems: [...scopeTaskIndexItems, ...sessionOnly],
       sessions: scopeSessions,
       kind: "timeline",
       pinnedIds,

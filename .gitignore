@@ -20,4 +20,5 @@ packages/desktop/bundled-tools/
 packages/desktop/mock-cdn/
 packages/desktop/.e2e-*/
 .zcode-runtime/
+.claude/settings.local.json
 *.config.bundled_*.mjs

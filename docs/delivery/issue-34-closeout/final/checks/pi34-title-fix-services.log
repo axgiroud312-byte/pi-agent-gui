@@ -1,0 +1,210 @@
+(node:7804) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[2026-09-24 11:19:57.742] [pid:7804] [zcode-task-service] [zcode-task-service] 历史快照读取完成 {
+  clientMode: 'desktop-continuous',
+  durationMs: 6,
+  indexDurationMs: 0,
+  messageLimit: null,
+  projectionDurationMs: 1,
+  resumeDurationMs: 5,
+  snapshotKind: 'session',
+  stats: {
+    assistantMessages: 0,
+    bodyRefs: 0,
+    contentChars: 0,
+    fileChanges: 0,
+    historyTotalMessages: 0,
+    messages: 0,
+    slashCommands: 0,
+    thoughtChars: 0,
+    toolCalls: 0,
+    toolSliceMessages: 0,
+    truncatedBefore: false,
+    userMessages: 0
+  },
+  taskId: 'claude-import-example',
+  workspaceIdentity: 'example-remote-workspace',
+  workspacePath: '/example/workspace'
+}
+✔ previously imported Claude history becomes a real session for desktop-continuous (29.7734ms)
+[2026-09-24 11:19:57.759] [pid:7804] [zcode-task-service] [zcode-task-service] 历史快照读取完成 {
+  clientMode: 'web-remote-replayable',
+  durationMs: 2,
+  indexDurationMs: 0,
+  messageLimit: null,
+  projectionDurationMs: 0,
+  resumeDurationMs: 2,
+  snapshotKind: 'session',
+  stats: {
+    assistantMessages: 0,
+    bodyRefs: 0,
+    contentChars: 0,
+    fileChanges: 0,
+    historyTotalMessages: 0,
+    messages: 0,
+    slashCommands: 0,
+    thoughtChars: 0,
+    toolCalls: 0,
+    toolSliceMessages: 0,
+    truncatedBefore: false,
+    userMessages: 0
+  },
+  taskId: 'claude-import-example',
+  workspaceIdentity: 'example-remote-workspace',
+  workspacePath: '/example/workspace'
+}
+✔ previously imported Claude history becomes a real session for web-remote-replayable (14.7439ms)
+(node:42196) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ current Project Memory catalog and files remain readable (11.7192ms)
+✔ opening the task index leaves retired ACP IDs and user rows untouched (18.6192ms)
+[2026-09-24 11:19:58.619] [pid:42196] [zcode-task-service] [zcode-task-service] 历史快照读取完成 {
+  clientMode: 'desktop-continuous',
+  durationMs: 1,
+  indexDurationMs: 0,
+  messageLimit: null,
+  projectionDurationMs: 0,
+  resumeDurationMs: 1,
+  snapshotKind: 'session',
+  stats: {
+    assistantMessages: 0,
+    bodyRefs: 0,
+    contentChars: 0,
+    fileChanges: 0,
+    historyTotalMessages: 0,
+    messages: 0,
+    slashCommands: 1,
+    thoughtChars: 0,
+    toolCalls: 0,
+    toolSliceMessages: 0,
+    truncatedBefore: false,
+    userMessages: 0
+  },
+  taskId: 'wrapper-example',
+  workspaceIdentity: null,
+  workspacePath: '/example/workspace'
+}
+[2026-09-24 11:19:58.619] [pid:42196] [zcode-task-service] [zcode-task-service] 历史快照读取完成 {
+  clientMode: 'web-remote-replayable',
+  durationMs: 0,
+  indexDurationMs: 0,
+  messageLimit: null,
+  projectionDurationMs: 0,
+  resumeDurationMs: 0,
+  snapshotKind: 'session',
+  stats: {
+    assistantMessages: 0,
+    bodyRefs: 0,
+    contentChars: 0,
+    fileChanges: 0,
+    historyTotalMessages: 0,
+    messages: 0,
+    slashCommands: 1,
+    thoughtChars: 0,
+    toolCalls: 0,
+    toolSliceMessages: 0,
+    truncatedBefore: false,
+    userMessages: 0
+  },
+  taskId: 'wrapper-example',
+  workspaceIdentity: null,
+  workspacePath: '/example/workspace'
+}
+✔ missing sessions report the owner error even when a valid ACP snapshot exists (7.232ms)
+✔ current session recovery preserves Desktop and replayable projections (5.8259ms)
+✔ current Provider configuration starts without an old config migration callback (39.7837ms)
+✔ closing a live Pi session reaps its active bash descendant without harness cleanup (645.6219ms)
+✔ create first input stays accepted when later inspection fails: bad state payload (24.8485ms)
+✔ create first input stays accepted when later inspection fails: get_state timeout (8.1962ms)
+✔ sendText stays accepted when later inspection fails: bad state payload (10.1ms)
+✔ sendText stays accepted when later inspection fails: get_state timeout (8.508ms)
+[pi-agent] native command rejected createSession:pi.commandNotImplemented
+✔ native draft prewarm config mirrors are accepted, but real execution changes still fail closed (13.2205ms)
+[pi-agent] native command rejected createSession:pi.commandNotImplemented
+[pi-agent] native command rejected sendText:pi.commandNotImplemented
+✔ unsupported permissions and execution constraints fail before any Pi side effect (21.9323ms)
+✔ late Stop neither rewrites a settled turn nor cancels a newer run (21.2364ms)
+✔ Stop retains Pi clear_queue handback without claiming queued work will auto-run (13.0839ms)
+✔ a verified no-run command cannot steal the next actual user message correlation (10.9815ms)
+✔ closing a live Pi Agent tool bash aborts its child before releasing the session (614.18ms)
+(node:42904) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ Host channel subscribes to real Pi lifecycle events without a legacy Agent (871.9252ms)
+[pi-agent] session bookmark failed Error
+[pi-agent] session bookmark failed Error
+[pi-agent] session bookmark failed Error
+[pi-agent] native command rejected sendText:pi.commandFailed
+✔ a bookmark failure after accepted Pi input preserves its ACK and blocks a later uncorrelatable input (21.2297ms)
+✔ durable admission fences repeated create across Host restarts and queries saved ACK (12.4776ms)
+[pi-agent] native command rejected sendText:pi.deliveryUnknown
+[pi-agent] native command rejected sendText:pi.deliveryUnknown
+✔ unknown prompt delivery survives Host restart as a blocked session and is never replayed (30.6582ms)
+[pi-agent] native command rejected createSession:pi.deliveryUnknown
+✔ a crash with a reserved unknown-delivery receipt cannot replay a command (2.7675ms)
+✔ startup extension dialog fails closed before Pi attaches stdin and cannot authorize a side effect (302.2389ms)
+✔ real pinned Pi extension dialog without timeout is cancelled, not silently allowed or hung (284.1059ms)
+✔ workspace index is lazy: opening one history starts only its Pi child, exit is recovered without resending (66.8376ms)
+✔ Pi stream and final history produce native text/tool rows with cumulative output replacement (7.5237ms)
+✔ a delayed Stop projection only interrupts its captured command, never a subsequent turn (0.2383ms)
+✔ retry/compaction reconciliation converges live and restored rows while preserving a native command anchor (0.5039ms)
+✔ Pi read card opens the same workspace file that Pi read from its cwd (0.2073ms)
+✔ native GUI draft defaults and firstInput select the pinned Pi model without dropping execution constraints (341.8597ms)
+✔ native v4 subscription and create/stop commands are backed by a real pinned Pi process (280.3185ms)
+✔ real Pi compaction success reports Pi facts and history remains projectable after RPC restart (915.1968ms)
+✔ pinned Pi retries transient model failure and settled native/history rows converge after restart (755.7166ms)
+✔ spawn readiness sends no command, carries cwd/env/literal args, and start is idempotent (50.759ms)
+✔ request before start and start after disposal fail without launching a child (0.5967ms)
+✔ UTF-8 byte chunks, CRLF, LF, multiple records and Unicode separators survive the child boundary (957.9776ms)
+✔ stderr has its own incremental decoder and never becomes a protocol record (541.4841ms)
+✔ malformed stdout is diagnosed, primitives are rejected, and unknown object events are preserved (41.6569ms)
+✔ invalid and truncated UTF-8 are diagnosed and the next LF resynchronizes framing (55.4574ms)
+✔ oversized unterminated stdout is bounded, diagnosed once and discarded until LF (64.1068ms)
+✔ responses correlate unique generated IDs even for simultaneous same-command requests (58.7075ms)
+✔ stdin preserves queue command order while responses may arrive in reverse order (42.8269ms)
+✔ prompt acceptance and agent_end do not manufacture agent_settled (66.1803ms)
+✔ events with request IDs remain events and do not settle the request (50ms)
+✔ notify preserves extension response IDs and needs no command response (44.3529ms)
+✔ Pi rejection and cancelled session operations are responses, not transport failures (41.0815ms)
+✔ command mismatch and malformed response envelopes reject only the correlated request (40.438ms)
+✔ missing, foreign, invalid and duplicate response IDs are diagnostics, never events (41.2024ms)
+✔ final response without LF resolves before exit, including CR and multibyte characters (47.9496ms)
+✔ final event without LF is emitted before exit and incomplete tail UTF-8 is diagnosed (83.0124ms)
+✔ timeout settles a sent request; a late response is not replayed or misrouted (290.0817ms)
+✔ backpressure waits for the child; timed-out queued commands are removed before they can execute (725.8286ms)
+✔ outbound byte limit and queue bound reject overload without killing an otherwise live client (1202.0688ms)
+✔ pending request count is bounded even when stdin has room and no responses arrive (89.141ms)
+✔ notification count is bounded behind a backpressured write and disposal settles every write (102.5493ms)
+✔ notification write deadlines remove unsent notifications and report uncertain active delivery (641.8144ms)
+✔ crash settles all in-flight requests and other client processes remain isolated (89.3495ms)
+✔ a child dying during a backpressured write settles notifications without unhandled pipe errors (207.1047ms)
+✔ exit settles requests even when a descendant keeps stdout and stderr open (86.1674ms)
+✔ an immediate post-spawn exit is observable and the client cannot restart itself (77.2667ms)
+✔ missing executable and invalid cwd reject spawn, emit diagnostics, and can be disposed (2.8399ms)
+✔ disposal during spawn is cancellation-safe and cannot resurrect the client (7.3939ms)
+✔ disposal rejects pending requests, suppresses later records, and reaps a stubborn child (46.7656ms)
+✔ serialization failures and invalid deadlines do not poison the transport or leak requests (41.998ms)
+✔ real Pi 0.87.0 lists resource commands, not TUI /compact; compact is a separate RPC (337.3475ms)
+✔ pinned Pi RPC runs two isolated native sessions (320.5999ms)
+✔ app bookmarks index only existing Pi JSONL histories and never copy their contents (14.0864ms)
+✔ only one Host process owns a Pi session file; dead owner recovery never replays a command (149.5796ms)
+✔ supervisor owns independent pinned Pi processes; idle Stop is a no-op and closing one preserves the other (313.0378ms)
+✔ late records cannot strand a stale settled history read or overwrite a newer Pi result (52.1599ms)
+✔ Pi queue/retry facts and settled authoritative messages replace failed retry rows without losing command anchor (17.754ms)
+✔ two actual Hosts racing to resume one Pi JSONL: loser never constructs or starts Pi (438.0292ms)
+✔ Pi admission, retry, compaction, extension no-run and agent_settled have distinct native phases (7.2825ms)
+✔ Pi native draft and run facts produce schema-valid v4 snapshots without advertising missing capabilities (7.0714ms)
+✔ native workspace release awaits Pi exit and lease release, preserves the other workspace and advances identity (600.1199ms)
+[pi-agent] native command rejected createSession:pi.commandFailed
+✔ workspace release fences new admission and drains an already pending startup without leaking it (4.0015ms)
+✔ local provider baseline materializes only in the personal profile, not bundled resources (54.2197ms)
+✔ startup migrates published ZCode config into personal config without changing the source (68.6698ms)
+✔ startup preserves an existing personal config and never consults the legacy file (24.3913ms)
+✔ invalid legacy config is preserved and does not commit an empty personal config (24.7581ms)
+ℹ tests 81
+ℹ suites 0
+ℹ pass 81
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 25614.0872

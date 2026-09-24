@@ -1,6 +1,21 @@
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { visibleImageHealth } from './image-health.mjs';
+
+// Bind to the tested renderer; never silently select an unrelated visible window.
+export async function resizeNativeWindow(application, page, size) {
+  const handle = await application.browserWindow(page);
+  try {
+    await handle.evaluate((window, target) => {
+      if (window.isDestroyed()) throw new Error('The tested native window was destroyed');
+      if (window.isMinimized()) window.restore();
+      window.show();
+      window.setContentSize(target.width, target.height); window.focus();
+    }, size);
+  } finally { await handle.dispose(); }
+  await page.setViewportSize(size);
+}
 
 export class Evidence {
   constructor(page, application, f, report) {
@@ -17,18 +32,15 @@ export class Evidence {
   async shot(state) {
     await this.page.mouse.move(5, 795);
     await this.page.waitForTimeout(250);
+    const images = await visibleImageHealth(this.page);
     const filename = `${this.size.width}x${this.size.height}-${this.theme}-${state}.png`;
     await mkdir(join(this.f.output, 'screenshots'), { recursive: true });
     await this.page.screenshot({ path: join(this.f.output, 'screenshots', filename), timeout: 30_000, scale: 'css' });
-    this.report.screenshots.push({ state, theme: this.theme, viewport: this.size, file: `screenshots/${filename}` });
+    this.report.screenshots.push({ state, theme: this.theme, viewport: this.size, file: `screenshots/${filename}`, images });
     await writeFile(join(this.f.output, 'screenshots', filename.replace('.png', '.txt')), await this.page.locator('body').innerText());
   }
   async resize(size) {
-    await this.application.evaluate(({ BrowserWindow }, size) => {
-      const window = BrowserWindow.getAllWindows().find(w => w.isVisible());
-      window.setContentSize(size.width, size.height); window.focus();
-    }, size);
-    await this.page.setViewportSize(size);
+    await resizeNativeWindow(this.application, this.page, size);
     this.size = size;
   }
   async setTheme(theme, captureSettings = false) {

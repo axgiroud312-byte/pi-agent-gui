@@ -199,7 +199,7 @@ async function forceTerminateWindowsProcessTree(
   if (childStillOwned && child.pid != null && !unverifiedRootOnly && !deadlineSnapshotOnly) {
     targets.add(child.pid);
   }
-  // 定向 CIM 复核超时不应让仍由 ChildProcess 句柄持有的 root 永久残留。
+  // 定向身份复核超时不应让仍由 ChildProcess 句柄持有的 root 永久残留。
   // 句柄确认 root 仍存活后，taskkill /T 只针对该 root，不会按失效快照认领新 PID。
   if (
     deadlineSnapshotOnly &&
@@ -238,7 +238,7 @@ function terminateWindowsProcessTreeWithOwnership(
     ownership.childStillOwned && !internalOptions.unverifiedRootOnly
       ? [pid]
       : ownership.currentIdentities.map((identity) => identity.pid);
-  // CIM 查询在系统高负载下可能超过一次 cleanup deadline，但仍存活的
+  // 进程身份查询在系统高负载下可能超过一次 cleanup deadline，但仍存活的
   // ChildProcess 句柄可以证明 root 属于当前 Host。此时允许用 root /T 作为安全兜底，
   // 只扩大到该句柄对应的活进程，不沿裸 PID 重新发现或认领进程树。
   if (gracefulTargets.length === 0 && childHandleOwnsLiveRoot) gracefulTargets.push(pid);
@@ -438,7 +438,7 @@ export async function terminateProcessTreeAndWait(
   const snapshotIdentities = cleanupSnapshot?.identities ?? [];
   const identityVerificationUnavailable = cleanupSnapshot?.identityVerification === "unavailable";
   // 刚取得的异步快照已经固定了 Windows 创建标识，避免在 EOF 前立刻重复执行一次
-  // 代价较高的 CIM 查询。force 阶段仍会异步复核身份，防止 PID 复用误杀。
+  // 代价较高的进程身份查询。force 阶段仍会异步复核身份，防止 PID 复用误杀。
   const initialOwnership =
     process.platform === "win32" &&
     cleanupSnapshot &&

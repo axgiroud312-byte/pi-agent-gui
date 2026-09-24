@@ -45,6 +45,7 @@ export interface WindowHostControllerSessionOverlay {
   title?: string;
   titleSource?: "default" | "generated" | "custom";
   updatedAt?: number;
+  createdAt?: number;
   pendingInteraction?: ZCodeTaskMeta["pendingInteraction"];
   activity?: NonNullable<WindowHostControllerTaskRow["activity"]>;
 }
@@ -138,7 +139,25 @@ function statusFromActivity(
 
 function buildSourceRows(source: ControllerSource): Map<string, WindowHostControllerTaskRow> {
   const rows = new Map<string, WindowHostControllerTaskRow>();
-  for (const membership of source.memberships.values()) {
+  // Pi history has authoritative sessions-index facts but no legacy ZCode task
+  // membership. Project it as a native list row without starting a legacy agent.
+  const sessionOnly: WindowHostControllerTaskMembership[] = [];
+  for (const overlay of source.overlays.values()) {
+    const address = addressFor(source.scope, overlay.taskId);
+    if (source.memberships.has(taskKey(address))) continue;
+    const createdAt = overlay.createdAt ?? overlay.updatedAt ?? Date.now();
+    sessionOnly.push({
+      meta: {
+        taskId: overlay.taskId, traceId: overlay.taskId, title: overlay.title ?? "Pi session",
+        workspacePath: source.scope.workspacePath,
+        ...(source.scope.workspaceIdentity ? { workspaceIdentity: source.scope.workspaceIdentity } : {}),
+        createdAt, updatedAt: overlay.updatedAt ?? createdAt, mode: "build",
+        ...(overlay.activity ? { status: statusFromActivity(overlay.activity) } : {}),
+      },
+      membership: { pinned: false, archived: false, active: true },
+    });
+  }
+  for (const membership of [...source.memberships.values(), ...sessionOnly]) {
     const overlay = source.overlays.get(membership.meta.taskId);
     const shouldUseOverlayTitle =
       overlay?.title != null &&
@@ -413,6 +432,11 @@ export function createWindowHostControllerProjection(options: { createId: () => 
       publishWorkspaceDeltas(workspaceDeltas);
     },
 
+    hasTaskMembership(scope: WindowHostControllerSourceScope, taskId: string): boolean {
+      const source = requireSource(scope);
+      return source.memberships.has(taskKey(addressFor(scope, taskId)));
+    },
+
     replaceSourceSessionOverlays(
       scope: WindowHostControllerSourceScope,
       sessionsIndex: WindowHostControllerSessionOverlay[],
@@ -422,6 +446,9 @@ export function createWindowHostControllerProjection(options: { createId: () => 
       source.overlays = new Map(sessionsIndex.map((overlay) => [overlay.taskId, overlay]));
       source.rows = buildSourceRows(source);
       const deltas: WindowHostControllerTaskDelta[] = [];
+      for (const [key, previous] of previousRows) {
+        if (!source.rows.has(key)) deltas.push({ op: "task.removed", address: previous.address });
+      }
       for (const task of source.rows.values()) {
         const previous = previousRows.get(taskKey(task.address));
         if (!previous || !isDeepStrictEqual(previous, task)) {

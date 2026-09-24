@@ -108,6 +108,9 @@ const asarCliPath = resolve(
   "asar.js",
 );
 const REQUIRED_ASAR_RUNTIME_MODULES = [
+  // The product Host resolves this import-only export at runtime and spawns its bundled RPC entry.
+  // Hoisted development installs must not hide a missing Pi package in the installed app.
+  "@earendil-works/pi-coding-agent",
   "module-details-from-path",
   "@opentelemetry/api-logs",
   // Bugfix: telemetry 的 OTLP exporter 会在启动阶段加载 sdk-metrics。pnpm 开发态可从
