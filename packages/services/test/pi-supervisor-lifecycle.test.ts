@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { isAbsolute, join, relative, sep } from 'node:path';
 import { test } from 'node:test';
 import { PiRpcClient } from '../src/pi-agent/pi-rpc-client.js';
 import { PiSessionLease } from '../src/pi-agent/pi-session-lease.js';
@@ -44,7 +44,10 @@ test('create marks an isolated explicit Pi history path before constructing or s
     const view = await supervisor.createSession(root);
     assert.equal(view.sessionId, client?.id, 'Pi-reported identity is authoritative for a new session');
     assert.equal(view.sessionFile, file);
-    assert.ok(file.startsWith(profile), 'custom agent profile owns the session path');
+    const profileRelativeFile = relative(await realpath(profile), file);
+    assert.ok(profileRelativeFile.split(sep)[0] === 'sessions' &&
+      !profileRelativeFile.startsWith('..') && !isAbsolute(profileRelativeFile),
+      'custom agent profile owns the session path');
     await supervisor.closeSession(view.sessionId);
   } finally {
     await supervisor.dispose();

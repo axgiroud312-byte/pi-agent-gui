@@ -1697,7 +1697,9 @@ export function createLocalServices(options: {
     });
   const defaultCuaProductHelperLifecycle =
     new CuaHelperLifecycleManager<ManagedDefaultCuaProductHelper>(async (managed) => {
-      await managed.helper.host.stop();
+      // The desktop Pi path registers the disposer even when CUA was never
+      // acquired. Its unavailable helper manager may call back with no owner.
+      if (managed) await managed.helper.host.stop();
     });
   const createManagedDefaultCuaProductHelper = (
     context?: CuaProductMcpServerResolverContext,

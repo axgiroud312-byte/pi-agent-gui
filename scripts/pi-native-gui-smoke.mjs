@@ -4,7 +4,7 @@ import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fixture } from './native-smoke/fixture.mjs';
-import { closeOwned } from './native-smoke/cleanup.mjs';
+import { assertCleanExit, closeOwned } from './native-smoke/cleanup.mjs';
 import { startPiModel } from './native-smoke/pi-model.mjs';
 import { drag } from './native-smoke/panels.mjs';
 import { resizeNativeWindow } from './native-smoke/evidence.mjs';
@@ -15,8 +15,7 @@ const f = await fixture();
 const packagedExecutable = process.env.NATIVE_PI_PACKAGED_EXE;
 if (packagedExecutable) {
   f.electronPath = packagedExecutable;
-  // Run the actual asar entry, not the development bootstrap. The packaged app
-  // opens its local conversation workspace without an OS folder picker.
+  // Run the packaged asar entry with its local conversation workspace.
   f.workspace = join(f.home, '.zcode', 'workspace', 'default');
   await mkdir(f.workspace, { recursive: true });
   await writeFile(join(f.workspace, 'README.md'), '# Native parity fixture\n\n**Preview marker: NATIVE_PARITY_PREVIEW**\n');
@@ -24,21 +23,18 @@ if (packagedExecutable) {
   f.env.ZCODE_DESKTOP_PROFILE_HOME = f.home;
   delete f.env.NODE_OPTIONS;
 }
-const launchArgs = packagedExecutable ? []
-  : [fileURLToPath(new URL('./native-smoke/bootstrap.cjs', import.meta.url)), '--lang=zh-CN'];
+const launchArgs = packagedExecutable ? [] : [fileURLToPath(new URL('./native-smoke/bootstrap.cjs', import.meta.url)), '--lang=zh-CN'];
 await isolatePiPackage(f);
 const model = await startPiModel();
 // Target-side Pi identity stays separate from native application metadata.
 await configurePiProfile(f, { url: model.url, modelId: 'pi-native-test', apiKey: 'fixture-not-a-secret' });
 let app;
 const logs = [];
-const report = { at: new Date().toISOString(), workspace: f.workspace, pageErrors: [],
-  modelBoundary: { endpoint: model.url, api: 'openai-completions',
-    inference: 'isolated deterministic loopback fixture, NOT an online provider',
-    tools: 'real pinned Pi 0.87.0 subprocess executes read against the isolated workspace' } };
+const report = { at: new Date().toISOString(), workspace: f.workspace, pageErrors: [], modelBoundary: {
+  endpoint: model.url, api: 'openai-completions', inference: 'isolated deterministic loopback fixture, NOT an online provider',
+  tools: 'real pinned Pi 0.87.0 subprocess executes read against the isolated workspace' } };
 try {
-  app = await f.playwright._electron.launch({ executablePath: f.electronPath,
-    args: launchArgs, cwd: f.root, env: f.env, timeout: 60_000 });
+  app = await f.playwright._electron.launch({ executablePath: f.electronPath, args: launchArgs, cwd: f.root, env: f.env, timeout: 60_000 });
   app.process().stdout?.on('data', chunk => logs.push(String(chunk)));
   app.process().stderr?.on('data', chunk => logs.push(String(chunk)));
   const page = await app.firstWindow();
@@ -190,7 +186,7 @@ try {
   assert.equal(report.bookmarks.length, 1, 'Only the prompted Pi session is indexed, not empty drafts');
   const requestsBeforeRestart = model.requests.length;
   report.firstCleanup = await closeOwned(app, f);
-  assert.deepEqual(report.firstCleanup.survivors, [], 'First Host and Pi process must exit before restart');
+  assertCleanExit(report.firstCleanup, logs, 'First');
   app = await f.playwright._electron.launch({ executablePath: f.electronPath,
     args: launchArgs, cwd: f.root, env: f.env, timeout: 60_000 });
   app.process().stdout?.on('data', chunk => logs.push(String(chunk)));
@@ -396,7 +392,7 @@ try {
   console.error(error);
   await app?.windows()[0]?.screenshot({ path: join(f.output, 'pi-native-failure.png') }).catch(() => {});
 } finally {
-  try { report.cleanup = await closeOwned(app, f); }
+  try { report.cleanup = await closeOwned(app, f); assertCleanExit(report.cleanup, logs, 'Final'); }
   catch (error) { report.cleanupError = String(error); process.exitCode = 1; }
   await model.close();
   await writeFile(join(f.output, 'pi-native-gui-report.json'), JSON.stringify(report, null, 2));

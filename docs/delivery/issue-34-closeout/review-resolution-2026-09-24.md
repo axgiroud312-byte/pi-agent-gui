@@ -15,8 +15,10 @@
 | Spec 1：成功 retry 残留错误 | 已有未提交修复 | 成功 retry 的实时和重启历史 `lastError=null`；耗尽重试保留错误，extension 错误不被模型成功误清。`pi-real-retry-history`、`pi-supervisor-lifecycle` 覆盖。 |
 | Spec 2：dispose 漏在途启动 | 已有未提交修复 | dispose 先封堵新工作，再等待 lease 后、注册前等在途启动和清理；`pi-supervisor-lifecycle`、`pi-workspace-release` 覆盖 gated startup/resume。 |
 | Spec 3：exit/立即 resume 争锁 | 已有未提交修复，另补租约释放顺序 | resume 等待 exit cleanup，exit 等 `client.dispose()` 验证进程树后释放 lease；`pi-supervisor-lifecycle` 覆盖无延时竞争及失败保锁。 |
-| Spec 4：视觉与缺失 SVG | 未完成 | 新 Windows 包内实际 exe 运行 Pi GUI：文本、真实 Pi `read`、Stop、恢复、滚动、标签和会话切换通过；主会话目视复核 1280×800、1920×1080 明暗主题和工具预览截图。原生 18 项 GUI smoke、48 张截图通过；241 个逐帧可见图片均 `complete=true` 且尺寸非零。报告仍记录 `text.svg`、`zcodeignore.svg` 的 19 次请求失败；可见文件图标回退到存在的 `document.svg`/内联图，截图未见破图。浏览器资源请求失败本身保留在报告中，不写成零错误。 |
+| Spec 4：视觉与缺失 SVG | 未完成 | 新 Windows 包内实际 exe 运行 Pi GUI：文本、真实 Pi `read`、Stop、恢复、滚动、标签和会话切换通过；主会话目视复核 1280×800、1920×1080 明暗主题和工具预览截图。最新原生 18 项 GUI smoke、48 张截图通过；237 个逐帧可见图片均 `complete=true` 且尺寸非零。报告仍记录 `text.svg`、`zcodeignore.svg` 的 19 次请求失败；可见文件图标回退到存在的 `document.svg`/内联图，截图未见破图。浏览器资源请求失败本身保留在报告中，不写成零错误。 |
 
-本地最终源码：Pi 服务测试 **105/105**、桌面投影 **1/1**；`tsc -b packages/services packages/desktop/tsconfig.host.json packages/ui` 通过；改动文件定向 oxlint **0 errors、5 条既有 warnings**；`git diff --check` 通过。Windows x64 NSIS 构建、依赖和体积审计通过，安装包 **170.5 MiB**。本地日志与所有构建、测试和 GUI 产物位于仓库 `release/issue-34-closeout/`，未纳入 Git。
+`30c35ad` 的第一轮 Windows push/PR CI 没有通过，不能把前一轮本地通过当成最终验收。失败点逐项复核后只补了缺口：`.gitignore` 的新字节纳入固定 CLI lint 输入基线；Windows 会话路径断言改按真实路径与相对段比较；Pi 进程树识别加入父子创建时间顺序，避免 Windows 复用的旧 ParentProcessId 误认领大量无关进程；GUI 退出改为等待 Host 实际清理，修复无 CUA Helper 时 disposer 读取空对象，并使测试工具识别 CIM `/Date(...)/` 创建时间及验证真实后代清单。进程清理报错和 Host 聚合错误同时保留有界原因，方便下次定位，不放宽 fail-closed。
 
-GUI 测试用隔离的本地确定性模型端点；Pi 是真实固定版本子进程并真实执行 `read`，不等同在线供应商推理或安装升级验收。新包 GUI 报告 `pageErrors=[]`、无隔离目录越界写入、退出后 `survivors=[]`。当前仍须推送、等待**本次提交**的 Windows CI 变绿，再续 Standards / Spec 全 PR 加增量复审；在复审通过前 PR 保持 Draft，#34 保持 OPEN。
+第二轮本地验证：完整 service suite 在最后的进程树改动前 **116/116**；该改动后的 Pi 传输、进程树与 Host 投影 **33/33**。完整仓库 `pnpm run lint` **0 errors / 70 warnings**，完整 `pnpm run typecheck` 通过；相关文件定向 lint **0 errors**。CLI 输入基线检查通过，17 项防绕过测试通过。Windows x64 NSIS **重新打包**，依赖闭包和体积审计通过，安装包 **170.6 MiB**。最终包 `win-unpacked/Pi Agent IDE Preview.exe` 的真实 GUI 复验见 `release/issue-34-closeout/gui-packaged-final2/`：Pi 文本、`read`、Stop、退出重启、历史恢复、滚动、文件预览、标签与双会话通过；两次退出均识别 10 个本轮进程，`graceful=true`、`forced=[]`、`survivors=[]`，`pageErrors=[]`、隔离目录越界写入 `[]`。原生完整 GUI smoke 在最后源码上 **18/18**，48 个截图状态、237 个可见图片实例无破图，页面错误 0；19 次缺失 SVG 请求仍原样保留。主会话目视检查了新包的深色恢复界面和文件预览截图，未见破图。测试与包日志均位于仓库 `release/issue-34-closeout/`，未纳入 Git。
+
+GUI 测试用隔离的本地确定性模型端点；Pi 是真实固定版本子进程并真实执行 `read`，不等同在线供应商推理或安装升级验收。当前仍须提交推送上述第二轮修复、等待**该提交**的 Windows push/PR CI 变绿，再续 Standards / Spec 全 PR 加增量复审；在复审通过前 PR 保持 Draft，#34 保持 OPEN。

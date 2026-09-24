@@ -6,6 +6,7 @@ import { StringDecoder } from 'node:string_decoder';
 import { RpcJsonlDecoder } from './rpc-jsonl.js';
 import { captureProcessTreeSnapshotAsync, terminateProcessTreeAndWait, type ProcessTreeSnapshot } from '../process/processTreeTerminator.js';
 import { readWindowsProcessListAsync } from '../process/windowsProcessListAsync.js';
+import { collectWindowsDescendants } from '../process/processTreeSnapshotAsync.js';
 
 export interface RpcResponse {
   type: 'response';
@@ -374,7 +375,8 @@ export class PiRpcClient extends EventEmitter<ClientEvents> {
         windowsTaskkillTimeoutMs: 2_000,
       });
       if (result.remainingPids.length)
-        throw new Error(`Pi process tree still alive: ${result.remainingPids.join(',')}`);
+        throw new Error(`Pi process tree still alive: root=${pid}, count=${result.remainingPids.length}, ` +
+          `sample=${result.remainingPids.slice(0, 8).join(',')}`);
       if (process.platform === 'win32') {
         // Exited intermediate shells may no longer be visible to /T. A fresh
         // identity-bearing table is required before declaring the lease safe.
@@ -383,7 +385,12 @@ export class PiRpcClient extends EventEmitter<ClientEvents> {
         const remaining = await this.captureExitedTree(pid, options);
         if (remaining) {
           this.treeSnapshot = remaining;
-          throw new Error(`Pi process tree still alive: ${remaining.descendantPids.join(',')}`);
+          // A recycled Windows parent PID can make an exited-root lookup
+          // ambiguous. Keep ownership quarantined, with bounded evidence for
+          // diagnosing the identity table instead of logging every OS PID.
+          throw new Error(`Pi process tree still alive or ancestry ambiguous: root=${pid}, ` +
+            `count=${remaining.descendantPids.length}, windowMs=${this.childExitedAtMs - (this.spawnRequestedAtMs ?? this.childExitedAtMs)}, ` +
+            `sample=${remaining.descendantPids.slice(0, 8).join(',')}`);
         }
       }
       this.ownedChild = undefined;
@@ -416,15 +423,7 @@ export class PiRpcClient extends EventEmitter<ClientEvents> {
         return createdAt >= startedAt && createdAt < exitedAt;
       } catch { return false; }
     });
-    const seen = new Set([rootPid]);
-    const descendants: typeof candidates = [];
-    for (let size = -1; size !== seen.size;) {
-      size = seen.size;
-      for (const candidate of candidates) if (seen.has(candidate.parentPid) && !seen.has(candidate.pid)) {
-        descendants.push(candidate);
-        seen.add(candidate.pid);
-      }
-    }
+    const descendants = collectWindowsDescendants(rootPid, candidates, BigInt(Math.trunc(startedAt)) * 1_000n);
     return descendants.length ? {
       rootPid, identities: descendants, descendantPids: descendants.map(identity => identity.pid),
     } : undefined;

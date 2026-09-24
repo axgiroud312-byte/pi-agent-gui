@@ -18,6 +18,17 @@ interface HostShutdownPhaseOptions {
   concurrent?: boolean;
 }
 
+function describeFailure(error: unknown, depth = 0): Record<string, unknown> {
+  if (!(error instanceof Error)) return { name: "UnknownFailure", message: String(error).slice(0, 400) };
+  return {
+    name: error.name,
+    message: error.message.slice(0, 400),
+    ...(depth < 3 && error instanceof AggregateError
+      ? { errors: error.errors.slice(0, 8).map(cause => describeFailure(cause, depth + 1)) } : {}),
+    ...(depth < 3 && error.cause ? { cause: describeFailure(error.cause, depth + 1) } : {}),
+  };
+}
+
 export async function runHostShutdownPhases(
   phases: HostShutdownPhase[],
   options: HostShutdownPhaseOptions,
@@ -54,7 +65,7 @@ export async function runHostShutdownPhases(
       const final = await operation;
       if (final.kind === "failed") {
         failedPhases.push(phase.name);
-        options.log("host shutdown phase failed after timeout", { phase: phase.name, error: final.error });
+        options.log("host shutdown phase failed after timeout", { phase: phase.name, error: describeFailure(final.error) });
       }
       return;
     }
@@ -62,7 +73,7 @@ export async function runHostShutdownPhases(
       failedPhases.push(phase.name);
       options.log("host shutdown phase failed", {
         elapsedMs: Date.now() - startedAt,
-        error: result.error,
+        error: describeFailure(result.error),
         phase: phase.name,
       });
     }

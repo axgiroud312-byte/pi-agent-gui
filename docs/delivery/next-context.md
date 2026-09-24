@@ -4,7 +4,7 @@
 
 ## 2026-09-24 恢复的当前状态
 
-用户已授权只修 #34 的既有阻塞后整理提交、推送 PR #39，先过 Windows CI，再独立 Standards/Spec 复审。服务81/81、最终两条GUI、完整新Windows包及打包exe GUI通过，详见[最终本地证据](issue-34-closeout/final/README.md)与[恢复记录](issue-34-closeout/resume-2026-09-24.md)。尚无最新绿CI或复审PASS，不合并/关闭、不推进后续票；下文旧“不提交、仅续旧实例”等停点已被本轮用户要求替代。唯一工作树仍为 Temp/opencode/pi-native-pi-34，未跟踪 `%SystemDrive%/` 保留且不提交。
+用户当前指令：**只收尾 #34，唯一执行目录是 `C:\Users\niilo\Desktop\pi-agent-gui`，分支 `issue-34-native-pi-rpc`；不新建工作树，不触碰 `D:\Temp` 的对照/审查快照。** PR #39 保持 Draft、#34 保持 OPEN。对 `4fd60df` 的 12 条 Standards/Spec 意见逐项处理和第二轮本地验证见[收口记录](issue-34-closeout/review-resolution-2026-09-24.md)。`30c35ad` 的第一轮 Windows CI 未过，后续最小修复已在上述目录完成本地测试、重新打包和真实打包 GUI 验证；下一步只提交 #34 文件并等待该提交的 push/PR Windows CI 全绿，再续同一轮 Standards/Spec 全 PR 加新增改动复审。复审通过后停下等用户确认，未经确认不合并、不关闭 #34、不开始 #3–#28。下文 Temp/opencode 路径、旧计数与“先取得计划批准”等内容均为历史快照，不再作为操作指令；未跟踪 `%SystemDrive%/` 保留且不提交。
 
 ## 本轮收尾补充（历史过程）
 
@@ -43,4 +43,4 @@
 
 旧路线和历史检查保存在 [execution-log.md](execution-log.md)、[reuse-inventory.md](reuse-inventory.md) 及原提交；恢复工作时以本入口、最新执行文档及GitHub为准。
 
-下一具体操作：**仅恢复现有 `C:\Users\niilo\AppData\Local\Temp\opencode\pi-native-pi-34` 工作树**。已推送 #34 初始提交 `388f672`、交互/服务增量 `b6c34a9`，同视口原版滚动对照证据随后保存；未跟踪 `%SystemDrive%/` 是缓存，原样保留且不要提交。Draft PR #39 的 Windows CI [35824489392](https://github.com/axgiroud312-byte/pi-agent-gui/actions/runs/35824489392) 失败，修复须先取得明确计划批准；独立 Standards/Spec 审查因合规模型不可用尚无结论。核对 #34 最新正文/评论、[实测与交接](handoff-2026-09-23-issue-34.md)和[原版/Pi 对照](issue-34-parity/README.md)，不要宣称 CI/审查已通过或自动领取后续票。旧自动连续开发指令不再生效。
+下一具体操作以本页顶部当前指令和 GitHub 最新状态为准；本段以前的执行清单保留作历史来源，不再要求恢复 Temp 工作树。核对 #34 最新正文/评论、[逐条收口](issue-34-closeout/review-resolution-2026-09-24.md)和[原版/Pi 对照](issue-34-parity/README.md)，不要在 CI 与复审通过前宣称 #34 已完成。
