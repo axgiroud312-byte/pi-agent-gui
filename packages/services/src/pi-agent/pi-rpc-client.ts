@@ -411,7 +411,7 @@ export class PiRpcClient extends EventEmitter<ClientEvents> {
     rootPid: number,
     options: { windowsCleanupDeadlineAtMs: number; ownedProcessStartedAtMs?: number },
   ): Promise<ProcessTreeSnapshot | undefined> {
-    // Unlike an undefined snapshot, a *nonempty* CIM table distinguishes
+    // Unlike an undefined snapshot, a *nonempty* process table distinguishes
     // verified absence from a failed identity lookup. Windows retains the
     // creator PID when a parent exits; limit ancestry by the actual root
     // lifetime so a later recycled PID cannot acquire our descendants.

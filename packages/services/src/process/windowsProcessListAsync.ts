@@ -4,13 +4,14 @@ import type {
   ProcessIdentity,
   ProcessTreeTerminatorOptions,
 } from "#src/process/processTreeTypes.js";
+import { WINDOWS_TOOLHELP_PROCESS_COMMAND } from "#src/process/windowsToolhelpProcessCommand.js";
 
 const WINDOWS_PROCESS_LOOKUP_TIMEOUT_MS = 25_000;
 const DOTNET_UNIX_EPOCH_TICKS = 621_355_968_000_000_000n;
 const TICKS_PER_MICROSECOND = 10n;
 const WINDOWS_START_TIME_PREFIX = "windows-utc-us:";
 
-type WindowsCimCapability = "cim" | "identity-unavailable";
+type WindowsInventoryCapability = "toolhelp" | "identity-unavailable";
 
 interface WindowsProcessListFlight {
   promise: Promise<readonly ProcessIdentity[]>;
@@ -18,20 +19,23 @@ interface WindowsProcessListFlight {
 }
 
 let windowsProcessListInFlight: WindowsProcessListFlight | undefined;
-let windowsCimCapability: WindowsCimCapability | undefined;
+let windowsInventoryCapability: WindowsInventoryCapability | undefined;
 
 function systemPowerShell(): { executable: string; env: NodeJS.ProcessEnv } {
   const systemRoot = process.env.SystemRoot ?? process.env.SYSTEMROOT ?? "C:\\Windows";
   const home = join(systemRoot, "System32", "WindowsPowerShell", "v1.0");
-  // An isolated desktop profile may have no user module path. CIM is a system
-  // cmdlet; use the same explicit module root as the real GUI process probe.
-  return { executable: join(home, "powershell.exe"),
-    env: { ...process.env, PSModulePath: join(home, "Modules") } };
+  return { executable: join(home, "powershell.exe"), env: process.env };
 }
 
-function isHardCimUnavailable(error: unknown): boolean {
+function isHardInventoryUnavailable(error: unknown): boolean {
   const code = (error as NodeJS.ErrnoException | undefined)?.code;
   return code === "ENOENT" || code === "EACCES" || code === "EPERM";
+}
+
+function lookupFailure(error: unknown, stderr: string): string {
+  const failure = error as NodeJS.ErrnoException & { signal?: string; killed?: boolean } | undefined;
+  return `code=${failure?.code ?? "?"} signal=${failure?.signal ?? "?"} ` +
+    `killed=${failure?.killed === true} stderr=${stderr.slice(0, 100)}`;
 }
 
 function remainingWindowsCleanupMs(options: ProcessTreeTerminatorOptions): number | undefined {
@@ -91,14 +95,14 @@ function parseWindowsProcessList(stdout: string): ProcessIdentity[] {
     const [pidText, parentPidText, rawStartTime] = line.trim().split(/\s+/);
     const pid = parsePositiveInteger(pidText);
     const parentPid = parseNonNegativeInteger(parentPidText);
-    const startTime = normalizePowerShellStartTime(rawStartTime);
+    const startTime = normalizeDotNetStartTime(rawStartTime);
     if (pid === undefined || parentPid === undefined || !startTime) continue;
     identities.push({ parentPid, pid, startTime });
   }
   return identities;
 }
 
-function normalizePowerShellStartTime(rawStartTime: string | undefined): string | undefined {
+function normalizeDotNetStartTime(rawStartTime: string | undefined): string | undefined {
   if (!rawStartTime) return undefined;
   try {
     const unixMicroseconds =
@@ -115,9 +119,9 @@ export async function verifyWindowsProcessIdentityAsync(
   options: ProcessTreeTerminatorOptions = {},
 ): Promise<boolean> {
   if (process.platform !== "win32" || timeoutMs <= 0) return false;
-  if (windowsCimCapability === "identity-unavailable") return false;
-  // Windows 11 24H2 及部分 Win10 镜像不再提供 WMIC；Windows 10+ 统一使用
-  // PowerShell/CIM，查询失败仍按 CreationDate 无法确认处理，禁止绕过身份校验强杀。
+  if (windowsInventoryCapability === "identity-unavailable") return false;
+  // A fresh Toolhelp snapshot must match the original creation time before
+  // taskkill uses a PID. A failed inventory still forbids an unverified kill.
   return await new Promise<boolean>((resolve) => {
     const shell = systemPowerShell();
     execFile(
@@ -127,7 +131,7 @@ export async function verifyWindowsProcessIdentityAsync(
         "-NoProfile",
         "-NonInteractive",
         "-Command",
-        `Get-CimInstance -ClassName Win32_Process -Property ProcessId,ParentProcessId,CreationDate -Filter "ProcessId = ${identity.pid}" | ForEach-Object { '{0} {1} {2}' -f $_.ProcessId, $_.ParentProcessId, $_.CreationDate.ToUniversalTime().Ticks }`,
+        WINDOWS_TOOLHELP_PROCESS_COMMAND,
       ],
       {
         encoding: "utf8",
@@ -137,11 +141,11 @@ export async function verifyWindowsProcessIdentityAsync(
       },
       (error, stdout, stderr) => {
         if (error || !stdout) {
-          if (isHardCimUnavailable(error)) windowsCimCapability = "identity-unavailable";
+          if (isHardInventoryUnavailable(error)) windowsInventoryCapability = "identity-unavailable";
           warn(
             options,
-            `Windows root 身份 PowerShell 复核失败 pid=${identity.pid}:`,
-            error ?? stderr,
+            `Windows root 身份原生快照复核失败 pid=${identity.pid}:`,
+            lookupFailure(error, stderr),
           );
           resolve(false);
           return;
@@ -149,7 +153,7 @@ export async function verifyWindowsProcessIdentityAsync(
         const current = parseWindowsProcessList(stdout).find(
           (processIdentity) => processIdentity.pid === identity.pid,
         );
-        windowsCimCapability = "cim";
+        windowsInventoryCapability = "toolhelp";
         resolve(current?.startTime === identity.startTime);
       },
     );
@@ -159,7 +163,7 @@ export async function verifyWindowsProcessIdentityAsync(
 export async function readWindowsProcessListAsync(
   options: ProcessTreeTerminatorOptions,
 ): Promise<readonly ProcessIdentity[]> {
-  if (windowsCimCapability === "identity-unavailable") return [];
+  if (windowsInventoryCapability === "identity-unavailable") return [];
   const ownedProcessStartedAtMs = options.ownedProcessStartedAtMs;
   if (
     windowsProcessListInFlight &&
@@ -169,14 +173,14 @@ export async function readWindowsProcessListAsync(
     return await awaitWindowsProcessListWithinDeadline(windowsProcessListInFlight.promise, options);
   }
 
-  // Get-CimInstance 在部分 Windows 机器上会超过 1 秒。同步等待会阻塞 Host
-  // 的退出 deadline；共享同一个异步查询后，多个 workspace 可以复用一次系统进程表。
+  // Toolhelp returns PID/PPID and GetProcessTimes supplies a creation identity.
+  // Keep the lookup asynchronous so Host can honor its owner barrier.
   // 旧共享 Promise 可能早于新 Agent 的 spawn 开始，复用这张进程表必然找不到
   // 新 root 并退化为 unverified。只有严格晚于 root 启动的查询才具备可复用资格。
   const startedAtMs = Date.now();
   const request = new Promise<readonly ProcessIdentity[]>((resolve) => {
-    // 移除 WMIC 后直接走受支持的 CIM 后端，避免 ENOENT fallback 消耗 cleanup
-    // deadline；查询失败返回空身份，调用方继续沿 fail-closed 路径观察退出。
+    // A failed native inventory yields no identity; the owner remains
+    // quarantined rather than falling back to an unchecked PID signal.
     const timeoutMs = boundedWindowsLookupTimeoutMs(WINDOWS_PROCESS_LOOKUP_TIMEOUT_MS, options);
     if (timeoutMs <= 0) {
       resolve([]);
@@ -191,7 +195,7 @@ export async function readWindowsProcessListAsync(
         "-NoProfile",
         "-NonInteractive",
         "-Command",
-        "Get-CimInstance -ClassName Win32_Process -Property ProcessId,ParentProcessId,CreationDate | ForEach-Object { '{0} {1} {2}' -f $_.ProcessId, $_.ParentProcessId, $_.CreationDate.ToUniversalTime().Ticks }",
+        WINDOWS_TOOLHELP_PROCESS_COMMAND,
       ],
       {
         encoding: "utf8",
@@ -201,15 +205,15 @@ export async function readWindowsProcessListAsync(
       },
       (error, stdout, stderr) => {
         if (error || !stdout) {
-          if (isHardCimUnavailable(error)) windowsCimCapability = "identity-unavailable";
-          warn(options, "查询 Windows runtime 进程表失败（异步）:", error ?? stderr);
+          if (isHardInventoryUnavailable(error)) windowsInventoryCapability = "identity-unavailable";
+          warn(options, "查询 Windows runtime 原生进程快照失败:", lookupFailure(error, stderr));
           resolve([]);
           return;
         }
         const identities = parseWindowsProcessList(stdout);
         if (identities.length === 0)
-          warn(options, "PowerShell 未返回可解析的 Windows runtime 进程表");
-        if (identities.length > 0) windowsCimCapability = "cim";
+          warn(options, "Toolhelp 未返回可解析的 Windows runtime 进程表");
+        if (identities.length > 0) windowsInventoryCapability = "toolhelp";
         resolve(identities);
       },
     );

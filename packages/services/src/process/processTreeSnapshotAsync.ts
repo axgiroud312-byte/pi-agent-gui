@@ -93,7 +93,7 @@ export async function captureProcessTreeSnapshotAsync(
     options.ownedProcessExitedAtMs ?? options.resolveOwnedProcessExitedAtMs?.();
   const rootIdentity = processList.find((identity) => identity.pid === child.pid);
   const rootCreatedAtUs = rootIdentity && parseWindowsCreationTimeUs(rootIdentity.startTime);
-  // 查询期间原 root 退出后，PID 可能在 Node exit 回调与 CIM 返回之间
+  // 查询期间原 root 退出后，PID 可能在 Node exit 回调与进程快照返回之间
   // 被复用。查询完成时间不是受管进程的退出时间；一旦已观察到 child 退出，只能使用
   // 调用方记录的可信退出上界恢复旧后代，绝不能把同 PID 的当前进程认作原 root。
   const identities =
