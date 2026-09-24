@@ -1,10 +1,11 @@
 import { execFile } from "node:child_process";
+import { join } from "node:path";
 import type {
   ProcessIdentity,
   ProcessTreeTerminatorOptions,
 } from "#src/process/processTreeTypes.js";
 
-const WINDOWS_PROCESS_LOOKUP_TIMEOUT_MS = 2_500;
+const WINDOWS_PROCESS_LOOKUP_TIMEOUT_MS = 5_000;
 const DOTNET_UNIX_EPOCH_TICKS = 621_355_968_000_000_000n;
 const TICKS_PER_MICROSECOND = 10n;
 const WINDOWS_START_TIME_PREFIX = "windows-utc-us:";
@@ -18,6 +19,15 @@ interface WindowsProcessListFlight {
 
 let windowsProcessListInFlight: WindowsProcessListFlight | undefined;
 let windowsCimCapability: WindowsCimCapability | undefined;
+
+function systemPowerShell(): { executable: string; env: NodeJS.ProcessEnv } {
+  const systemRoot = process.env.SystemRoot ?? process.env.SYSTEMROOT ?? "C:\\Windows";
+  const home = join(systemRoot, "System32", "WindowsPowerShell", "v1.0");
+  // An isolated desktop profile may have no user module path. CIM is a system
+  // cmdlet; use the same explicit module root as the real GUI process probe.
+  return { executable: join(home, "powershell.exe"),
+    env: { ...process.env, PSModulePath: join(home, "Modules") } };
+}
 
 function isHardCimUnavailable(error: unknown): boolean {
   const code = (error as NodeJS.ErrnoException | undefined)?.code;
@@ -109,17 +119,19 @@ export async function verifyWindowsProcessIdentityAsync(
   // Windows 11 24H2 及部分 Win10 镜像不再提供 WMIC；Windows 10+ 统一使用
   // PowerShell/CIM，查询失败仍按 CreationDate 无法确认处理，禁止绕过身份校验强杀。
   return await new Promise<boolean>((resolve) => {
+    const shell = systemPowerShell();
     execFile(
-      "powershell.exe",
+      shell.executable,
       [
         "-NoLogo",
         "-NoProfile",
         "-NonInteractive",
         "-Command",
-        `Get-CimInstance Win32_Process -Filter "ProcessId = ${identity.pid}" | ForEach-Object { '{0} {1} {2}' -f $_.ProcessId, $_.ParentProcessId, $_.CreationDate.ToUniversalTime().Ticks }`,
+        `Get-CimInstance -ClassName Win32_Process -Property ProcessId,ParentProcessId,CreationDate -Filter "ProcessId = ${identity.pid}" | ForEach-Object { '{0} {1} {2}' -f $_.ProcessId, $_.ParentProcessId, $_.CreationDate.ToUniversalTime().Ticks }`,
       ],
       {
         encoding: "utf8",
+        env: shell.env,
         timeout: timeoutMs,
         windowsHide: true,
       },
@@ -171,17 +183,19 @@ export async function readWindowsProcessListAsync(
       return;
     }
 
+    const shell = systemPowerShell();
     execFile(
-      "powershell.exe",
+      shell.executable,
       [
         "-NoLogo",
         "-NoProfile",
         "-NonInteractive",
         "-Command",
-        "Get-CimInstance Win32_Process | ForEach-Object { '{0} {1} {2}' -f $_.ProcessId, $_.ParentProcessId, $_.CreationDate.ToUniversalTime().Ticks }",
+        "Get-CimInstance -ClassName Win32_Process -Property ProcessId,ParentProcessId,CreationDate | ForEach-Object { '{0} {1} {2}' -f $_.ProcessId, $_.ParentProcessId, $_.CreationDate.ToUniversalTime().Ticks }",
       ],
       {
         encoding: "utf8",
+        env: shell.env,
         timeout: timeoutMs,
         windowsHide: true,
       },

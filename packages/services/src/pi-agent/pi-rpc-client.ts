@@ -72,7 +72,7 @@ const DEFAULT_TIMEOUT_MS = 30_000;
 const EXIT_DRAIN_MS = 1_000;
 // Teardown's absolute deadline includes the Windows identity query, taskkill,
 // and observation. The Host/main budgets must include this after RPC cancellation.
-export const PI_TREE_CLEANUP_MS = 8_000;
+export const PI_TREE_CLEANUP_MS = 12_000;
 
 interface PendingRequest {
   command: string;
