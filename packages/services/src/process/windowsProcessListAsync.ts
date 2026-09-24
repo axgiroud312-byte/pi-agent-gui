@@ -24,7 +24,10 @@ let windowsInventoryCapability: WindowsInventoryCapability | undefined;
 function systemPowerShell(): { executable: string; env: NodeJS.ProcessEnv } {
   const systemRoot = process.env.SystemRoot ?? process.env.SYSTEMROOT ?? "C:\\Windows";
   const home = join(systemRoot, "System32", "WindowsPowerShell", "v1.0");
-  return { executable: join(home, "powershell.exe"), env: process.env };
+  // Electron's isolated Host has no user PSModulePath. Add-Type lives in the
+  // system module tree, so do not depend on profile-dependent module discovery.
+  return { executable: join(home, "powershell.exe"),
+    env: { ...process.env, PSModulePath: join(home, "Modules") } };
 }
 
 function isHardInventoryUnavailable(error: unknown): boolean {
@@ -35,7 +38,7 @@ function isHardInventoryUnavailable(error: unknown): boolean {
 function lookupFailure(error: unknown, stderr: string): string {
   const failure = error as NodeJS.ErrnoException & { signal?: string; killed?: boolean } | undefined;
   return `code=${failure?.code ?? "?"} signal=${failure?.signal ?? "?"} ` +
-    `killed=${failure?.killed === true} stderr=${stderr.slice(0, 100)}`;
+    `killed=${failure?.killed === true} phase=${stderr.trim().slice(-120)}`;
 }
 
 function remainingWindowsCleanupMs(options: ProcessTreeTerminatorOptions): number | undefined {

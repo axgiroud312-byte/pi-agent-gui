@@ -75,6 +75,10 @@ public static class NativeProcessList {
     }
 }`,
   "'@",
+  "[Console]::Error.WriteLine('toolhelp:boot')",
   "Add-Type -TypeDefinition $source -Language CSharp",
-  "[NativeProcessList]::Read()",
+  "[Console]::Error.WriteLine('toolhelp:compiled')",
+  "$rows = [NativeProcessList]::Read()",
+  "[Console]::Error.WriteLine('toolhelp:read=' + $rows.Count)",
+  "$rows",
 ].join("\n");

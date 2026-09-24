@@ -9,6 +9,8 @@ import {
 
 test('Windows native inventory records the owned PID, parent and stable creation identity',
   { skip: process.platform !== 'win32' }, async () => {
+    const inheritedModulePath = process.env.PSModulePath;
+    delete process.env.PSModulePath; // Match the isolated Electron Host, not the CI test shell.
     const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' });
     try {
       await once(child, 'spawn');
@@ -29,5 +31,7 @@ test('Windows native inventory records the owned PID, parent and stable creation
     } finally {
       if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
       if (child.exitCode === null && child.signalCode === null) await once(child, 'exit');
+      if (inheritedModulePath === undefined) delete process.env.PSModulePath;
+      else process.env.PSModulePath = inheritedModulePath;
     }
   });
