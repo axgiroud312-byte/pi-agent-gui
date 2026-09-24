@@ -24,10 +24,7 @@ let windowsInventoryCapability: WindowsInventoryCapability | undefined;
 function systemPowerShell(): { executable: string; env: NodeJS.ProcessEnv } {
   const systemRoot = process.env.SystemRoot ?? process.env.SYSTEMROOT ?? "C:\\Windows";
   const home = join(systemRoot, "System32", "WindowsPowerShell", "v1.0");
-  // Electron's isolated Host has no user PSModulePath. Add-Type lives in the
-  // system module tree, so do not depend on profile-dependent module discovery.
-  return { executable: join(home, "powershell.exe"),
-    env: { ...process.env, PSModulePath: join(home, "Modules") } };
+  return { executable: join(home, "powershell.exe"), env: process.env };
 }
 
 function isHardInventoryUnavailable(error: unknown): boolean {

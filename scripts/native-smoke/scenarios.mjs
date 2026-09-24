@@ -38,6 +38,8 @@ async function configureModel(page, f, e) {
   // between hovering the provider and selecting the model on Windows.
   await page.getByRole('menuitem', { name: '新供应商', exact: true }).press('ArrowRight');
   await page.getByText('parity-controlled', { exact: true }).click();
+  await page.getByTestId('chat-model-select-trigger').filter({ hasText: 'parity-controlled' })
+    .waitFor({ state: 'visible', timeout: 10_000 });
   assert.match(await page.getByTestId('chat-model-select-trigger').innerText(), /parity-controlled/);
 }
 

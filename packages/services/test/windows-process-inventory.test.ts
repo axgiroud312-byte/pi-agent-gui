@@ -1,11 +1,27 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { once } from 'node:events';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import {
   readWindowsProcessListAsync,
   verifyWindowsProcessIdentityAsync,
 } from '../src/process/windowsProcessListAsync.js';
+import {
+  WINDOWS_TOOLHELP_ASSEMBLY_BASE64,
+  WINDOWS_TOOLHELP_ASSEMBLY_SHA256,
+  WINDOWS_TOOLHELP_SOURCE_SHA256,
+} from '../src/process/windowsToolhelpProcessCommand.js';
+
+test('precompiled Windows inventory keeps its reviewable source and assembly bytes intact', () => {
+  const source = readFileSync(new URL('../src/process/NativeProcessList.cs', import.meta.url));
+  const assembly = Buffer.from(WINDOWS_TOOLHELP_ASSEMBLY_BASE64, 'base64');
+  assert.equal(createHash('sha256').update(source).digest('hex').toUpperCase(),
+    WINDOWS_TOOLHELP_SOURCE_SHA256);
+  assert.equal(createHash('sha256').update(assembly).digest('hex').toUpperCase(),
+    WINDOWS_TOOLHELP_ASSEMBLY_SHA256);
+});
 
 test('Windows native inventory records the owned PID, parent and stable creation identity',
   { skip: process.platform !== 'win32' }, async () => {
