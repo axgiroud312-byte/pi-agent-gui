@@ -1,0 +1,12 @@
+✔ original fixture emits its actual Agent read contract (26.232ms)
+✔ product fixture emits its actual Agent read contract (6.6192ms)
+✔ original waiting fixture retains AskUserQuestion and both answer options (3.5337ms)
+✔ Pi fixture fails rather than impersonating original waiting capability (3.0763ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 127.7982

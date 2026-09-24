@@ -4,7 +4,7 @@
 
 ## 2026-09-24 恢复（优先于下方历史快照）
 
-用户已明确授权修复既有阻塞后提交/推送 PR #39，**先通过 Windows CI，再独立 Standards / Spec 复审**；不合并、不关闭 #34、不推进后续票。本轮已核对最新 PR/CI/Issue，复跑许可、provenance、46 项脚本回归及双 cwd transport，详见 [恢复核验](issue-34-closeout/resume-2026-09-24.md)。生产 S1–S8 本轮修复及两个集成回归已处理；服务81/81、新构建两条GUI、新Windows包和打包exe GUI均通过，见[最终本地证据](issue-34-closeout/final/README.md)。正在整理提交推送；尚无新绿CI或独立复审PASS。下文“不提交推送、只继续旧实例”的旧停点不再适用，旧证据仍保留。
+用户已明确授权修复既有阻塞后提交/推送 PR #39，**先通过 Windows CI，再独立 Standards / Spec 复审**；不合并、不关闭 #34、不推进后续票。本轮已核对最新 PR/CI/Issue，复跑许可、provenance、46 项脚本回归及双 cwd transport，详见 [恢复核验](issue-34-closeout/resume-2026-09-24.md)。生产 S1–S8 本轮修复及两个集成回归已处理；服务81/81、新构建两条GUI、新Windows包和打包exe GUI均通过，见[最终本地证据](issue-34-closeout/final/README.md)。生产修复 `d25580b`、CI/证据 `8dc95b7` 已推送 PR #39；Windows CI 已触发，尚无新绿CI或独立复审PASS。下文“不提交推送、只继续旧实例”的旧停点不再适用，旧证据仍保留。
 
 ## 本轮收尾更新（优先于下方旧阶段快照）
 

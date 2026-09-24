@@ -1,0 +1,8 @@
+
+> zcode@3.14.0 architecture:check C:\Users\niilo\AppData\Local\Temp\opencode\pi-native-pi-34
+> node scripts/architecture/architecture-check.mjs check
+
+architecture: OK
+violations: 0
+baseline: 0
+new: 0

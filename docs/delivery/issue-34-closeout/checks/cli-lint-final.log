@@ -1,0 +1,27 @@
+Native CLI import baseline PASS; raw lint exit 1; 86 bounded max-lines; 53 warnings.
+Full raw output, per-package JSON and policy decisions: D:\Temp\pi34-closeout\native-cli-lint-final
+✔ real oxlint: unchanged original overlong source accepted, raw error remains (301.9934ms)
+✔ real oxlint: one unapproved effective line of growth is rejected (66.1702ms)
+✔ real oxlint: unknown overlong file cannot spend an existing file's budget (62.2387ms)
+✔ real oxlint: other error on a baselined file is never forgiven (74.5671ms)
+✔ real oxlint: non-max-lines error in a short new file is rejected (60.2048ms)
+✔ real oxlint: explicit wiring is bounded by both count and reviewed source blob (243.7857ms)
+✔ real oxlint: comments and blank lines use native effective-line semantics (55.1749ms)
+✔ real oxlint: inline suppression cannot silently retire an overlong baseline (78.663ms)
+✔ real oxlint: preserve non-src scopes and --no-ignore, including ignored files (58.2188ms)
+✔ duplicate/new diagnostics, parser errors, malformed output and process failures fail closed (164.2246ms)
+✔ upstream verification refuses a plausible count derived from different source (72.1234ms)
+✔ new files cannot hide max-lines or other errors with inline pragmas (4.8984ms)
+✔ original suppression is retained only for byte-identical source, never new growth (4.7903ms)
+✔ topology rejects new packages, dropped scopes/flags, hooks, root override and hidden config (59.0043ms)
+✔ Turbo plan must cover all 17 packages, exact scopes, and no added task dependencies (6.9261ms)
+✔ raw lint failure is only attributable to a completed matching lint task, not a broken command (0.692ms)
+✔ real Turbo and oxlint under GitHub Actions keep attributable task diagnostics (542.4984ms)
+ℹ tests 17
+ℹ suites 0
+ℹ pass 17
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1926.0513
