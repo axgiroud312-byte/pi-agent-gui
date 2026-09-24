@@ -5,6 +5,8 @@ export async function startPiModel() {
   const requests = [];
   const sockets = new Set();
   const held = new Set();
+  let releaseText;
+  const textObserved = new Promise(resolve => { releaseText = resolve; });
   let scrollFrames = 0;
   const server = createServer(async (req, res) => {
     if (req.method === 'GET' && req.url.split('?')[0] === '/v1/models') {
@@ -44,7 +46,9 @@ export async function startPiModel() {
       ? 'PI_STOP_PARTIAL' : 'PI_TEXT_COMPLETE';
     if (scenario === 'PI_TEXT') {
       send({ content: 'PI_TEXT_' });
-      await new Promise(resolve => setTimeout(resolve, 900));
+      // Hold the partial frame until the GUI has observed it. A fixed delay can
+      // expire before a busy Windows CI renderer paints the streaming state.
+      await textObserved;
       send({ content: 'COMPLETE' });
     } else if (scenario === 'PI_SCROLL') {
       // Long-enough real Pi text stream to overflow the native virtual timeline.
@@ -69,6 +73,7 @@ export async function startPiModel() {
   return { url: `http://127.0.0.1:${server.address().port}/v1`, requests,
     get held() { return held.size; },
     get scrollFrames() { return scrollFrames; },
-    close: async () => { for (const socket of sockets) socket.destroy(); await new Promise(resolve => server.close(resolve)); },
+    releaseText: () => releaseText(),
+    close: async () => { releaseText(); for (const socket of sockets) socket.destroy(); await new Promise(resolve => server.close(resolve)); },
   };
 }

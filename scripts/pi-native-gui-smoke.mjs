@@ -99,6 +99,7 @@ try {
   report.streamPartialVisible = await page.getByRole('button', { name: '停止生成', exact: true }).isVisible();
   await page.screenshot({ path: join(f.output, 'pi-native-streaming.png') });
   assert(report.streamPartialVisible, 'The native stop/stream feedback must be visible before Pi completion');
+  model.releaseText();
   await page.getByText('PI_TEXT_COMPLETE', { exact: true }).waitFor({ timeout: 30_000 });
   report.afterSend = (await page.locator('body').innerText()).slice(-4500);
   await page.screenshot({ path: join(f.output, 'pi-native-text.png') });
