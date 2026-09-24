@@ -2755,6 +2755,11 @@ export function disposeServiceResources(services: ServiceCollection): void {
 }
 
 export async function disposeServiceResourcesAndWait(services: ServiceCollection): Promise<void> {
+  const failures: unknown[] = [];
+  const settle = async (operation: () => void | Promise<void>): Promise<void> => {
+    try { await operation(); }
+    catch (error) { failures.push(error); }
+  };
   // app 关闭时 host 需要等 agent 进程树完成 graceful + force 清理。
   // 旧的同步 dispose 会在 host 退出时丢掉强杀 timer，导致 zcode-cli/app-server 变成孤儿进程。
   const disposableServices = [
@@ -2766,29 +2771,26 @@ export async function disposeServiceResourcesAndWait(services: ServiceCollection
     services.getOptional(IOffPeakTaskService),
   ].filter((service) => service !== undefined);
 
+  // Preserve owner ordering, but an earlier failure must never skip Pi or any
+  // later owner. Report aggregate failure only after every cleanup has settled.
   for (const service of disposableServices) {
-    if (hasDisposeAllAndWait(service)) {
-      await service.disposeAllAndWait();
-    } else if (hasDisposeAll(service)) {
-      service.disposeAll();
-    }
+    await settle(async () => {
+      if (hasDisposeAllAndWait(service)) await service.disposeAllAndWait();
+      else if (hasDisposeAll(service)) service.disposeAll();
+    });
   }
 
   // 等待托管的 Computer Use Helper 终止（best-effort）：Helper 是长生命周期高权限进程，服务释放语义必须显式
   // 收口它，不能只靠 launcher-pid watchdog / 进程退出兜底。
   const managedCuaHelperHost = managedCuaHelperHosts.get(services);
-  if (managedCuaHelperHost) {
-    await managedCuaHelperHost.stop().catch(() => {});
-  }
+  if (managedCuaHelperHost) await settle(() => managedCuaHelperHost.stop());
   // 关闭共享 tasks-index sqlite 句柄（同 disposeServiceResources，异步收口路径也要释放）
-  for (const repo of sharedSqliteRepos.get(services) ?? []) repo.close();
+  for (const repo of sharedSqliteRepos.get(services) ?? []) await settle(() => repo.close());
   sharedSqliteRepos.delete(services);
-  providerRuntimes.get(services)?.dispose();
-  for (const dispose of providerProvisioningTriggerDisposers.get(services) ?? []) dispose();
+  await settle(() => providerRuntimes.get(services)?.dispose());
+  for (const dispose of providerProvisioningTriggerDisposers.get(services) ?? []) await settle(dispose);
   providerProvisioningTriggerDisposers.delete(services);
   providerProvisioningSources.delete(services);
-  await managedHostApiNetworkTransports
-    .get(services)
-    ?.disposeAndWait()
-    .catch(() => {});
+  await settle(async () => { await managedHostApiNetworkTransports.get(services)?.disposeAndWait(); });
+  if (failures.length) throw new AggregateError(failures, "Host service cleanup failed");
 }

@@ -131,9 +131,6 @@ export class PiMessageRows {
           : item.stopReason === "aborted" ? "completedInterrupted" : "completedSuccess");
       }
     }
-    if (lastUser !== undefined && !this.turnStates.has(`pi-turn-${lastUser}`)) {
-      this.turnStates.set(`pi-turn-${lastUser}`, "completedSuccess");
-    }
     const next = this.buildRows();
     const deltas = this.diff(this.rows, next);
     this.rows = next;
@@ -211,6 +208,12 @@ export class PiMessageRows {
       this.messages.findLastIndex(item => item.role === "user"));
   }
 
+  /** A user-only history entry is not evidence that Pi completed a turn. */
+  hasIncompleteTurn(): boolean {
+    const userIndex = this.messages.findLastIndex(item => item.role === "user");
+    return userIndex >= 0 && !this.messages.slice(userIndex + 1).some(item => item.role === "assistant");
+  }
+
   markStopped(commandId: string | undefined): ConversationDelta[] {
     if (!commandId) return [];
     const entry = [...this.sourceByMessageIndex].find(([, source]) => source === commandId);
@@ -228,6 +231,7 @@ export class PiMessageRows {
     const userIndex = this.messages.findLastIndex(item => item.role === "user");
     if (userIndex < 0) return;
     const lastAssistant = this.messages.slice(userIndex + 1).findLast(item => item.role === "assistant");
+    if (!lastAssistant) return;
     this.turnStates.set(`pi-turn-${userIndex}`,
       interrupted || lastAssistant?.stopReason === "aborted" ? "completedInterrupted"
         : lastAssistant?.stopReason === "error" ? "failed" : "completedSuccess");

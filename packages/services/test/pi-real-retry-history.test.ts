@@ -11,6 +11,70 @@ import { sessionsIndexTopicWireFrameSchema } from '@zcode/shared/zcode-protocol-
 import { PiNativeV4Service } from '../src/pi-agent/pi-native-v4-service.js';
 import { PiSessionSupervisor } from '../src/pi-agent/pi-session-supervisor.js';
 
+test('pinned Pi exhausted retry retains model failure in the native control', { timeout: 30_000 }, async () => {
+  const root = await mkdtemp(join(tmpdir(), 'pi-exhausted-retry-'));
+  const profile = join(root, 'profile');
+  let attempts = 0;
+  const server = createServer(async (req, res) => {
+    for await (const _ of req) { /* drain model request */ }
+    attempts++;
+    res.writeHead(503, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ error: { message: 'still overloaded', type: 'server_error' } }));
+  });
+  let service: PiNativeV4Service | undefined;
+  try {
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    assert.ok(address && typeof address !== 'string');
+    await mkdir(profile);
+    await writeFile(join(profile, 'models.json'), JSON.stringify({ providers: {
+      'retry-contract': { baseUrl: `http://127.0.0.1:${address.port}/v1`, api: 'openai-completions',
+        apiKey: 'local-test-only', models: [{ id: 'retry-contract' }] },
+    } }));
+    await writeFile(join(profile, 'settings.json'), JSON.stringify({ retry: {
+      enabled: true, maxRetries: 1, baseDelayMs: 20, provider: { maxRetries: 0 },
+    } }));
+    const runtime = new PiSessionSupervisor({
+      piEntry: fileURLToPath(import.meta.resolve('@earendil-works/pi-coding-agent/rpc-entry')),
+      env: { PI_CODING_AGENT_DIR: profile, PI_TELEMETRY: '0' },
+      rpcArgs: ['--offline', '--no-extensions', '--no-skills', '--no-prompt-templates', '--no-context-files',
+        '--provider', 'retry-contract', '--model', 'retry-contract'],
+    });
+    service = new PiNativeV4Service(runtime, join(root, 'catalog'));
+    const target = { workspacePath: root };
+    const create = await service.sendConversationCommandV4({ ...target, envelope: {
+      commandId: randomUUID(), clientId: 'exhausted-retry', sessionId: null, type: 'createSession',
+      issuedAt: Date.now(), payload: { workspaceId: root },
+    } });
+    assert.equal(create.result?.type, 'createSession');
+    if (create.result?.type !== 'createSession') throw Error('missing Pi session');
+    const sessionId = create.result.sessionId;
+    const settled = (async () => {
+      for await (const [id, record] of on(runtime, 'record', { signal: AbortSignal.timeout(20_000) })) {
+        if (id === sessionId && record.type === 'agent_settled') return;
+      }
+    })();
+    const ack = await service.sendConversationCommandV4({ ...target, envelope: {
+      commandId: randomUUID(), clientId: 'exhausted-retry', sessionId, type: 'sendText', issuedAt: Date.now(),
+      payload: { text: 'must fail after retries' },
+    } });
+    assert.equal(ack.status, 'accepted');
+    await settled;
+    assert.equal(attempts, 2);
+    assert.equal(runtime.getSession(sessionId)?.phase, 'error');
+    assert.match(runtime.getSession(sessionId)?.error ?? '', /overloaded/);
+    const record = (service as unknown as { sessions: Map<string, {
+      snapshot: { control: { lastError: { message: string } | null } } }> }).sessions.get(sessionId);
+    assert.match(record?.snapshot.control.lastError?.message ?? '', /overloaded/);
+    await (service as unknown as { reconciliations: Map<string, Promise<void>> }).reconciliations.get(sessionId);
+  } finally {
+    await service?.dispose();
+    server.closeAllConnections();
+    await new Promise<void>(resolve => server.close(() => resolve()));
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('pinned Pi retries transient model failure and settled native/history rows converge after restart',
   { timeout: 40_000 }, async () => {
     const root = await mkdtemp(join(tmpdir(), 'pi-real-retry-'));
@@ -75,6 +139,11 @@ test('pinned Pi retries transient model failure and settled native/history rows 
       assert.equal(ack.status, 'accepted', ack.message);
       await settled;
       assert.equal(attempts, 2, 'Pi itself, not the GUI, retries the provider request');
+      assert.equal(runtime.getSession(sessionId)?.phase, 'settled');
+      assert.equal(runtime.getSession(sessionId)?.error, undefined, 'successful retry must clear only its transient error');
+      const liveRecord = (service as unknown as { sessions: Map<string, {
+        snapshot: { control: { lastError: unknown } } }> }).sessions.get(sessionId);
+      assert.equal(liveRecord?.snapshot.control.lastError, null, 'successful retry clears live native lastError');
       await (service as unknown as { reconciliations: Map<string, Promise<void>> }).reconciliations.get(sessionId);
       const expected = await runtime.getMessages(sessionId);
       assert.ok(expected.length >= 2);

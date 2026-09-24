@@ -30,3 +30,15 @@ test("Pi native draft and run facts produce schema-valid v4 snapshots without ad
   assert.equal(stopped.control.phase, "completedInterrupted");
   assert.equal(stopped.control.canStop, false);
 });
+
+test("a settled user-only Pi turn cannot be projected as completed success or accept another input", () => {
+  const snapshot = conversationSnapshotSchema.parse(createPiV4Snapshot(
+    { ...view, phase: "settled" },
+    { messageCount: 1, piIncompleteTurn: true, piPendingIntent: { textHash: "test" } },
+    "pi-epoch-incomplete",
+  ));
+  assert.equal(snapshot.control.phase, "error");
+  assert.equal(snapshot.control.sessionEnded, false);
+  assert.equal(snapshot.control.lastError?.code, "pi.historyUnresolved");
+  assert.equal(snapshot.inputRouting.mode, "reject");
+});

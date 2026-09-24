@@ -4,6 +4,8 @@ import { randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { StringDecoder } from 'node:string_decoder';
 import { RpcJsonlDecoder } from './rpc-jsonl.js';
+import { captureProcessTreeSnapshotAsync, terminateProcessTreeAndWait, type ProcessTreeSnapshot } from '../process/processTreeTerminator.js';
+import { readWindowsProcessListAsync } from '../process/windowsProcessListAsync.js';
 
 export interface RpcResponse {
   type: 'response';
@@ -66,8 +68,10 @@ export const RPC_LIMITS = Object.freeze({
 });
 
 const DEFAULT_TIMEOUT_MS = 30_000;
-const TERMINATE_GRACE_MS = 500;
 const EXIT_DRAIN_MS = 1_000;
+// Teardown's absolute deadline includes the Windows identity query, taskkill,
+// and observation. The Host/main budgets must include this after RPC cancellation.
+export const PI_TREE_CLEANUP_MS = 8_000;
 
 interface PendingRequest {
   command: string;
@@ -126,11 +130,15 @@ export class PiRpcClient extends EventEmitter<ClientEvents> {
   private resolveStart: (() => void) | undefined;
   private rejectStart: ((error: PiRpcError) => void) | undefined;
   private disposePromise: Promise<void> | undefined;
+  private treeCleanupFlight: Promise<void> | undefined;
+  private treeSnapshot: ProcessTreeSnapshot | undefined;
+  private ownedChild: ChildProcessWithoutNullStreams | undefined;
+  private spawnRequestedAtMs: number | undefined;
+  private childExitedAtMs: number | undefined;
   private readonly closedPromise: Promise<void>;
   private resolveClosed!: () => void;
   private exitResult: RpcExit | undefined;
   private exitEmitted = false;
-  private terminateTimer: ReturnType<typeof setTimeout> | undefined;
   private drainTimer: ReturnType<typeof setTimeout> | undefined;
   private readonly pending = new Map<string, PendingRequest>();
   private readonly writes: OutboundWrite[] = [];
@@ -185,14 +193,19 @@ export class PiRpcClient extends EventEmitter<ClientEvents> {
     });
 
     try {
+      this.spawnRequestedAtMs = Date.now();
       const child = spawn(this.options.executable, this.options.args, {
         cwd: this.options.cwd,
         env: { ...process.env, ...this.options.env },
         stdio: ['pipe', 'pipe', 'pipe'],
         shell: false,
+        // Only this client's process group is signaled on POSIX, never a
+        // shared Host group. Windows uses verified per-process identities.
+        detached: process.platform !== 'win32',
         windowsHide: true,
       });
       this.child = child;
+      this.ownedChild = child;
       child.once('spawn', () => {
         if (this.state !== 'starting') return;
         this.state = 'running';
@@ -291,7 +304,7 @@ export class PiRpcClient extends EventEmitter<ClientEvents> {
     });
   }
 
-  /** Cancels queued writes, settles callers, terminates the child, and awaits cleanup. */
+  /** Resolve only after the owned Pi tree has been verified absent. Failed flights are retryable. */
   dispose(): Promise<void> {
     if (this.disposePromise) return this.disposePromise;
     this.disposed = true;
@@ -300,13 +313,121 @@ export class PiRpcClient extends EventEmitter<ClientEvents> {
     this.terminalError ??= error;
     this.rejectStarting(error);
     this.rejectOperations(error);
-    this.disposePromise = this.closedPromise;
     if (this.state === 'new') this.finishClose();
-    else if (this.state !== 'closed') {
-      this.state = 'stopping';
-      this.terminate();
+    else if (this.state !== 'closed') this.state = 'stopping';
+    const flight = (async () => {
+      // Snapshot before touching stdin or signaling the root: otherwise a tool
+      // can outlive its parent and /T on the former root PID loses its target.
+      await this.cleanupOwnedTree();
+      await this.closedPromise;
+    })();
+    this.disposePromise = flight;
+    void flight.finally(() => {
+      if (this.disposePromise === flight) this.disposePromise = undefined;
+    }).catch(() => {});
+    return flight;
+  }
+
+  private cleanupOwnedTree(): Promise<void> {
+    if (this.treeCleanupFlight) return this.treeCleanupFlight;
+    const child = this.ownedChild;
+    const pid = child?.pid;
+    if (!child || !pid) return Promise.resolve(); // spawn failed: no owned OS process
+    const flight = (async () => {
+      const deadline = Date.now() + PI_TREE_CLEANUP_MS;
+      const options = {
+        ownedProcessStartedAtMs: this.spawnRequestedAtMs,
+        ownedProcessExitedAtMs: this.childExitedAtMs,
+        resolveOwnedProcessExitedAtMs: () => this.childExitedAtMs,
+        windowsCleanupDeadlineAtMs: deadline,
+      };
+      const latest = await captureProcessTreeSnapshotAsync(child, options);
+      // Keep identities from an earlier attempt when the root has since exited.
+      // The terminator checks creation identities before sending any PID signal.
+      const previous = this.treeSnapshot;
+      if (latest) this.treeSnapshot = previous
+        ? { ...latest, identities: [...previous.identities, ...latest.identities],
+            descendantPids: [...new Set([...previous.descendantPids, ...latest.descendantPids])] }
+        : latest;
+      if (process.platform === 'win32' && this.childExitedAtMs !== undefined) {
+        // A root-only snapshot taken earlier cannot prove a tool did not spawn
+        // between that snapshot and root exit. Recheck its entire lifetime.
+        const exitedTree = await this.captureExitedTree(pid, options);
+        if (exitedTree) this.treeSnapshot = this.treeSnapshot
+          ? { ...exitedTree,
+              identities: [...this.treeSnapshot.identities, ...exitedTree.identities],
+              descendantPids: [...new Set([...this.treeSnapshot.descendantPids, ...exitedTree.descendantPids])] }
+          : exitedTree;
+        if (!this.treeSnapshot && !exitedTree) {
+          this.ownedChild = undefined; // verified empty after actual root exit
+          return;
+        }
+      }
+      if (process.platform === 'win32' && !this.treeSnapshot)
+        throw new Error('Pi process tree identity unavailable; refusing to release ownership');
+      const result = await terminateProcessTreeAndWait(child, {
+        ...options,
+        ...(this.treeSnapshot ? { snapshot: this.treeSnapshot } : {}),
+        ...(process.platform === 'win32' ? {} : { ownedProcessGroupId: child.pid }),
+        forceAfterMs: 500,
+        waitAfterForceMs: 2_000,
+        windowsTaskkillTimeoutMs: 2_000,
+      });
+      if (result.remainingPids.length)
+        throw new Error(`Pi process tree still alive: ${result.remainingPids.join(',')}`);
+      if (process.platform === 'win32') {
+        // Exited intermediate shells may no longer be visible to /T. A fresh
+        // identity-bearing table is required before declaring the lease safe.
+        if (this.childExitedAtMs === undefined)
+          throw new Error('Pi root exit not observed; refusing to release ownership');
+        const remaining = await this.captureExitedTree(pid, options);
+        if (remaining) {
+          this.treeSnapshot = remaining;
+          throw new Error(`Pi process tree still alive: ${remaining.descendantPids.join(',')}`);
+        }
+      }
+      this.ownedChild = undefined;
+    })();
+    this.treeCleanupFlight = flight;
+    void flight.finally(() => {
+      if (this.treeCleanupFlight === flight) this.treeCleanupFlight = undefined;
+    }).catch(() => {});
+    return flight;
+  }
+
+  private async captureExitedTree(
+    rootPid: number,
+    options: { windowsCleanupDeadlineAtMs: number; ownedProcessStartedAtMs?: number },
+  ): Promise<ProcessTreeSnapshot | undefined> {
+    // Unlike an undefined snapshot, a *nonempty* CIM table distinguishes
+    // verified absence from a failed identity lookup. Windows retains the
+    // creator PID when a parent exits; limit ancestry by the actual root
+    // lifetime so a later recycled PID cannot acquire our descendants.
+    const startedAt = this.spawnRequestedAtMs;
+    const exitedAt = this.childExitedAtMs;
+    if (startedAt === undefined || exitedAt === undefined)
+      throw new Error('Pi root lifetime unavailable; refusing to release ownership');
+    const table = await readWindowsProcessListAsync(options);
+    if (!table.length) throw new Error('Pi process tree identity unavailable; refusing to release ownership');
+    const candidates = table.filter(identity => {
+      if (!identity.startTime.startsWith('windows-utc-us:')) return false;
+      try {
+        const createdAt = Number(BigInt(identity.startTime.slice('windows-utc-us:'.length)) / 1_000n);
+        return createdAt >= startedAt && createdAt < exitedAt;
+      } catch { return false; }
+    });
+    const seen = new Set([rootPid]);
+    const descendants: typeof candidates = [];
+    for (let size = -1; size !== seen.size;) {
+      size = seen.size;
+      for (const candidate of candidates) if (seen.has(candidate.parentPid) && !seen.has(candidate.pid)) {
+        descendants.push(candidate);
+        seen.add(candidate.pid);
+      }
     }
-    return this.disposePromise;
+    return descendants.length ? {
+      rootPid, identities: descendants, descendantPids: descendants.map(identity => identity.pid),
+    } : undefined;
   }
 
   private readonly onStdout = (chunk: Buffer): void => {
@@ -488,15 +609,19 @@ export class PiRpcClient extends EventEmitter<ClientEvents> {
     this.rejectStarting(this.terminalError);
     this.rejectOperations(this.terminalError);
     if (firstFailure) this.diagnostic('process', error.message);
-    this.terminate();
+    // An IO failure can happen while Pi is running a tool. Do not kill its
+    // parent before capturing descendants; the owner must await dispose().
+    void this.cleanupOwnedTree().catch((failure: unknown) =>
+      this.diagnostic('process', `Pi tree cleanup failed: ${messageOf(failure)}`));
   }
 
   private onExit(exit: RpcExit): void {
     if (this.state === 'closed') return;
     this.exitResult = exit;
+    this.childExitedAtMs = Date.now();
     this.state = 'stopping';
-    clearTimeout(this.terminateTimer);
-    this.terminateTimer = undefined;
+    void this.cleanupOwnedTree().catch((failure: unknown) =>
+      this.diagnostic('process', `Pi tree cleanup failed: ${messageOf(failure)}`));
     this.terminalError ??= this.exitError(exit);
     this.rejectStarting(this.terminalError);
     // exit can precede stdout EOF. Give the final response/event a chance to
@@ -517,9 +642,7 @@ export class PiRpcClient extends EventEmitter<ClientEvents> {
     this.state = 'closed';
     this.rejectStarting(error);
     this.rejectOperations(error);
-    clearTimeout(this.terminateTimer);
     clearTimeout(this.drainTimer);
-    this.terminateTimer = undefined;
     this.drainTimer = undefined;
     const child = this.child;
     this.child = undefined;
@@ -538,25 +661,6 @@ export class PiRpcClient extends EventEmitter<ClientEvents> {
       this.exitEmitted = true;
       if (!this.disposed) this.diagnostic('process', this.exitError(result).message);
       this.emit('exit', result);
-    }
-  }
-
-  private terminate(): void {
-    const child = this.child;
-    if (!child || this.exitResult || this.terminateTimer || child.pid === undefined) return;
-    child.stdin.destroy();
-    this.terminateTimer = setTimeout(() => {
-      this.terminateTimer = undefined;
-      if (this.state !== 'closed' && !this.exitResult) this.signal(child, 'SIGKILL');
-    }, TERMINATE_GRACE_MS);
-    this.signal(child, 'SIGTERM');
-  }
-
-  private signal(child: ChildProcessWithoutNullStreams, signal: NodeJS.Signals): void {
-    try {
-      child.kill(signal);
-    } catch (error) {
-      this.diagnostic('process', `Could not send ${signal} to RPC child: ${messageOf(error)}`);
     }
   }
 

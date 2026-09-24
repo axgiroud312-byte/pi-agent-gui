@@ -19,7 +19,8 @@ export interface PiSessionBookmark {
   commandAnchors?: { textHash: string; commandId: string }[];
   rowIds?: Record<string, number>;
   uncertainDelivery?: boolean;
-  pendingIntent?: { textHash: string; commandId: string; priorUserCount: number };
+  pendingIntent?: { textHash: string; commandId: string; priorUserCount: number; generation?: number };
+  returnedQueue?: { steering: string[]; followUp: string[] };
 }
 
 function bookmark(value: unknown): value is PiSessionBookmark {
@@ -37,7 +38,13 @@ function bookmark(value: unknown): value is PiSessionBookmark {
       typeof (row.pendingIntent as Record<string, unknown>).textHash === "string" &&
       typeof (row.pendingIntent as Record<string, unknown>).commandId === "string" &&
       Number.isSafeInteger((row.pendingIntent as Record<string, unknown>).priorUserCount) &&
-      Number((row.pendingIntent as Record<string, unknown>).priorUserCount) >= 0)) &&
+      Number((row.pendingIntent as Record<string, unknown>).priorUserCount) >= 0 &&
+      ((row.pendingIntent as Record<string, unknown>).generation === undefined ||
+        (Number.isSafeInteger((row.pendingIntent as Record<string, unknown>).generation) &&
+          Number((row.pendingIntent as Record<string, unknown>).generation) >= 0)))) &&
+    (row.returnedQueue === undefined || (typeof row.returnedQueue === "object" && row.returnedQueue !== null &&
+      ["steering", "followUp"].every(key => Array.isArray((row.returnedQueue as Record<string, unknown>)[key]) &&
+        ((row.returnedQueue as Record<string, unknown>)[key] as unknown[]).every(item => typeof item === "string")))) &&
     (row.rowIds === undefined || (typeof row.rowIds === "object" && row.rowIds !== null &&
       Object.values(row.rowIds).every(id => Number.isSafeInteger(id) && (id as number) > 0))) &&
     (row.commandAnchors === undefined || (Array.isArray(row.commandAnchors) && row.commandAnchors.every(anchor =>
@@ -57,8 +64,12 @@ export class PiSessionCatalog {
     if (!bookmark(value)) throw new Error("Invalid Pi session bookmark");
     try { if (!(await stat(value.sessionFile)).isFile()) return false; }
     catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
-      throw error;
+      // Reserve the pointer before Pi may execute an extension or a prompt.
+      // A pending intent with no JSONL is still an unknown delivery, not a
+      // reason to erase the session identity or invite a replay.
+      if ((error as NodeJS.ErrnoException).code === "ENOENT" && value.pendingIntent) { /* save below */ }
+      else if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+      else throw error;
     }
     await mkdir(this.directory, { recursive: true });
     const path = this.file(value.sessionId);
@@ -84,7 +95,11 @@ export class PiSessionCatalog {
         const value: unknown = JSON.parse(await readFile(join(this.directory, name), "utf8"));
         if (!bookmark(value) || `${value.sessionId}.json`.toLowerCase() !== name.toLowerCase()
           || value.workspaceKey !== workspaceKey) continue;
-        if ((await stat(value.sessionFile)).isFile()) entries.push(value);
+        try { if ((await stat(value.sessionFile)).isFile()) entries.push(value); }
+        catch (error) {
+          if ((error as NodeJS.ErrnoException).code === "ENOENT" && value.pendingIntent) entries.push(value);
+          else throw error;
+        }
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
           // Corrupted bookmarks never become authoritative Pi history.

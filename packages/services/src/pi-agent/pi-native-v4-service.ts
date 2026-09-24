@@ -44,6 +44,7 @@ import { PiCommandLedger } from "./pi-command-ledger.js";
 import { PiMessageRows } from "./pi-message-rows.js";
 import { PiSessionCatalog, type PiSessionBookmark } from "./pi-session-catalog.js";
 import { PiSessionSupervisor, type PiSessionView } from "./pi-session-supervisor.js";
+import { sessionFileExists } from "./pi-session-path.js";
 import { createPiV4Snapshot } from "./pi-v4-snapshot.js";
 import { piWireFrames } from "./pi-v4-frames.js";
 
@@ -56,6 +57,7 @@ interface SessionRecord {
   snapshot: ConversationSnapshot;
   createdAt: number;
   lastActivityAt: number;
+  admissionGeneration: number;
 }
 
 interface Subscription {
@@ -105,6 +107,43 @@ function unsupported(commandId: string, type: string, revisionAtDecision: number
   return failure(commandId, "pi.commandNotImplemented", `Pi adapter does not implement ${type}`, revisionAtDecision);
 }
 
+type ReturnedQueue = { steering: string[]; followUp: string[] };
+type PendingIntent = NonNullable<PiSessionBookmark["pendingIntent"]>;
+
+function piQueueItems(queue: ReturnedQueue, source: "pi-rpc" | "pi-returned", offset = 0) {
+  return [...queue.steering.map(text => ({ text, requested: "guide" as const })),
+    ...queue.followUp.map(text => ({ text, requested: "queue" as const }))].map((item, index) => {
+    const id = createHash("sha256").update(`${source}:${item.requested}:${index}:${item.text}`).digest("hex");
+    return { sourceCommandId: `pi-${id}`, queueItemId: `pi-${id}`, clientId: source,
+      kind: "sendText" as const, text: item.text, attachments: [],
+      delivery: { requested: item.requested, admitted: item.requested },
+      order: { admissionSeq: offset + index, queuePosition: offset + index },
+      steer: { state: "notRequested" as const },
+      dispatch: { state: "queued" as const }, admittedAt: Date.now() };
+  });
+}
+
+function matchesCompletedIntent(messages: unknown[], pending: PendingIntent): boolean {
+  const users = messages.filter(message => typeof message === "object" && message !== null &&
+    (message as Record<string, unknown>).role === "user") as Record<string, unknown>[];
+  if (users.length !== pending.priorUserCount + 1) return false;
+  const last = users.at(-1)!;
+  const content = typeof last.content === "string" ? last.content :
+    Array.isArray(last.content) ? last.content.map(part => {
+      const value = part as Record<string, unknown>;
+      return value.type === "text" && typeof value.text === "string" ? value.text : "";
+    }).join("") : "";
+  return createHash("sha256").update(content).digest("hex") === pending.textHash;
+}
+
+function projectedIntentComplete(record: SessionRecord, pending: PendingIntent): boolean {
+  const users = record.projection.getRows().filter(row => row.kind === "userInput");
+  const last = users.at(-1);
+  return users.length === pending.priorUserCount + 1 && last?.kind === "userInput" &&
+    createHash("sha256").update(last.text).digest("hex") === pending.textHash &&
+    !record.projection.hasIncompleteTurn();
+}
+
 /** Native v4 Agent seam backed exclusively by pinned Pi RPC sessions. */
 export class PiNativeV4Service implements V4Methods {
   readonly supervisor: PiSessionSupervisor;
@@ -112,7 +151,9 @@ export class PiNativeV4Service implements V4Methods {
   private readonly subscriptions = new Map<string, Subscription>();
   private readonly indexLogs = new Map<string, IndexLog>();
   private readonly commandResults = new Map<string, Promise<CommandAck>>();
+  private readonly sessionAdmissions = new Map<string, Promise<CommandAck>>();
   private readonly reportedCommandFailures = new Set<string>();
+  private readonly reportedRecordTypes = new Set<string>();
   private readonly catalog: PiSessionCatalog;
   private readonly ledger: PiCommandLedger;
   private readonly catalogWrites = new Map<string, Promise<boolean>>();
@@ -161,6 +202,17 @@ export class PiNativeV4Service implements V4Methods {
     this.ledger = new PiCommandLedger(join(catalogDir, "command-admission"));
     supervisor.on("record", (sessionId, record) => this.onPiRecord(sessionId, record));
     supervisor.on("change", view => this.onPiChange(view));
+    supervisor.on("diagnostic", (_sessionId, diagnostic) => {
+      // stderr can contain prompts, paths and credentials. Preserve only its
+      // bounded category; protocol faults already project an error via change.
+      if (this.reportedRecordTypes.size < 32) {
+        const key = `diagnostic:${diagnostic.kind}`;
+        if (!this.reportedRecordTypes.has(key)) {
+          this.reportedRecordTypes.add(key);
+          console.warn("[pi-agent] Pi runtime diagnostic", diagnostic.kind);
+        }
+      }
+    });
   }
 
   private bookmarkFor(record: SessionRecord): PiSessionBookmark {
@@ -173,6 +225,7 @@ export class PiNativeV4Service implements V4Methods {
       title: summary.title, titleSource: summary.titleSource, phase: summary.phase, sessionEnded: summary.sessionEnded,
       rowIds: record.projection.getRowIds(),
       ...(record.state.piPendingIntent ? { pendingIntent: record.state.piPendingIntent as PiSessionBookmark["pendingIntent"] } : {}),
+      ...(record.state.piReturnedQueue ? { returnedQueue: record.state.piReturnedQueue as ReturnedQueue } : {}),
       commandAnchors: record.projection.getRows().flatMap(row => row.kind === "userInput" && row.sourceCommandId
         ? [{ textHash: createHash("sha256").update(row.text).digest("hex"), commandId: row.sourceCommandId }] : []),
     };
@@ -250,7 +303,10 @@ export class PiNativeV4Service implements V4Methods {
   private async loadSession(params: ZCodeAgentWorkspaceTarget, sessionId: string): Promise<void> {
     await this.loadWorkspace(params);
     const current = this.sessions.get(sessionId);
-    if (current && current.view.phase !== "exited") return;
+    if (current && current.view.phase !== "exited") {
+      if (current.state.piOfflinePending !== true || !await sessionFileExists(current.view.sessionFile)) return;
+      this.sessions.delete(sessionId);
+    }
     const entry = this.bookmarks.get(sessionId);
     if (!entry || entry.workspaceKey !== resolveWorkspaceKey(params)) throw new Error("Pi session is not indexed in this workspace");
     const pending = this.sessionLoads.get(sessionId);
@@ -258,6 +314,29 @@ export class PiNativeV4Service implements V4Methods {
     const loading = (async () => {
       let view: PiSessionView | undefined;
       try {
+        if (entry.pendingIntent && !await sessionFileExists(entry.sessionFile)) {
+          // Pi may have run an extension without ever creating JSONL. The
+          // persisted pointer remains visible, but no input may be replayed.
+          const offlineView: PiSessionView = { sessionId, sessionFile: entry.sessionFile,
+            workspacePath: entry.workspacePath, pid: 0, phase: "error", uncertainDelivery: true,
+            reconciliationRequired: true,
+            error: "Previous Pi input may have executed without writing history; inspect before recovery" };
+          const projection = new PiMessageRows(entry.workspacePath);
+          const state: Record<string, unknown> = { piPendingIntent: entry.pendingIntent,
+            piOfflinePending: true, messageCount: 0 };
+          if (entry.returnedQueue) {
+            state.piReturnedQueue = entry.returnedQueue;
+            state.piStoppedQueue = true;
+            state.piQueueItems = piQueueItems(entry.returnedQueue, "pi-returned");
+          }
+          const rows = projection.restore([], entry.commandAnchors, entry.rowIds);
+          this.sessions.set(sessionId, { workspaceKey: entry.workspaceKey, workspaceId: entry.workspaceId,
+            view: offlineView, state, projection, admissionGeneration: entry.pendingIntent.generation ?? 0,
+            snapshot: conversationSnapshotSchema.parse({ ...createPiV4Snapshot(offlineView, state, randomUUID()),
+              rows: { window: rows, totalCount: rows.length, firstRowId: null } }),
+            createdAt: entry.createdAt, lastActivityAt: entry.lastActivityAt });
+          return;
+        }
         view = await this.supervisor.resumeSession(entry.workspacePath, entry.sessionFile, entry.sessionId);
         const [state, messages] = await Promise.all([
           this.supervisor.getState(sessionId), this.supervisor.getHistoryMessages(sessionId),
@@ -272,34 +351,32 @@ export class PiNativeV4Service implements V4Methods {
         // with Pi now idle, can discharge an unknown write. An absent or
         // ambiguous message remains blocked; never replay the original prompt.
         const pending = entry.pendingIntent;
-        const users = messages.filter(message => typeof message === "object" && message !== null &&
-          (message as Record<string, unknown>).role === "user") as Record<string, unknown>[];
-        const matched = pending && users.length === pending.priorUserCount + 1 &&
-          users.slice(pending.priorUserCount).some(message => {
-          const content = typeof message.content === "string" ? message.content :
-            Array.isArray(message.content) ? message.content.map(part => {
-              const value = part as Record<string, unknown>;
-              return value.type === "text" && typeof value.text === "string" ? value.text : "";
-            }).join("") : "";
-          return createHash("sha256").update(content).digest("hex") === pending.textHash;
-        });
-        const safeToContinue = matched && state.isStreaming === false && state.isCompacting === false &&
-          Number(state.pendingMessageCount) === 0;
-        if ((entry.uncertainDelivery || current?.view.uncertainDelivery || current?.view.reconciliationRequired) && !safeToContinue) {
+        const matchedIntent = Boolean(pending && matchesCompletedIntent(messages, pending));
+        if (pending && matchedIntent) rows = projection.restore(messages, [...(entry.commandAnchors ?? []),
+          { textHash: pending.textHash, commandId: pending.commandId }], entry.rowIds);
+        const safeToContinue = Boolean(matchedIntent &&
+          !projection.hasIncompleteTurn() && state.isStreaming === false && state.isCompacting === false &&
+          Number(state.pendingMessageCount) === 0);
+        if ((projection.hasIncompleteTurn() || pending || entry.uncertainDelivery || current?.view.uncertainDelivery ||
+          current?.view.reconciliationRequired) && !safeToContinue) {
           view = this.supervisor.requireReconciliation(sessionId,
             entry.uncertainDelivery === true || current?.view.uncertainDelivery === true);
         }
         if (pending && safeToContinue) {
           state.piPendingIntent = undefined;
-          rows = projection.restore(messages, [...(entry.commandAnchors ?? []),
-            { textHash: pending.textHash, commandId: pending.commandId }], entry.rowIds);
         } else state.piPendingIntent = pending;
+        if (entry.returnedQueue) {
+          state.piReturnedQueue = entry.returnedQueue;
+          state.piStoppedQueue = true;
+          state.piQueueItems = piQueueItems(entry.returnedQueue, "pi-returned");
+        }
         const snapshot = conversationSnapshotSchema.parse({
           ...createPiV4Snapshot(view, state, randomUUID()),
           rows: { window: rows, totalCount: rows.length, firstRowId: rows[0]?.rowId ?? null },
         });
         this.sessions.set(sessionId, { workspaceKey: entry.workspaceKey, workspaceId: entry.workspaceId,
-          view, state, projection, snapshot, createdAt: entry.createdAt, lastActivityAt: entry.lastActivityAt });
+          view, state, projection, snapshot, admissionGeneration: entry.pendingIntent?.generation ?? 0,
+          createdAt: entry.createdAt, lastActivityAt: entry.lastActivityAt });
         if (safeToContinue) await this.safelyPersist(this.sessions.get(sessionId)!);
         this.emitIndex(entry.workspaceKey, this.sessions.get(sessionId)!);
       } catch (error) {
@@ -414,19 +491,23 @@ export class PiNativeV4Service implements V4Methods {
     if (!record) return;
     const version = (this.recordVersions.get(sessionId) ?? 0) + 1;
     this.recordVersions.set(sessionId, version);
+    if (typeof event.type === "string" && ![
+      "agent_start", "agent_end", "agent_settled", "message_start", "message_update", "message_end",
+      "tool_execution_start", "tool_execution_update", "tool_execution_end", "queue_update",
+      "auto_retry_start", "auto_retry_end", "summarization_retry_scheduled",
+      "summarization_retry_finished", "compaction_start", "compaction_end", "extension_error",
+      "extension_ui_request", "extension_ui_response", "session_start", "session_shutdown",
+    ].includes(event.type) && this.reportedRecordTypes.size < 32 && !this.reportedRecordTypes.has(event.type)) {
+      this.reportedRecordTypes.add(event.type);
+      // Only the record type is logged. Unknown payloads may contain secrets.
+      console.warn("[pi-agent] unprojected Pi record", event.type.slice(0, 64).replace(/[^a-z0-9_-]/giu, "?"));
+    }
     if (event.type === "queue_update") {
-      const items = [
-        ...(Array.isArray(event.steering) ? event.steering.map(text => ({ text, requested: "guide" as const })) : []),
-        ...(Array.isArray(event.followUp) ? event.followUp.map(text => ({ text, requested: "queue" as const })) : []),
-      ].filter(item => typeof item.text === "string");
-      record.state.piQueueItems = items.map((item, index) => {
-        const id = createHash("sha256").update(`${item.requested}:${index}:${item.text}`).digest("hex");
-        return { sourceCommandId: `pi-${id}`, queueItemId: `pi-${id}`, clientId: "pi-rpc",
-          kind: "sendText" as const, text: item.text, attachments: [],
-          delivery: { requested: item.requested, admitted: item.requested },
-          order: { admissionSeq: index, queuePosition: index }, steer: { state: "notRequested" as const },
-          dispatch: { state: "queued" as const }, admittedAt: Date.now() };
-      });
+      const live = { steering: Array.isArray(event.steering) ? event.steering.filter((x): x is string => typeof x === "string") : [],
+        followUp: Array.isArray(event.followUp) ? event.followUp.filter((x): x is string => typeof x === "string") : [] };
+      const liveItems = piQueueItems(live, "pi-rpc");
+      const returned = record.state.piReturnedQueue as ReturnedQueue | undefined;
+      record.state.piQueueItems = [...liveItems, ...(returned ? piQueueItems(returned, "pi-returned", liveItems.length) : [])];
     }
     if (event.type === "auto_retry_start" || event.type === "summarization_retry_scheduled") {
       record.state.piRetryAttempt = event.attempt;
@@ -447,8 +528,8 @@ export class PiNativeV4Service implements V4Methods {
     if (event.type === "message_end" || event.type === "agent_settled") {
       void this.safelyPersist(record, event.type === "agent_settled");
     }
-    if (event.type === "agent_settled" || (event.type === "compaction_end" && event.result && !event.aborted)) {
-      this.reconcileSettled(record, version);
+    if (event.type === "agent_settled") {
+      this.reconcileSettled(record, version, record.admissionGeneration);
     }
     else if (event.type === "queue_update" || event.type === "auto_retry_start" || event.type === "auto_retry_end" ||
       event.type === "summarization_retry_scheduled" || event.type === "summarization_retry_finished") {
@@ -457,7 +538,7 @@ export class PiNativeV4Service implements V4Methods {
     }
   }
 
-  private reconcileSettled(record: SessionRecord, version: number): void {
+  private reconcileSettled(record: SessionRecord, version: number, admissionGeneration: number): void {
     const id = record.view.sessionId;
     const previous = this.reconciliations.get(id) ?? Promise.resolve();
     const pending = previous.catch(() => {}).then(async () => {
@@ -465,13 +546,14 @@ export class PiNativeV4Service implements V4Methods {
         const messages = await this.supervisor.getHistoryMessages(id);
         // An older read can complete after a later Pi record, or after a
         // workspace closes/reopens. Only apply the same settled generation.
-        if (this.sessions.get(id) !== record || this.workspaceClosures.has(record.workspaceKey)) return;
+        if (this.sessions.get(id) !== record || this.workspaceClosures.has(record.workspaceKey) ||
+          record.admissionGeneration !== admissionGeneration) return;
         if (this.recordVersions.get(id) !== version) {
           // A notification/queue event after settled invalidated this read. A
           // newer *run* gets its own settled event; benign late records must
           // instead trigger another authoritative read, not strand old rows.
           if (["settled", "idle", "stopped", "error"].includes(record.view.phase)) {
-            this.reconcileSettled(record, this.recordVersions.get(id)!);
+            this.reconcileSettled(record, this.recordVersions.get(id)!, admissionGeneration);
           }
           return;
         }
@@ -479,12 +561,22 @@ export class PiNativeV4Service implements V4Methods {
         if (record.view.phase === "stopped") deltas.push(...record.projection.markStopped(
           typeof record.state.piStoppedCommandId === "string" ? record.state.piStoppedCommandId : undefined));
         record.state.messageCount = messages.length;
-        if (!record.view.uncertainDelivery && !record.view.reconciliationRequired) delete record.state.piPendingIntent;
+        const intent = record.state.piPendingIntent as PendingIntent | undefined;
+        if (intent && intent.generation === admissionGeneration &&
+          matchesCompletedIntent(messages, intent) && !record.projection.hasIncompleteTurn() &&
+          !record.view.uncertainDelivery && !record.view.reconciliationRequired) {
+          delete record.state.piPendingIntent;
+        }
+        record.state.piIncompleteTurn = record.projection.hasIncompleteTurn() || Boolean(record.state.piPendingIntent);
+        if (record.state.piIncompleteTurn) {
+          this.supervisor.requireReconciliation(id, false);
+        }
         await this.safelyPersist(record, true);
         if (deltas.length) {
           this.emitConversation(record, deltas);
           this.emitIndex(record.workspaceKey, record);
         }
+        this.onPiChange(record.view);
       } catch (error) {
         if (this.sessions.get(id) !== record) return;
         record.state.piBookmarkError = true;
@@ -502,20 +594,17 @@ export class PiNativeV4Service implements V4Methods {
     if (!record) return;
     const oldPhase = record.view.phase;
     record.view = view;
+    if (view.phase === "settled") {
+      const intent = record.state.piPendingIntent as PendingIntent | undefined;
+      record.state.piIncompleteTurn = record.projection.hasIncompleteTurn() ||
+        Boolean(intent && !projectedIntentComplete(record, intent));
+    }
     if (view.phase === "stopped" && view.clearedQueue) {
-      const retained = [...view.clearedQueue.steering.map(text => ({ text, requested: "guide" as const })),
-        ...view.clearedQueue.followUp.map(text => ({ text, requested: "queue" as const }))];
-      record.state.piQueueItems = retained.map((item, index) => {
-        const id = createHash("sha256").update(`${item.requested}:${index}:${item.text}`).digest("hex");
-        return { sourceCommandId: `pi-${id}`, queueItemId: `pi-${id}`, clientId: "pi-rpc",
-          kind: "sendText" as const, text: item.text, attachments: [],
-          delivery: { requested: item.requested, admitted: item.requested },
-          order: { admissionSeq: index, queuePosition: index }, steer: { state: "notRequested" as const },
-          dispatch: { state: "queued" as const }, admittedAt: Date.now() };
-      });
+      record.state.piReturnedQueue = view.clearedQueue;
+      record.state.piQueueItems = piQueueItems(view.clearedQueue, "pi-returned");
       record.state.piStoppedQueue = true;
     }
-    if (view.phase === "accepted") record.state.piStoppedQueue = false;
+    if (view.phase === "accepted" && !record.state.piReturnedQueue) record.state.piStoppedQueue = false;
     if (oldPhase !== view.phase && view.phase === "accepted") record.state.piRunStartedAt = Date.now();
     else if (oldPhase !== view.phase && ["running", "retrying", "compacting"].includes(view.phase)) {
       record.state.piRunStartedAt ??= Date.now();
@@ -564,7 +653,7 @@ export class PiNativeV4Service implements V4Methods {
       if (prior) return prior === "pending"
         ? failure(envelope.commandId, "pi.deliveryUnknown", "Command may have reached Pi; inspect history before retrying")
         : { ...prior, status: prior.status === "accepted" ? "duplicate" as const : prior.status };
-      const ack = await this.dispatch(params, envelope);
+      const ack = await this.dispatchSerialized(params, envelope);
       try { await this.ledger.settle(key, ack); }
       catch {
         // The reserved receipt still prevents replay. Never turn a successful
@@ -588,11 +677,27 @@ export class PiNativeV4Service implements V4Methods {
     return pending;
   }
 
+  private dispatchSerialized(params: ZCodeAgentConversationCommandParams,
+    envelope: ZCodeAgentConversationCommandParams["envelope"]): Promise<CommandAck> {
+    if (!envelope.sessionId || !["sendText", "deleteSession"].includes(envelope.type)) {
+      return this.dispatch(params, envelope);
+    }
+    const key = `${resolveWorkspaceKey(params)}:${envelope.sessionId}`;
+    const prior = this.sessionAdmissions.get(key) ?? Promise.resolve({} as CommandAck);
+    const pending = prior.catch(() => ({} as CommandAck)).then(() => this.dispatch(params, envelope));
+    this.sessionAdmissions.set(key, pending);
+    void pending.finally(() => {
+      if (this.sessionAdmissions.get(key) === pending) this.sessionAdmissions.delete(key);
+    }).catch(() => {});
+    return pending;
+  }
+
   private async dispatch(params: ZCodeAgentConversationCommandParams, envelope: ZCodeAgentConversationCommandParams["envelope"]): Promise<CommandAck> {
     const workspaceKey = resolveWorkspaceKey(params);
     const commandId = envelope.commandId;
     let record: SessionRecord | undefined;
     let createdSessionId: string | undefined;
+    let firstPromptAttempted = false;
     try {
       this.assertWorkspaceOpen(params);
       if (envelope.type === "createSession") {
@@ -633,21 +738,24 @@ export class PiNativeV4Service implements V4Methods {
         const now = Date.now();
         record = {
           workspaceKey, workspaceId: payload.workspaceId, view, state, projection,
-          snapshot: createPiV4Snapshot(view, state, randomUUID()), createdAt: now, lastActivityAt: now,
+          snapshot: createPiV4Snapshot(view, state, randomUUID()), admissionGeneration: 0,
+          createdAt: now, lastActivityAt: now,
         };
         this.sessions.set(view.sessionId, record);
         this.emitIndex(workspaceKey, record);
         if (payload.firstInput) {
+          record.admissionGeneration++;
+          this.recordVersions.set(view.sessionId, (this.recordVersions.get(view.sessionId) ?? 0) + 1);
           projection.expectUserCommand(commandId);
           record.state.piPendingIntent = { textHash: createHash("sha256").update(payload.firstInput.text).digest("hex"),
-            commandId, priorUserCount: 0 };
-          // Draft Pi JSONL may not exist yet; the durable command receipt still
-          // fences replay of this first input across a Host crash.
-          await this.safelyPersist(record);
+            commandId, priorUserCount: 0, generation: record.admissionGeneration };
+          // The pointer must exist before the first prompt can execute. Pi may
+          // handle an extension command without ever writing user JSONL.
+          if (!await this.persist(record)) throw new Error("Cannot persist Pi session identity before delivery");
+          firstPromptAttempted = true;
           const outcome = await this.supervisor.sendText(view.sessionId, payload.firstInput.text);
           if (outcome === "noRun") {
             projection.cancelExpectedUserCommand(commandId);
-            delete record.state.piPendingIntent;
           }
           await this.safelyPersist(record);
         }
@@ -671,24 +779,22 @@ export class PiNativeV4Service implements V4Methods {
           payload.context_refs?.length || payload.heldQueueDisposition || payload.expectedHeldQueueItemIds?.length ||
           payload.modelExecution || payload.automationId || payload.offPeakTaskId || payload.offPeakRunType ||
           payload.toolDisallowlist?.length) return unsupported(commandId, "sendText execution constraints", record.snapshot.revision);
-        if (record.view.uncertainDelivery || record.view.reconciliationRequired) {
+        if (record.state.piPendingIntent || record.view.uncertainDelivery || record.view.reconciliationRequired) {
           return failure(commandId, "pi.deliveryUnknown", "Pi input requires history reconciliation", record.snapshot.revision);
         }
+        record.admissionGeneration++;
+        this.recordVersions.set(record.view.sessionId, (this.recordVersions.get(record.view.sessionId) ?? 0) + 1);
         await this.applyModelSelection(record.view.sessionId, payload.modelSelection);
         record.projection.expectUserCommand(commandId);
         record.state.piPendingIntent = { textHash: createHash("sha256").update(payload.text).digest("hex"),
-          commandId, priorUserCount: record.projection.getRows().filter(row => row.kind === "userInput").length };
+          commandId, priorUserCount: record.projection.getRows().filter(row => row.kind === "userInput").length,
+          generation: record.admissionGeneration };
         try {
           const saved = await this.persist(record);
-          // Pi creates a draft JSONL on first input; no file exists yet for
-          // an empty draft. The reserved command receipt still fences replay.
-          if (!saved && record.projection.getRows().some(row => row.kind === "userInput")) {
-            throw new Error("Cannot persist Pi input correlation before delivery");
-          }
+          if (!saved) throw new Error("Cannot persist Pi input correlation before delivery");
           const outcome = await this.supervisor.sendText(record.view.sessionId, payload.text);
           if (outcome === "noRun") {
             record.projection.cancelExpectedUserCommand(commandId);
-            delete record.state.piPendingIntent;
           }
           await this.safelyPersist(record);
         } catch (error) {
@@ -727,7 +833,14 @@ export class PiNativeV4Service implements V4Methods {
       }
       return unsupported(commandId, envelope.type, record.snapshot.revision);
     } catch (error) {
-      if (createdSessionId && !record) await this.supervisor.closeSession(createdSessionId);
+      if (createdSessionId && (!record || !firstPromptAttempted)) {
+        await this.supervisor.closeSession(createdSessionId);
+        if (record) {
+          this.sessions.delete(createdSessionId);
+          this.emitIndexRemoval(record);
+          record = undefined;
+        }
+      }
       if (record?.view.uncertainDelivery || record?.view.reconciliationRequired) await this.safelyPersist(record);
       return failure(commandId, record?.view.uncertainDelivery ? "pi.deliveryUnknown" : "pi.commandFailed",
         error instanceof Error ? error.message : String(error), record?.snapshot.revision ?? 0);
@@ -935,25 +1048,31 @@ export class PiNativeV4Service implements V4Methods {
 
   private async releaseWorkspace(params: ZCodeAgentWorkspaceTarget): Promise<void> {
     const key = resolveWorkspaceKey(params);
+    const failures: unknown[] = [];
+    const collect = (results: PromiseSettledResult<unknown>[]) => {
+      for (const result of results) if (result.status === "rejected") failures.push(result.reason);
+    };
     const closeOwned = async () => {
       const results = await Promise.allSettled([...this.sessions.values()]
         .filter(record => record.workspaceKey === key).map(async record => {
-          await this.supervisor.closeSession(record.view.sessionId);
-          await this.catalogWrites.get(record.view.sessionId);
-          this.sessions.delete(record.view.sessionId);
+          const sessionId = record.view.sessionId;
+          const closed = await Promise.allSettled([
+            this.supervisor.closeSession(sessionId), this.catalogWrites.get(sessionId),
+          ]);
+          this.sessions.delete(sessionId);
+          collect(closed);
         }));
-      const failures = results.filter(result => result.status === "rejected");
-      if (failures.length) throw new AggregateError(failures.map(result => result.reason), "Pi workspace release failed");
+      collect(results);
     };
     await closeOwned();
     // Drain in-flight startup/admission too. They observe the closing fence and
     // cannot publish a late runtime after release has returned.
-    await Promise.allSettled([
+    collect(await Promise.allSettled([
       ...(this.workspaceLoads.has(key) ? [this.workspaceLoads.get(key)!] : []),
       ...[...this.sessionLoads].filter(([id]) => this.bookmarks.get(id)?.workspaceKey === key).map(([, load]) => load),
       ...[...this.reconciliations].filter(([id]) => this.sessions.get(id)?.workspaceKey === key).map(([, pending]) => pending),
       ...[...this.commandResults].filter(([commandKey]) => commandKey.startsWith(`${key}:`)).map(([, result]) => result),
-    ]);
+    ]));
     await closeOwned();
     for (const [id, sub] of this.subscriptions) if (sub.workspaceKey === key) this.subscriptions.delete(id);
     this.workspaceLoads.delete(key);
@@ -966,6 +1085,7 @@ export class PiNativeV4Service implements V4Methods {
     this.workspaceGenerations.set(key, (this.workspaceGenerations.get(key) ?? 1) + 1);
     // Keep admission receipts until a durable replacement exists: deleting them
     // here would permit a known accepted command ID to execute again on reopen.
+    if (failures.length) throw new AggregateError(failures, "Pi workspace release failed");
   }
 
   dispose(): Promise<void> {
@@ -976,8 +1096,19 @@ export class PiNativeV4Service implements V4Methods {
 
   private async disposeOwned(): Promise<void> {
     this.subscriptions.clear();
-    await this.supervisor.dispose();
-    await Promise.allSettled(this.catalogWrites.values());
+    // Supervisor fences and drains starts (including the lease-to-registration
+    // window). Then drain their service admissions before returning to the host.
+    const failures: unknown[] = [];
+    const collect = (results: PromiseSettledResult<unknown>[]) => {
+      for (const result of results) if (result.status === "rejected") failures.push(result.reason);
+    };
+    collect(await Promise.allSettled([this.supervisor.dispose()]));
+    collect(await Promise.allSettled([
+      ...this.workspaceClosures.values(), ...this.workspaceLoads.values(),
+      ...this.sessionLoads.values(), ...this.commandResults.values(),
+    ]));
+    collect(await Promise.allSettled(this.reconciliations.values()));
+    collect(await Promise.allSettled(this.catalogWrites.values()));
     for (const [workspaceKey, target] of this.availableWorkspaces) {
       this.lifecycleEmitter.fire({ ...target, workspaceKey,
         runtimeIdentity: this.getWorkspaceRuntimeIdentity(target), state: "unavailable" });
@@ -986,5 +1117,6 @@ export class PiNativeV4Service implements V4Methods {
     this.lifecycleEmitter.dispose();
     this.restartEmitter.dispose();
     for (const emitter of [...this.conversationEmitters.values(), ...this.indexEmitters.values(), ...this.configEmitters.values()]) emitter.dispose();
+    if (failures.length) throw new AggregateError(failures, "Pi global disposal failed");
   }
 }

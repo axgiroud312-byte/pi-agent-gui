@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -11,7 +12,8 @@ test('Pi admission, retry, compaction, extension no-run and agent_settled have d
   const workspacePath = await mkdtemp(join(tmpdir(), 'pi-phases-'));
   let streaming = false;
   let extensionNoRun = false;
-  let sessionId = '';
+  const sessionId = randomUUID();
+  let sessionFile = '';
   class FakePi extends EventEmitter {
     readonly pid = process.pid;
     async start() {}
@@ -19,15 +21,16 @@ test('Pi admission, retry, compaction, extension no-run and agent_settled have d
     async request(command: { type: string }) {
       if (command.type === 'prompt') streaming = !extensionNoRun;
       return { success: true, data: command.type === 'get_state'
-        ? { sessionId, sessionFile: join(workspacePath, 'test.jsonl'),
+        ? { sessionId, sessionFile,
           isStreaming: streaming, isCompacting: false, pendingMessageCount: 0 }
         : {} };
     }
   }
   const client = new FakePi();
   const supervisor = new PiSessionSupervisor({ piEntry: join(workspacePath, 'unused-cli.js'),
+    env: { PI_CODING_AGENT_SESSION_DIR: workspacePath },
     clientFactory: options => {
-      sessionId = options.args[options.args.indexOf('--session-id') + 1] ?? '';
+      sessionFile = options.args[options.args.indexOf('--session') + 1] ?? '';
       return client as unknown as PiRpcClient;
     } });
   const phase = () => supervisor.getSession(sessionId)?.phase;
@@ -52,7 +55,8 @@ test('Pi admission, retry, compaction, extension no-run and agent_settled have d
     assert.equal(phase(), 'settled');
     extensionNoRun = true;
     await supervisor.sendText(sessionId, 'extension command handled without run');
-    assert.equal(phase(), 'idle', 'verified no-run extension input returns to idle without agent_settled');
+    assert.equal(phase(), 'error', 'a no-run extension may have executed side effects without history');
+    assert.equal(supervisor.getSession(sessionId)?.reconciliationRequired, true);
   } finally {
     await supervisor.dispose();
     await rm(workspacePath, { recursive: true, force: true });

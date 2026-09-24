@@ -13,8 +13,8 @@ const tick = () => new Promise<void>(resolve => setImmediate(resolve));
 
 test('late records cannot strand a stale settled history read or overwrite a newer Pi result', async () => {
   const root = await mkdtemp(join(tmpdir(), 'pi-ordered-history-'));
-  const sessionFile = join(root, 'history.jsonl');
-  let id = randomUUID();
+  let sessionFile = '';
+  const id = randomUUID();
   let streaming = false;
   let calls = 0;
   const firstRead = Promise.withResolvers<void>();
@@ -27,7 +27,7 @@ test('late records cannot strand a stale settled history read or overwrite a new
     async start() {}
     async dispose() {}
     async request(command: { type: string }) {
-      if (command.type === 'prompt') streaming = true;
+      if (command.type === 'prompt') { streaming = true; await writeFile(sessionFile, '{"type":"session"}\n'); }
       if (command.type === 'get_messages') {
         calls++;
         if (calls === 1) { readStarted.resolve(); await firstRead.promise; }
@@ -38,14 +38,14 @@ test('late records cannot strand a stale settled history read or overwrite a new
     }
   }
   const client = new DelayedClient();
-  const supervisor = new PiSessionSupervisor({ piEntry: join(root, 'unused'), clientFactory: options => {
-    id = options.args[options.args.indexOf('--session-id') + 1]!;
+  const supervisor = new PiSessionSupervisor({ piEntry: join(root, 'unused'),
+    env: { PI_CODING_AGENT_SESSION_DIR: root }, clientFactory: options => {
+    sessionFile = options.args[options.args.indexOf('--session') + 1]!;
     return client as unknown as PiRpcClient;
   } });
   const service = new PiNativeV4Service(supervisor, join(root, 'catalog'));
   const target = { workspacePath: root };
   try {
-    await writeFile(sessionFile, '{}\n');
     await service.sendConversationCommandV4({ ...target, envelope: {
       commandId: randomUUID(), clientId: 'ordered', sessionId: null, type: 'createSession',
       issuedAt: Date.now(), payload: { workspaceId: root },
@@ -75,8 +75,8 @@ test('late records cannot strand a stale settled history read or overwrite a new
 
 test('Pi queue/retry facts and settled authoritative messages replace failed retry rows without losing command anchor', async () => {
   const root = await mkdtemp(join(tmpdir(), 'pi-reconcile-'));
-  let sessionId = randomUUID();
-  const sessionFile = join(root, 'history.jsonl');
+  const sessionId = randomUUID();
+  let sessionFile = '';
   const user = { role: 'user', timestamp: 1000, content: 'hello' };
   const failed = { role: 'assistant', timestamp: 1001, content: [{ type: 'text', text: 'temporary failure' }], stopReason: 'error' };
   const final = { role: 'assistant', timestamp: 1002, content: [{ type: 'text', text: 'recovered' }], stopReason: 'stop' };
@@ -86,7 +86,7 @@ test('Pi queue/retry facts and settled authoritative messages replace failed ret
     async start() {}
     async dispose() {}
     async request(command: { type: string }) {
-      if (command.type === 'prompt') this.streaming = true;
+      if (command.type === 'prompt') { this.streaming = true; await writeFile(sessionFile, '{"type":"session"}\n'); }
       return { success: true, data: command.type === 'get_state'
         ? { sessionId, sessionFile, isStreaming: this.streaming, isCompacting: false, pendingMessageCount: 0 }
         : command.type === 'get_entries' ? { entries: [], leafId: null }
@@ -94,14 +94,14 @@ test('Pi queue/retry facts and settled authoritative messages replace failed ret
     }
   }
   const client = new Client();
-  const supervisor = new PiSessionSupervisor({ piEntry: join(root, 'unused'), clientFactory: options => {
-    sessionId = options.args[options.args.indexOf('--session-id') + 1]!;
+  const supervisor = new PiSessionSupervisor({ piEntry: join(root, 'unused'),
+    env: { PI_CODING_AGENT_SESSION_DIR: root }, clientFactory: options => {
+    sessionFile = options.args[options.args.indexOf('--session') + 1]!;
     return client as unknown as PiRpcClient;
   } });
   const service = new PiNativeV4Service(supervisor, join(root, 'catalog'));
   const target = { workspacePath: root };
   try {
-    await writeFile(sessionFile, '{"type":"session"}\n');
     const create = await service.sendConversationCommandV4({ ...target, envelope: {
       commandId: randomUUID(), clientId: 'reconcile', sessionId: null, type: 'createSession',
       issuedAt: Date.now(), payload: { workspaceId: root },

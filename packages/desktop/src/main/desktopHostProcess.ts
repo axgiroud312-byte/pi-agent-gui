@@ -1,3 +1,4 @@
+import { waitForHostOwnerExit } from "./hostShutdownBarrier.js";
 import { ingestToolExecResource } from "./desktopResourceTelemetry.js";
 import { ingestMcpResourceSamples } from "./processResourceMcpTelemetrySource.js";
 /* eslint-disable max-lines -- host process 统一处理 main↔host 生命周期、日志、ZCode Agent，拆分前先保持跨进程消息收口。 */
@@ -641,16 +642,12 @@ export function disposeHostProcess(
     logger.warn(`[disposeHostProcess] failed to post dispose to (${label}):`, error);
   }
 
-  // host 收到 Dispose 后需要等待 agent 进程树的 SIGTERM/SIGKILL 兜底完成。
-  // 如果 main 仍按 150/300ms 强杀 host，host 会先退出，zcode-cli/app-server 子进程就可能被 init 接管成孤儿。
-  const effectiveForceKillDelayMs = Math.max(forceKillDelayMs, 3_500);
+  // This is an alarm, not a license to kill the Host root. Main cannot tell
+  // whether its Pi/tool descendants survived; only the Host owns their verified
+  // identities. Killing this root would strand tools and stale the session lease.
+  const effectiveForceKillDelayMs = Math.max(forceKillDelayMs, 48_000);
   const killTimer = setTimeout(() => {
-    disposingHostProcessTimers.delete(child);
-    try {
-      child.kill();
-    } catch (error) {
-      logger.warn(`[disposeHostProcess] failed to kill host process (${label}):`, error);
-    }
+    logger.warn(`[disposeHostProcess] host still owns cleanup after ${effectiveForceKillDelayMs}ms (${label}), pid=${child.pid ?? "unknown"}; waiting for owner`);
   }, effectiveForceKillDelayMs);
 
   disposingHostProcessTimers.set(child, killTimer);
@@ -683,37 +680,9 @@ export function disposeHostProcessAndWait(
 
   const waitTimeoutMs = Math.max(options.waitTimeoutMs ?? 0, 0);
 
-  return new Promise((resolve) => {
-    let settled = false;
-    let waitTimeout: ReturnType<typeof setTimeout> | null = null;
-
-    const settle = () => {
-      if (settled) {
-        return;
-      }
-      settled = true;
-      if (waitTimeout) {
-        clearTimeout(waitTimeout);
-        waitTimeout = null;
-      }
-      resolve();
-    };
-
-    child.once("exit", () => {
-      exitedHostProcesses.add(child);
-      settle();
-    });
-
-    if (waitTimeoutMs > 0) {
-      waitTimeout = setTimeout(() => {
-        logger.warn(
-          `[disposeHostProcessAndWait] host process exit wait timed out (${label}), pid=${child.pid ?? "unknown"}`,
-        );
-        settle();
-      }, waitTimeoutMs);
-      waitTimeout.unref?.();
-    }
-
-    disposeHostProcess(child, label, disposingHostProcessTimers, logger, options.forceKillDelayMs);
-  });
+  // Register the exit observer before postMessage, so immediate Host shutdown
+  // cannot race with our listener. Expiration reports but never settles early.
+  const exit = waitForHostOwnerExit(child, label, waitTimeoutMs, message => logger.warn(message));
+  disposeHostProcess(child, label, disposingHostProcessTimers, logger, options.forceKillDelayMs);
+  return exit;
 }

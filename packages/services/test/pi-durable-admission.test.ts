@@ -9,6 +9,7 @@ import { PiCommandLedger } from '../src/pi-agent/pi-command-ledger.js';
 import { PiNativeV4Service } from '../src/pi-agent/pi-native-v4-service.js';
 import { PiSessionSupervisor } from '../src/pi-agent/pi-session-supervisor.js';
 import { PiRpcClient, PiRpcError } from '../src/pi-agent/pi-rpc-client.js';
+import { PiSessionCatalog } from '../src/pi-agent/pi-session-catalog.js';
 
 test('durable admission fences repeated create across Host restarts and queries saved ACK', async () => {
   const root = await mkdtemp(join(tmpdir(), 'pi-durable-create-'));
@@ -39,14 +40,15 @@ test('durable admission fences repeated create across Host restarts and queries 
 
 test('unknown prompt delivery survives Host restart as a blocked session and is never replayed', async () => {
   const root = await mkdtemp(join(tmpdir(), 'pi-unknown-resume-'));
-  const sessionFile = join(root, 'session.jsonl');
+  let sessionFile = join(root, 'session.jsonl');
   const directory = join(root, 'catalog');
-  let id = '';
+  const id = randomUUID();
   let prompts = 0;
   let delivered = false;
   const target = { workspacePath: root };
-  const createSupervisor = () => new PiSessionSupervisor({ piEntry: join(root, 'unused'), clientFactory: options => {
-    id = options.args.includes('--session-id') ? options.args[options.args.indexOf('--session-id') + 1]! : id;
+  const createSupervisor = () => new PiSessionSupervisor({ piEntry: join(root, 'unused'),
+    env: { PI_CODING_AGENT_SESSION_DIR: root }, clientFactory: options => {
+    sessionFile = options.args[options.args.indexOf('--session') + 1]!;
     const client = Object.assign(new EventEmitter(), {
       pid: process.pid, start: async () => {}, dispose: async () => {},
       request: async (command: { type: string }) => {
@@ -65,7 +67,6 @@ test('unknown prompt delivery survives Host restart as a blocked session and is 
   let first: PiNativeV4Service | undefined;
   let restarted: PiNativeV4Service | undefined;
   try {
-    await writeFile(sessionFile, '{}\n');
     first = new PiNativeV4Service(createSupervisor(), directory);
     assert.equal((await first.sendConversationCommandV4({ ...target, envelope: create })).status, 'accepted');
     const commandId = randomUUID();
@@ -90,6 +91,7 @@ test('unknown prompt delivery survives Host restart as a blocked session and is 
     const persisted = JSON.parse(await readFile(join(directory, `${id}.json`), 'utf8')) as { pendingIntent?: { commandId: string } };
     assert.equal(persisted.pendingIntent?.commandId, commandId);
     delivered = true;
+    await writeFile(sessionFile, '{}\n');
     restarted = new PiNativeV4Service(createSupervisor(), directory);
     await restarted.subscribeConversationV4({ ...target, sessionId: id });
     const rows = await restarted.conversationRowsRangeV4({ ...target, sessionId: id, limit: 100 });
@@ -119,4 +121,85 @@ test('a crash with a reserved unknown-delivery receipt cannot replay a command',
     assert.equal(query.results[0]?.result !== 'unknown' && query.results[0]?.result.reasonCode, 'pi.deliveryUnknown');
     await restarted.dispose();
   } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('a first-input extension side effect without JSONL leaves a discoverable, blocked identity', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'pi-no-history-side-effect-'));
+  const directory = join(root, 'catalog');
+  const sessionId = randomUUID();
+  const sessionFile = join(root, 'never-created.jsonl');
+  const commandId = randomUUID();
+  const target = { workspacePath: root };
+  let effects = 0;
+  const fake = Object.assign(new EventEmitter(), {
+    createSession: async () => ({ sessionId, sessionFile, workspacePath: root,
+      pid: process.pid, phase: 'idle' as const, uncertainDelivery: false }),
+    getState: async () => ({ sessionId, sessionFile, isStreaming: false, isCompacting: false,
+      pendingMessageCount: 0 }),
+    sendText: async () => {
+      const saved = JSON.parse(await readFile(join(directory, `${sessionId}.json`), 'utf8')) as {
+        pendingIntent?: { commandId: string }; sessionFile: string };
+      assert.equal(saved.pendingIntent?.commandId, commandId,
+        'the recoverable pointer must be durable before any extension side effect');
+      assert.equal(saved.sessionFile, sessionFile);
+      effects++;
+      return 'noRun' as const;
+    },
+    closeSession: async () => {}, dispose: async () => {},
+  }) as unknown as PiSessionSupervisor;
+  const envelope = { commandId, clientId: 'no-history', sessionId: null,
+    type: 'createSession' as const, issuedAt: Date.now(),
+    payload: { workspaceId: root, firstInput: { text: '/side-effect' } } };
+  const first = new PiNativeV4Service(fake, directory);
+  let resumed: PiNativeV4Service | undefined;
+  try {
+    assert.equal((await first.sendConversationCommandV4({ ...target, envelope })).status, 'accepted');
+    assert.equal(effects, 1);
+    assert.equal(await readFile(sessionFile, 'utf8').then(() => true, () => false), false);
+    await first.dispose();
+    resumed = new PiNativeV4Service(fake, directory);
+    await resumed.subscribeConversationV4({ ...target, sessionId });
+    const record = (resumed as unknown as { sessions: Map<string, { snapshot: {
+      control: { phase: string; lastError: unknown } } }> }).sessions.get(sessionId);
+    assert.equal(record?.snapshot.control.phase, 'error');
+    assert.ok(record?.snapshot.control.lastError);
+    const rejected = await resumed.sendConversationCommandV4({ ...target, envelope: {
+      commandId: randomUUID(), clientId: 'no-history', sessionId,
+      type: 'sendText', issuedAt: Date.now(), payload: { text: 'must stay blocked' },
+    } });
+    assert.equal(rejected.reasonCode, 'pi.deliveryUnknown');
+    assert.equal((await resumed.sendConversationCommandV4({ ...target, envelope })).status, 'duplicate');
+    assert.equal(effects, 1);
+  } finally { await resumed?.dispose(); await first.dispose(); await rm(root, { recursive: true, force: true }); }
+});
+
+test('cold Pi history ending with a user message cannot be shown as completed success', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'pi-cold-user-only-'));
+  const directory = join(root, 'catalog');
+  const file = join(root, 'history.jsonl');
+  const id = randomUUID();
+  const target = { workspacePath: root };
+  await writeFile(file, '{"type":"session"}\n');
+  await new PiSessionCatalog(directory).save({ sessionId: id, sessionFile: file,
+    workspacePath: root, workspaceKey: root, workspaceId: root,
+    createdAt: Date.now(), lastActivityAt: Date.now(), uncertainDelivery: false });
+  const supervisor = new PiSessionSupervisor({ piEntry: join(root, 'unused'),
+    clientFactory: () => Object.assign(new EventEmitter(), {
+      pid: process.pid, start: async () => {}, dispose: async () => {},
+      request: async (command: { type: string }) => ({ success: true, data: command.type === 'get_state'
+        ? { sessionId: id, sessionFile: file, isStreaming: false, isCompacting: false,
+          pendingMessageCount: 0 }
+        : command.type === 'get_entries' ? { entries: [], leafId: null }
+        : command.type === 'get_messages' ? { messages: [{ role: 'user', content: 'unfinished', timestamp: 1 }] } : {} }),
+    }) as unknown as PiRpcClient });
+  const service = new PiNativeV4Service(supervisor, directory);
+  try {
+    await service.subscribeConversationV4({ ...target, sessionId: id });
+    const record = (service as unknown as { sessions: Map<string, { snapshot: {
+      control: { phase: string; lastError: unknown };
+      rows: { window: { kind: string; state?: string }[] } } }> }).sessions.get(id);
+    assert.equal(record?.snapshot.control.phase, 'error');
+    assert.ok(record?.snapshot.control.lastError);
+    assert.equal(record?.snapshot.rows.window.find(row => row.kind === 'turnHeader')?.state, 'running');
+  } finally { await service.dispose(); await rm(root, { recursive: true, force: true }); }
 });

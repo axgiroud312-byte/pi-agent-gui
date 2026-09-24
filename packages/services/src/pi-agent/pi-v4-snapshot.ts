@@ -56,7 +56,9 @@ export function createPiV4Snapshot(
   const provider = typeof model.provider === "string" && model.provider !== "unknown" ? model.provider : "";
   const modelId = typeof model.id === "string" && model.id !== "unknown" ? model.id : "";
   const hasHistory = typeof state.messageCount === "number" && state.messageCount > 0;
-  const phase = nativePhase(view.phase, hasHistory);
+  const incompleteTurn = state.piIncompleteTurn === true;
+  const phase = incompleteTurn && (view.phase === "settled" || view.phase === "idle")
+    ? "error" : nativePhase(view.phase, hasHistory);
   const running = phase === "running" || phase === "prewarming";
   const now = Date.now();
   const runStartedAt = typeof state.piRunStartedAt === "number" ? state.piRunStartedAt : now;
@@ -74,6 +76,12 @@ export function createPiV4Snapshot(
         : view.reconciliationRequired ? "pi.reconciliationRequired" : "pi.runtimeError",
       message: view.error,
       recoverable: !view.uncertainDelivery && !view.reconciliationRequired,
+      at: errorAt,
+      source: "runtime",
+    } : incompleteTurn ? {
+      code: "pi.historyUnresolved",
+      message: "Pi history does not contain a completed assistant turn. Reconcile this session before sending more input.",
+      recoverable: false,
       at: errorAt,
       source: "runtime",
     } : state.piBookmarkError === true ? {
@@ -97,7 +105,7 @@ export function createPiV4Snapshot(
     availability: availability(),
     inputRouting: running
       ? { mode: "reject", reasonCode: "pi.busyInputRequiresQueueTicket" }
-      : view.uncertainDelivery || view.reconciliationRequired || view.phase === "exited"
+      : incompleteTurn || Boolean(state.piPendingIntent) || view.uncertainDelivery || view.reconciliationRequired || view.phase === "exited"
         ? { mode: "reject", reasonCode: "pi.sessionUnavailable" }
         : { mode: "startNow" },
     meta: { title: typeof state.sessionName === "string" ? state.sessionName : "", titleSource: "default" },

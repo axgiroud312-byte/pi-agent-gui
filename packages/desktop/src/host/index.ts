@@ -2152,19 +2152,24 @@ async function disposeHostResources(reason: string): Promise<HostShutdownResult>
           name: "remote-registry-dispose",
           run: () => windowRemoteConnectionRegistry.dispose(),
           timeoutMs: 6_000,
+          mustComplete: true,
         },
         ...(servicesToDispose
           ? [
               {
                 name: "service-dispose",
                 run: () => disposeServiceResourcesAndWait(servicesToDispose),
-                timeoutMs: 3_500,
+                // clear_queue + abort + abort_bash + owned tree identity/force
+                // share this Host owner barrier; expiration only logs, never exits.
+                timeoutMs: 40_000,
+                mustComplete: true,
               },
             ]
           : []),
       ],
       {
         phaseTimeoutMs: 5_000,
+        concurrent: true,
         log: (message, details) => logger.warn(message, details),
       },
     );

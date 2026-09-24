@@ -40,7 +40,7 @@ test('two actual Hosts racing to resume one Pi JSONL: loser never constructs or 
       };
       const results = await Promise.all([startHost(), startHost()]);
       assert.equal(results.filter(result => result.status === 'ready').length, 1);
-      assert.match(results.find(result => result.status === 'rejected')?.error ?? '', /already owned/);
+      assert.match(results.find(result => result.status === 'rejected')?.error ?? '', /already owned|quarantined/);
       assert.equal((await readFile(marker, 'utf8')).trim().split('\n').length, 1,
         'The lease loser must not even construct a Pi client, let alone open history or run startup hooks');
       const pid = results.find(result => result.status === 'ready')?.piPid;

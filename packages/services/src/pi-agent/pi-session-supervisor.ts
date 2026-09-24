@@ -1,62 +1,15 @@
+/* eslint-disable max-lines -- One supervisor owns Pi startup, events and teardown for the same leased runtime. */
 import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { realpath, stat } from "node:fs/promises";
 import { isAbsolute } from "node:path";
-import { PiRpcClient, PiRpcError, type RpcDiagnostic, type RpcExit } from "./pi-rpc-client.js";
+import { PiRpcClient, PiRpcError } from "./pi-rpc-client.js";
 import { PiSessionLease } from "./pi-session-lease.js";
 import { settlePiSessionBeforeClose } from "./pi-session-teardown.js";
 import { getPiHistoryMessages } from "./pi-session-history.js";
-
-export type PiSessionPhase =
-  | "starting"
-  | "idle"
-  | "accepted"
-  | "running"
-  | "retrying"
-  | "compacting"
-  | "stopping"
-  | "settled"
-  | "stopped"
-  | "error"
-  | "exited";
-
-export interface PiSessionView {
-  sessionId: string;
-  sessionFile: string;
-  workspacePath: string;
-  pid: number;
-  phase: PiSessionPhase;
-  uncertainDelivery: boolean;
-  reconciliationRequired?: boolean;
-  foregroundExecutionId?: string;
-  clearedQueue?: { steering: string[]; followUp: string[] };
-  error?: string;
-}
-
-export interface PiSessionSupervisorOptions {
-  piEntry: string;
-  executable?: string;
-  env?: NodeJS.ProcessEnv;
-  rpcArgs?: string[];
-  clientFactory?: (options: ConstructorParameters<typeof PiRpcClient>[0]) => PiRpcClient;
-}
-
-interface SessionRuntime {
-  view: PiSessionView;
-  client: PiRpcClient;
-  generation: string;
-  stopping: boolean;
-  acceptRunEvents: boolean;
-  hadRunError: boolean;
-  lease: PiSessionLease;
-}
-
-type SupervisorEvents = {
-  change: [view: PiSessionView];
-  record: [sessionId: string, record: Record<string, unknown>];
-  diagnostic: [sessionId: string, diagnostic: RpcDiagnostic];
-  exit: [sessionId: string, exit: RpcExit];
-};
+import { canonicalSessionLeaf, reserveNewSessionPath, sessionFileExists } from "./pi-session-path.js";
+import type { PiSessionSupervisorOptions, PiSessionView, SessionRuntime, SupervisorEvents } from "./pi-session-types.js";
+export type { PiSessionPhase, PiSessionView, PiSessionSupervisorOptions } from "./pi-session-types.js";
 
 function object(value: unknown): Record<string, unknown> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -76,6 +29,10 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
   private readonly options: PiSessionSupervisorOptions;
   private disposed = false;
   private disposePromise?: Promise<void>;
+  private readonly pendingStarts = new Set<Promise<PiSessionView>>();
+  private readonly exitCleanups = new Map<string, Promise<void>>();
+  private readonly closingSessions = new Map<string, SessionRuntime>();
+  private readonly closeFlights = new Map<string, Promise<void>>();
 
   constructor(options: PiSessionSupervisorOptions) {
     super();
@@ -109,22 +66,40 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
       if (runtime.stopping || !runtime.acceptRunEvents) return;
       switch (record.type) {
         case "agent_start":
-          runtime.hadRunError = false;
+          if (view.phase !== "retrying") {
+            runtime.hadRunError = false;
+            runtime.persistentRunError = false;
+            runtime.modelRetryError = undefined;
+          }
           view.phase = "running";
           break;
         case "auto_retry_start":
+        case "summarization_retry_scheduled":
           view.phase = "retrying";
           break;
         case "auto_retry_end":
+        case "summarization_retry_finished":
           view.phase = "running";
-          if (record.success === false) runtime.hadRunError = true;
+          if (record.success === true) {
+            runtime.hadRunError = runtime.persistentRunError;
+            if (!runtime.persistentRunError && view.error === runtime.modelRetryError &&
+              !view.uncertainDelivery && !view.reconciliationRequired) {
+              view.error = undefined;
+            }
+            runtime.modelRetryError = undefined;
+          } else if (record.success === false) {
+            runtime.hadRunError = true;
+          }
           break;
         case "compaction_start":
           view.phase = "compacting";
           break;
         case "compaction_end":
           view.phase = "running";
-          if (record.errorMessage || record.aborted) runtime.hadRunError = true;
+          if (record.errorMessage || record.aborted) {
+            runtime.hadRunError = true;
+            runtime.persistentRunError = true;
+          }
           break;
         case "message_end": {
           const final = record.message;
@@ -132,17 +107,20 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
             const result = final as Record<string, unknown>;
             if (result.stopReason === "error" || result.errorMessage) {
               runtime.hadRunError = true;
-              view.error = typeof result.errorMessage === "string" ? result.errorMessage : "Pi model run failed";
+              const modelError = typeof result.errorMessage === "string" ? result.errorMessage : "Pi model run failed";
+              if (!view.error || view.error === runtime.modelRetryError) view.error = modelError;
+              runtime.modelRetryError = modelError;
             }
           }
           break;
         }
         case "extension_error":
           runtime.hadRunError = true;
+          runtime.persistentRunError = true;
           view.error = typeof record.error === "string" ? record.error : "Pi extension failed";
           break;
         case "agent_settled":
-          view.phase = runtime.hadRunError ? "error" : "settled";
+          view.phase = runtime.hadRunError || view.uncertainDelivery || view.reconciliationRequired ? "error" : "settled";
           view.foregroundExecutionId = undefined;
           runtime.acceptRunEvents = false;
           break;
@@ -168,24 +146,45 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
       this.emit("exit", view.sessionId, exit);
       this.sessions.delete(view.sessionId);
       this.sessionFiles.delete(view.sessionFile);
-      void runtime.lease.release().catch(error => this.emit("diagnostic", view.sessionId,
-        { kind: "process", message: `Could not release Pi session lease: ${message(error)}` }));
+      // Root exit is not proof that an Agent bash descendant exited. Keep the
+      // lease until the client's identity-checked tree cleanup has finished.
+      const cleanup = client.dispose().then(() => runtime.lease.release()).catch(error => {
+        this.emit("diagnostic", view.sessionId,
+          { kind: "process", message: `Could not finish Pi exit cleanup: ${message(error)}` });
+        throw error;
+      }).then(() => {
+        if (this.exitCleanups.get(view.sessionFile) === cleanup) this.exitCleanups.delete(view.sessionFile);
+      });
+      this.exitCleanups.set(view.sessionFile, cleanup);
+      void cleanup.catch(() => {}); // Resume/dispose still observe the rejected owner barrier.
     });
   }
 
-  private async start(workspacePath: string, args: string[], expectedId?: string, knownSessionFile?: string): Promise<PiSessionView> {
-    if (this.disposed) throw new Error("Pi session supervisor is disposed");
-    if (!isAbsolute(workspacePath) || !(await stat(workspacePath)).isDirectory()) {
-      throw new Error("Pi workspace path must be an existing absolute directory");
-    }
+  private async start(workspacePath: string, args: string[], expectedId?: string, knownSessionFile?: string,
+    reservedLease?: PiSessionLease): Promise<PiSessionView> {
     let client: PiRpcClient | undefined;
-    let lease: PiSessionLease | undefined;
+    let lease = reservedLease;
     let bootstrapDialog: ((record: Record<string, unknown>) => void) | undefined;
+    let bootstrapDiagnostic: ((diagnostic: { kind: "stderr" | "protocol" | "process"; message: string }) => void) | undefined;
+    let startupExtensionError = false;
+    const startupDiagnostics: { kind: "stderr" | "protocol" | "process"; message: string }[] = [];
     try {
-      // Resume already knows its canonical file. Claim it before any Pi startup
-      // can read/write the JSONL or execute extension session_start hooks.
-      if (knownSessionFile) lease = await PiSessionLease.acquire(knownSessionFile);
       if (this.disposed) throw new Error("Pi session supervisor is disposed");
+      if (!isAbsolute(workspacePath) || !(await stat(workspacePath)).isDirectory()) {
+        throw new Error("Pi workspace path must be an existing absolute directory");
+      }
+      // Resume acquires its canonical JSONL lease here; create pre-acquires an
+      // absent explicit leaf. Both persist quarantine BEFORE any child can start.
+      if (knownSessionFile && !lease) lease = await PiSessionLease.acquire(knownSessionFile);
+      if (this.disposed) throw new Error("Pi session supervisor is disposed");
+      if (!expectedId && knownSessionFile && await sessionFileExists(knownSessionFile)) {
+        throw new Error("New Pi history file already exists");
+      }
+      await lease?.markRuntimeUncertain();
+      if (this.disposed) throw new Error("Pi session supervisor is disposed");
+      if (!expectedId && knownSessionFile && await sessionFileExists(knownSessionFile)) {
+        throw new Error("New Pi history file appeared before startup");
+      }
       client = (this.options.clientFactory ?? (options => new PiRpcClient(options)))({
         executable: this.options.executable ?? process.execPath,
         args: [this.options.piEntry, ...args, ...(this.options.rpcArgs ?? [])],
@@ -197,6 +196,7 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
       // returns and before the runtime is registered. Cancel them at bootstrap.
       const bootClient = client;
       bootstrapDialog = record => {
+        if (record.type === "extension_error") startupExtensionError = true;
         if (record.type === "extension_ui_request" && typeof record.id === "string" &&
           ["select", "confirm", "input", "editor"].includes(String(record.method))) {
           void bootClient.notify({ type: "extension_ui_response", id: record.id, cancelled: true })
@@ -204,6 +204,10 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
         }
       };
       client.on("record", bootstrapDialog);
+      bootstrapDiagnostic = diagnostic => {
+        if (startupDiagnostics.length < 8) startupDiagnostics.push(diagnostic);
+      };
+      client.on("diagnostic", bootstrapDiagnostic);
       await client.start();
       const response = await client.request({ type: "get_state" });
       if (!response.success) throw new Error(response.error ?? "Pi get_state failed");
@@ -212,8 +216,12 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
         throw new Error("Pi get_state omitted session identity");
       }
       if (this.disposed) throw new Error("Pi session supervisor is disposed");
-      if (knownSessionFile && await realpath(state.sessionFile) !== knownSessionFile) {
-        throw new Error("Pi restored a different history file than the leased file");
+      if (knownSessionFile) {
+        const actualFile = await canonicalSessionLeaf(state.sessionFile);
+        if (actualFile !== knownSessionFile ||
+          (await sessionFileExists(state.sessionFile) && await realpath(state.sessionFile) !== knownSessionFile)) {
+          throw new Error("Pi restored a different history file than the leased file");
+        }
       }
       if (expectedId && state.sessionId !== expectedId) {
         throw new Error(`Pi restored a different session (${state.sessionId}) than requested (${expectedId})`);
@@ -222,7 +230,9 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
         throw new Error("Pi session is already owned by an active process");
       }
       if (!client.pid) throw new Error("Pi process has no PID");
-      lease ??= await PiSessionLease.acquire(state.sessionFile);
+      if (!lease) throw new Error("Pi runtime started without a protected session file");
+      // Disposal may have begun while the pre-acquired lease was being marked.
+      if (this.disposed) throw new Error("Pi session supervisor is disposed");
       const view: PiSessionView = {
         sessionId: state.sessionId,
         sessionFile: state.sessionFile,
@@ -232,6 +242,15 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
         uncertainDelivery: false,
         foregroundExecutionId: state.isStreaming || state.isCompacting ? randomUUID() : undefined,
       };
+      if (startupExtensionError) {
+        view.phase = "error";
+        view.error = "Pi extension failed during session startup";
+      }
+      if (startupDiagnostics.some(diagnostic => diagnostic.kind === "protocol")) {
+        view.phase = "error";
+        view.uncertainDelivery = true;
+        view.error = "Pi protocol output was malformed during session startup";
+      }
       const runtime: SessionRuntime = {
         view,
         client,
@@ -239,6 +258,7 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
         stopping: false,
         acceptRunEvents: state.isStreaming === true || state.isCompacting === true,
         hadRunError: false,
+        persistentRunError: false,
         lease,
       };
       this.sessions.set(view.sessionId, runtime);
@@ -246,27 +266,53 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
       this.attach(runtime);
       client.off("record", bootstrapDialog);
       bootstrapDialog = undefined;
+      client.off("diagnostic", bootstrapDiagnostic);
+      bootstrapDiagnostic = undefined;
+      for (const diagnostic of startupDiagnostics) this.emit("diagnostic", view.sessionId, diagnostic);
       this.publish(runtime);
       return { ...view };
     } catch (error) {
       if (bootstrapDialog) client?.off("record", bootstrapDialog);
-      try { await client?.dispose(); }
-      finally { await lease?.release(); }
+      if (bootstrapDiagnostic) client?.off("diagnostic", bootstrapDiagnostic);
+      // Releasing on a rejected dispose would admit a second writer while Pi
+      // or a tool descendant might still be alive. Preserve that lease.
+      if (client) await client.dispose();
+      await lease?.release();
       throw error;
     }
   }
 
-  async createSession(workspacePath: string): Promise<PiSessionView> {
-    const sessionId = randomUUID();
-    return this.start(workspacePath, ["--session-id", sessionId], sessionId);
+  private trackStart(start: Promise<PiSessionView>): Promise<PiSessionView> {
+    this.pendingStarts.add(start);
+    void start.then(() => this.pendingStarts.delete(start), () => this.pendingStarts.delete(start));
+    return start;
   }
 
-  async resumeSession(workspacePath: string, sessionFile: string, expectedId: string): Promise<PiSessionView> {
-    if (!isAbsolute(sessionFile) || !(await stat(sessionFile)).isFile()) {
-      throw new Error("Pi session history file does not exist");
-    }
-    const canonicalFile = await realpath(sessionFile);
-    return this.start(workspacePath, ["--session", canonicalFile], expectedId, canonicalFile);
+  createSession(workspacePath: string): Promise<PiSessionView> {
+    if (this.disposed) return Promise.reject(new Error("Pi session supervisor is disposed"));
+    return this.trackStart((async () => {
+      if (!isAbsolute(workspacePath) || !(await stat(workspacePath)).isDirectory()) {
+        throw new Error("Pi workspace path must be an existing absolute directory");
+      }
+      const env = { ...process.env, ...this.options.env };
+      const file = await reserveNewSessionPath(workspacePath, env, this.options.rpcArgs ?? []);
+      if (this.disposed) throw new Error("Pi session supervisor is disposed");
+      const lease = await PiSessionLease.acquire(file);
+      return this.start(workspacePath, ["--session", file], undefined, file, lease);
+    })());
+  }
+
+  resumeSession(workspacePath: string, sessionFile: string, expectedId: string): Promise<PiSessionView> {
+    if (this.disposed) return Promise.reject(new Error("Pi session supervisor is disposed"));
+    return this.trackStart((async () => {
+      if (!isAbsolute(sessionFile) || !(await stat(sessionFile)).isFile()) {
+        throw new Error("Pi session history file does not exist");
+      }
+      const canonicalFile = await realpath(sessionFile);
+      await this.exitCleanups.get(canonicalFile);
+      if (this.disposed) throw new Error("Pi session supervisor is disposed");
+      return this.start(workspacePath, ["--session", canonicalFile], expectedId, canonicalFile);
+    })());
   }
 
   getSession(sessionId: string): PiSessionView | undefined {
@@ -284,6 +330,7 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
     const runtime = this.requireSession(sessionId);
     runtime.view.uncertainDelivery ||= uncertainDelivery;
     runtime.view.reconciliationRequired = true;
+    runtime.view.phase = "error";
     runtime.view.error = "Pi session recovered after an uncertain run; inspect history before any new input";
     this.publish(runtime);
     return { ...runtime.view };
@@ -329,6 +376,8 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
     if (!["idle", "settled", "stopped", "error"].includes(runtime.view.phase)) throw new Error("Pi session is already busy");
     if (text.trim().length === 0) throw new Error("Pi input is empty");
     runtime.hadRunError = false;
+    runtime.persistentRunError = false;
+    runtime.modelRetryError = undefined;
     runtime.acceptRunEvents = true;
     runtime.view.error = undefined;
     runtime.view.phase = "accepted";
@@ -354,7 +403,11 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
     try {
       const state = await this.getState(sessionId);
       if (runtime.view.phase === "accepted" && state.isStreaming === false && state.isCompacting === false && state.pendingMessageCount === 0) {
-        runtime.view.phase = "idle";
+        // Extensions may have performed a side effect without a user message.
+        // An idle get_state cannot prove that the accepted prompt did nothing.
+        runtime.view.phase = "error";
+        runtime.view.reconciliationRequired = true;
+        runtime.view.error = "Pi handled input without a run; inspect history before another input";
         runtime.view.foregroundExecutionId = undefined;
         runtime.acceptRunEvents = false;
         this.publish(runtime);
@@ -411,24 +464,49 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
     }
   }
 
-  async closeSession(sessionId: string): Promise<void> {
-    const runtime = this.sessions.get(sessionId);
-    if (!runtime) return;
-    runtime.generation = randomUUID();
-    this.sessions.delete(sessionId);
-    this.sessionFiles.delete(runtime.view.sessionFile);
-    try {
-      await settlePiSessionBeforeClose(runtime.client, Boolean(runtime.view.foregroundExecutionId));
-    } finally {
-      try { await runtime.client.dispose(); }
-      finally { await runtime.lease.release(); }
+  closeSession(sessionId: string): Promise<void> {
+    const existing = this.closeFlights.get(sessionId);
+    if (existing) return existing;
+    const runtime = this.sessions.get(sessionId) ?? this.closingSessions.get(sessionId);
+    if (!runtime) return Promise.resolve();
+    if (this.sessions.has(sessionId)) {
+      runtime.generation = randomUUID();
+      this.sessions.delete(sessionId);
+      this.sessionFiles.delete(runtime.view.sessionFile);
+      this.closingSessions.set(sessionId, runtime);
     }
+    const pending = (async () => {
+      let settlingFailure: unknown;
+      try { await settlePiSessionBeforeClose(runtime.client, Boolean(runtime.view.foregroundExecutionId)); }
+      catch (error) { settlingFailure = error; }
+      // A rejected tree cleanup must retain the lock and runtime quarantine.
+      // A later owner call can retry verification before releasing it.
+      await runtime.client.dispose();
+      await runtime.lease.release();
+      this.closingSessions.delete(sessionId);
+      if (settlingFailure) throw settlingFailure;
+    })();
+    this.closeFlights.set(sessionId, pending);
+    void pending.finally(() => {
+      if (this.closeFlights.get(sessionId) === pending) this.closeFlights.delete(sessionId);
+    }).catch(() => {});
+    return pending;
   }
 
   dispose(): Promise<void> {
     if (this.disposePromise) return this.disposePromise;
     this.disposed = true;
-    this.disposePromise = Promise.all([...this.sessions.keys()].map(id => this.closeSession(id))).then(() => {});
+    this.disposePromise = (async () => {
+      // Starts are registered synchronously, before their first await. Drain them
+      // before snapshotting sessions so none can register after disposal returns.
+      await Promise.allSettled(this.pendingStarts);
+      const results = await Promise.allSettled([...new Set([
+        ...this.sessions.keys(), ...this.closingSessions.keys(),
+      ])].map(id => this.closeSession(id)));
+      const exits = await Promise.allSettled(this.exitCleanups.values());
+      const failures = [...results, ...exits].filter(result => result.status === "rejected");
+      if (failures.length) throw new AggregateError(failures.map(result => result.reason), "Pi session disposal failed");
+    })();
     return this.disposePromise;
   }
 }

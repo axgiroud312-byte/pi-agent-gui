@@ -2,7 +2,19 @@
 
 更新：2026-09-23（Asia/Shanghai）。权威验收以 GitHub #34 最新正文与评论为准；本文只记当前工作树和**实际取得**的证据。
 
-## 2026-09-24 恢复（优先于下方历史快照）
+## 2026-09-24 当前停点：本地整改复验通过，待本次 CI 与独立复审
+
+本轮只在 `C:\Users\niilo\Desktop\pi-agent-gui`、`issue-34-native-pi-rpc` 收尾 #34，没有新建工作树，也没有改动 `D:\Temp` 的对照或审查快照。两份 `4fd60df` 审查的 12 条意见、接手时状态、补充改动和本地证据见 [逐项收口](issue-34-closeout/review-resolution-2026-09-24.md)。最新源码 Pi 测试 105/105、桌面投影 1/1、类型检查与定向 lint 通过；Windows 新包及包内 exe GUI、18 项原生 GUI smoke 通过，全部产物在本仓库 `release/issue-34-closeout/`。这些是本地验证，不替代尚待触发的最新 Windows CI 或独立复审。
+
+仍须只提交 #34 文件并推送现有 Draft PR #39，等最新 Windows CI 绿后续 Standards / Spec 全范围复审。审查通过后停下等待用户确认，不自行合并、不关闭 #34、不开始 #3 到 #28。以下均为历史阶段记录，旧路径与旧 CI 状态不再描述当前工作区。
+
+## 历史停点：4fd60df 双 CI 绿后，独立复审均 Request changes
+
+[Spec 发现](issue-34-closeout/spec-review-4fd60df.md)与[Standards 发现](issue-34-closeout/standards-review-4fd60df.md)覆盖冻结全PR快照，实际两 reviewer 均 GPT-5.6 Sol / max。不得以绿色 CI 合并/关闭。当前三个实施任务分离文件：production 修 supervisor/native-v4 的重试与生命周期失败收口；lease-recovery 仅锁本体/专属测试；host-shutdown 负责 RPC teardown 和 desktop/main 的预算/可靠进程树收口。主会话已红绿修 node.ts 通用 disposer 前序失败跳过 Pi 的问题，图像加载取证脚本正在补充。Spec 三项首批修复报告87/87，不覆盖剩余Standards admission并发/重启、运行状态、Stop返还队列和诊断链，仍须后续逐项整改。
+
+工作树有新未提交整改；生产代码变化后必须重跑测试/GUI/新包/CI，再续原两 reviewer，不能用4fd60df旧绿色代替。视觉工具依然禁用，目视复核仍未完成。%SystemDrive%缓存保持不动。
+
+## 2026-09-24 恢复（历史过程）
 
 用户已明确授权修复既有阻塞后提交/推送 PR #39，**先通过 Windows CI，再独立 Standards / Spec 复审**；不合并、不关闭 #34、不推进后续票。本轮已核对最新 PR/CI/Issue，复跑许可、provenance、46 项脚本回归及双 cwd transport，详见 [恢复核验](issue-34-closeout/resume-2026-09-24.md)。生产 S1–S8 本轮修复及两个集成回归已处理；服务81/81、新构建两条GUI、新Windows包和打包exe GUI均通过，见[最终本地证据](issue-34-closeout/final/README.md)。生产修复 `d25580b`、CI/证据 `8dc95b7` 已推送 PR #39；Windows CI 已触发，尚无新绿CI或独立复审PASS。下文“不提交推送、只继续旧实例”的旧停点不再适用，旧证据仍保留。
 

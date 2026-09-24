@@ -11,12 +11,15 @@ import { PiNativeV4Service } from '../src/pi-agent/pi-native-v4-service.js';
 
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), 'pi-admission-'));
-  let id = '';
+  const id = randomUUID();
+  let sessionFile = '';
   class ControlledPi extends EventEmitter {
     readonly pid = process.pid;
     prompts = 0;
     streaming = false;
     readonly calls: string[] = [];
+    modelGate?: Promise<void>;
+    modelRequested?: () => void;
     postAdmissionError: Error | undefined;
     noRun = false;
     queued = { steering: [] as string[], followUp: [] as string[] };
@@ -27,7 +30,11 @@ async function fixture() {
     async dispose() {}
     async request(command: { type: string; message?: string; provider?: string; modelId?: string; level?: string }) {
       this.calls.push(command.type);
-      if (command.type === 'set_model') this.model = { provider: command.provider!, id: command.modelId!, reasoning: false };
+      if (command.type === 'set_model') {
+        this.modelRequested?.();
+        await this.modelGate;
+        this.model = { provider: command.provider!, id: command.modelId!, reasoning: false };
+      }
       if (command.type === 'set_thinking_level') this.thinkingLevel = command.level!;
       if (command.type === 'abort') this.streaming = false;
       if (command.type === 'clear_queue') {
@@ -37,7 +44,7 @@ async function fixture() {
         return { success: true, data: cleared };
       }
       if (command.type === 'prompt') {
-        await writeFile(join(root, 'session.jsonl'), '{}\n');
+        await writeFile(sessionFile, '{}\n');
         this.prompts++;
         this.streaming = !this.noRun;
         if (!this.noRun) {
@@ -49,7 +56,7 @@ async function fixture() {
       }
       if (command.type === 'get_state' && this.prompts && this.postAdmissionError) throw this.postAdmissionError;
       return { success: true, data: command.type === 'get_state'
-        ? { sessionId: id, sessionFile: join(root, 'session.jsonl'), messageCount: this.prompts,
+        ? { sessionId: id, sessionFile, messageCount: this.prompts,
           model: this.model, thinkingLevel: this.thinkingLevel,
           isStreaming: this.streaming, isCompacting: false, pendingMessageCount: 0 }
         : command.type === 'get_entries' ? { entries: [], leafId: null }
@@ -57,13 +64,16 @@ async function fixture() {
     }
   }
   const client = new ControlledPi();
-  const supervisor = new PiSessionSupervisor({ piEntry: join(root, 'unused.js'), clientFactory: options => {
-    id = options.args[options.args.indexOf('--session-id') + 1]!;
+  const supervisor = new PiSessionSupervisor({ piEntry: join(root, 'unused.js'),
+    env: { PI_CODING_AGENT_SESSION_DIR: root }, clientFactory: options => {
+    sessionFile = options.args[options.args.indexOf('--session') + 1]!;
     return client as unknown as PiRpcClient;
   } });
-  const service = new PiNativeV4Service(supervisor, join(root, 'catalog'));
+  const catalogDir = join(root, 'catalog');
+  const service = new PiNativeV4Service(supervisor, catalogDir);
   return { root, client, supervisor, service, target: { workspacePath: root },
-    id: () => id, close: async () => { await service.dispose(); await rm(root, { recursive: true, force: true }); } };
+    catalogDir, id: () => id,
+    close: async () => { await service.dispose(); await rm(root, { recursive: true, force: true }); } };
 }
 
 for (const firstInput of [true, false]) {
@@ -181,6 +191,11 @@ test('late Stop neither rewrites a settled turn nor cancels a newer run', async 
     const first = f.supervisor.getSession(f.id())?.foregroundExecutionId;
     assert.ok(first);
     f.client.streaming = false;
+    const assistant = { role: 'assistant', content: [{ type: 'text', text: 'done' }],
+      stopReason: 'stop', timestamp: Date.now() };
+    f.client.messages.push(assistant);
+    f.client.emit('record', { type: 'message_start', message: assistant });
+    f.client.emit('record', { type: 'message_end', message: assistant });
     f.client.emit('record', { type: 'agent_settled' });
     const before = await f.service.conversationRowsRangeV4({ ...f.target, sessionId: f.id(), limit: 100 });
     assert.equal((await stop(first)).status, 'noop');
@@ -203,6 +218,7 @@ test('late Stop neither rewrites a settled turn nor cancels a newer run', async 
 
 test('Stop retains Pi clear_queue handback without claiming queued work will auto-run', async () => {
   const f = await fixture();
+  let resumed: PiNativeV4Service | undefined;
   try {
     await f.service.sendConversationCommandV4({ ...f.target, envelope: {
       commandId: randomUUID(), clientId: 'queue-stop', sessionId: null, type: 'createSession',
@@ -224,10 +240,36 @@ test('Stop retains Pi clear_queue handback without claiming queued work will aut
     assert.deepEqual(session?.snapshot.queue.items.map(item => item.text), ['change direction', 'later']);
     assert.equal(session?.snapshot.queue.autoDrain, false);
     assert.equal(session?.snapshot.queue.pauseReason, 'stopped');
-  } finally { await f.close(); }
+    const assistant = { role: 'assistant', content: [{ type: 'text', text: 'aborted' }],
+      stopReason: 'aborted', timestamp: Date.now() };
+    f.client.messages.push(assistant);
+    f.client.emit('record', { type: 'message_start', message: assistant });
+    f.client.emit('record', { type: 'message_end', message: assistant });
+    f.client.emit('record', { type: 'agent_settled' });
+    await (f.service as unknown as { reconciliations: Map<string, Promise<void>> }).reconciliations.get(f.id());
+    assert.equal((await f.service.sendConversationCommandV4({ ...f.target, envelope: {
+      commandId: randomUUID(), clientId: 'queue-stop', sessionId: f.id(), type: 'sendText',
+      issuedAt: Date.now(), payload: { text: 'new foreground work' },
+    } })).status, 'accepted');
+    assert.equal(session?.snapshot.queue.autoDrain, false,
+      'a new foreground input must not silently enqueue or auto-run returned work');
+    assert.deepEqual(session?.snapshot.queue.items.map(item => item.text), ['change direction', 'later']);
+    await f.service.dispose();
+    const restartedSupervisor = new PiSessionSupervisor({ piEntry: join(f.root, 'unused.js'),
+      env: { PI_CODING_AGENT_SESSION_DIR: f.root },
+      clientFactory: () => f.client as unknown as PiRpcClient });
+    resumed = new PiNativeV4Service(restartedSupervisor, f.catalogDir);
+    await resumed.subscribeConversationV4({ ...f.target, sessionId: f.id() });
+    const restored = (resumed as unknown as { sessions: Map<string, { snapshot: { queue: {
+      items: { text: string }[]; autoDrain: boolean; pauseReason?: string } } }> }).sessions.get(f.id());
+    assert.deepEqual(restored?.snapshot.queue.items.map(item => item.text), ['change direction', 'later']);
+    assert.equal(restored?.snapshot.queue.autoDrain, false);
+    assert.equal(restored?.snapshot.queue.pauseReason, 'stopped');
+    assert.equal(f.client.prompts, 2, 'reopening must not replay either returned queue item');
+  } finally { await resumed?.dispose(); await f.close(); }
 });
 
-test('a verified no-run command cannot steal the next actual user message correlation', async () => {
+test('a no-run extension command stays blocked without proof of delivery', async () => {
   const f = await fixture();
   try {
     await f.service.sendConversationCommandV4({ ...f.target, envelope: {
@@ -240,10 +282,81 @@ test('a verified no-run command cannot steal the next actual user message correl
     f.client.noRun = true;
     assert.equal((await send('no-run-command', '/handled')).status, 'accepted');
     f.client.noRun = false;
-    assert.equal((await send('real-user-command', 'hello')).status, 'accepted');
+    const next = await send('real-user-command', 'hello');
+    assert.equal(next.reasonCode, 'pi.deliveryUnknown');
     const result = await f.service.conversationRowsRangeV4({ ...f.target, sessionId: f.id(), limit: 100 });
     const rows = result.rows.filter(row => row.kind === 'userInput');
-    assert.equal(rows.length, 1);
-    assert.equal(rows[0]?.sourceCommandId, 'real-user-command');
+    assert.equal(rows.length, 0);
+    assert.equal(f.client.prompts, 1);
+  } finally { await f.close(); }
+});
+
+test('same-session admissions serialize model selection and retain the winning command intent', async () => {
+  const f = await fixture();
+  const gate = Promise.withResolvers<void>();
+  const modelRequested = Promise.withResolvers<void>();
+  const send = (commandId: string, modelId: string) => f.service.sendConversationCommandV4({
+    ...f.target, envelope: { commandId, clientId: 'serial-admission', sessionId: f.id(),
+      type: 'sendText', issuedAt: Date.now(), payload: { text: commandId,
+        modelSelection: { providerId: 'local', modelId } } },
+  });
+  try {
+    assert.equal((await f.service.sendConversationCommandV4({ ...f.target, envelope: {
+      commandId: randomUUID(), clientId: 'serial-admission', sessionId: null,
+      type: 'createSession', issuedAt: Date.now(), payload: { workspaceId: f.root },
+    } })).status, 'accepted');
+    f.client.modelGate = gate.promise;
+    f.client.modelRequested = () => modelRequested.resolve();
+    const winner = send('winner', 'model-a');
+    await modelRequested.promise;
+    const loser = send('loser', 'model-b');
+    await new Promise<void>(resolve => setImmediate(resolve));
+    assert.equal(f.client.calls.filter(call => call === 'set_model').length, 1);
+    gate.resolve();
+    assert.equal((await winner).status, 'accepted');
+    assert.equal((await loser).reasonCode, 'pi.deliveryUnknown');
+    assert.equal(f.client.model?.id, 'model-a');
+    assert.equal(f.client.prompts, 1);
+    const record = (f.service as unknown as { sessions: Map<string, {
+      state: { piPendingIntent?: { commandId: string } } }> }).sessions.get(f.id());
+    assert.equal(record?.state.piPendingIntent?.commandId, 'winner');
+    const assistant = { role: 'assistant', content: [{ type: 'text', text: 'complete' }],
+      stopReason: 'stop', timestamp: Date.now() };
+    f.client.messages.push(assistant);
+    f.client.emit('record', { type: 'message_start', message: assistant });
+    f.client.emit('record', { type: 'message_end', message: assistant });
+    f.client.streaming = false;
+    f.client.emit('record', { type: 'agent_settled' });
+    await (f.service as unknown as { reconciliations: Map<string, Promise<void>> }).reconciliations.get(f.id());
+    assert.equal((await send('next', 'model-b')).status, 'accepted');
+    assert.equal(f.client.model?.id, 'model-b');
+  } finally { gate.resolve(); await f.close(); }
+});
+
+test('settled with user-only history remains unresolved in live control and turn rows', async () => {
+  const f = await fixture();
+  try {
+    assert.equal((await f.service.sendConversationCommandV4({ ...f.target, envelope: {
+      commandId: randomUUID(), clientId: 'user-only', sessionId: null,
+      type: 'createSession', issuedAt: Date.now(), payload: { workspaceId: f.root },
+    } })).status, 'accepted');
+    assert.equal((await f.service.sendConversationCommandV4({ ...f.target, envelope: {
+      commandId: 'user-only-input', clientId: 'user-only', sessionId: f.id(),
+      type: 'sendText', issuedAt: Date.now(), payload: { text: 'unfinished' },
+    } })).status, 'accepted');
+    f.client.streaming = false;
+    f.client.emit('record', { type: 'agent_settled' });
+    await (f.service as unknown as { reconciliations: Map<string, Promise<void>> }).reconciliations.get(f.id());
+    const record = (f.service as unknown as { sessions: Map<string, { snapshot: {
+      control: { phase: string; lastError: unknown }; rows: { window: { kind: string; state?: string }[] } } }> }).sessions.get(f.id());
+    assert.equal(record?.snapshot.control.phase, 'error');
+    assert.ok(record?.snapshot.control.lastError);
+    assert.equal(record?.snapshot.rows.window.find(row => row.kind === 'turnHeader')?.state, 'running');
+    const rejected = await f.service.sendConversationCommandV4({ ...f.target, envelope: {
+      commandId: randomUUID(), clientId: 'user-only', sessionId: f.id(), type: 'sendText',
+      issuedAt: Date.now(), payload: { text: 'do not run' },
+    } });
+    assert.equal(rejected.reasonCode, 'pi.deliveryUnknown');
+    assert.equal(f.client.prompts, 1);
   } finally { await f.close(); }
 });
