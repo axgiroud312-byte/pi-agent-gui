@@ -6,6 +6,7 @@ import { fixture } from './fixture.mjs';
 import { scenarios } from './scenarios.mjs';
 import { startModel } from './model.mjs';
 import { Evidence } from './evidence.mjs';
+import { selectNativeLocale } from './locale.mjs';
 import { provenance } from './provenance.mjs';
 import { closeOwned } from './cleanup.mjs';
 import { finishReport, sanitize } from './report.mjs';
@@ -85,13 +86,8 @@ export async function run() {
         await button.click(); await page.waitForTimeout(1800);
       });
     }
-    await evidence.action('Settings: select Chinese UI locale through the native selector', async () => {
-      await page.getByTestId('task-settings-button').filter({ visible: true }).click();
-      await page.getByTestId('settings-locale-select-trigger').click();
-      await page.getByTestId('settings-locale-select-item-zh-CN').click();
-      await page.getByTestId('settings-back-button').click();
-      await page.getByTestId('settings-page').waitFor({ state: 'hidden' });
-    });
+    await evidence.action('Settings: select Chinese UI locale through the native selector',
+      () => selectNativeLocale(page, 'zh-CN'));
     await evidence.shot('startup');
     await evidence.branding();
     if (f.baseline === 'product') await evidence.action('Native footer keeps preferences without vendor account actions', async () => {

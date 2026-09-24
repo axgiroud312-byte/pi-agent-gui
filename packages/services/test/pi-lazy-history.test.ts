@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 import { test } from 'node:test';
 import { sessionsIndexTopicWireFrameSchema } from '@zcode/shared/zcode-protocol-v4';
 import { PiSessionCatalog } from '../src/pi-agent/pi-session-catalog.js';
@@ -15,7 +15,9 @@ test('workspace index is lazy: opening one history starts only its Pi child, exi
   const root = await mkdtemp(join(tmpdir(), 'pi-lazy-'));
   const directory = join(root, 'catalog');
   const ids = [randomUUID(), randomUUID()];
-  const paths = ids.map(id => join(root, `${id}.jsonl`));
+  // A historical bookmark may contain an absolute but non-canonical path.
+  const paths = ids.map(id => `${root}${sep}.${sep}${id}.jsonl`);
+  const canonicalPaths: string[] = [];
   const clients: Client[] = [];
   class Client extends EventEmitter {
     readonly pid = process.pid;
@@ -36,7 +38,10 @@ test('workspace index is lazy: opening one history starts only its Pi child, exi
   }
   const supervisor = new PiSessionSupervisor({ piEntry: join(root, 'unused'), clientFactory: options => {
     const path = options.args[options.args.indexOf('--session') + 1]!;
-    const index = paths.indexOf(path);
+    // The supervisor passes realpath(sessionFile) to Pi. Match the same
+    // canonical identity, not a bookmark's spelling (which varies on Windows).
+    const index = canonicalPaths.indexOf(path);
+    assert.notEqual(index, -1, 'Pi must resume one of the fixture session files');
     const client = new Client(ids[index]!, path);
     clients.push(client);
     return client as unknown as PiRpcClient;
@@ -46,6 +51,8 @@ test('workspace index is lazy: opening one history starts only its Pi child, exi
     const catalog = new PiSessionCatalog(directory);
     for (let i = 0; i < ids.length; i++) {
       await writeFile(paths[i]!, '{}\n');
+      canonicalPaths[i] = await realpath(paths[i]!);
+      assert.notEqual(canonicalPaths[i], paths[i], 'fixture must exercise a non-canonical bookmark path');
       await catalog.save({ sessionId: ids[i]!, sessionFile: paths[i]!, workspacePath: root,
         workspaceKey: root, workspaceId: root, createdAt: i + 1, lastActivityAt: i + 1,
         ...(i === 0 ? { title: 'before crash', titleSource: 'generated' as const,
@@ -67,11 +74,13 @@ test('workspace index is lazy: opening one history starts only its Pi child, exi
       'older bookmarks remain readable without inventing an indexed title');
     await service.subscribeConversationV4({ workspacePath: root, sessionId: ids[0]! });
     assert.equal(clients.length, 1);
+    assert.equal(clients[0]!.id, ids[0]);
     assert.equal(clients[0]!.prompts, 0);
     clients[0]!.emit('exit', { code: 1, signal: null });
     await new Promise(resolve => setTimeout(resolve, 30));
     await service.subscribeConversationV4({ workspacePath: root, sessionId: ids[0]! });
     assert.equal(clients.length, 2, 'opening an exited history reclaims its lease and starts only that Pi child');
+    assert.equal(clients[1]!.id, ids[0]);
     assert.equal(clients[1]!.prompts, 0, 'recovery must never replay an input');
     const rows = await service.conversationRowsRangeV4({ workspacePath: root, sessionId: ids[0]!, limit: 100 });
     assert.equal(rows.rows.find(row => row.kind === 'assistantText')?.kind, 'assistantText');

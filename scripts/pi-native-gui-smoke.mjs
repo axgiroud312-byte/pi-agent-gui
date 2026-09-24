@@ -8,6 +8,7 @@ import { closeOwned } from './native-smoke/cleanup.mjs';
 import { startPiModel } from './native-smoke/pi-model.mjs';
 import { drag } from './native-smoke/panels.mjs';
 import { resizeNativeWindow } from './native-smoke/evidence.mjs';
+import { selectNativeLocale } from './native-smoke/locale.mjs';
 import { configurePiProfile, isolatePiPackage, verifyPiPackageCleanup } from './native-smoke/pi-package.mjs';
 
 const f = await fixture();
@@ -48,6 +49,9 @@ try {
     const button = page.getByRole('button', { name, exact: true });
     if (await button.isVisible()) { await button.click(); await page.waitForTimeout(1800); }
   }
+  await selectNativeLocale(page, 'en-US');
+  await selectNativeLocale(page, 'zh-CN');
+  report.localeRoundTrip = ['en-US', 'zh-CN'];
   report.visibleButtons = await page.getByRole('button').allTextContents();
   if (!packagedExecutable) {
     await page.getByRole('button', { name: '添加项目', exact: true }).click();
@@ -84,7 +88,7 @@ try {
   await page.getByTestId('settings-back-button').click();
   await page.getByTestId('settings-page').waitFor({ state: 'hidden' });
   await page.getByTestId('chat-model-select-trigger').click();
-  await page.getByRole('menuitem', { name: '新供应商', exact: true }).hover();
+  await page.getByRole('menuitem', { name: '新供应商', exact: true }).press('ArrowRight');
   await page.getByText('pi-native-test', { exact: true }).click();
   await page.keyboard.press('Escape');
   report.modelSelected = await page.getByTestId('chat-model-select-trigger').innerText();
