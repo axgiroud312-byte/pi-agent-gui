@@ -5,6 +5,17 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 const exec = promisify(execFile);
+async function bounded(promise, timeoutMs, fallback) {
+  let timer;
+  try {
+    return await Promise.race([
+      promise.catch(() => fallback),
+      new Promise(resolve => { timer = setTimeout(() => resolve(fallback), timeoutMs); }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 function creationTime(value) {
   const wrapped = /^\/Date\((\d+)(?:[+-]\d+)?\)\/$/.exec(value);
   return wrapped ? Number(wrapped[1]) : Date.parse(value);
@@ -34,7 +45,7 @@ export async function processes(f) {
 
 export async function closeOwned(application, f) {
   if (!application) return { owned: [], survivors: [] };
-  const mainPid = await application.evaluate(() => process.pid).catch(() => null);
+  const mainPid = await bounded(application.evaluate(() => process.pid), 10_000, null);
   const entries = (await readFile(f.env.NATIVE_SMOKE_BOUNDARY_LOG, 'utf8')).trim().split('\n').filter(Boolean).map(JSON.parse);
   const roots = new Set([application.process().pid, mainPid].filter(Boolean));
   const before = await processes(f);
@@ -66,14 +77,14 @@ export async function closeOwned(application, f) {
     ? Promise.resolve(true)
     : new Promise(resolve => {
       child.once('exit', () => resolve(true));
-      // Main's 52s Host-owner wait is part of a normal quit. A 12s Playwright
+      // Main's 80s Host-owner wait is part of a normal quit. A 12s Playwright
       // close could kill Main first and leave a quarantined Pi lease behind.
-      exitTimer = setTimeout(() => resolve(false), 65_000);
+      exitTimer = setTimeout(() => resolve(false), 95_000);
     });
-  await application.evaluate(({ app }) => { setImmediate(() => app.quit()); }).catch(() => {});
+  await bounded(application.evaluate(({ app }) => { setImmediate(() => app.quit()); }), 10_000, null);
   const graceful = await exited;
   if (exitTimer) clearTimeout(exitTimer);
-  if (!graceful) await application.close().catch(() => {});
+  if (!graceful) await bounded(application.close(), 10_000, null);
   const after = await processes(f);
   const remaining = after.filter(p => owned.some(o => o.ProcessId === p.ProcessId && o.CreationDate === p.CreationDate));
   for (const p of remaining) {

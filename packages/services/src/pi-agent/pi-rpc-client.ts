@@ -72,7 +72,7 @@ const DEFAULT_TIMEOUT_MS = 30_000;
 const EXIT_DRAIN_MS = 1_000;
 // Teardown's absolute deadline includes the Windows identity query, taskkill,
 // and observation. The Host/main budgets must include this after RPC cancellation.
-export const PI_TREE_CLEANUP_MS = 12_000;
+export const PI_TREE_CLEANUP_MS = 35_000;
 
 interface PendingRequest {
   command: string;
@@ -336,11 +336,16 @@ export class PiRpcClient extends EventEmitter<ClientEvents> {
     if (!child || !pid) return Promise.resolve(); // spawn failed: no owned OS process
     const flight = (async () => {
       const deadline = Date.now() + PI_TREE_CLEANUP_MS;
+      let warnings = 0;
       const options = {
         ownedProcessStartedAtMs: this.spawnRequestedAtMs,
         ownedProcessExitedAtMs: this.childExitedAtMs,
         resolveOwnedProcessExitedAtMs: () => this.childExitedAtMs,
         windowsCleanupDeadlineAtMs: deadline,
+        log: { warn: (_trace: unknown, message: unknown, cause?: unknown) => {
+          if (warnings++ >= 4) return;
+          console.warn(`[pi-rpc] tree cleanup: ${String(message).slice(0, 160)}; ${messageOf(cause).slice(0, 160)}`);
+        } },
       };
       const latest = await captureProcessTreeSnapshotAsync(child, options);
       // Keep identities from an earlier attempt when the root has since exited.

@@ -4,7 +4,7 @@
 
 ## 2026-09-24 恢复的当前状态
 
-用户当前指令：**只收尾 #34，唯一执行目录是 `C:\Users\niilo\Desktop\pi-agent-gui`，分支 `issue-34-native-pi-rpc`；不新建工作树，不触碰 `D:\Temp` 的对照/审查快照。** PR #39 保持 Draft、#34 保持 OPEN。对 `4fd60df` 的 12 条 Standards/Spec 意见逐项处理和多轮本地、Windows CI 反馈见[收口记录](issue-34-closeout/review-resolution-2026-09-24.md)。`30c35ad` 与 `8f8e0e3` 的 Windows CI 均未全绿；最新 CIM 冷启动修复已在上述目录完成受影响测试、重新打包和真实打包 GUI 验证。下一步只提交 #34 文件并等待该提交的 push/PR Windows CI 全绿，再续同一轮 Standards/Spec 全 PR 加新增改动复审。复审通过后停下等用户确认，未经确认不合并、不关闭 #34、不开始 #3–#28。下文 Temp/opencode 路径、旧计数与“先取得计划批准”等内容均为历史快照，不再作为操作指令；未跟踪 `%SystemDrive%/` 保留且不提交。
+用户当前指令：**只收尾 #34，唯一执行目录是 `C:\Users\niilo\Desktop\pi-agent-gui`，分支 `issue-34-native-pi-rpc`；不新建工作树，不触碰 `D:\Temp` 的对照/审查快照。** PR #39 保持 Draft、#34 保持 OPEN。对 `4fd60df` 的 12 条 Standards/Spec 意见逐项处理和多轮本地、Windows CI 反馈见[收口记录](issue-34-closeout/review-resolution-2026-09-24.md)。`30c35ad`、`8f8e0e3`、`22ac217` 的 Windows CI 均未全绿；当前扩大 Windows CIM 冷启动与退出预算并完成 117 项服务测试、类型/定向 lint、重建后的开发版 GUI、170.5 MiB Windows 安装包、包内 exe 的真实 GUI，以及 18 项动作 / 48 个截图状态的原生完整 GUI smoke。下一步只提交 #34 文件并等待该提交的 push/PR Windows CI 全绿，再续同一轮 Standards/Spec 全 PR 加新增改动复审。复审通过后停下等用户确认，未经确认不合并、不关闭 #34、不开始 #3–#28。下文 Temp/opencode 路径、旧计数与“先取得计划批准”等内容均为历史快照，不再作为操作指令；未跟踪 `%SystemDrive%/` 保留且不提交。
 
 ## 本轮收尾补充（历史过程）
 

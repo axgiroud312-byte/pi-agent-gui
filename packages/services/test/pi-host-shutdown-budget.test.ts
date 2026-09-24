@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { PiRpcClient } from '../src/pi-agent/pi-rpc-client.js';
+import { PiRpcClient, PI_TREE_CLEANUP_MS } from '../src/pi-agent/pi-rpc-client.js';
 import { PiSessionLease } from '../src/pi-agent/pi-session-lease.js';
 import { settlePiSessionBeforeClose } from '../src/pi-agent/pi-session-teardown.js';
 import { runHostShutdownPhases } from '../../desktop/src/host/hostShutdownPhases.js';
@@ -71,7 +71,7 @@ for (const hang of ['clear', 'abort']) test(`Host owner waits past phase alarm: 
       const successor = await PiSessionLease.acquire(sessionFile);
       await successor.release();
       const main = resolveAppShutdownPolicy('normal', process.platform);
-      assert.ok(main.forceKillDelayMs > 40_000 && main.waitTimeoutMs > main.forceKillDelayMs);
+      assert.ok(main.forceKillDelayMs > 21_000 + PI_TREE_CLEANUP_MS && main.waitTimeoutMs > main.forceKillDelayMs);
     } finally {
       await client.dispose().catch(() => {});
       await lease?.release().catch(() => {});

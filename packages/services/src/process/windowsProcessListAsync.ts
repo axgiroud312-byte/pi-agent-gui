@@ -5,7 +5,7 @@ import type {
   ProcessTreeTerminatorOptions,
 } from "#src/process/processTreeTypes.js";
 
-const WINDOWS_PROCESS_LOOKUP_TIMEOUT_MS = 5_000;
+const WINDOWS_PROCESS_LOOKUP_TIMEOUT_MS = 25_000;
 const DOTNET_UNIX_EPOCH_TICKS = 621_355_968_000_000_000n;
 const TICKS_PER_MICROSECOND = 10n;
 const WINDOWS_START_TIME_PREFIX = "windows-utc-us:";

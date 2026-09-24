@@ -2161,7 +2161,7 @@ async function disposeHostResources(reason: string): Promise<HostShutdownResult>
                 run: () => disposeServiceResourcesAndWait(servicesToDispose),
                 // clear_queue + abort + abort_bash + owned tree identity/force
                 // share this Host owner barrier; expiration only logs, never exits.
-                timeoutMs: 40_000,
+                timeoutMs: 65_000,
                 mustComplete: true,
               },
             ]
