@@ -22,6 +22,15 @@
 - 必须保留未跟踪 `%SystemDrive%/`、`用`，以及 `stash@{0}: scope-doc-copies-before-main-integration-2026-09-27`；禁止 reset/clean/强推或批量暂存未知文件。
 - `packages/desktop/dist-pi-incremental/` 是锁住 app.asar 的失败中间物，`packages/desktop/dist/win-unpacked` 正由用户独立进程使用；本轮都未触碰。新包必须使用另一隔离目录。D: 上另有并行开发隔离 worktree，不能与主目录混写。
 
+## 2026-09-27 21:19 继续开发断点（优先于下方历史快照）
+
+- 主目录分支仍为 `issue-34-native-pi-rpc`，此断点 HEAD `197e853`，相对远程 ahead 12，尚未普通推送本批；`git status -sb` 中 `scripts/pi-resources-gui-smoke.mjs` 和本次交付文档有未提交改动，另有受保护的未跟踪 `%SystemDrive%/`、`用`、`packages/desktop/dist-pi-incremental/`。下一次操作先重新核对实际状态。`stash@{0}` 与用户运行的旧 unpacked 继续保护。
+- #11 Pi 模型直接从目标固定 Pi 会话 `get_available_models` 投影到原生模型菜单，选择后的 `set_model` 仍由 Pi 判定；router 加载/卸载后刷新目录，切换模型后刷新当前 thinking 档位。主分支提交 `736ea53`；`D:/Temp/pi-llama-main-postresources-20260927/pi-llama-gui-report.json` 原生 GUI 的加载、Pi 推理、卸载各 1 次，`pageErrors=[]`、`graceful=true`、`forced=[]`、`survivors=[]`。使用本地 HTTP/SSE router 合同；没有真实 GGUF 或在线 provider 证据。
+- #5 草稿生命周期/单侧文字写失败/首次发送 scope 迁移合入 `b25afc5`、`0b237ee`；#9 Pi JSONL 重命名与原生搜索合入 `e729e5c`、`760232f`、`6532beb`，隔离原生 GUI 分别见 `D:/Temp/pi-session-rename-gui3-20260927/` 与 `D:/Temp/pi-session-search-gui2-20260927/`。#9 真实删除切片另在 `D:/Temp/pi-agent-gui-session-delete-20260927` 隔离 worktree 实施，主分支未包含。
+- #12 固定 Pi 资源/包及公开 bridge 已合入 `1398a6a`，资源内容默认不进入树投影的隐私修复 `197e853` 已合入。冲突逐处保留了 #11 模型/router 操作及 #12 资源操作。主分支 `D:/Temp/pi-resources-main-integrated-green2-20260927/pi-resources-gui-report.json`：原生 GUI 模板编辑、重载 generation、停启、本地包安装/过滤/卸载全通过，`pageErrors=[]`、`graceful=true`、`forced=[]`、`survivors=[]`。第一次 GUI `pi-resources-main-integrated-20260927` 仅测试脚本过早读取异步 generation 而红；修正等待后重跑绿，脚本修正仍待提交。
+- 主分支本轮 `pnpm run typecheck` PASS；`pnpm run lint` 0 error / 70 既有 warning；固定 Pi 顺序测试 160/160 PASS（`D:/Temp/pi-integrated-sequential-20260927.log`）；#7/#11/#12 定向 7/7 PASS；#5 单侧存储测试指定 UI tsconfig 后 4/4 PASS；桌面 `build:no-runtime-assets` PASS；交付计划本地、7 项测试和 `--github` PASS。#5 完整原生 GUI `D:/Temp/pi-main-full-postresources-20260927/pi-native-gui-report.json` PASS：选择/粘贴/拖入、未发送原字节重启恢复、两项目同名图互不串、两会话与布局恢复、Pi 真实发送、Stop；`pageErrors=[]`、全部退出 `graceful=true`、`forced=[]`、`survivors=[]`。初次用根 tsconfig 跑 `composerDraftStoreFailure` 失败于 `@/logger.js` 路径别名；指定 `--tsconfig packages/ui/tsconfig.json` 后绿，不是产品故障。
+- #7/#8 主分支独立原生 GUI `D:/Temp/pi-auth-main-integrated-20260927/pi-auth-extension-gui-report.json` 通过 API key 保存/隐藏/登出及 select/confirm/input/editor，页面错误与进程残留为零；#10 主分支 `D:/Temp/pi-settings-main-integrated-20260927/pi-settings-gui-report.json` 通过，仍非在线账号/OAuth 人工回调。#13 在 `D:/Temp/pi-agent-gui-extension-lifecycle-20260927`、#25 在 `D:/Temp/pi-agent-gui-extension-compat-20260927` 隔离 worktree，尚未合入。后续必须逐批审查、合入、测试、原生 GUI，并运行新隔离 Windows unpacked/NSIS 包及安装/升级/卸载。#34 和所有待人工验收 Issue 保持 OPEN，PR #39 保持 Draft。
+
 ## 2026-09-27 20:22 继续开发断点（优先于下方 19:59 快照）
 
 - 主目录 #5/#4 增量 `87a25b5`（快速关窗可见文本快照及 GUI 回归脚本）、`995077a`（队列烟测更新）、文档 `660999f` 已普通推送；其后 #10 整合至 `b576b25`，当前文档改动尚待提交与普通推送。接手须核对实际 HEAD/远程。仅保护的未跟踪 `%SystemDrive%/`、`用`、`packages/desktop/dist-pi-incremental/` 应继续原样保留。

@@ -85,7 +85,10 @@ try {
   await editor.getByRole('textbox', { name: 'Pi 资源内容' }).fill(
     '---\ndescription: Edited by native GUI\n---\nExpanded $1');
   await editor.getByRole('button', { name: '保存并重载' }).click();
-  await dialog.getByText('Edited by native GUI').waitFor();
+  await page.waitForFunction(previous =>
+    document.querySelector('[data-testid="pi-resources-dialog"]')?.getAttribute('data-generation') !== previous,
+  firstGeneration);
+  await command('gui-template').getByText('Edited by native GUI').waitFor();
   const secondGeneration = await dialog.getAttribute('data-generation');
   assert.notEqual(secondGeneration, firstGeneration);
   const available = dialog.getByTestId('pi-resource-availability-row').filter({ hasText: 'gui-template.md' });

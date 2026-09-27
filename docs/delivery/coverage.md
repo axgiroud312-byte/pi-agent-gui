@@ -106,6 +106,20 @@
 
 `660999f` 时主分支 `pnpm run typecheck`、`pnpm run lint`（0 error / 70 既有 warning）、`pnpm run build:bootstrap`、固定 Pi 顺序 127/127、delivery plan、本地测试 7/7 和 `--github` 均通过。#10 整合后定向测试已通过；完整 Pi 顺序、类型/静态、原生 GUI 和最终包内回归须在后续集成后重跑。离线受控模型、在线 provider、实际 GGUF/router、NSIS 安装和用户验收仍是独立结果。
 
+## 2026-09-27 21:19 主分支新增实测（覆盖上方旧的“尚未整合/GUI 未运行”描述）
+
+| 能力 / Issue | 当前主分支证据 | 尚待完成 |
+| --- | --- | --- |
+| #5：P01、D03、D06 / V02、V04 | `b25afc5`、`0b237ee` 增加图片草稿的全 profile 数量/容量边界、单侧文字写失败时同 scope 保留、首发接受后按图片 ID 迁移，失败 chip 不会成为 ready 发送。定向测试 `composerImageDraftStorage`、`composerAttachmentPromotion` 与带 UI tsconfig 的 `composerDraftStoreFailure` 均绿。主分支 `D:/Temp/pi-main-full-postresources-20260927/pi-native-gui-report.json`：选择/粘贴/拖入、未发送图重启原字节恢复、两项目同名图隔离、两会话与布局、真实 Pi 发送和 Stop 通过；`pageErrors=[]`、退出无残留。 | 包内复测、异常断电边界、用户验收仍开放。 |
+| #7：P18、P19、P33 / V06 | `D:/Temp/pi-auth-main-integrated-20260927/pi-auth-extension-gui-report.json`：原生 Settings 保存/隐藏/登出 API key，固定 Pi 同一会话观察刷新；页面错误、强制退出和进程残留均为零。 | 在线 provider 真实推理与账号、人工 OAuth 回调、包内及用户验收未做。 |
+| #8：P25、P27 / V09 | 同一 GUI 报告：固定 Pi 扩展 select/confirm/input/editor 四类交互返回预期值，原生弹窗与取消可见；完整进程清理。 | notify/status/widget/title/editor text 在 #13；复杂 TUI factory 明确不承诺原样运行；键盘/焦点、包内仍待测。 |
+| #9：P10、P11、P17 / V04 | `e729e5c`、`760232f` 在 Pi JSONL ACK 后重命名，无旧任务索引也可成功；`6532beb` 将原生会话纳入命令中心搜索。隔离 GUI `D:/Temp/pi-session-rename-gui3-20260927/`、`D:/Temp/pi-session-search-gui2-20260927/` 均无页面错误或残留。 | 主分支 GUI 复测、确认删除、fork/clone、导入导出、分享、正文检索未完成。 |
+| #10：P05–P08、P19、P28、P31、P32、P34、D05 / V06、V08 | `D:/Temp/pi-settings-main-integrated-20260927/pi-settings-gui-report.json`：主分支原生 GUI Pi 设置保存/外部冲突/未信任与固定 Pi 推理，`error=null`、`pageErrors=[]`、`graceful=true`、`forced=[]`、`survivors=[]`。 | 全字段、在线 provider/OAuth 及包内仍待验。 |
+| #11：P20 / V07 | `736ea53` 把同一 Pi 会话实时模型目录接到原生菜单；`D:/Temp/pi-llama-main-postresources-20260927/pi-llama-gui-report.json`：加载/经固定 Pi 推理/卸载各 1 次，`pageErrors=[]`，进程全部正常清理。 | 本地 HTTP/SSE router fixture 不是实际 llama-server/GGUF；真实模型、下载/断线 GUI 矩阵、包内仍待验。 |
+| #12：P21、P22、P24、P29、P30、P32 / V08 | `1398a6a`、`197e853` 保留 Pi 原生资源与包管理，默认树视图不披露资源内容。`D:/Temp/pi-resources-main-integrated-green2-20260927/pi-resources-gui-report.json`：原生 GUI 模板编辑与重载、停启、本地包安装/过滤/卸载，`pageErrors=[]`、`graceful=true`、`forced=[]`、`survivors=[]`。 | 固定 npm/Git 更新、全部诊断/资源类型、原版成对截图、包内及用户验收仍待测。 |
+
+此轮主分支固定 Pi 顺序测试 160/160、typecheck、桌面 production build、交付计划本地/7 项测试/`--github` 均通过；lint 为 0 error / 70 既有 warning。#12 首次 GUI 报告 `pi-resources-main-integrated-20260927` 在异步保存未完成时读旧 generation，修正测试等待后重跑绿色。上述源码 GUI 与本地受控模型证据均不得替代在线 provider、实际 GGUF、包内 GUI、NSIS 安装或用户验收；P/D/V 总表仍为待最终统一验收。
+
 ## 回填要求
 
 每项填写实际原生 GUI/Pi 版本、提交、测试命令、结果和证据链接；在线 provider、可控模型、包内运行、实际安装与用户验收分别标明。P27 的限制按 #8/#25 逐类明示，不将复杂 TUI 不支持写为已全面兼容。
