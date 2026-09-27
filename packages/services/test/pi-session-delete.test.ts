@@ -162,9 +162,14 @@ test('confirmed Pi deletion removes only the exact cold JSONL and cannot silentl
       await assert.rejects(service.deletePersistedSession({ ...target,
         expectedSessionFile: current.sessionFile, expectedRevision: current.revision }), /active/i);
       assert.equal(SessionManager.open(firstFile).getSessionId(), first.getSessionId());
-      assert.deepEqual(await readFile(firstMedia), Buffer.from('session image'));
+      await assert.rejects(readFile(firstMedia), { code: 'ENOENT' },
+        'an image absent from both the Pi queue and its JSONL is reclaimed after readback');
 
       await service.dispose();
+      // Recreate this exact cache entry while the session is cold so deletion
+      // still proves that it removes its own cache and leaves the other one.
+      assert.equal((await media.materialize(first.getSessionId(),
+        { id: 'first-queue-image', text: 'former queue input', images: [image] }))[0]!.ref, firstMedia);
       service = new PiNativeV4Service(new PiSessionSupervisor({
         piEntry: fileURLToPath(import.meta.resolve('@earendil-works/pi-coding-agent/rpc-entry')),
         env: { PI_CODING_AGENT_SESSION_DIR: sessionDir, PI_CODING_AGENT_DIR: join(root, 'profile'), PI_TELEMETRY: '0' },
