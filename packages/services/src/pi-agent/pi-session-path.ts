@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { lstat, mkdir, realpath } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
+import { SettingsManager } from "@earendil-works/pi-coding-agent";
 
 // Matches pinned Pi 0.87.0 config.getAgentDir / SessionManager's default
 // per-workspace session directory, while respecting Pi's explicit overrides.
@@ -22,6 +23,10 @@ export async function piSessionDirectory(workspacePath: string, env: NodeJS.Proc
   const sessionDir = env.PI_CODING_AGENT_SESSION_DIR;
   if (sessionDir) return piPath(sessionDir, cwd);
   const agentDir = piPath(env.PI_CODING_AGENT_DIR || join(homedir(), ".pi", "agent"), cwd);
+  // Pi's startup settings manager resolves user + project sessionDir before
+  // creating an RPC session. The Host must reserve in that same directory.
+  const configured = SettingsManager.create(cwd, agentDir).getSessionDir();
+  if (configured) return piPath(configured, cwd);
   const safePath = `--${cwd.replace(/^[/\\]/u, "").replace(/[/\\:]/gu, "-")}--`;
   return join(agentDir, "sessions", safePath);
 }

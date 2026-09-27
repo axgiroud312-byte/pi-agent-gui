@@ -564,6 +564,13 @@ export interface ZCodeAgentStorageStartupSnapshot {
 }
 
 export interface IZCodeAgentService {
+  /** Pi's user/project settings documents, effective values and external-edit CAS save. */
+  readPiSettings(params: ZCodeAgentWorkspaceTarget): Promise<import("../pi-agent/pi-settings-documents.js").PiSettingsSnapshot>;
+  savePiSettings(params: ZCodeAgentWorkspaceTarget & {
+    scope: import("../pi-agent/pi-settings-documents.js").PiSettingsScope;
+    expectedRevision: string;
+    text: string;
+  }): Promise<import("../pi-agent/pi-settings-documents.js").PiSettingsSnapshot>;
   /** Fixed Pi public extension control, scoped to an active leased session. */
   readPiControlTree(params: ZCodeAgentSessionTarget): Promise<import("../pi-agent/pi-control-protocol.js").PiControlView>;
   runPiControlTree(params: ZCodeAgentSessionTarget & {

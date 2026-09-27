@@ -59,6 +59,8 @@ import { readPiPromptImages } from "./pi-prompt-images.js";
 import { PiImageUploads } from "./pi-image-upload.js";
 import { piControlView, type PiControlAction, type PiControlView } from "./pi-control-protocol.js";
 import { PiQueueMediaStore } from "./pi-queue-media-store.js";
+import { readPiSettingsDocuments, savePiSettingsDocument,
+  type PiSettingsScope, type PiSettingsSnapshot } from "./pi-settings-documents.js";
 import type { PiQueueCatalogV1 } from "./pi-queue-compat.js";
 
 interface SessionRecord {
@@ -179,6 +181,18 @@ function projectedIntentComplete(record: SessionRecord, pending: PendingIntent):
 /** Native v4 Agent seam backed exclusively by pinned Pi RPC sessions. */
 export class PiNativeV4Service implements V4Methods {
   readonly supervisor: PiSessionSupervisor;
+
+  async readPiSettings(params: ZCodeAgentWorkspaceTarget): Promise<PiSettingsSnapshot> {
+    const { env, rpcArgs } = this.supervisor.settingsEnvironment();
+    return readPiSettingsDocuments(params.workspacePath, env, rpcArgs);
+  }
+
+  async savePiSettings(params: ZCodeAgentWorkspaceTarget & {
+    scope: PiSettingsScope; expectedRevision: string; text: string;
+  }): Promise<PiSettingsSnapshot> {
+    const { env, rpcArgs } = this.supervisor.settingsEnvironment();
+    return savePiSettingsDocument(params.workspacePath, env, { ...params, rpcArgs });
+  }
   private readonly sessions = new Map<string, SessionRecord>();
   private readonly subscriptions = new Map<string, Subscription>();
   private readonly indexLogs = new Map<string, IndexLog>();

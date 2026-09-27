@@ -45,6 +45,11 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
     this.options = { ...options, rpcArgs: [...(options.rpcArgs ?? [])] };
   }
 
+  /** The same environment and flags passed to pinned Pi RPC at startup. */
+  settingsEnvironment(): { env: NodeJS.ProcessEnv; rpcArgs: string[] } {
+    return { env: { ...process.env, ...this.options.env }, rpcArgs: [...(this.options.rpcArgs ?? [])] };
+  }
+
   private publish(runtime: SessionRuntime): void {
     this.emit("change", { ...runtime.view });
   }
