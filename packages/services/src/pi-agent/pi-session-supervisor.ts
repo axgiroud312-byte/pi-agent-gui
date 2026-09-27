@@ -366,6 +366,22 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
     return runtime.controlBridge.refresh();
   }
 
+  getLlamaAuth(sessionId: string): Promise<{ serverUrl: string; apiKey?: string }> {
+    const runtime = this.requireSession(sessionId);
+    if (runtime.view.uncertainDelivery || runtime.view.reconciliationRequired) {
+      throw new Error("Pi session requires reconciliation before router management");
+    }
+    return runtime.controlBridge.getLlamaAuth();
+  }
+
+  refreshLlamaModels(sessionId: string): Promise<void> {
+    const runtime = this.requireSession(sessionId);
+    if (runtime.view.uncertainDelivery || runtime.view.reconciliationRequired) {
+      throw new Error("Pi session requires reconciliation before router catalog refresh");
+    }
+    return runtime.controlBridge.refreshLlamaModels();
+  }
+
   async runControlBridge(sessionId: string, action: PiControlAction): Promise<PiControlSnapshot> {
     const runtime = this.requireSession(sessionId);
     if (runtime.view.uncertainDelivery || runtime.view.reconciliationRequired) {

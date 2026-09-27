@@ -84,6 +84,14 @@
 | --- | --- | --- | --- |
 | PI14-F1 | 固定原版 Side Pane 文件预览、标签和外部编辑器入口；#32 已实际运行文件预览与标签操作 | 复用同一 Side Pane，在顶部现有操作区增设铅笔按钮；文本编辑仍在该文件标签内，原有预览/外部编辑器路径保留 | #14 / D04 要求必要编辑保存。受控固定 Pi GUI 的冲突、显式保存和重启草稿截图见 [#14 增量证据](issue-14-native-editor/README.md)。原版与产品编辑状态的同状态成对截图尚未完成，不能以产品截图代替最终原生一致性验收。 |
 
+## #11 llama.cpp router 面板（开发增量，视觉待验）
+
+| ID | 原生入口/行为 | Pi 产品行为 | 必要性 / 状态 |
+| --- | --- | --- | --- |
+| PI11-R1 | 原生会话 pane 标题栏现有悬浮操作区和 Dialog/Button 控件 | 同一区域增加 llama.cpp router 模型按钮；弹窗显示 router 真实五种状态、autoload/preset 是否可由 Pi 选择，以及加载、卸载、下载、取消和 SSE/轮询进度 | Pi 0.87.0 内置 `/llama` 仅 TUI 交互，RPC 会提示不可用，因此 GUI 需管理入口。保留原生 pane、Dialog/Button 和 Pi 原生模型选择控件。固定 Pi RPC + 本地 HTTP/SSE router 合同已测，生产入口隔离 GUI 脚本 `scripts/pi-llama-router-gui-smoke.mjs` 待运行。真实 GGUF 推理、固定原版成对截图及双视口/主题仍待验。 |
+
+router 协议依据是固定 Pi 0.87.0 上游 MIT `src/extensions/llama/client.ts` 与 `provider.ts`，版本仓库提交 `16787ad5b2dc748047f314ca1bfe7708f30f54f3`；这些 `dist/extensions/llama/*` 文件不在 npm 包公开 exports。Host 的 `pi-llama-router-client.ts` 适配其 HTTP/SSE 协议，认证与模型目录刷新从 Pi 公共扩展 API 取得，推理继续由 Pi 内置 provider 发起。面板不把密钥传给 renderer，并拒绝含 URL userinfo 的地址。加载、下载和卸载有有界等待；超时显示当时 router 状态，用户可再查询和显式取消。取消在尚未返回的 POST 完成后再发 unload，避免常见先卸载后加载竞态。网络中断导致 POST 结果未知时不自动重发；router 若在断线后延迟提交，仍需重新查询确认，不能据本地超时宣称操作已终止。
+
 ## 用户关卡记录
 
 - 关卡 Issue：[#33](https://github.com/axgiroud312-byte/pi-agent-gui/issues/33)，前置导入 [#32](https://github.com/axgiroud312-byte/pi-agent-gui/issues/32)。

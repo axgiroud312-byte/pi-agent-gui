@@ -63,6 +63,9 @@ import { readPiSettingsDocuments, savePiSettingsDocument,
   type PiSettingsScope, type PiSettingsSnapshot } from "./pi-settings-documents.js";
 import type { PiQueueCatalogV1 } from "./pi-queue-compat.js";
 import { PiAuthManager, type PiAuthAction, type PiAuthMethod, type PiAuthView } from "./pi-auth-manager.js";
+import { PiLlamaRouterClient } from "./pi-llama-router-client.js";
+import { projectPiLlamaRouterModels, type PiLlamaRouterAction, type PiLlamaRouterProgressEvent,
+  type PiLlamaRouterView } from "./pi-llama-router-service.js";
 
 interface SessionRecord {
   workspaceKey: string;
@@ -223,6 +226,9 @@ export class PiNativeV4Service implements V4Methods {
   private readonly configEmitters = new Map<string, Emitter<WorkspaceConfigTopicWireCandidate>>();
   private readonly lifecycleEmitter = new Emitter<ZCodeAgentRuntimeLifecycleEvent>();
   private readonly restartEmitter = new Emitter<{ workspaceKey: string }>();
+  private readonly llamaProgressEmitter = new Emitter<PiLlamaRouterProgressEvent>();
+  private readonly llamaOperations = new Map<string, { client: PiLlamaRouterClient; modelId: string }>();
+  private readonly llamaReservations = new Set<string>();
   private readonly availableWorkspaces = new Map<string, ZCodeAgentWorkspaceTarget>();
   private readonly connectionId = randomUUID();
 
@@ -230,6 +236,7 @@ export class PiNativeV4Service implements V4Methods {
   // member as an Event and subscribes to it during Host/window startup.
   readonly onAgentRuntimeLifecycle = this.lifecycleEmitter.event;
   readonly onAgentRuntimeRestarted = this.restartEmitter.event;
+  readonly onPiLlamaRouterProgress = this.llamaProgressEmitter.event;
 
   getWorkspaceRuntimeIdentity(params: ZCodeAgentWorkspaceTarget): ZCodeAgentWorkspaceRuntimeIdentity {
     const workspaceKey = resolveWorkspaceKey(params);
@@ -985,6 +992,68 @@ export class PiNativeV4Service implements V4Methods {
     this.assertWorkspaceOpen(params);
     this.recordFor(params, params.sessionId);
     await this.supervisor.cancelTreeNavigation(params.sessionId);
+  }
+
+  private async llamaClient(record: SessionRecord): Promise<PiLlamaRouterClient> {
+    const auth = await this.supervisor.getLlamaAuth(record.view.sessionId);
+    return new PiLlamaRouterClient(auth.serverUrl, auth.apiKey);
+  }
+
+  async readPiLlamaRouter(params: ZCodeAgentWorkspaceTarget & { sessionId: string }): Promise<PiLlamaRouterView> {
+    this.assertWorkspaceOpen(params);
+    await this.loadSession(params, params.sessionId);
+    const record = this.recordFor(params, params.sessionId);
+    const client = await this.llamaClient(record);
+    const models = await client.list();
+    // Pi's pinned provider only consults /props when an unloaded preset exists.
+    const hasPreset = models.some(model => model.status.value === "unloaded" && model.source === "preset");
+    const modelsAutoload = hasPreset ? (await client.props()).models_autoload === true : false;
+    return { provider: "llama.cpp", piVersion: "0.87.0", serverUrl: client.serverUrl,
+      modelsAutoload, models: projectPiLlamaRouterModels(models, modelsAutoload) };
+  }
+
+  async runPiLlamaRouter(params: ZCodeAgentWorkspaceTarget & { sessionId: string;
+    action: PiLlamaRouterAction }): Promise<PiLlamaRouterView> {
+    this.assertWorkspaceOpen(params);
+    await this.loadSession(params, params.sessionId);
+    const record = this.recordFor(params, params.sessionId);
+    const { kind, modelId } = params.action;
+    if (kind !== "load" && kind !== "unload" && kind !== "download") {
+      throw new Error("Unsupported llama.cpp router action");
+    }
+    if (typeof modelId !== "string" || !modelId || modelId.length > 512 || modelId.includes("\0")) {
+      throw new Error("Invalid llama.cpp model ID");
+    }
+    if (this.llamaReservations.has(params.sessionId)) throw new Error("A llama.cpp operation is already active in this session");
+    this.llamaReservations.add(params.sessionId);
+    try {
+      const client = await this.llamaClient(record);
+      this.llamaOperations.set(params.sessionId, { client, modelId });
+      if (kind === "unload") await client.unload(modelId);
+      else {
+        const onProgress = (progress: PiLlamaRouterProgressEvent["progress"]) =>
+          this.llamaProgressEmitter.fire({ sessionId: params.sessionId, modelId, action: kind, progress });
+        if (kind === "load") await client.load(modelId, onProgress);
+        else await client.download(modelId, onProgress);
+      }
+      await this.supervisor.refreshLlamaModels(params.sessionId);
+      this.refreshWorkspaceConfig(record.workspaceKey);
+      return await this.readPiLlamaRouter(params);
+    } finally { this.llamaOperations.delete(params.sessionId); this.llamaReservations.delete(params.sessionId); }
+  }
+
+  async cancelPiLlamaRouter(params: ZCodeAgentWorkspaceTarget & { sessionId: string;
+    modelId: string }): Promise<PiLlamaRouterView> {
+    this.assertWorkspaceOpen(params);
+    await this.loadSession(params, params.sessionId);
+    const record = this.recordFor(params, params.sessionId);
+    const active = this.llamaOperations.get(params.sessionId);
+    if (active && active.modelId !== params.modelId) throw new Error("Another llama.cpp model operation is active");
+    const client = active?.client ?? await this.llamaClient(record);
+    await client.cancel(params.modelId);
+    await this.supervisor.refreshLlamaModels(params.sessionId);
+    this.refreshWorkspaceConfig(record.workspaceKey);
+    return await this.readPiLlamaRouter(params);
   }
 
   async attachmentBeginV4(params: ZCodeAgentAttachmentBeginParams): Promise<ReturnType<PiImageUploads["begin"]>> {
@@ -1744,6 +1813,7 @@ export class PiNativeV4Service implements V4Methods {
     this.availableWorkspaces.clear();
     this.lifecycleEmitter.dispose();
     this.restartEmitter.dispose();
+    this.llamaProgressEmitter.dispose();
     for (const emitter of [...this.conversationEmitters.values(), ...this.indexEmitters.values(), ...this.configEmitters.values()]) emitter.dispose();
     if (failures.length) throw new AggregateError(failures, "Pi global disposal failed");
   }

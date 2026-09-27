@@ -68,6 +68,26 @@ export default function piControlExtension(pi: ExtensionAPI): void {
             projectTrusted: ctx.isProjectTrusted() });
           return;
         }
+        if (request.operation === "router_auth") {
+          const provider = await ctx.modelRegistry.getProviderAuth("llama.cpp");
+          if (!provider) throw new ControlError("UNCONFIGURED", "Configure llama.cpp with Pi login or LLAMA_BASE_URL");
+          const envUrl = provider.env?.LLAMA_BASE_URL;
+          const serverUrl = typeof envUrl === "string" && envUrl ? envUrl : provider.auth.baseUrl;
+          if (typeof serverUrl !== "string" || !serverUrl) {
+            throw new ControlError("UNCONFIGURED", "Pi llama.cpp provider has no router URL");
+          }
+          reply(binding, { serverUrl, apiKey: provider.auth.apiKey });
+          return;
+        }
+        if (request.operation === "router_refresh") {
+          const result = await ctx.modelRegistry.refresh({ providers: ["llama.cpp"], allowNetwork: true,
+            signal: AbortSignal.timeout(15_000) });
+          if (result.aborted) throw new ControlError("TIMEOUT", "Pi llama.cpp catalog refresh timed out");
+          const failure = result.errors.get("llama.cpp");
+          if (failure) throw failure;
+          reply(binding, { catalogRefreshed: true });
+          return;
+        }
         const intent = piControlIntent(request.params);
         if (intent.operation !== request.operation) throw new ControlError("INVALID_REQUEST", "Pi control operation mismatch");
         switch (intent.operation) {

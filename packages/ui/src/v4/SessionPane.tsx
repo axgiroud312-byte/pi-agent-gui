@@ -125,6 +125,7 @@ import { ConversationDraftEmptyState } from "@/v4/ConversationDraftEmptyState.js
 import { ConversationDraftSuggestedPromptsContainer } from "@/v4/ConversationDraftSuggestedPromptsContainer.js";
 import { ConversationHeader, type PaneWorkspaceBadge } from "@/v4/ConversationHeader.js";
 import { PiTreeDialog } from "@/v4/PiTreeDialog.js";
+import { PiLlamaRouterDialog } from "@/v4/PiLlamaRouterDialog.js";
 import { ConversationQueuePanel } from "@/v4/ConversationQueuePanel.js";
 import { projectPendingGuideQueue } from "@/v4/pendingGuideProjection.js";
 import { ConversationQuotaBanner } from "@/v4/ConversationQuotaBanner.js";
@@ -4634,11 +4635,13 @@ export function SessionPane({
         onSplitDown={onSplitDown}
         onClosePane={onClosePane}
         workspaceBadge={workspaceBadge}
-        piTreeTrigger={isDesktop && !remoteSessionId && sessionId && !readOnly ? <PiTreeDialog
+        piTreeTrigger={isDesktop && !remoteSessionId && sessionId && !readOnly ? <><PiLlamaRouterDialog
+          sessionId={sessionId} workspacePath={workspacePath} workspaceIdentity={workspaceIdentity}
+          remoteSessionId={remoteSessionId} /><PiTreeDialog
           sessionId={sessionId} workspacePath={workspacePath} workspaceIdentity={workspaceIdentity}
           remoteSessionId={remoteSessionId} beforeNavigate={beforePiTreeNavigate}
           onRestoredText={restorePiTreeEditor}
-        /> : undefined}
+        /></> : undefined}
       />
 
       <div

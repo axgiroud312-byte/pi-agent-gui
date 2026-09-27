@@ -3330,6 +3330,10 @@ export function createZCodeAgentService(
     async readPiControlTree() { throw new Error("Pi public control bridge is unavailable in this runtime"); },
     async runPiControlTree() { throw new Error("Pi public control bridge is unavailable in this runtime"); },
     async cancelPiTreeNavigation() { throw new Error("Pi public control bridge is unavailable in this runtime"); },
+    async readPiLlamaRouter() { throw new Error("Pi llama.cpp router is unavailable in this runtime"); },
+    async runPiLlamaRouter() { throw new Error("Pi llama.cpp router is unavailable in this runtime"); },
+    async cancelPiLlamaRouter() { throw new Error("Pi llama.cpp router is unavailable in this runtime"); },
+    onPiLlamaRouterProgress: () => ({ dispose() {} }),
     async prepareStorage(params) {
       const client = await processManager.getClient(params);
       wireClient(client, params, "chat");

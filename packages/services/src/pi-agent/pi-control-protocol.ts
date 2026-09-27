@@ -5,7 +5,8 @@ export const PI_CONTROL_VERSION = "1.1.0";
 export const PI_CONTROL_COMMAND = "pi-ide-control-v1";
 export const PI_CONTROL_DESCRIPTION = "Pi Agent IDE public control bridge v1";
 export const PI_CONTROL_PREFIX = "pi-ide-control:";
-export const PI_CONTROL_OPERATIONS = ["handshake", "inspect", "navigate", "label", "set_tools", "reload", "refresh_models"] as const;
+export const PI_CONTROL_OPERATIONS = ["handshake", "inspect", "navigate", "label", "set_tools", "reload",
+  "refresh_models", "router_auth", "router_refresh"] as const;
 export type PiControlOperation = typeof PI_CONTROL_OPERATIONS[number];
 
 export type PiControlIntent =
@@ -41,7 +42,10 @@ export interface PiControlInspection {
   systemPrompt: string;
   projectTrusted: boolean;
 }
-export interface PiControlResult { cancelled?: boolean; editorText?: string; reloaded?: boolean; modelsRefreshed?: boolean }
+export interface PiControlResult { cancelled?: boolean; editorText?: string; reloaded?: boolean;
+  modelsRefreshed?: boolean;
+  // Host-only router auth result never enters PiControlView or renderer RPC.
+  serverUrl?: string; apiKey?: string; catalogRefreshed?: boolean }
 export interface PiControlReply extends PiControlInfo {
   id: string;
   operation: PiControlOperation;

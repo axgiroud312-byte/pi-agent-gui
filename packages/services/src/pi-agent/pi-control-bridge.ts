@@ -166,6 +166,42 @@ export class PiControlBridge {
     } finally { this.busy = false; }
   }
 
+  /** Resolve Pi's own llama.cpp provider credential, without exposing it to the renderer. */
+  async getLlamaAuth(): Promise<{ serverUrl: string; apiKey?: string }> {
+    if (this.blocksPrompt) throw new PiControlError("BUSY", "Pi bridge is busy or needs reconciliation");
+    this.busy = true;
+    try {
+      const snapshot = await this.readCurrent();
+      if (!snapshot.info.operations.includes("router_auth")) {
+        throw new PiControlError("UNAVAILABLE", "Pi router auth bridge is unavailable");
+      }
+      const reply = await this.request("router_auth", snapshot.info);
+      const result = piControlObject(reply.result);
+      if (typeof result.serverUrl !== "string" || !result.serverUrl ||
+        result.apiKey !== undefined && typeof result.apiKey !== "string") {
+        throw new PiControlError("BAD_REPLY", "Pi router auth result is incomplete", true);
+      }
+      return { serverUrl: result.serverUrl,
+        ...(typeof result.apiKey === "string" ? { apiKey: result.apiKey } : {}) };
+    } finally { this.busy = false; }
+  }
+
+  /** Pi's bundled provider alone determines which router models can be selected. */
+  async refreshLlamaModels(): Promise<void> {
+    if (this.blocksPrompt) throw new PiControlError("BUSY", "Pi bridge is busy or needs reconciliation");
+    this.busy = true;
+    try {
+      const snapshot = await this.readCurrent();
+      if (!snapshot.info.operations.includes("router_refresh")) {
+        throw new PiControlError("UNAVAILABLE", "Pi router refresh bridge is unavailable");
+      }
+      const reply = await this.request("router_refresh", snapshot.info);
+      if (piControlObject(reply.result).catalogRefreshed !== true) {
+        throw new PiControlError("BAD_REPLY", "Pi router catalog refresh was not confirmed", true);
+      }
+    } finally { this.busy = false; }
+  }
+
   async act(value: unknown): Promise<PiControlSnapshot> {
     const action = piControlAction(value);
     if (this.blocksPrompt) throw new PiControlError("BUSY", "Pi bridge is busy or its result needs reconciliation");

@@ -587,6 +587,12 @@ export interface IZCodeAgentService {
     action: import("../pi-agent/pi-control-protocol.js").PiControlAction;
   }): Promise<import("../pi-agent/pi-control-protocol.js").PiControlView>;
   cancelPiTreeNavigation(params: ZCodeAgentSessionTarget): Promise<void>;
+  readPiLlamaRouter(params: ZCodeAgentSessionTarget): Promise<import("../pi-agent/pi-llama-router-service.js").PiLlamaRouterView>;
+  runPiLlamaRouter(params: ZCodeAgentSessionTarget & {
+    action: import("../pi-agent/pi-llama-router-service.js").PiLlamaRouterAction;
+  }): Promise<import("../pi-agent/pi-llama-router-service.js").PiLlamaRouterView>;
+  cancelPiLlamaRouter(params: ZCodeAgentSessionTarget & { modelId: string }): Promise<import("../pi-agent/pi-llama-router-service.js").PiLlamaRouterView>;
+  onPiLlamaRouterProgress: Event<import("../pi-agent/pi-llama-router-service.js").PiLlamaRouterProgressEvent>;
   /** 控制面不需要账号或模型，且不发送普通协议请求。 */
   prepareStorage(params: ZCodeAgentWorkspaceTarget): Promise<void>;
   getStorageStartupState(
