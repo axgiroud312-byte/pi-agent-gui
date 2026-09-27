@@ -1269,6 +1269,7 @@ export function SessionPane({
   // Composer 保存下一次 Submission 的 renderer intent；prewarm session 仅承载草稿预热。
   const {
     composerDraft,
+    draftPersistenceError,
     modelSelectionRead,
     draftConfig,
     draftConfigRef,
@@ -3999,6 +4000,7 @@ export function SessionPane({
     mcpUnavailableNotice,
   });
   const composerError =
+    draftPersistenceError ??
     draftModelReadinessError ??
     sendSubmissionError ??
     (quotaBanner.takesOverError ? null : projectedComposerError);
@@ -4006,6 +4008,7 @@ export function SessionPane({
     setSendSubmissionError(null);
   }, [sessionId]);
   const handleDismissComposerError = useCallback(() => {
+    if (draftPersistenceError) return;
     if (draftModelReadinessError) {
       dismissDraftModelReadinessError();
       return;
@@ -4023,6 +4026,7 @@ export function SessionPane({
   }, [
     controlLastErrorKey,
     dismissDraftModelReadinessError,
+    draftPersistenceError,
     draftModelReadinessError,
     sendSubmissionError,
   ]);

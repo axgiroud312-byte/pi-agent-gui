@@ -6,6 +6,8 @@ const DATABASE_NAME = "zcode-v4-composer-images";
 const OBJECT_STORE = "images";
 const MAX_IMAGES_PER_SCOPE = 8;
 const MAX_IMAGE_BYTES = Math.min(20 * 1024 * 1024, PROTOCOL_V4_LIMITS.attachmentMaxBytes);
+const MAX_PROFILE_IMAGES = 64;
+const MAX_PROFILE_IMAGE_BYTES = 256 * 1024 * 1024;
 const IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
 /** A damaged index is a visible, removable failed attachment, never an empty draft. */
 export const DAMAGED_IMAGE_DRAFT_ID = "__damaged_image_draft_manifest__";
@@ -39,6 +41,45 @@ export interface FailedImageDraft {
 }
 
 let databaseFlight: Promise<IDBDatabase> | null = null;
+interface PendingImageDraftPromotion {
+  targetScopeKey: string;
+  done: Promise<void>;
+  resolve: () => void;
+  error?: Error;
+}
+const pendingPromotionsBySource = new Map<string, PendingImageDraftPromotion>();
+const pendingPromotionsByTarget = new Map<string, PendingImageDraftPromotion>();
+
+/** Pi has accepted the first submission; the old composer's ACK cleanup owns the move. */
+export function beginComposerImageDraftPromotion(sourceScopeKey: string, targetScopeKey: string): void {
+  if (sourceScopeKey === targetScopeKey) return;
+  if (pendingPromotionsBySource.has(sourceScopeKey)) return;
+  let resolve!: () => void;
+  const done = new Promise<void>(ready => { resolve = ready; });
+  const pending = { targetScopeKey, done, resolve };
+  pendingPromotionsBySource.set(sourceScopeKey, pending);
+  pendingPromotionsByTarget.set(targetScopeKey, pending);
+}
+
+export function pendingComposerImageDraftPromotionTarget(sourceScopeKey: string): string | null {
+  return pendingPromotionsBySource.get(sourceScopeKey)?.targetScopeKey ?? null;
+}
+
+export function finishComposerImageDraftPromotion(sourceScopeKey: string, error?: Error): void {
+  const pending = pendingPromotionsBySource.get(sourceScopeKey);
+  if (!pending) return;
+  pendingPromotionsBySource.delete(sourceScopeKey);
+  pending.error = error;
+  pendingPromotionsByTarget.delete(pending.targetScopeKey);
+  pending.resolve();
+}
+
+/** Keep a removable failed chip if promotion fails after the old pane navigates away. */
+export function markFailedComposerImageDraftPromotion(targetScopeKey: string, ids: readonly string[]): void {
+  const current = readManifest(targetScopeKey);
+  const next = [...new Set([...current.ids, ...ids])];
+  writeManifest(targetScopeKey, next);
+}
 
 function manifestKey(scopeKey: string): string {
   return `${MANIFEST_PREFIX}${encodeURIComponent(scopeKey)}`;
@@ -89,15 +130,19 @@ function openDatabase(): Promise<IDBDatabase> {
 }
 
 async function transact<T>(mode: IDBTransactionMode, operation: (store: IDBObjectStore,
-  finish: (value: T) => void) => void): Promise<T> {
+  finish: (value: T) => void, abort: (error: Error) => void) => void): Promise<T> {
   const database = await openDatabase();
   return new Promise<T>((resolve, reject) => {
     const transaction = database.transaction(OBJECT_STORE, mode);
     let value: T;
+    let failure: Error | undefined;
     transaction.oncomplete = () => resolve(value);
     transaction.onerror = () => reject(transaction.error ?? new Error("Image draft transaction failed"));
-    transaction.onabort = () => reject(transaction.error ?? new Error("Image draft transaction aborted"));
-    operation(transaction.objectStore(OBJECT_STORE), result => { value = result; });
+    transaction.onabort = () => reject(failure ?? transaction.error ?? new Error("Image draft transaction aborted"));
+    operation(transaction.objectStore(OBJECT_STORE), result => { value = result; }, error => {
+      failure = error;
+      transaction.abort();
+    });
   });
 }
 
@@ -120,8 +165,39 @@ export async function saveComposerImageDraft(scopeKey: string, input: {
   }
   const entry: StoredImageDraft = { id: input.id, scopeKey, fileName: input.fileName,
     mimeType: input.mimeType, sizeBytes: input.file.size, sha256: await sha256(input.file), blob: input.file };
-  await transact<void>("readwrite", (store, finish) => {
-    store.put(entry);
+  // The cursor and put share one readwrite transaction, so concurrent windows
+  // cannot both pass the profile budget before committing their own image.
+  await transact<void>("readwrite", (store, finish, abort) => {
+    let imageCount = 0;
+    let totalBytes = 0;
+    const request = store.openCursor();
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor) {
+        if (imageCount >= MAX_PROFILE_IMAGES || totalBytes + entry.sizeBytes > MAX_PROFILE_IMAGE_BYTES) {
+          abort(new Error("Image draft profile capacity limit reached; remove an old draft before adding another"));
+          return;
+        }
+        store.put(entry);
+        return;
+      }
+      const row = cursor.value as StoredImageDraft;
+      if (!row || typeof row.id !== "string" || typeof row.scopeKey !== "string" ||
+        !(row.blob instanceof Blob) || !Number.isSafeInteger(row.blob.size)) {
+        abort(new Error("Image draft profile storage is damaged; remove an old draft before adding another"));
+        return;
+      }
+      if (row.id === entry.id) {
+        if (row.scopeKey !== scopeKey) {
+          abort(new Error("Image draft ID belongs to another workspace or session"));
+          return;
+        }
+      } else {
+        imageCount += 1;
+        totalBytes += row.blob.size;
+      }
+      cursor.continue();
+    };
     finish(undefined);
   });
   try {
@@ -129,15 +205,20 @@ export async function saveComposerImageDraft(scopeKey: string, input: {
     const current = readManifest(scopeKey);
     if (!current.ids.includes(input.id)) writeManifest(scopeKey, [...current.ids, input.id]);
   } catch (error) {
-    await deleteImageRecords([input.id]).catch(() => {});
+    await deleteImageRecords(scopeKey, [input.id]).catch(() => {});
     throw error;
   }
 }
 
-async function deleteImageRecords(ids: readonly string[]): Promise<void> {
+async function deleteImageRecords(scopeKey: string, ids: readonly string[]): Promise<void> {
   if (ids.length === 0) return;
   await transact<void>("readwrite", (store, finish) => {
-    for (const id of ids) store.delete(id);
+    for (const id of ids) {
+      const request = store.get(id);
+      request.onsuccess = () => {
+        if ((request.result as StoredImageDraft | undefined)?.scopeKey === scopeKey) store.delete(id);
+      };
+    }
     finish(undefined);
   });
 }
@@ -147,7 +228,7 @@ export function forgetComposerImageDrafts(scopeKey: string, ids?: readonly strin
   const current = readManifest(scopeKey);
   const removed = ids ? current.ids.filter(id => ids.includes(id)) : current.ids;
   writeManifest(scopeKey, current.ids.filter(id => !removed.includes(id)));
-  return deleteImageRecords(removed);
+  return deleteImageRecords(scopeKey, removed);
 }
 
 /** Only invoked after the user removes the damaged chip. No unknown image is silently sent. */
@@ -166,7 +247,94 @@ export function discardDamagedComposerImageDrafts(scopeKey: string): Promise<voi
   });
 }
 
+/** A deleted session has no draft owner. Reclaim even orphaned rows left by a past interrupted write. */
+export async function forgetComposerImageDraftScope(scopeKey: string): Promise<void> {
+  window.localStorage.removeItem(manifestKey(scopeKey));
+  await deleteImageRecordsByScope(value => value === scopeKey);
+}
+
+/** Removing a project must not match another project's path with the same prefix. */
+export async function forgetComposerWorkspaceImageDrafts(workspaceKey: string): Promise<void> {
+  const prefix = `${workspaceKey}\0`;
+  const keys: string[] = [];
+  for (let index = 0; index < window.localStorage.length; index += 1) {
+    const key = window.localStorage.key(index);
+    if (!key?.startsWith(MANIFEST_PREFIX)) continue;
+    let scopeKey: string;
+    try { scopeKey = decodeURIComponent(key.slice(MANIFEST_PREFIX.length)); }
+    catch { continue; }
+    if (scopeKey.startsWith(prefix)) keys.push(key);
+  }
+  for (const key of keys) window.localStorage.removeItem(key);
+  await deleteImageRecordsByScope(value => value.startsWith(prefix));
+}
+
+/** Preserve newly added, unsent images when a first submission promotes the draft scope. */
+export async function moveComposerImageDrafts(
+  sourceScopeKey: string,
+  targetScopeKey: string,
+  ids: readonly string[],
+): Promise<void> {
+  if (sourceScopeKey === targetScopeKey || ids.length === 0) return;
+  const requested = [...new Set(ids)];
+  const source = readManifest(sourceScopeKey);
+  if (requested.some(id => !source.ids.includes(id))) {
+    throw new Error("An unsent image draft is missing from its source index");
+  }
+  const target = readManifest(targetScopeKey);
+  if (requested.some(id => target.ids.includes(id))) {
+    throw new Error("An unsent image draft already exists in the destination session");
+  }
+  if (target.ids.length + requested.length > MAX_IMAGES_PER_SCOPE) {
+    throw new Error("Too many saved image drafts in the destination session");
+  }
+  // Expose the destination index first. An interruption can produce a visible
+  // damaged chip there, but it cannot hide the source bytes from both scopes.
+  writeManifest(targetScopeKey, [...target.ids, ...requested]);
+  try {
+    await transact<void>("readwrite", (store, finish, abort) => {
+      for (const id of requested) {
+        const request = store.get(id);
+        request.onsuccess = () => {
+          const row = request.result as StoredImageDraft | undefined;
+          if (!row || row.id !== id || row.scopeKey !== sourceScopeKey) {
+            abort(new Error("An unsent image draft cannot be moved safely"));
+            return;
+          }
+          store.put({ ...row, scopeKey: targetScopeKey } satisfies StoredImageDraft);
+        };
+      }
+      finish(undefined);
+    });
+  } catch (error) {
+    // The IDB transaction is atomic; on failure the source index and bytes
+    // remain valid. Remove only IDs introduced by this move.
+    writeManifest(targetScopeKey, readManifest(targetScopeKey).ids.filter(id => !requested.includes(id)));
+    throw error;
+  }
+  writeManifest(sourceScopeKey, readManifest(sourceScopeKey).ids.filter(id => !requested.includes(id)));
+}
+
+function deleteImageRecordsByScope(matches: (scopeKey: string) => boolean): Promise<void> {
+  return transact<void>("readwrite", (store, finish) => {
+    const request = store.openCursor();
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor) return;
+      const scopeKey = (cursor.value as StoredImageDraft).scopeKey;
+      if (typeof scopeKey === "string" && matches(scopeKey)) cursor.delete();
+      cursor.continue();
+    };
+    finish(undefined);
+  });
+}
+
 export async function readComposerImageDrafts(scopeKey: string): Promise<Array<RestoredImageDraft | FailedImageDraft>> {
+  const pending = pendingPromotionsByTarget.get(scopeKey);
+  if (pending) {
+    await pending.done;
+    if (pending.error) throw pending.error;
+  }
   const ids = readManifest(scopeKey).ids;
   if (ids.length === 0) return [];
   const rows = await transact<Array<StoredImageDraft | undefined>>("readonly", (store, finish) => {

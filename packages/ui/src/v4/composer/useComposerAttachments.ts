@@ -44,8 +44,9 @@ import {
   type ComposerAttachmentUploadStatus,
 } from "@/store/composerAttachmentUploadStore.js";
 import { uploadComposerAttachment, type AttachmentPutFn } from "@/v4/composer/attachmentUpload.js";
-import { DAMAGED_IMAGE_DRAFT_ID, discardDamagedComposerImageDrafts, forgetComposerImageDrafts,
-  listComposerImageDraftIds, readComposerImageDrafts,
+import { DAMAGED_IMAGE_DRAFT_ID, discardDamagedComposerImageDrafts, finishComposerImageDraftPromotion,
+  forgetComposerImageDrafts, listComposerImageDraftIds, markFailedComposerImageDraftPromotion,
+  moveComposerImageDrafts, pendingComposerImageDraftPromotionTarget, readComposerImageDrafts,
   saveComposerImageDraft } from "@/v4/composer/composerImageDraftStorage.js";
 
 const COMPOSER_ATTACHMENT_UPLOAD_CONCURRENCY = 2;
@@ -626,6 +627,7 @@ export function useComposerAttachments(
       }
     }
   }, [
+    attachments,
     attachmentSessionId,
     enqueueUpload,
     remoteSessionId,
@@ -1164,6 +1166,58 @@ export function useComposerAttachments(
         (entry) => entry.scopeKey !== scopeKey || (ids !== null && !ids.has(entry.attachmentId)),
       );
       commitScope(scopeKey, (items) => (ids ? items.filter((item) => !ids.has(item.id)) : []));
+      const promotionTarget = pendingComposerImageDraftPromotionTarget(scopeKey);
+      if (promotionTarget) {
+        // A new picker/paste/drop can still be snapshotting bytes while the
+        // first send is awaiting Pi. Wait for that admission before moving the
+        // *remaining* IDs; submitted IDs were already removed above.
+        void addFlightRef.current.then(async () => {
+          const retained = readComposerAttachmentScope(scopeKey);
+          const savedIds = new Set(listComposerImageDraftIds(scopeKey));
+          const retainedImageIds = retained.filter(item => item.mimeType.startsWith("image/") && savedIds.has(item.id))
+            .map(item => item.id);
+          await moveComposerImageDrafts(scopeKey, promotionTarget, retainedImageIds);
+          for (const item of retained) {
+            const key = `${scopeKey}\u0000${item.id}`;
+            controllersRef.current.get(key)?.abort();
+            controllersRef.current.delete(key);
+            const oldTarget = targetsRef.current.get(scopeKey);
+            if (item.staged && !item.adopted) {
+              void oldTarget?.transferService.cleanup(item.operationId).catch(() => {});
+            }
+          }
+          uploadQueueRef.current = uploadQueueRef.current.filter(entry => entry.scopeKey !== scopeKey);
+          const moved = retained.map(item => item.referenceOwnership === "session" || item.localZeroCopy
+            ? item
+            : { ...item, uploadStatus: "waitingSession" as const, uploadProgress: 0,
+              attachmentRef: undefined, staged: false, adopted: false, showComplete: false });
+          commitScope(promotionTarget, existing => {
+            const retainedIds = new Set(moved.map(item => item.id));
+            return [...existing.filter(item => !retainedIds.has(item.id)), ...moved];
+          });
+          commitScope(scopeKey, () => []);
+          finishComposerImageDraftPromotion(scopeKey);
+        }).catch(error => {
+          const failure = error instanceof Error ? error : new Error(String(error));
+          const retained = readComposerAttachmentScope(scopeKey);
+          try {
+            markFailedComposerImageDraftPromotion(promotionTarget,
+              retained.filter(item => item.mimeType.startsWith("image/")).map(item => item.id));
+          } catch (markError) {
+            logger.warn("[v4-composer-attachments] 图片草稿迁移失败标记写入失败", markError);
+          }
+          commitScope(promotionTarget, existing => {
+            const known = new Set(existing.map(item => item.id));
+            return [...existing, ...retained.filter(item => !known.has(item.id)).map(item => ({
+              ...item, uploadStatus: "failed" as const, uploadProgress: 0,
+              uploadError: `Image draft promotion failed: ${failure.message}`,
+              uploadErrorKind: "permanent" as const, attachmentRef: undefined,
+            }))];
+          });
+          finishComposerImageDraftPromotion(scopeKey, failure);
+          logger.warn("[v4-composer-attachments] 图片草稿跨会话迁移失败", failure);
+        });
+      }
       if (manifestForgot) setAttachmentError(null);
     },
     [commitScope, scopeKey],

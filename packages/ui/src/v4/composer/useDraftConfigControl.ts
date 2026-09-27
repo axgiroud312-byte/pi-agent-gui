@@ -34,8 +34,10 @@ import {
   V4_DRAFT_SCOPE_ROOT,
   type V4ComposerDraft,
 } from "@/v4/composer/composerDraftStore.js";
+import { beginComposerImageDraftPromotion } from "@/v4/composer/composerImageDraftStorage.js";
 import { resolveAppFollowupMode } from "@/v4/composer/followupModeSettings.js";
 import { logger } from "@/logger.js";
+import type { ZCodeUiError } from "@/lib/zcodeUiError.js";
 import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
 import { findPiModel, type PiModelCandidate } from "@/v4/composer/piModelCatalog.js";
 
@@ -77,6 +79,8 @@ function shouldHydrateWorkspaceCatalog(params: {
 
 interface DraftConfigControl {
   modelSelectionRead: ModelSelectionRead;
+  /** Both persistent text stores failed; keep the error visible until a successful write. */
+  draftPersistenceError: ZCodeUiError | null;
   /** Renderer 下一次提交的配置；Session 只在 scope 首次初始化时提供种子。 */
   draftConfig: Partial<SessionConfigState>;
   /** 草稿已选 config（partial）；createSession 时经 buildDraftCreateConfigPayload 携带。 */
@@ -130,6 +134,8 @@ export function useDraftConfigControl(params: {
   const appFollowupMode = resolveAppFollowupMode(sharedSettings);
   const scopeId = sessionId ?? V4_DRAFT_SCOPE_ROOT;
   const scopeKey = JSON.stringify([workspaceKey, scopeId]);
+  const [draftPersistenceError, setDraftPersistenceError] = useState<ZCodeUiError | null>(null);
+  useEffect(() => { setDraftPersistenceError(null); }, [scopeKey]);
   const loadedScope = useMemo(
     () => ({
       scopeKey,
@@ -205,8 +211,13 @@ export function useDraftConfigControl(params: {
       stateRef.current.draft === draft &&
       stateRef.current.scopeKey === scopeKey
     ) {
-      persistV4ComposerDraft(workspacePath, workspaceIdentity, scopeId, draft);
-      lastPersistedDraftRef.current = draft;
+      if (persistV4ComposerDraft(workspacePath, workspaceIdentity, scopeId, draft)) {
+        lastPersistedDraftRef.current = draft;
+        setDraftPersistenceError(null);
+      } else {
+        setDraftPersistenceError({ code: "DRAFT_STORAGE_FAILED",
+          message: "Draft text could not be saved. Copy it before closing this window, then free storage and retry editing." });
+      }
     }
   }, [draft, scopeKey]);
   const updateComposerDraft = useCallback(
@@ -230,8 +241,13 @@ export function useDraftConfigControl(params: {
         thought: selection?.options?.reasoningLevel ?? "",
       };
       setStoredState(nextState);
-      persistV4ComposerDraft(workspacePath, workspaceIdentity, scopeId, next);
-      lastPersistedDraftRef.current = next;
+      if (persistV4ComposerDraft(workspacePath, workspaceIdentity, scopeId, next)) {
+        lastPersistedDraftRef.current = next;
+        setDraftPersistenceError(null);
+      } else {
+        setDraftPersistenceError({ code: "DRAFT_STORAGE_FAILED",
+          message: "Draft text could not be saved. Copy it before closing this window, then free storage and retry editing." });
+      }
     },
     [scopeKey, workspacePath, workspaceIdentity, scopeId],
   );
@@ -319,10 +335,21 @@ export function useDraftConfigControl(params: {
         targetSessionId,
         stateRef.current.draft,
       );
-      if (!written) return;
-      clearV4ComposerDraft(workspacePath, workspaceIdentity, V4_DRAFT_SCOPE_ROOT);
+      if (!written) {
+        setDraftPersistenceError({ code: "DRAFT_STORAGE_FAILED",
+          message: "Draft text could not be saved. Copy it before closing this window, then free storage and retry editing." });
+        return;
+      }
+      beginComposerImageDraftPromotion(
+        `${workspaceKey}\0${V4_DRAFT_SCOPE_ROOT}`,
+        `${workspaceKey}\0${targetSessionId}`,
+      );
+      if (!clearV4ComposerDraft(workspacePath, workspaceIdentity, V4_DRAFT_SCOPE_ROOT)) {
+        setDraftPersistenceError({ code: "DRAFT_STORAGE_FAILED",
+          message: "Old draft text could not be cleaned up. Copy the current text before closing this window." });
+      }
     },
-    [scopeId, scopeKey, workspaceIdentity, workspacePath],
+    [scopeId, scopeKey, workspaceIdentity, workspaceKey, workspacePath],
   );
 
   // ── workspace 目录水合（见文件头说明）──
@@ -490,6 +517,7 @@ export function useDraftConfigControl(params: {
   );
 
   return {
+    draftPersistenceError,
     modelSelectionRead,
     draftConfig,
     draftConfigRef,
