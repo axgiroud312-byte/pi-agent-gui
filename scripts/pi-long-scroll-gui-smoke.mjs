@@ -132,6 +132,34 @@ try {
   };
   assert.equal(report.stages.warmup.requests, report.dataSize.warmupTurns);
 
+  // Measure renderer keydown-to-frame time with the 24-turn history already mounted.
+  // The clock stays entirely inside Chromium, so Playwright transport and model
+  // latency cannot be mistaken for the editor's response time.
+  const latencyInput = composer(page);
+  await latencyInput.click();
+  await latencyInput.evaluate((node) => {
+    window.__piLongHistoryInputFrames = [];
+    node.addEventListener("keydown", (event) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        window.__piLongHistoryInputFrames.push(performance.now() - event.timeStamp);
+      }));
+    });
+  });
+  for (let index = 0; index < 10; index++) {
+    await page.keyboard.press("A");
+    await page.waitForFunction((count) => window.__piLongHistoryInputFrames?.length > count, index);
+  }
+  const inputFrameMs = await page.evaluate(() => window.__piLongHistoryInputFrames);
+  await page.keyboard.press("Control+A");
+  await page.keyboard.press("Backspace");
+  assert.equal((await latencyInput.innerText()).trim(), "", "Latency probe must leave the composer empty");
+  const inputSorted = [...inputFrameMs].sort((a, b) => a - b);
+  report.stages.inputLatency = { samples: inputSorted.length,
+    medianMs: inputSorted[Math.floor(inputSorted.length / 2)],
+    p95Ms: inputSorted[Math.ceil(inputSorted.length * 0.95) - 1], maxMs: inputSorted.at(-1) };
+  assert(inputSorted.length === 10 && report.stages.inputLatency.p95Ms < 250,
+    "Long-history composer response must stay below 250 ms at p95 on this machine");
+
   await send(page, "PI_LONG_TOOL: inspect 120 line shell output");
   await until(
     () =>
