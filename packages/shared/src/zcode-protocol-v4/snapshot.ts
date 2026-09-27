@@ -201,6 +201,8 @@ export const sessionUsageStateSchema = z.object({
     outputTokens: z.number(),
     cacheReadTokens: z.number(),
     cacheWriteTokens: z.number(),
+    /** Pi's billed session estimate, including usage before compaction. */
+    costUSD: z.number().finite().nonnegative().optional(),
   }),
 });
 export type SessionUsageState = z.infer<typeof sessionUsageStateSchema>;

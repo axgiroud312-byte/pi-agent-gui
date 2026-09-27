@@ -4375,6 +4375,15 @@ const enUS: Record<string, string> = {
   "chat.contextUsage.piUnknown": "Context usage unknown",
   "chat.contextUsage.piUnknownDetail":
     "Pi has not reported effective context tokens yet; cumulative history usage is kept separately.",
+  "chat.piSessionUsage.trigger": "Pi session usage",
+  "chat.piSessionUsage.current": "Effective context",
+  "chat.piSessionUsage.cumulative": "Session totals, including before compaction",
+  "chat.piSessionUsage.input": "Input tokens",
+  "chat.piSessionUsage.output": "Output tokens",
+  "chat.piSessionUsage.cacheRead": "Cache read tokens",
+  "chat.piSessionUsage.cacheWrite": "Cache write tokens",
+  "chat.piSessionUsage.cost": "Estimated cost (USD)",
+  "chat.piSessionUsage.costDetail": "Pi sums model rates; this is not a provider bill.",
   "chat.contextUsageDescription":
     "Prompt text, tool calls, and responses all share this context window.",
   "chat.contextUsage.cacheHitRate": "Average cache hit rate",

@@ -72,3 +72,21 @@ test("Pi reports unknown effective context after compaction without inventing ze
   }, "pi-epoch-empty"));
   assert.equal(knownEmpty.usage.contextWindow?.usedTokens, 0);
 });
+
+test("Pi keeps billed session totals including compacted history separate from effective context", () => {
+  const snapshot = conversationSnapshotSchema.parse(createPiV4Snapshot(view, {
+    piSessionStats: {
+      tokens: { input: 900, output: 120, cacheRead: 400, cacheWrite: 30 },
+      cost: 0.1234,
+      contextUsage: { tokens: null, contextWindow: 128_000 },
+    },
+  }, "pi-epoch-cost"));
+  assert.equal(snapshot.usage.contextWindow, null);
+  assert.equal(snapshot.usage.cumulative.costUSD, 0.1234);
+  const unavailable = conversationSnapshotSchema.parse(createPiV4Snapshot(view, {}, "pi-epoch-no-stats"));
+  assert.equal(unavailable.usage.cumulative.costUSD, undefined);
+  const freeModel = conversationSnapshotSchema.parse(createPiV4Snapshot(view, {
+    piSessionStats: { cost: 0 },
+  }, "pi-epoch-free-model"));
+  assert.equal(freeModel.usage.cumulative.costUSD, 0);
+});

@@ -83,6 +83,7 @@ import { useCodingPlanEntitlements } from "@/settings/model-provider-section/use
 import { decodeCustomModelValue, encodeCustomModelValue } from "@/lib/zcodeCustomModelValue.js";
 import { buildRegistryModelSelectGroups } from "@/lib/modelSelectionGroups.js";
 import { buildPiModelSelectGroups, findPiModel, type PiModelCandidate } from "@/v4/composer/piModelCatalog.js";
+import { PiSessionUsagePopover } from "@/v4/composer/PiSessionUsagePopover.js";
 import {
   buildCodingPlanUsageSources,
   type CodingPlanUsageSource,
@@ -1041,6 +1042,9 @@ function V4ComposerModelControlsImpl({
         >
           {intl.formatMessage({ id: "chat.contextUsage.piUnknown" })}
         </span>
+      ) : null}
+      {piModelCatalog.length > 0 && usage ? (
+        <PiSessionUsagePopover usage={usage} intl={intl} locale={locale} />
       ) : null}
       {modelSelectionState.status === "error" && modelSelectionReload ? (
         <Button

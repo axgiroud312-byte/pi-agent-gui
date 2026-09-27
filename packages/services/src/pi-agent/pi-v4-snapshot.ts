@@ -141,7 +141,9 @@ export function createPiV4Snapshot(
         ? { usedTokens: context.tokens, maxTokens: context.contextWindow,
           autoCompactThresholdTokens: null } : null,
       cumulative: { inputTokens: number(tokens.input), outputTokens: number(tokens.output),
-        cacheReadTokens: number(tokens.cacheRead), cacheWriteTokens: number(tokens.cacheWrite) },
+        cacheReadTokens: number(tokens.cacheRead), cacheWriteTokens: number(tokens.cacheWrite),
+        ...(typeof stats.cost === "number" && Number.isFinite(stats.cost) && stats.cost >= 0
+          ? { costUSD: stats.cost } : {}) },
     },
     queue: { items: (state.piQueueItems as QueueItem[] | undefined) ?? [],
       autoDrain: state.piStoppedQueue !== true,

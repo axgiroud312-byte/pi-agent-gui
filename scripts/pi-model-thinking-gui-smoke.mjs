@@ -257,6 +257,20 @@ try {
     "Pi must report effective context after a response",
   );
   assert.equal(report.stages.contextUsage.max, "32000");
+  await page.getByTestId("pi-session-usage-trigger").click();
+  const usagePanel = page.getByTestId("pi-session-usage-panel");
+  await usagePanel.waitFor();
+  const inputTokens = await usagePanel.locator('[data-pi-usage-key="chat.piSessionUsage.input"]').innerText();
+  report.stages.sessionTotals = {
+    inputTokens,
+    cost: await usagePanel.getByTestId("pi-session-cost").innerText(),
+    effectiveContext: await usagePanel.getByTestId("pi-effective-context").innerText(),
+  };
+  assert.match(inputTokens, /[1-9]/, "Pi session totals must contain real input usage");
+  assert.match(report.stages.sessionTotals.cost, /0[.,]00/, "Zero-rated local model must not invent fees");
+  assert.match(report.stages.sessionTotals.effectiveContext, /32,?000/);
+  await page.screenshot({ path: join(f.output, "pi-model-usage-1920-light.png") });
+  await page.keyboard.press("Escape");
   report.requests = requests;
   await verifyPiPackageCleanup(f);
   assert.deepEqual(report.pageErrors, []);
