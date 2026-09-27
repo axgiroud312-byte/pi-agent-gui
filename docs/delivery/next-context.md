@@ -10,6 +10,15 @@
 - 不得因用户暂缓验收而伪造 #34 或后续 Issue 的人工通过、关闭 Issue、合并 Draft PR 或正式发布。
 - 缺少在线账号、OAuth 人工回调、真实 llama.cpp/GGUF 或安装权限时，明确记录待最终验收项，但继续所有不依赖这些条件的开发。
 
+## 2026-09-28 05:00 继续开发断点（下方 04:25 等均为历史快照）
+
+- 主目录 `issue-34-native-pi-rpc` 截至代码 HEAD `d625cba`，普通推送已到 `e83956d`；本文件及 `coverage.md` 正在更新，随后应聚焦提交并普通推送。主目录只应有这两份跟踪文档的本次改动和受保护未跟踪 `%SystemDrive%/`、`用`、锁住的 `packages/desktop/dist-pi-incremental/`；`stash@{0}` 与用户独立运行的旧 `packages/desktop/dist/win-unpacked` 绝不清理、覆盖或结束。PR #39 Draft、需人工验收的 Issue OPEN。
+- #9 `d92ef45` CLI JSONL 热发现和 `1b73705` Pi `--no-session` 临时会话已合入、推送并在主分支真实原生 GUI PASS：`D:/Temp/pi-cli-live-history-main-1b73705-20260928/pi-session-search-gui-report.json`（运行中 CLI 两份新增历史，模型请求 0）与 `D:/Temp/pi-temporary-session-main-1b73705-20260928/pi-temporary-session-gui-report.json`（一轮真实 Pi 回复、JSONL 0、重启不恢复）。两者 `pageErrors=[]`、正常退出、无强杀/残留；定向固定 Pi/Host 5/5、typecheck、完整源码 build PASS。#9 技术评论已更新，PR #39 正文至 `1b73705`。临时会话未发送草稿仍按原规则保存，无法使用依赖 JSONL 的续接/fork/clone/导出/分享。
+- #26 `6450e23`、`d625cba` 增补长历史 Chromium 实际键盘到帧测量和两 Pi 会话交错。最终主分支 GUI `D:/Temp/pi-long-scroll-two-sessions-main-e83956d-20260928/pi-long-scroll-gui-report.json` PASS：24 回合、120 行 bash、24 帧、10 次 keydown→第二帧 p95 10.5ms，首会话 19 帧续流中第二会话独立回答、切回无重放，页面/进程清理干净。`D:/Temp/pi-ime-main-b76d7f8-20260928/pi-ime-gui-report.json` 的两视口/明暗合成 IME 绿；原版 archive 同视口深色滚动对照 `D:/Temp/pi-original-scroll-main-comparison-20260928/original-native-scroll-report.json` 绿。物理输入法/完整同状态视觉和最终包内仍缺。#26 技术评论已更新但早于双会话新增结果。
+- #27 `e83956d` 已整合、推送：隔离真实 makensis 红测证实旧升级清单可穿 junction 删除外部哨兵，修复后安装根/直接/嵌套 junction 拒绝且普通文件清理，主分支 NSIS 合同连同 known-folder 补丁 9/9。#27 技术评论已更新。诊断 3.14.0 基线仍实际安装于 `D:/Temp/pi-agent-gui-installer-20260928-a/diagnostic-install-3`，HKCU Preview 3.14.0 注册；**最终源码尚未独立打 3.14.1 包、包内 GUI、覆盖升级或卸载**。不得使用用户旧 dist 目录。
+- 独立 P14 #3/#9 有效上下文/原始历史/context edits/摘要检查器在 `D:/Temp/pi-agent-gui-context-inspector-20260928`，隔离固定 Pi 服务/typecheck/build 与 GUI `D:/Temp/pi-context-inspector-gui-20260928-c/pi-context-gui-report.json` 已 PASS，聚焦提交 SHA 待代理回报再 cherry-pick；前两次 GUI 失败均是隔离 runtime asset/测试扩展后缀夹具，不冒充功能故障。#7 动态启动扩展 provider 认证曾发现重复运行扩展 factory 的危险候选，已放弃未提交；代理继续核对同一 Pi 子进程可公开支持的安全边界。独立 Standards 预审指出 #13 P24 input transform 代表扩展与 GUI 缺证、#12 真实 npm/Git 更新仍缺；待反馈后持续推进。
+- 固定 Pi 0.87.0 主树顺序全套**首次**为 223/228（日志 `D:/Temp/pi-agent-gui-pi-suite-main-20260928.log`）；5 项定向问题已在 `415003e`/`0e44cad` 修正，独立代理除删除用例外顺序 224/224 PASS，主树删除 4/4 PASS，但整合后**主树最终全套仍未跑**。`node scripts/check-delivery-plan.mjs`、其 7/7 测试与 `--github` 在 `1b73705` 后 PASS；增量后最终重跑。下一步：P14/安全 #7/#13 增量整合与主树 GUI；完整 Pi 顺序/typecheck/lint/build/delivery；隔离最终 Windows unpacked+NSIS、包内 GUI、实际基线→升级→卸载；coverage P01–P34/D01–D06/V01–V12 状态回填和最终 Standards/Spec 复审；Issue/PR 技术进度、普通推送和一次 5–15 分钟统一用户试用。在线账号人工 OAuth、真实 GGUF/router、物理中文 IME 分别标边界，不冒充验收。
+
 ## 2026-09-28 04:25 继续开发断点（下方 03:40 等为历史快照）
 
 - 主目录分支 `issue-34-native-pi-rpc`，当前 HEAD `ad4323b`；`415003e` 已普通推送到 origin，之后新提交 `ad4323b` 待下次普通推送。主目录只有本文件待提交；未跟踪 `%SystemDrive%/`、`用`、锁定的 `packages/desktop/dist-pi-incremental/`、`stash@{0}` 和用户正在运行的旧 `packages/desktop/dist/win-unpacked` 原样保护，绝不清理、覆盖或结束用户进程。PR #39 仍 Draft，Issue OPEN。旧 `installer.nsh` 两行 A/B 实验已恢复，未纳入提交。

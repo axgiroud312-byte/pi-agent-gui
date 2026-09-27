@@ -68,7 +68,17 @@
 | V11 | 文件引用、预览、工具文件回链及保存冲突 | #14 | 待最终验收 |
 | V12 | 原生 UI、中文/键盘/长记录、打包及诊断 | #26, #27 | 待最终验收 |
 
-## 2026-09-28 当前主分支增量（HEAD `0e44cad`，非统一验收）
+## 2026-09-28 05:00 主分支继续开发增量（截至 `d625cba`，非统一验收）
+
+| 能力 / Issue | 当前可核证事实 | 独立未完成项 |
+| --- | --- | --- |
+| P11、P17 / #9 | `d92ef45` 使原生命令中心搜索与空查询刷新重扫固定 Pi CLI JSONL，`1b73705` 用固定 Pi `--no-session` 建原生临时会话。主分支真实 Pi GUI `D:/Temp/pi-cli-live-history-main-1b73705-20260928/pi-session-search-gui-report.json` 找到运行中新增的两份 CLI 历史且模型请求 0；`D:/Temp/pi-temporary-session-main-1b73705-20260928/pi-temporary-session-gui-report.json` 一次真实 Pi 回复、JSONL 0、重启未恢复。两者均页面错误 0、正常退出、无强杀或残留；定向 Pi/Host 5/5、typecheck、完整源码 build PASS。 | 临时会话的未发送草稿仍持久保存；固定 Pi 无 JSONL 时无法续接/fork/clone/导出/分享。自定义存储、包内和人工验收待做。 |
+| P28、D02、D03、D05 / #26 | `6450e23`、`d625cba` 扩展原生 GUI 回归；`D:/Temp/pi-long-scroll-two-sessions-main-e83956d-20260928/pi-long-scroll-gui-report.json`：i7-14650HX/32 GiB、24 回合、120 行工具输出、24 帧续流，10 次 Chromium keydown 到第二帧 p95 10.5ms，内/外滚动保持各自位置，返回最新与 Ctrl+M/Escape 焦点正常；首 Pi 会话续流 19 帧时第二 Pi 会话独立回答，切回未重放。1280×800 深色/1920×1080 浅色 IME 合成 GUI `D:/Temp/pi-ime-main-b76d7f8-20260928/pi-ime-gui-report.json` 通过。固定原版 1280×800 深色滚动行为 `D:/Temp/pi-original-scroll-main-comparison-20260928/original-native-scroll-report.json` 通过。 | 自动化 keydown→帧不是物理中文 IME 或真人体感；更大历史、空/运行/等待/失败同状态成对截图、最终包内和用户验收待做。 |
+| D06 / #27 | `e83956d` 以真实 makensis 红测复现旧清单通过 junction 误删隔离目录外哨兵，再按安装根与逐级父目录 reparse 属性拒绝；主分支 NSIS 执行合同 4/4 加上已知文件夹崩溃补丁静态合同 5/5，合计 9/9 PASS。 | 旧 3.14.0 隔离基线实际已安装；最终整合源码的 3.14.1 unpacked/NSIS、包内 GUI、覆盖升级、卸载及用户验收仍未运行。路径检查与删除之间有并发替换窗口，不宣称原子防护。 |
+
+下节 `0e44cad` 是先前提交的状态快照；其全套固定 Pi 223/228 为首次失败记录，不能替代最终顺序复验。
+
+## 2026-09-28 04:30 主分支增量（HEAD `0e44cad`，非统一验收）
 
 | 能力 / Issue | 当前可核证事实 | 独立未完成项 |
 | --- | --- | --- |
