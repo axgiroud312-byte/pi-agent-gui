@@ -144,6 +144,38 @@ export default function(pi) { pi.on("session_before_tree", () => existsSync(${JS
       assert.equal(requests.length, 4, "cancelled retry cannot reach the model");
       assert.deepEqual(await readFile(source.sessionFile), beforeCancel,
         "cancelled navigation leaves the original Pi JSONL unchanged");
+      await rm(cancellationFlag);
+      const referencedPath = join(workspacePath, "history-reference.txt");
+      await writeFile(referencedPath, "ORIGINAL_REFERENCE_BYTES");
+      settled = settledAfter();
+      const referenced = await service.sendConversationCommandV4(command(sessionId, "sendText", {
+        text: "inspect [history-reference.txt](<./history-reference.txt>)",
+      }) as never);
+      assert.equal(referenced.status, "accepted", referenced.message);
+      await settled;
+      await (service as unknown as { reconciliations: Map<string, Promise<void>> }).reconciliations.get(sessionId);
+      const entriesWithReference = await supervisor.command(sessionId, { type: "get_entries" }) as typeof entriesBefore;
+      const originalReference = entriesWithReference.entries.find(entry => entry.type === "message" &&
+        entry.message?.role === "user" && entry.message.content?.some(part => part.type === "text" &&
+          "text" in part && typeof part.text === "string" && part.text.includes("ORIGINAL_REFERENCE_BYTES")));
+      assert(originalReference);
+      const referenceText = originalReference.message!.content!.find(part => part.type === "text") as
+        { type: "text"; text: string };
+      assert.equal(referenceText.text.match(/Pi file snapshots captured at send time/gu)?.length, 1);
+      await writeFile(referencedPath, "CHANGED_REFERENCE_BYTES");
+      const beforeReferenceRetry = await service.conversationRowsRangeV4({ workspacePath, sessionId, limit: 100 });
+      settled = settledAfter();
+      const referenceRetry = await service.sendConversationCommandV4(command(sessionId, "retryPiEntry", {
+        entryId: originalReference.id,
+      }, beforeReferenceRetry.atRevision, beforeReferenceRetry.atLogEpoch) as never);
+      assert.equal(referenceRetry.status, "accepted", referenceRetry.message);
+      await settled;
+      const afterReferenceRetry = await supervisor.command(sessionId, { type: "get_entries" }) as typeof entriesBefore;
+      const replayedReference = afterReferenceRetry.entries.filter(entry => entry.type === "message" &&
+        entry.message?.role === "user" && entry.message.content?.some(part => part.type === "text" &&
+          "text" in part && part.text === referenceText.text));
+      assert.equal(replayedReference.length, 2, "Pi retry reuses old captured bytes without a second snapshot");
+      assert.equal(requests.at(-1)?.includes("CHANGED_REFERENCE_BYTES"), false);
     } finally {
       await service?.dispose();
       model.closeAllConnections();
