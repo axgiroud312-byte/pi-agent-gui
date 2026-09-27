@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button.js";
 import { useServices } from "@/hooks/useServices.js";
+import { PiSettingsReadGuard, type PiSettingsEditorScope } from "./piSettingsReadGuard.js";
 
 type Snapshot = Awaited<ReturnType<ReturnType<typeof useServices>["zcodeAgentService"]["readPiSettings"]>>;
-type Scope = "user" | "project";
+type Scope = PiSettingsEditorScope;
 
 function formattedDocument(snapshot: Snapshot, scope: Scope): string {
   const document = snapshot[scope];
@@ -13,50 +14,62 @@ function formattedDocument(snapshot: Snapshot, scope: Scope): string {
 /** Scoped view of Pi's own settings.json files; existing native provider controls remain separate. */
 export function PiSettingsSection({ workspacePath }: { workspacePath: string }) {
   const { zcodeAgentService } = useServices();
-  const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
+  const [loaded, setLoaded] = useState<{ workspacePath: string; snapshot: Snapshot } | null>(null);
   const [scope, setScope] = useState<Scope>("user");
   const [text, setText] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const guardRef = useRef<PiSettingsReadGuard | null>(null);
+  guardRef.current ??= new PiSettingsReadGuard();
+  const guard = guardRef.current;
+  // Update synchronously with props so an older Promise cannot win before an effect runs.
+  guard.syncContext(workspacePath, scope);
+  const snapshot = loaded?.workspacePath === workspacePath ? loaded.snapshot : null;
 
   const load = useCallback(async (nextScope: Scope = scope) => {
-    if (!workspacePath) return;
+    if (!workspacePath) { setLoading(false); return; }
+    const ticket = guard.begin(workspacePath, nextScope);
     setLoading(true);
     setError("");
     try {
       const result = await zcodeAgentService.readPiSettings({ workspacePath });
-      setSnapshot(result);
+      if (!guard.isCurrent(ticket)) return;
+      setLoaded({ workspacePath, snapshot: result });
       setText(formattedDocument(result, nextScope));
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      if (guard.isLatestRead(ticket)) setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
-      setLoading(false);
+      if (guard.isLatestRead(ticket)) setLoading(false);
     }
-  }, [scope, workspacePath, zcodeAgentService]);
+  }, [guard, scope, workspacePath, zcodeAgentService]);
 
   useEffect(() => { void load(); }, [load]);
 
   const document = snapshot?.[scope];
   const dirty = snapshot !== null && text !== formattedDocument(snapshot, scope);
   const selectScope = (nextScope: Scope) => {
-    if (nextScope === scope) return;
+    if (nextScope === scope || saving) return;
     if (dirty) { setError("请先保存或重新读取，避免丢失当前修改。"); return; }
+    guard.syncContext(workspacePath, nextScope);
     setScope(nextScope);
     if (snapshot) setText(formattedDocument(snapshot, nextScope));
     setError("");
   };
   const save = async () => {
     if (!snapshot || !document || !dirty) return;
+    const ticket = guard.begin(workspacePath, scope);
     setSaving(true);
+    setLoading(false);
     setError("");
     try {
       const result = await zcodeAgentService.savePiSettings({ workspacePath, scope,
         expectedRevision: document.revision, text });
-      setSnapshot(result);
+      if (!guard.isCurrent(ticket)) return;
+      setLoaded({ workspacePath, snapshot: result });
       setText(formattedDocument(result, scope));
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      if (guard.isLatestRead(ticket)) setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
       setSaving(false);
     }
@@ -73,8 +86,8 @@ export function PiSettingsSection({ workspacePath }: { workspacePath: string }) 
       {!workspacePath ? <p className="text-sm text-muted-foreground">打开本地项目后可查看 Pi 设置。</p> : (
         <>
           <div className="flex flex-wrap gap-2">
-            <Button type="button" variant={scope === "user" ? "default" : "outline"} onClick={() => selectScope("user")}>用户设置</Button>
-            <Button type="button" variant={scope === "project" ? "default" : "outline"} onClick={() => selectScope("project")}>项目设置</Button>
+            <Button type="button" variant={scope === "user" ? "default" : "outline"} disabled={saving} onClick={() => selectScope("user")}>用户设置</Button>
+            <Button type="button" variant={scope === "project" ? "default" : "outline"} disabled={saving} onClick={() => selectScope("project")}>项目设置</Button>
             <Button type="button" variant="outline" disabled={loading || saving} onClick={() => { void load(); }}>
               {dirty ? "放弃修改并重新读取" : "读取最新"}
             </Button>
@@ -96,7 +109,7 @@ export function PiSettingsSection({ workspacePath }: { workspacePath: string }) 
               <label className="block space-y-2 text-sm font-medium" htmlFor="pi-settings-json">
                 <span>{scope === "user" ? "用户 settings.json" : "项目 .pi/settings.json"}</span>
                 <textarea id="pi-settings-json" data-testid="pi-settings-json" spellCheck={false} value={text}
-                  onChange={(event) => setText(event.target.value)} rows={12}
+                  disabled={saving} onChange={(event) => { guard.markEdited(); setText(event.target.value); }} rows={12}
                   className="w-full rounded-md border border-border bg-background p-3 font-mono text-xs leading-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
               </label>
               <Button type="button" disabled={!dirty || saving || Boolean(document?.error)} onClick={() => { void save(); }}>

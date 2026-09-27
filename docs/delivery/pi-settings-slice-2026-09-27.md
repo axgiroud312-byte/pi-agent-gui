@@ -8,6 +8,7 @@
 - 保存只写选中的作用域，采用原始字节 SHA-256 版本比较。外部修改或 Pi 的 `.lock` 存在时拒绝保存并保留草稿；JSON 非对象、坏 JSON、无效 UTF-8 与超过 1 MiB 的输入拒绝覆盖。成功保存使用同目录临时文件加替换并清理临时文件。
 - 未知字段和未修改的嵌套字段保留。有效值及信任解析由固定 Pi 0.87.0 `SettingsManager`、`ProjectTrustStore` 提供。
 - 新会话 JSONL 路径按 Pi 的 `--session-dir`、`PI_CODING_AGENT_SESSION_DIR`、用户/项目 `sessionDir` 顺序解析。Pi 在信任检查前读取项目 `sessionDir`，界面单独提示这一例外。
+- 设置编辑器用请求序号、作用域/工作区及草稿编辑版本保护异步读取；旧请求不会在切换工作区、切换作用域或输入期间覆盖当前草稿。
 
 ## 复现与回归
 
@@ -15,6 +16,7 @@
 - `node node_modules/tsx/dist/cli.mjs --test packages/services/test/pi-settings-documents.test.ts`：8/8 通过。覆盖来源、未知字段、信任、外部改动、无效 JSON/UTF-8、锁和临时文件、真实 Host 接口及固定 Pi RPC 新会话读取保存的默认模型。
 - 与会话监管、目录和原生 v4 回归串行运行：12/12 通过。
 - `pnpm run typecheck`、定向 oxlint、`git diff --check` 通过。固定 Pi 进程正常退出；Windows `taskkill /T` 报出退出后的进程树诊断，检查所列 PID 无残留。
+- 延迟 Promise 乱序测试 `node node_modules/tsx/dist/cli.mjs --test packages/ui/test/piSettingsReadGuard.test.ts`：2/2 通过，覆盖旧工作区/作用域响应晚到及编辑期间响应晚到。生产设置组件使用同一请求防护器。
 
 ## 尚未覆盖的 #10 验收边界
 
