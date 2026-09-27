@@ -33,7 +33,7 @@ test("representative extension keeps RPC answers and raw custom message in one p
       const session = await supervisor.createSession(workspace);
       sessionId = session.sessionId;
       const pid = session.pid;
-      assert.equal(await supervisor.sendText(sessionId, "/gui-compat-demo"), "noRun");
+      assert.equal(await supervisor.sendText(sessionId, "/gui-compat-demo"), "handledCommand");
       await Promise.all(replies);
       assert.equal(supervisor.getSession(sessionId)?.pid, pid);
       assert.deepEqual(records.filter(record => record.type === "extension_ui_request" &&
@@ -52,17 +52,15 @@ test("representative extension keeps RPC answers and raw custom message in one p
       assert(raw?.content, "Pi raw custom message must survive a TUI renderer");
       assert.deepEqual(JSON.parse(raw.content), { selected: "beta", confirmed: true,
         input: "alpha input", edited: "edited\nbody" });
-      // Slash commands can finish without an agent turn. The supervisor deliberately
-      // requires history reconciliation before another input, so use a fresh Pi session.
-      const boundarySession = await supervisor.createSession(workspace);
-      sessionId = boundarySession.sessionId;
+      // Pi acknowledged the extension handler, so another command uses the same
+      // process even though the first command did not create an Agent turn.
       const before = records.length;
-      assert.equal(await supervisor.sendText(sessionId, "/gui-tui-only"), "noRun");
+      assert.equal(await supervisor.sendText(sessionId, "/gui-tui-only"), "handledCommand");
       const newRecords = records.slice(before);
       assert(newRecords.some(record => record.method === "notify" &&
         typeof record.message === "string" && record.message.includes("TUI_ONLY_IN_RPC")));
       assert.equal(newRecords.some(record => record.method === "custom"), false);
-      assert.equal(supervisor.getSession(sessionId)?.pid, boundarySession.pid);
+      assert.equal(supervisor.getSession(sessionId)?.pid, pid);
     } finally {
       await supervisor.dispose();
       await rm(workspace, { recursive: true, force: true });
@@ -88,7 +86,7 @@ test("representative extension cancel clears status and widget without claiming 
     });
     try {
       const session = await supervisor.createSession(workspace);
-      assert.equal(await supervisor.sendText(session.sessionId, "/gui-compat-demo"), "noRun");
+      assert.equal(await supervisor.sendText(session.sessionId, "/gui-compat-demo"), "handledCommand");
       assert(records.some(record => record.method === "notify" && record.message === "GUI_COMPAT_CANCELLED"));
       assert.equal(records.some(record => record.method === "notify" && record.message === "GUI_COMPAT_COMPLETE"), false);
       assert(records.some(record => record.method === "setStatus" && record.statusKey === "gui-compat" &&
@@ -127,7 +125,7 @@ test("pinned Pi RPC exposes the complex TUI boundary without a hidden request or
     supervisor.on("record", (_id, record) => records.push(record));
     try {
       const session = await supervisor.createSession(workspace);
-      assert.equal(await supervisor.sendText(session.sessionId, "/tui-boundary-probe"), "noRun");
+      assert.equal(await supervisor.sendText(session.sessionId, "/tui-boundary-probe"), "handledCommand");
       const notice = records.find(record => record.method === "notify" && typeof record.message === "string" &&
         record.message.startsWith("PI_TUI_BOUNDARY:"));
       assert(notice && typeof notice.message === "string");

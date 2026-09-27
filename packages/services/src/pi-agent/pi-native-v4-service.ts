@@ -1430,8 +1430,9 @@ export class PiNativeV4Service implements V4Methods {
           if (!await this.persist(record)) throw new Error("Cannot persist Pi session identity before delivery");
           firstPromptAttempted = true;
           const outcome = await this.supervisor.sendText(view.sessionId, firstPrompt!.text, firstImages);
-          if (outcome === "noRun") {
+          if (outcome === "noRun" || outcome === "handledCommand") {
             projection.cancelExpectedUserCommand(commandId);
+            if (outcome === "handledCommand") delete record.state.piPendingIntent;
           }
           await this.safelyPersist(record);
         }
@@ -1557,8 +1558,9 @@ export class PiNativeV4Service implements V4Methods {
           const saved = await this.persist(record);
           if (!saved) throw new Error("Cannot persist Pi input correlation before delivery");
           const outcome = await this.supervisor.sendText(record.view.sessionId, prompt.text, images);
-          if (outcome === "noRun") {
+          if (outcome === "noRun" || outcome === "handledCommand") {
             record.projection.cancelExpectedUserCommand(commandId);
+            if (outcome === "handledCommand") delete record.state.piPendingIntent;
           }
           await this.safelyPersist(record);
         } catch (error) {

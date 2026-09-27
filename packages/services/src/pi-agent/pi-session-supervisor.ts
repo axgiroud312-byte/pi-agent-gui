@@ -717,7 +717,8 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
     return typeof result.queueItemId === "string" ? result.queueItemId : undefined;
   }
 
-  async sendText(sessionId: string, text: string, images: readonly PiPromptImage[] = []): Promise<"run" | "noRun" | "reconcile"> {
+  async sendText(sessionId: string, text: string, images: readonly PiPromptImage[] = []): Promise<
+    "run" | "handledCommand" | "noRun" | "reconcile"> {
     const runtime = this.requireSession(sessionId);
     if (runtime.controlBridge.blocksPrompt) throw new Error("Pi tree control is active or requires reconciliation");
     if (runtime.view.uncertainDelivery || runtime.view.reconciliationRequired) {
@@ -734,19 +735,41 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
     runtime.view.clearedQueue = undefined;
     // Allocate before sending: events may arrive before the admission response.
     // This is an execution identity, distinct from the process generation.
-    runtime.view.foregroundExecutionId = randomUUID();
+    const executionId = randomUUID();
+    runtime.view.foregroundExecutionId = executionId;
     this.publish(runtime);
+    let registeredExtensionCommand = false;
     try {
+      // Claim the admission synchronously before this catalog lookup, so two
+      // concurrent callers cannot both cross the busy check above.
+      if (text.startsWith("/")) {
+        const name = text.slice(1).split(" ", 1)[0];
+        try {
+          const commands = await runtime.client.request({ type: "get_commands" });
+          const catalog = commands.success ? object(commands.data).commands : undefined;
+          registeredExtensionCommand = Array.isArray(catalog) && catalog.some(command =>
+            typeof command === "object" && command !== null && !Array.isArray(command) &&
+            command.name === name && command.source === "extension");
+        } catch { /* Without a Pi catalog, keep the existing fail-closed no-run path. */ }
+        if (registeredExtensionCommand && images.length > 0) {
+          throw new Error("Pi extension commands do not consume prompt images; remove or send the images separately");
+        }
+      }
+      if (runtime.stopping || runtime.view.foregroundExecutionId !== executionId || runtime.view.phase !== "accepted") {
+        throw new Error("Pi input was stopped before delivery");
+      }
       const response = await runtime.client.request({ type: "prompt", message: text,
         ...(images.length ? { images: [...images] } : {}) });
       if (!response.success) throw new Error(response.error ?? "Pi rejected the prompt");
     } catch (error) {
-      runtime.acceptRunEvents = false;
-      if (error instanceof PiRpcError && error.delivery === "unknown") runtime.view.uncertainDelivery = true;
-      else runtime.view.foregroundExecutionId = undefined;
-      runtime.view.phase = "error";
-      runtime.view.error = message(error);
-      this.publish(runtime);
+      if (!runtime.stopping && runtime.view.foregroundExecutionId === executionId) {
+        runtime.acceptRunEvents = false;
+        if (error instanceof PiRpcError && error.delivery === "unknown") runtime.view.uncertainDelivery = true;
+        else runtime.view.foregroundExecutionId = undefined;
+        runtime.view.phase = "error";
+        runtime.view.error = message(error);
+        this.publish(runtime);
+      }
       throw error;
     }
     // Successful prompt response is irrevocable admission. A later read-only
@@ -754,6 +777,13 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
     try {
       const state = await this.getState(sessionId);
       if (runtime.view.phase === "accepted" && state.isStreaming === false && state.isCompacting === false && state.pendingMessageCount === 0) {
+        if (registeredExtensionCommand && !runtime.view.uncertainDelivery && !runtime.view.reconciliationRequired) {
+          runtime.view.phase = runtime.hadRunError || runtime.view.error ? "error" : "settled";
+          runtime.view.foregroundExecutionId = undefined;
+          runtime.acceptRunEvents = false;
+          this.publish(runtime);
+          return "handledCommand";
+        }
         // Extensions may have performed a side effect without a user message.
         // An idle get_state cannot prove that the accepted prompt did nothing.
         runtime.view.phase = "error";

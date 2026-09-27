@@ -22,8 +22,12 @@ async function fixture() {
     readonly notifications: Array<Record<string, unknown>> = [];
     modelGate?: Promise<void>;
     modelRequested?: () => void;
+    commandsGate?: Promise<void>;
+    commandsRequested?: () => void;
     postAdmissionError: Error | undefined;
     noRun = false;
+    extensionCommand = false;
+    extensionError = false;
     queued = { steering: [] as string[], followUp: [] as string[] };
     queueRevision = 0;
     queuePaused = false;
@@ -65,6 +69,10 @@ async function fixture() {
         this.model = { provider: command.provider!, id: command.modelId!, reasoning: false };
       }
       if (command.type === 'set_thinking_level') this.thinkingLevel = command.level!;
+      if (command.type === 'get_commands') {
+        this.commandsRequested?.();
+        await this.commandsGate;
+      }
       if (command.type === 'abort') this.streaming = false;
       if (command.type === 'clear_queue') {
         const cleared = this.queued;
@@ -76,6 +84,7 @@ async function fixture() {
         await writeFile(sessionFile, '{}\n');
         this.prompts++;
         this.streaming = !this.noRun;
+        if (this.extensionError) this.emit('record', { type: 'extension_error', error: 'command handler failed' });
         if (!this.noRun) {
           const message = { role: 'user', content: [{ type: 'text', text: command.message }], timestamp: Date.now() };
           this.messages.push(message);
@@ -94,7 +103,11 @@ async function fixture() {
         : command.type === 'get_available_thinking_levels' ? { levels: ['off', 'medium'] }
         : command.type === 'get_session_stats' ? { tokens: { input: 1, output: 2 }, contextUsage: { tokens: 3, contextWindow: 100 } }
         : command.type === 'get_available_models' ? { models: [{ provider: 'test', id: 'model', name: 'Test Model', input: ['text', 'image'] }] }
-        : command.type === 'get_commands' ? { commands: [{ name: 'skill-command', description: 'A Pi resource command', source: 'skill' }] }
+        : command.type === 'get_commands' ? { commands: [
+          { name: 'skill-command', description: 'A Pi resource command', source: 'skill' },
+          ...(this.extensionCommand ? [{ name: 'handled', description: 'A no-model Pi extension command',
+            source: 'extension' }] : []),
+        ] }
         : {} };
     }
   }
@@ -399,6 +412,86 @@ test('a no-run extension command stays blocked without proof of delivery', async
     const rows = result.rows.filter(row => row.kind === 'userInput');
     assert.equal(rows.length, 0);
     assert.equal(f.client.prompts, 1);
+  } finally { await f.close(); }
+});
+
+test('an acknowledged Pi extension command without an agent turn leaves its session usable', async () => {
+  const f = await fixture();
+  try {
+    await f.service.sendConversationCommandV4({ ...f.target, envelope: {
+      commandId: randomUUID(), clientId: 'known-extension', sessionId: null, type: 'createSession',
+      issuedAt: Date.now(), payload: { workspaceId: f.root },
+    } });
+    f.client.extensionCommand = true;
+    f.client.noRun = true;
+    const handled = await f.service.sendConversationCommandV4({ ...f.target, envelope: {
+      commandId: randomUUID(), clientId: 'known-extension', sessionId: f.id(), type: 'sendText',
+      issuedAt: Date.now(), payload: { text: '/handled' },
+    } });
+    assert.equal(handled.status, 'accepted');
+    assert.equal(f.supervisor.getSession(f.id())?.reconciliationRequired ?? false, false,
+      'Pi acknowledged completion of its registered extension command');
+    assert.equal(f.supervisor.getSession(f.id())?.phase, 'settled');
+    f.client.noRun = false;
+    const next = await f.service.sendConversationCommandV4({ ...f.target, envelope: {
+      commandId: randomUUID(), clientId: 'known-extension', sessionId: f.id(), type: 'sendText',
+      issuedAt: Date.now(), payload: { text: 'next real model turn' },
+    } });
+    assert.equal(next.status, 'accepted', next.reasonCode);
+    assert.equal(f.client.prompts, 2, 'the extension command and next model input enter Pi exactly once each');
+  } finally { await f.close(); }
+});
+
+test('a registered Pi extension command rejects prompt images before Pi delivery', async () => {
+  const f = await fixture();
+  try {
+    await f.supervisor.createSession(f.root);
+    f.client.extensionCommand = true;
+    await assert.rejects(f.supervisor.sendText(f.id(), '/handled', [
+      { type: 'image', mimeType: 'image/png', data: 'iVBORw0KGgo=' },
+    ]), /do not consume prompt images/);
+    assert.equal(f.client.prompts, 0, 'Pi must never silently discard an image attached to an extension command');
+  } finally { await f.close(); }
+});
+
+test('a failed registered Pi extension command preserves its real error and permits a later input', async () => {
+  const f = await fixture();
+  try {
+    await f.supervisor.createSession(f.root);
+    f.client.extensionCommand = true;
+    f.client.extensionError = true;
+    f.client.noRun = true;
+    assert.equal(await f.supervisor.sendText(f.id(), '/handled'), 'handledCommand');
+    assert.equal(f.supervisor.getSession(f.id())?.phase, 'error');
+    assert.equal(f.supervisor.getSession(f.id())?.error, 'command handler failed');
+    assert.equal(f.supervisor.getSession(f.id())?.reconciliationRequired ?? false, false);
+    f.client.extensionError = false;
+    f.client.noRun = false;
+    assert.equal(await f.supervisor.sendText(f.id(), 'next input'), 'run');
+    assert.equal(f.client.prompts, 2);
+  } finally { await f.close(); }
+});
+
+test('Stop during Pi command-catalog lookup prevents late slash delivery', async () => {
+  const f = await fixture();
+  try {
+    await f.supervisor.createSession(f.root);
+    f.client.extensionCommand = true;
+    const requested = Promise.withResolvers<void>();
+    const gate = Promise.withResolvers<void>();
+    f.client.commandsRequested = requested.resolve;
+    f.client.commandsGate = gate.promise;
+    const send = f.supervisor.sendText(f.id(), '/handled');
+    void send.catch(() => {});
+    await requested.promise;
+    await assert.rejects(f.supervisor.sendText(f.id(), 'another input'), /already busy/);
+    const executionId = f.supervisor.getSession(f.id())?.foregroundExecutionId;
+    assert.ok(executionId);
+    assert.equal(await f.supervisor.stop(f.id(), executionId), 'stopped');
+    gate.resolve();
+    await assert.rejects(send, /stopped before delivery/);
+    assert.equal(f.client.prompts, 0);
+    assert.equal(f.supervisor.getSession(f.id())?.phase, 'stopped');
   } finally { await f.close(); }
 });
 
