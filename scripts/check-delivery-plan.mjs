@@ -105,6 +105,25 @@ export function validateRemoteIssue(scope, ticket, tickets, issue) {
   } else assert.ok(!issue.labels.some(label => label.name === 'wontfix'), `Active issue has wontfix: #${ticket.number}`);
 }
 
+export function ghJsonWithRetry(args, run = execFileSync) {
+  let raw;
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    try {
+      raw = run('gh', args, {
+        encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 30000, maxBuffer: 16 * 1024 * 1024,
+      });
+      break;
+    } catch (error) {
+      const detail = String(error?.stderr ?? error);
+      if (attempt === 3 || !/(?:\bEOF\b|ECONNRESET|ETIMEDOUT)/i.test(detail)) throw error;
+      // GitHub dependencies sometimes closes an individual API connection.
+      // Retry only transport failures; a failed validation or 4xx stays failed.
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 300 * (attempt + 1));
+    }
+  }
+  return JSON.parse(raw);
+}
+
 async function main() {
   const { values } = parseArgs({ options: { github: { type: 'boolean', default: false } } });
   const scope = JSON.parse(await readFile(new URL('../docs/delivery/scope.json', import.meta.url), 'utf8'));
@@ -113,10 +132,7 @@ async function main() {
   const { active, required } = validatePlan(scope, tickets, plan);
   console.log(`Plan valid: ${active.length} active, ${tickets.filter(ticket => ticket.status === 'retired').length} retired; ${required.capabilities.length} capabilities, ${required.scenarios.length} scenarios.`);
   if (!values.github) return;
-  const ghJson = args => JSON.parse(execFileSync('gh', args, {
-    encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 30000, maxBuffer: 16 * 1024 * 1024,
-  }));
-  const pages = endpoint => ghJson(['api', endpoint, '--paginate', '--slurp']).flat();
+  const pages = endpoint => ghJsonWithRetry(['api', endpoint, '--paginate', '--slurp']).flat();
   const issues = pages(`repos/${repo}/issues?state=all&per_page=100`).filter(issue => !issue.pull_request);
   const parent = issues.find(issue => issue.number === 1);
   assert.equal(parent.body.replace(/\r\n/g, '\n').trim(), renderParentBody(scope, tickets).trim(), 'Parent #1 scope drift');
