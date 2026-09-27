@@ -62,6 +62,9 @@ try {
   await page.getByTestId('v4-composer-send').filter({ visible: true }).first().click();
   await page.getByText('PI_TEXT_COMPLETE', { exact: true }).waitFor({ timeout: 30_000 });
   assert(model.requests.some(request => request.scenario === 'PI_TEXT'));
+  const firstSessionId = await page.locator('[data-testid^="v4-session-pane"]').filter({ visible: true }).first()
+    .getAttribute('data-session-id');
+  assert.ok(firstSessionId && firstSessionId !== 'draft');
   await page.getByTestId('pi-tree-open').click();
   const dialog = page.getByTestId('pi-tree-dialog');
   await dialog.waitFor();
@@ -82,7 +85,7 @@ try {
   assert.notEqual(secondGeneration, firstGeneration);
   await page.screenshot({ path: join(f.output, 'pi-tree-dialog.png') });
   await dialog.getByRole('treeitem').filter({ hasText: 'first checkpoint' }).first().click();
-  await dialog.getByRole('button', { name: '跳转到节点' }).click();
+  await dialog.getByRole('button', { name: /编辑此输入|跳转到节点/ }).click();
   await dialog.waitFor({ state: 'hidden' });
   await page.getByTestId('v4-composer-input').filter({ visible: true }).first()
     .filter({ hasText: 'PI_TEXT: tree control smoke' }).waitFor();
@@ -90,6 +93,42 @@ try {
     label: 'first checkpoint', restoredText: await composer.innerText() };
   assert(report.tree.restoredText.includes('PI_TEXT: tree control smoke'));
   await page.screenshot({ path: join(f.output, 'pi-tree-restored.png') });
+  await page.getByText('新建任务', { exact: true }).first().click();
+  await page.getByTestId('chat-model-select-trigger').click();
+  await page.getByTestId('chat-model-select-search').fill('pi-native-test');
+  await page.getByRole('menuitemradio', { name: /pi-native-test/ }).first().click();
+  await page.getByTestId('v4-composer-input').filter({ visible: true }).first().click();
+  await page.keyboard.type('PI_TEXT: second tree session');
+  await page.getByTestId('v4-composer-send').filter({ visible: true }).first().click();
+  await page.locator('[data-testid^="v4-session-pane"]').filter({ visible: true }).first()
+    .getByText('PI_TEXT_COMPLETE', { exact: true }).waitFor({ timeout: 30_000 });
+  const secondSessionId = await page.locator('[data-testid^="v4-session-pane"]').filter({ visible: true }).first()
+    .getAttribute('data-session-id');
+  assert.ok(secondSessionId && secondSessionId !== firstSessionId);
+  await page.locator(`[data-testid="task-item-${firstSessionId}"]`).click();
+  await page.locator(`[data-session-id="${firstSessionId}"]`).filter({ visible: true }).waitFor();
+  await page.getByTestId('pi-tree-open').click();
+  await dialog.getByRole('treeitem').filter({ hasText: 'first checkpoint' }).waitFor();
+  await page.keyboard.press('Escape');
+  await page.locator(`[data-testid="task-item-${secondSessionId}"]`).click();
+  await page.locator(`[data-session-id="${secondSessionId}"]`).filter({ visible: true }).waitFor();
+  await page.evaluate(() => {
+    window.__piTreeSawOldSession = false;
+    window.__piTreeObserver = new MutationObserver(() => {
+      const tree = document.querySelector('[data-testid="pi-tree-dialog"]');
+      if (tree?.textContent?.includes('first checkpoint')) window.__piTreeSawOldSession = true;
+    });
+    window.__piTreeObserver.observe(document.body, { subtree: true, childList: true, characterData: true });
+  });
+  await page.getByTestId('pi-tree-open').click();
+  await dialog.getByRole('treeitem').filter({ hasText: 'PI_TEXT: second tree session' }).waitFor();
+  report.sessionIsolation = { firstSessionId, secondSessionId,
+    sawOldSession: await page.evaluate(() => {
+      window.__piTreeObserver.disconnect();
+      return window.__piTreeSawOldSession;
+    }) };
+  assert.equal(report.sessionIsolation.sawOldSession, false,
+    'Session B tree must never render session A bookmark while its Pi read is pending');
   await verifyPiPackageCleanup(f);
   assert.deepEqual(report.pageErrors, []);
 } catch (error) {

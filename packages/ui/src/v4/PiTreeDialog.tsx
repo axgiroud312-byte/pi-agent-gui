@@ -1,12 +1,28 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { GitBranch, RefreshCw } from "lucide-react";
 import type { IServiceAccessor } from "@zcode/services";
 import { Button } from "@/components/ui/button.js";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog.js";
 import { useServices } from "@/hooks/useServices.js";
+import { PiSessionDialogGuard, type PiSessionDialogTicket } from "@/v4/piSessionDialogGuard.js";
 
 type TreeView = Awaited<ReturnType<IServiceAccessor["zcodeAgentService"]["readPiControlTree"]>>;
 type TreeNode = TreeView["tree"][number];
+type TreeTarget = Parameters<IServiceAccessor["zcodeAgentService"]["readPiControlTree"]>[0];
+type TreeBusy = "load" | "navigate" | "label" | "reload" | "set_tools" | "branch" | "retry" | null;
+interface TreeUiState {
+  contextScope: number;
+  view: TreeView | null;
+  selectedId: string | null;
+  label: string;
+  summarize: boolean;
+  busy: TreeBusy;
+  error: string | null;
+  pendingText: string | null;
+  selectedTools: string[];
+}
+const emptyState = (contextScope: number): TreeUiState => ({ contextScope, view: null, selectedId: null,
+  label: "", summarize: false, busy: null, error: null, pendingText: null, selectedTools: [] });
 
 function entryTitle(node: TreeNode): string {
   const entry = node.entry;
@@ -40,89 +56,155 @@ export function PiTreeDialog({ sessionId, workspacePath, workspaceIdentity, remo
 }) {
   const { zcodeAgentService } = useServices();
   const [open, setOpen] = useState(false);
-  const [view, setView] = useState<TreeView | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [label, setLabel] = useState("");
-  const [summarize, setSummarize] = useState(false);
-  const [busy, setBusy] = useState<"load" | "navigate" | "label" | "reload" | "set_tools" | "branch" | "retry" | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [pendingText, setPendingText] = useState<string | null>(null);
-  const [selectedTools, setSelectedTools] = useState<string[]>([]);
+  const [state, setState] = useState<TreeUiState>(() => emptyState(0));
+  const guard = useRef(new PiSessionDialogGuard()).current;
+  const navigation = useRef<{ ticket: PiSessionDialogTicket; target: TreeTarget } | null>(null);
   const target = useMemo(() => ({ sessionId, workspacePath,
     ...(workspaceIdentity ? { workspaceIdentity } : {}),
     ...(remoteSessionId ? { remoteSessionId } : {}) }),
   [sessionId, workspacePath, workspaceIdentity, remoteSessionId]);
+  const targetKey = JSON.stringify([sessionId, workspacePath, workspaceIdentity, remoteSessionId]);
+  const contextScope = guard.syncContext(targetKey);
+  const { view, selectedId, label, summarize, busy, error, pendingText, selectedTools } =
+    state.contextScope === contextScope ? state : emptyState(contextScope);
+  const editState = (update: (current: TreeUiState) => TreeUiState) => {
+    setState(current => update(current.contextScope === contextScope ? current : emptyState(contextScope)));
+  };
+  const setSelectedId = (value: string | null) => editState(current => ({ ...current, selectedId: value }));
+  const setLabel = (value: string) => editState(current => ({ ...current, label: value }));
+  const setSummarize = (value: boolean) => editState(current => ({ ...current, summarize: value }));
+  const setSelectedTools = (update: (current: string[]) => string[]) => editState(current => ({ ...current,
+    selectedTools: update(current.selectedTools) }));
+  const write = useCallback((ticket: PiSessionDialogTicket, update: (current: TreeUiState) => TreeUiState) => {
+    if (!guard.isCurrent(ticket)) return;
+    setState(current => guard.isCurrent(ticket)
+      ? update(current.contextScope === ticket.scope ? current : emptyState(ticket.scope)) : current);
+  }, [guard]);
   const rows = useMemo(() => flatten(view?.tree ?? []), [view]);
   const selected = rows.find(item => item.node.entry.id === selectedId)?.node;
 
   const refresh = useCallback(async () => {
-    setBusy("load"); setError(null);
+    const ticket = guard.begin(targetKey);
+    write(ticket, current => ({ ...current, view: null, selectedTools: [], busy: "load", error: null }));
     try {
       const next = await zcodeAgentService.readPiControlTree(target);
-      setView(next); setSelectedTools(next.activeTools);
-    }
-    catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
-    finally { setBusy(null); }
-  }, [zcodeAgentService, target]);
+      write(ticket, current => ({ ...current, view: next, selectedTools: next.activeTools }));
+    } catch (cause) {
+      write(ticket, current => ({ ...current, error: cause instanceof Error ? cause.message : String(cause) }));
+    } finally { write(ticket, current => ({ ...current, busy: null })); }
+  }, [guard, target, targetKey, write, zcodeAgentService]);
 
-  useEffect(() => { if (open) void refresh(); }, [open, refresh]);
+  useEffect(() => {
+    if (open) void refresh();
+    return () => { guard.invalidate(); navigation.current = null; };
+  }, [guard, open, refresh]);
 
   const action = async (operation: "navigate" | "label" | "reload" | "set_tools") => {
     if (!view || busy) return;
     if (operation !== "reload" && operation !== "set_tools" && !selectedId) return;
+    if (operation === "navigate") {
+      try { beforeNavigate(); }
+      catch (cause) { editState(current => ({ ...current,
+        error: cause instanceof Error ? cause.message : String(cause) })); return; }
+    }
+    const actionTarget = { ...target };
+    const ticket = guard.begin(targetKey);
+    if (operation === "navigate") navigation.current = { ticket, target: actionTarget };
+    write(ticket, current => ({ ...current, busy: operation, error: null }));
     try {
-      if (operation === "navigate") beforeNavigate();
-      setBusy(operation); setError(null);
       const intent = operation === "reload" ? { operation } as const
         : operation === "set_tools" ? { operation, names: selectedTools } as const
-        : operation === "label" ? { operation, targetId: selectedId!, label: label.trim() || null } as const
-          : { operation, targetId: selectedId!, summarize } as const;
-      const next = await zcodeAgentService.runPiControlTree({ ...target,
-        action: { ...intent, sessionId, generation: view.info.generation } });
-      setView(next);
-      setSelectedTools(next.activeTools);
-      if (operation === "navigate" && next.result?.editorText !== undefined && !next.result.cancelled) {
-        setPendingText(next.result.editorText);
-        onRestoredText(next.result.editorText);
-        setPendingText(null);
-        setOpen(false);
+          : operation === "label" ? { operation, targetId: selectedId!, label: label.trim() || null } as const
+            : { operation, targetId: selectedId!, summarize } as const;
+      const next = await zcodeAgentService.runPiControlTree({ ...actionTarget,
+        action: { ...intent, sessionId: actionTarget.sessionId, generation: view.info.generation } });
+      if (guard.isCurrent(ticket)) {
+        write(ticket, current => ({ ...current, view: next, selectedTools: next.activeTools }));
+        if (operation === "navigate" && next.result?.editorText !== undefined && !next.result.cancelled) {
+          const editorText = next.result.editorText;
+          write(ticket, current => ({ ...current, pendingText: editorText }));
+          onRestoredText(editorText);
+          write(ticket, current => ({ ...current, pendingText: null }));
+          setOpen(false);
+        }
       }
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-      try {
-        const current = await zcodeAgentService.readPiControlTree(target);
-        setView(current); setSelectedTools(current.activeTools);
-      } catch { /* Keep the first error. */ }
-    } finally { setBusy(null); }
+      if (guard.isCurrent(ticket)) {
+        write(ticket, current => ({ ...current, error: cause instanceof Error ? cause.message : String(cause) }));
+        try {
+          const current = await zcodeAgentService.readPiControlTree(actionTarget);
+          write(ticket, previous => ({ ...previous, view: current, selectedTools: current.activeTools }));
+        } catch { /* Keep the first error. */ }
+      }
+    } finally {
+      if (navigation.current?.ticket === ticket) navigation.current = null;
+      write(ticket, current => ({ ...current, busy: null }));
+    }
   };
 
   const branch = async (operation: "fork" | "clone") => {
     if (!view || busy || (operation === "fork" && !selectedId)) return;
+    try { beforeNavigate(); }
+    catch (cause) { editState(current => ({ ...current,
+      error: cause instanceof Error ? cause.message : String(cause) })); return; }
+    const ticket = guard.begin(targetKey);
+    write(ticket, current => ({ ...current, busy: "branch", error: null }));
     try {
-      beforeNavigate();
-      setBusy("branch"); setError(null);
       const created = await onBranch(operation, operation === "fork" ? selectedId! : undefined);
-      if (created) setOpen(false);
-      else setError("Pi 扩展取消了分支操作；原会话保持不变。");
-    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
-    finally { setBusy(null); }
+      if (guard.isCurrent(ticket)) {
+        if (created) setOpen(false);
+        else write(ticket, current => ({ ...current, error: "Pi 扩展取消了分支操作；原会话保持不变。" }));
+      }
+    } catch (cause) {
+      write(ticket, current => ({ ...current, error: cause instanceof Error ? cause.message : String(cause) }));
+    } finally { write(ticket, current => ({ ...current, busy: null })); }
   };
 
   const retry = async () => {
     if (!view || busy || !selectedId) return;
+    try { beforeNavigate(); }
+    catch (cause) { editState(current => ({ ...current,
+      error: cause instanceof Error ? cause.message : String(cause) })); return; }
+    const retryTarget = { ...target };
+    const ticket = guard.begin(targetKey);
+    write(ticket, current => ({ ...current, busy: "retry", error: null }));
     try {
-      beforeNavigate();
-      setBusy("retry"); setError(null);
       const started = await onRetry(selectedId);
-      if (started) setOpen(false);
-      else setError("Pi 扩展取消了重试；原分支保持不变。");
+      if (guard.isCurrent(ticket)) {
+        if (started) setOpen(false);
+        else write(ticket, current => ({ ...current, error: "Pi 扩展取消了重试；原分支保持不变。" }));
+      }
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-      try {
-        const current = await zcodeAgentService.readPiControlTree(target);
-        setView(current); setSelectedTools(current.activeTools);
-      } catch { /* Preserve the retry error; a later refresh can inspect Pi state. */ }
-    } finally { setBusy(null); }
+      if (guard.isCurrent(ticket)) {
+        write(ticket, current => ({ ...current, error: cause instanceof Error ? cause.message : String(cause) }));
+        try {
+          const current = await zcodeAgentService.readPiControlTree(retryTarget);
+          write(ticket, previous => ({ ...previous, view: current, selectedTools: current.activeTools }));
+        } catch { /* Preserve the retry error; a later refresh can inspect Pi state. */ }
+      }
+    } finally { write(ticket, current => ({ ...current, busy: null })); }
+  };
+
+  const cancelNavigation = async () => {
+    if (busy !== "navigate") return;
+    const active = navigation.current;
+    const cancelTarget = active && guard.isCurrent(active.ticket) ? active.target : target;
+    const ticket = guard.begin(targetKey);
+    navigation.current = null;
+    try { await zcodeAgentService.cancelPiTreeNavigation(cancelTarget); }
+    catch (cause) {
+      write(ticket, current => ({ ...current, error: cause instanceof Error ? cause.message : String(cause) }));
+    } finally { write(ticket, current => ({ ...current, busy: null })); }
+  };
+
+  const changeOpen = (next: boolean) => {
+    if (!next && (busy === "navigate" || busy === "branch" || busy === "retry")) return;
+    if (!next) {
+      guard.invalidate();
+      navigation.current = null;
+      editState(current => ({ ...current, busy: null }));
+    }
+    setOpen(next);
   };
 
   return <>
@@ -131,7 +213,7 @@ export function PiTreeDialog({ sessionId, workspacePath, workspaceIdentity, remo
       onClick={() => setOpen(true)} data-testid="pi-tree-open">
       <GitBranch className="size-4" />
     </Button>
-    <Dialog open={open} onOpenChange={next => { if (!next && (busy === "navigate" || busy === "branch" || busy === "retry")) return; setOpen(next); }}>
+    <Dialog open={open} onOpenChange={changeOpen}>
       <DialogContent data-testid="pi-tree-dialog" data-generation={view?.info.generation ?? ""}
         className="max-h-[85vh] max-w-[min(56rem,calc(100vw-2rem))] overflow-hidden">
         <DialogHeader>
@@ -151,8 +233,10 @@ export function PiTreeDialog({ sessionId, workspacePath, workspaceIdentity, remo
           <p>Pi 已跳转。以下文本还需恢复到输入框：</p>
           <textarea readOnly value={pendingText} className="h-24 w-full rounded border border-border bg-background p-2" />
           <Button type="button" variant="outline" size="sm" onClick={() => {
-            try { onRestoredText(pendingText); setPendingText(null); setOpen(false); setError(null); }
-            catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
+            try { onRestoredText(pendingText); editState(current => ({ ...current, pendingText: null, error: null }));
+              setOpen(false); }
+            catch (cause) { editState(current => ({ ...current,
+              error: cause instanceof Error ? cause.message : String(cause) })); }
           }}>恢复到输入框</Button>
         </div> : null}
         <div className="min-h-0 max-h-[45vh] overflow-auto rounded-md border border-border" role="tree" aria-label="Pi 会话历史">
@@ -189,7 +273,7 @@ export function PiTreeDialog({ sessionId, workspacePath, workspaceIdentity, remo
           <label className="mr-auto flex items-center gap-1 text-xs"><input type="checkbox" checked={summarize}
             onChange={event => setSummarize(event.target.checked)} disabled={busy !== null} />跳转时总结上下文</label>
           {busy === "navigate" ? <Button type="button" variant="outline" size="sm"
-            onClick={() => void zcodeAgentService.cancelPiTreeNavigation(target).catch(cause => setError(String(cause)))}>停止跳转</Button> : null}
+            onClick={() => void cancelNavigation()}>停止跳转</Button> : null}
           <Button type="button" variant="outline" disabled={busy !== null || !view?.leafId}
             data-testid="pi-tree-clone" onClick={() => void branch("clone")}>克隆当前分支</Button>
           <Button type="button" variant="outline" disabled={busy !== null || selected?.entry.type !== "message" ||

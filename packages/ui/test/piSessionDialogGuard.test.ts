@@ -42,3 +42,15 @@ test("cancel and close invalidate an earlier action even when the same session r
   assert.equal(guard.isCurrent(reopenedTicket), false);
   assert.notEqual(guard.syncContext("session A"), reopenedTicket.scope);
 });
+
+test("late tree navigation cannot restore session A editor text into session B", async () => {
+  const guard = new PiSessionDialogGuard();
+  const navigation = deferred<string>();
+  let restored = "";
+  const ticket = guard.begin("session A");
+  const task = navigation.promise.then(text => { if (guard.isCurrent(ticket)) restored = text; });
+  guard.syncContext("session B");
+  navigation.resolve("A old user message");
+  await task;
+  assert.equal(restored, "");
+});
