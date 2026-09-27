@@ -6,6 +6,7 @@ import {
   clearV4ComposerWorkspaceDrafts,
   persistV4ComposerDraft,
   readV4ComposerDraft,
+  seedPiForkComposerDraft,
 } from "../src/v4/composer/composerDraftStore.js";
 
 class FailingStorage implements Storage {
@@ -79,4 +80,17 @@ test("a stale fallback cannot resurrect text after primary recovery and send cle
   assert.equal(readV4ComposerDraft(workspace, undefined, "session-1")?.text, "new");
   assert.equal(persistV4ComposerDraft(workspace, undefined, "session-1", { text: "" }), true);
   assert.equal(readV4ComposerDraft(workspace, undefined, "session-1"), null);
+});
+
+test("Pi fork text is stored in the new session scope before navigation without replacing an existing draft", () => {
+  const storage = new FailingStorage();
+  Object.assign(globalThis, { window: { localStorage: storage } });
+  const workspace = `C:\\fixture-${randomUUID()}`;
+  assert.equal(seedPiForkComposerDraft(workspace, undefined, "child", "restored Pi text"), "stored");
+  assert.equal(readV4ComposerDraft(workspace, undefined, "child")?.text, "restored Pi text");
+  assert.equal(readV4ComposerDraft(workspace, undefined, "source"), null);
+  assert.equal(seedPiForkComposerDraft(workspace, undefined, "child", "different text"), "conflict");
+  assert.equal(readV4ComposerDraft(workspace, undefined, "child")?.text, "restored Pi text");
+  storage.failAllWrites = true;
+  assert.equal(seedPiForkComposerDraft(workspace, undefined, "another child", "retain me"), "failed");
 });

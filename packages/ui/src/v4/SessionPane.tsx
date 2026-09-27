@@ -97,6 +97,7 @@ import {
   type ComposerSubmissionConfig,
 } from "@/v4/composer/composerSubmissionConfig.js";
 import { useDraftSessionPrewarm } from "@/v4/composer/useDraftSessionPrewarm.js";
+import { seedPiForkComposerDraft } from "@/v4/composer/composerDraftStore.js";
 import { projectSessionConfigToTaskConfigOptions } from "@/v4/composer/sessionConfigTaskCache.js";
 import { useDraftRuntimeRebuildGate } from "@/v4/composer/useDraftRuntimeRebuildGate.js";
 import { useDraftModelReadinessGate } from "@/v4/composer/useDraftModelReadinessGate.js";
@@ -3102,13 +3103,17 @@ export function SessionPane({
     if ((ack.status !== "accepted" && ack.status !== "duplicate") || ack.result?.type !== "forkAssistant") {
       throw new Error(ack.message ?? `Pi ${operation} failed: ${ack.reasonCode ?? ack.status}`);
     }
-    if (ack.result.restoredText) {
-      setComposerRestoreRequest({ requestId: nextComposerRestoreRequestIdRef.current++, sessionId: ack.result.sessionId,
-        workspaceKey, inputKind: "sendText", text: ack.result.restoredText, attachments: [] });
+    if (operation === "fork") {
+      const seeded = seedPiForkComposerDraft(workspacePath, workspaceIdentity,
+        ack.result.sessionId, ack.result.restoredText ?? "");
+      if (seeded !== "stored") {
+        throw new Error(`Pi 已创建子会话 ${ack.result.sessionId}，但恢复文字${seeded === "conflict" ?
+          "与现有草稿冲突" : "未能保存"}。原会话历史保留；请在侧栏打开原会话复制该消息。`);
+      }
     }
     onSessionCreated?.(ack.result.sessionId);
     return true;
-  }, [dispatchCommand, onSessionCreated, sessionId, workspaceKey]);
+  }, [dispatchCommand, onSessionCreated, sessionId, workspaceIdentity, workspacePath]);
 
   const handleEdit = useCallback(
     async (

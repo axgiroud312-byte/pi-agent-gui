@@ -247,6 +247,25 @@ export function persistV4ComposerDraft(
   return true;
 }
 
+/** Pi gives forked user text back to the caller; seed the child scope before switching panes. */
+export function seedPiForkComposerDraft(
+  workspacePath: string,
+  workspaceIdentity: string | undefined,
+  childSessionId: string,
+  restoredText: string,
+): "stored" | "conflict" | "failed" {
+  if (!childSessionId.trim() || !restoredText.trim()) return "failed";
+  const existing = readV4ComposerDraft(workspacePath, workspaceIdentity, childSessionId);
+  if (existing?.text.trim() && existing.text !== restoredText) return "conflict";
+  if (existing?.text === restoredText) return "stored";
+  return persistV4ComposerDraft(workspacePath, workspaceIdentity, childSessionId, {
+    ...existing,
+    text: restoredText,
+    editorStateJson: undefined,
+    mention: undefined,
+  }) ? "stored" : "failed";
+}
+
 export function clearV4ComposerDraft(
   workspacePath: string,
   workspaceIdentity: string | undefined,
