@@ -100,6 +100,7 @@
 | --- | --- | --- | --- |
 | PI04-S3 | 原生会话 pane 标题栏悬浮操作区及 Dialog/Button/textarea | 同一区域新增 Pi shell 按钮；命令由当前固定 Pi RPC `bash` 执行，显示真实输出/退出码，勾选后通过 `excludeFromContext` 排除后续模型上下文，运行中复用会话 Stop | #4 / P03、P09 要求真实 shell 与停止。保留原生 pane 和控件，不建立通用终端管理平台；固定 Pi 合同和原生 GUI 已测：`D:/Temp/pi-shell-main-first-20260927/pi-shell-gui-report.json` 包含后续模型上下文差异、停止和进程清理结果。包内 GUI 与原版成对截图尚待验。 |
 | PI04-S4 | 原生输入区 `/compact` 与会话 Stop 控件 | 手动压缩改由同一固定 Pi `compact` RPC 持有前台执行 ID，Stop 直接 `abort` 并等待 Pi 命令结束；取消后仍保留原会话历史 | #3/#4 / P03、P08、V03。固定 Pi 0.87.0 延迟摘要合同、启动竞态测试及生产入口原生 GUI `D:/Temp/pi-manual-compact-main-20260927/pi-manual-compact-gui-report.json` 已通过；包内和原版成对截图待验。 |
+| PI04-S5 | 原生运行状态和输入区 Stop 控件 | Pi 自动 retry 退避期间仍保留原生 Stop；Stop 经固定 Pi `abort_retry` / `abort` 取消等待，不额外创建前端重试器 | #3/#4 / P03、P07、V03。`pi-retry-stop-fixed.test.ts` 和主分支原生 GUI `D:/Temp/pi-retry-stop-main-20260928-a/pi-retry-stop-gui-report.json` 验证首个受控 503 后停止且无迟到第二请求；包内及原版成对截图待验。 |
 
 ## #9 Pi 会话确认删除（开发增量，视觉待验）
 

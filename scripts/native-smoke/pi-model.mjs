@@ -2,7 +2,7 @@ import { createServer } from 'node:http';
 import { createHash } from 'node:crypto';
 
 // External OpenAI Chat Completions boundary; Pi (not this server) executes tools.
-export async function startPiModel({ holdAfterRequests = Infinity } = {}) {
+export async function startPiModel({ holdAfterRequests = Infinity, failFirstRequests = 0 } = {}) {
   const requests = [];
   const sockets = new Set();
   const held = new Set();
@@ -47,6 +47,11 @@ export async function startPiModel({ holdAfterRequests = Infinity } = {}) {
       toolResults: toolResults.map(message => text(message.content)), stream: body.stream, closed: false };
     requests.push(request);
     res.on('close', () => { request.closed = true; });
+    if (requests.length <= failFirstRequests) {
+      res.writeHead(503, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: { message: 'PI_RETRY_CONTROLLED_FAILURE', type: 'server_error' } }));
+      return;
+    }
     res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' });
     const send = (delta, finish_reason = null) => res.write(`data: ${JSON.stringify({
       id: 'pi-native-test', object: 'chat.completion.chunk', created: 1, model: body.model,
