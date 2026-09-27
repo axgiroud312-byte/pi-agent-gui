@@ -15,6 +15,10 @@ await isolatePiPackage(f);
 const fallback = await startPiModel();
 await configurePiProfile(f, { url: fallback.url, modelId: 'pi-native-test', apiKey: 'fixture-not-a-secret' });
 let status = 'unloaded';
+let routerCatalogId = 'gui.gguf';
+let holdNextCatalogRead = false;
+let releaseHeldCatalogRead;
+let catalogReadHeld;
 const routerRequests = [];
 const router = createServer(async (request, response) => {
   let raw = '';
@@ -25,8 +29,14 @@ const router = createServer(async (request, response) => {
     response.writeHead(200, { 'content-type': 'text/event-stream' }); return;
   }
   if ((request.url === '/models' || request.url === '/models?reload=1') && request.method === 'GET') {
+    const modelId = routerCatalogId;
+    if (holdNextCatalogRead) {
+      holdNextCatalogRead = false;
+      catalogReadHeld?.();
+      await new Promise(resolve => { releaseHeldCatalogRead = resolve; });
+    }
     response.writeHead(200, { 'content-type': 'application/json' });
-    response.end(JSON.stringify({ data: [{ id: 'gui.gguf', source: 'file', status: { value: status },
+    response.end(JSON.stringify({ data: [{ id: modelId, source: 'file', status: { value: status },
       meta: { n_ctx: 4096 } }] })); return;
   }
   if (request.url?.startsWith('/props')) {
@@ -110,8 +120,8 @@ try {
   await page.screenshot({ path: join(f.output, 'pi-llama-loaded.png') });
   await page.keyboard.press('Escape');
   await page.getByTestId('chat-model-select-trigger').click();
-  await page.getByRole('menuitem', { name: 'llama.cpp', exact: true }).press('ArrowRight');
-  await page.getByText('gui.gguf', { exact: true }).click();
+  await page.getByRole('menuitem', { name: 'llama.cpp', exact: true }).click();
+  await page.getByRole('menuitemradio', { name: /gui\.gguf/ }).click();
   await page.keyboard.press('Escape');
   await page.getByTestId('v4-composer-input').filter({ visible: true }).first().click();
   await page.keyboard.type('router GUI inference');
@@ -124,6 +134,44 @@ try {
   await dialog.locator('[data-model-id="gui.gguf"]').getByRole('button', { name: '卸载' }).click();
   await dialog.locator('[data-model-id="gui.gguf"]').getByText('未加载', { exact: false }).waitFor();
   await page.screenshot({ path: join(f.output, 'pi-llama-unloaded.png') });
+  const firstSessionId = await page.locator('[data-testid^="v4-session-pane"]').filter({ visible: true }).first()
+    .getAttribute('data-session-id');
+  assert.ok(firstSessionId && firstSessionId !== 'draft');
+  await page.keyboard.press('Escape');
+  await page.getByText('新建任务', { exact: true }).first().click();
+  await page.getByTestId('chat-model-select-trigger').click();
+  await page.getByTestId('chat-model-select-search').fill('pi-native-test');
+  await page.getByRole('menuitemradio', { name: /pi-native-test/ }).first().click();
+  await page.getByTestId('v4-composer-input').filter({ visible: true }).first().click();
+  await page.keyboard.type('PI_TEXT: second router dialog session');
+  await page.getByTestId('v4-composer-send').filter({ visible: true }).first().click();
+  await page.locator('[data-testid^="v4-session-pane"]').filter({ visible: true }).first()
+    .getByText('PI_TEXT_COMPLETE', { exact: true }).waitFor({ timeout: 30_000 });
+  const secondSessionId = await page.locator('[data-testid^="v4-session-pane"]').filter({ visible: true }).first()
+    .getAttribute('data-session-id');
+  assert.ok(secondSessionId && secondSessionId !== firstSessionId);
+  await page.locator(`[data-testid="task-item-${firstSessionId}"]`).click();
+  await page.locator('[data-testid^="v4-session-pane"]').filter({ visible: true }).first()
+    .and(page.locator(`[data-session-id="${firstSessionId}"]`)).waitFor();
+  routerCatalogId = 'A_STALE.gguf';
+  holdNextCatalogRead = true;
+  const held = new Promise(resolve => { catalogReadHeld = resolve; });
+  await page.getByTestId('pi-llama-router-open').click();
+  await Promise.race([held, new Promise((_, reject) => setTimeout(() => reject(
+    new Error('Timed out waiting for the held session A router catalog request')), 30_000))]);
+  await page.keyboard.press('Escape');
+  await page.locator(`[data-testid="task-item-${secondSessionId}"]`).click();
+  await page.locator('[data-testid^="v4-session-pane"]').filter({ visible: true }).first()
+    .and(page.locator(`[data-session-id="${secondSessionId}"]`)).waitFor();
+  routerCatalogId = 'B_CURRENT.gguf';
+  await page.getByTestId('pi-llama-router-open').click();
+  await dialog.locator('[data-model-id="B_CURRENT.gguf"]').waitFor();
+  releaseHeldCatalogRead();
+  await page.waitForTimeout(1500);
+  report.sessionIsolation = { firstSessionId, secondSessionId,
+    visibleModelIds: await dialog.locator('[data-model-id]').evaluateAll(nodes => nodes.map(node => node.getAttribute('data-model-id'))) };
+  assert.deepEqual(report.sessionIsolation.visibleModelIds, ['B_CURRENT.gguf'],
+    'Late router catalog from session A must not replace session B model list');
   await verifyPiPackageCleanup(f);
   assert.deepEqual(report.pageErrors, []);
   report.router = { load: routerRequests.filter(item => item.path === '/models/load').length,
@@ -136,6 +184,7 @@ try {
   console.error(error);
   await app?.windows()[0]?.screenshot({ path: join(f.output, 'pi-llama-failure.png') }).catch(() => {});
 } finally {
+  releaseHeldCatalogRead?.();
   try { report.cleanup = await closeOwned(app, f); assertCleanExit(report.cleanup, logs, 'Pi llama router GUI'); }
   catch (error) { report.cleanupError = String(error); process.exitCode = 1; }
   await fallback.close();

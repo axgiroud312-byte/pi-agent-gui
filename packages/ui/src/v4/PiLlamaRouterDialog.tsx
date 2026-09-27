@@ -4,9 +4,22 @@ import type { IServiceAccessor } from "@zcode/services";
 import { Button } from "@/components/ui/button.js";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog.js";
 import { useServices } from "@/hooks/useServices.js";
+import { PiSessionDialogGuard, type PiSessionDialogTicket } from "@/v4/piSessionDialogGuard.js";
 
 type RouterView = Awaited<ReturnType<IServiceAccessor["zcodeAgentService"]["readPiLlamaRouter"]>>;
 type RouterAction = Parameters<IServiceAccessor["zcodeAgentService"]["runPiLlamaRouter"]>[0]["action"];
+type RouterTarget = Parameters<IServiceAccessor["zcodeAgentService"]["readPiLlamaRouter"]>[0];
+type RouterBusy = RouterAction | { kind: "refresh"; modelId: string };
+interface RouterUiState {
+  scope: number;
+  view: RouterView | null;
+  busy: RouterBusy | null;
+  progress: { modelId: string; message: string; ratio?: number } | null;
+  downloadId: string;
+  error: string | null;
+}
+const emptyState = (scope: number): RouterUiState => ({ scope, view: null, busy: null,
+  progress: null, downloadId: "", error: null });
 
 const statusName: Record<string, string> = {
   loaded: "已加载", loading: "加载中", unloaded: "未加载", downloading: "下载中", sleeping: "休眠中",
@@ -22,60 +35,126 @@ export function PiLlamaRouterDialog({ sessionId, workspacePath, workspaceIdentit
 }) {
   const { zcodeAgentService } = useServices();
   const [open, setOpen] = useState(false);
-  const [view, setView] = useState<RouterView | null>(null);
-  const [busy, setBusy] = useState<RouterAction | { kind: "refresh"; modelId: string } | null>(null);
-  const [progress, setProgress] = useState<{ modelId: string; message: string; ratio?: number } | null>(null);
-  const [downloadId, setDownloadId] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const cancelled = useRef(false);
+  const [state, setState] = useState<RouterUiState>(() => emptyState(0));
+  const guard = useRef(new PiSessionDialogGuard()).current;
+  const operation = useRef<{ ticket: PiSessionDialogTicket; target: RouterTarget; action: RouterAction } | null>(null);
   const target = useMemo(() => ({ sessionId, workspacePath,
     ...(workspaceIdentity ? { workspaceIdentity } : {}),
     ...(remoteSessionId ? { remoteSessionId } : {}) }),
   [sessionId, workspacePath, workspaceIdentity, remoteSessionId]);
+  const targetKey = JSON.stringify([sessionId, workspacePath, workspaceIdentity, remoteSessionId]);
+  const scope = guard.syncContext(targetKey);
+  const { view, busy, progress, downloadId, error } = state.scope === scope ? state : emptyState(scope);
+
+  const write = useCallback((ticket: PiSessionDialogTicket, update: (current: RouterUiState) => RouterUiState) => {
+    if (!guard.isCurrent(ticket)) return;
+    setState(current => guard.isCurrent(ticket)
+      ? update(current.scope === ticket.scope ? current : emptyState(ticket.scope)) : current);
+  }, [guard]);
 
   const refresh = useCallback(async () => {
-    setBusy({ kind: "refresh", modelId: "" }); setError(null);
-    try { setView(await zcodeAgentService.readPiLlamaRouter(target)); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
-    finally { setBusy(null); }
-  }, [target, zcodeAgentService]);
+    const ticket = guard.begin(targetKey);
+    write(ticket, current => ({ ...current, view: null, busy: { kind: "refresh", modelId: "" },
+      progress: null, error: null }));
+    try {
+      const next = await zcodeAgentService.readPiLlamaRouter(target);
+      write(ticket, current => ({ ...current, view: next }));
+    } catch (cause) {
+      write(ticket, current => ({ ...current, error: cause instanceof Error ? cause.message : String(cause) }));
+    } finally { write(ticket, current => ({ ...current, busy: null })); }
+  }, [guard, target, targetKey, write, zcodeAgentService]);
 
-  useEffect(() => { if (open) void refresh(); }, [open, refresh]);
+  useEffect(() => {
+    if (open) void refresh();
+    return () => { guard.invalidate(); operation.current = null; };
+  }, [guard, open, refresh]);
   useEffect(() => {
     if (!open) return;
     const subscription = zcodeAgentService.onPiLlamaRouterProgress(event => {
-      if (event.sessionId !== sessionId) return;
-      setProgress({ modelId: event.modelId, ...event.progress });
+      const active = operation.current;
+      if (!active || !guard.isCurrent(active.ticket) || event.sessionId !== active.target.sessionId ||
+        event.modelId !== active.action.modelId || event.action !== active.action.kind) return;
+      write(active.ticket, current => ({ ...current,
+        progress: { modelId: event.modelId, ...event.progress } }));
     });
     return () => subscription.dispose();
-  }, [open, sessionId, zcodeAgentService]);
+  }, [guard, open, write, zcodeAgentService]);
 
   const act = async (action: RouterAction) => {
-    if (busy) return;
-    cancelled.current = false; setError(null); setProgress(null); setBusy(action);
+    if (busy || operation.current && guard.isCurrent(operation.current.ticket)) return;
+    const actionTarget = { ...target };
+    const ticket = guard.begin(targetKey);
+    operation.current = { ticket, target: actionTarget, action };
+    write(ticket, current => ({ ...current, busy: action, error: null, progress: null }));
     try {
-      setView(await zcodeAgentService.runPiLlamaRouter({ ...target, action }));
-      await onModelsChanged?.();
-      if (action.kind === "download") setDownloadId("");
+      const next = await zcodeAgentService.runPiLlamaRouter({ ...actionTarget, action });
+      if (guard.isCurrent(ticket)) {
+        write(ticket, current => ({ ...current, view: next,
+          downloadId: action.kind === "download" ? "" : current.downloadId }));
+        await onModelsChanged?.();
+      }
     } catch (cause) {
-      if (!cancelled.current) setError(cause instanceof Error ? cause.message : String(cause));
-      try { setView(await zcodeAgentService.readPiLlamaRouter(target)); } catch { /* Keep operation error. */ }
-    } finally { setBusy(null); setProgress(null); }
+      if (guard.isCurrent(ticket)) {
+        write(ticket, current => ({ ...current, error: cause instanceof Error ? cause.message : String(cause) }));
+        try {
+          const next = await zcodeAgentService.readPiLlamaRouter(actionTarget);
+          write(ticket, current => ({ ...current, view: next }));
+        } catch { /* Keep operation error. */ }
+      }
+    } finally {
+      if (operation.current?.ticket === ticket) operation.current = null;
+      write(ticket, current => ({ ...current, busy: null, progress: null }));
+    }
   };
 
   const cancel = async () => {
     if (!busy || busy.kind === "refresh") return;
-    cancelled.current = true;
-    try { setView(await zcodeAgentService.cancelPiLlamaRouter({ ...target, modelId: busy.modelId }));
-      await onModelsChanged?.(); }
-    catch (cause) { cancelled.current = false; setError(cause instanceof Error ? cause.message : String(cause)); }
+    const active = operation.current;
+    const cancelTarget = active && guard.isCurrent(active.ticket) ? active.target : target;
+    const modelId = active && guard.isCurrent(active.ticket) ? active.action.modelId : busy.modelId;
+    const ticket = guard.begin(targetKey);
+    operation.current = null;
+    try {
+      const next = await zcodeAgentService.cancelPiLlamaRouter({ ...cancelTarget, modelId });
+      if (guard.isCurrent(ticket)) {
+        write(ticket, current => ({ ...current, view: next }));
+        await onModelsChanged?.();
+      }
+    } catch (cause) {
+      write(ticket, current => ({ ...current, error: cause instanceof Error ? cause.message : String(cause) }));
+    } finally { write(ticket, current => ({ ...current, busy: null, progress: null })); }
+  };
+
+  const cancelExternal = async (modelId: string) => {
+    if (busy) return;
+    const cancelTarget = { ...target };
+    const ticket = guard.begin(targetKey);
+    write(ticket, current => ({ ...current, busy: { kind: "refresh", modelId }, error: null }));
+    try {
+      const next = await zcodeAgentService.cancelPiLlamaRouter({ ...cancelTarget, modelId });
+      if (guard.isCurrent(ticket)) {
+        write(ticket, current => ({ ...current, view: next }));
+        await onModelsChanged?.();
+      }
+    } catch (cause) {
+      write(ticket, current => ({ ...current, error: cause instanceof Error ? cause.message : String(cause) }));
+    } finally { write(ticket, current => ({ ...current, busy: null })); }
+  };
+
+  const changeOpen = (next: boolean) => {
+    if (!next) {
+      guard.invalidate();
+      operation.current = null;
+      setState(emptyState(scope));
+    }
+    setOpen(next);
   };
 
   return <>
     <Button type="button" variant="outline" size="icon-md" title="llama.cpp 模型" aria-label="llama.cpp 模型"
       className="pointer-events-auto bg-[var(--color-popover)] shadow-md" onClick={() => setOpen(true)}
       data-testid="pi-llama-router-open"><Boxes className="size-4" /></Button>
-    <Dialog open={open} onOpenChange={next => setOpen(next)}>
+    <Dialog open={open} onOpenChange={changeOpen}>
       <DialogContent data-testid="pi-llama-router-dialog"
         className="max-h-[85vh] max-w-[min(54rem,calc(100vw-2rem))] overflow-hidden">
         <DialogHeader>
@@ -103,13 +182,15 @@ export function PiLlamaRouterDialog({ sessionId, workspacePath, workspaceIdentit
             {["loaded", "sleeping"].includes(model.status.value) ? <Button type="button" variant="outline" size="sm"
               disabled={busy !== null} onClick={() => void act({ kind: "unload", modelId: model.id })}>卸载</Button> : null}
             {["loading", "downloading"].includes(model.status.value) && !busy ? <Button type="button" variant="outline" size="sm"
-              onClick={() => void zcodeAgentService.cancelPiLlamaRouter({ ...target, modelId: model.id })
-                .then(setView).catch(cause => setError(String(cause)))}>取消</Button> : null}
+              onClick={() => void cancelExternal(model.id)}>取消</Button> : null}
           </div>)}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <label htmlFor="pi-llama-download-id" className="text-sm">下载 Hugging Face GGUF</label>
-          <input id="pi-llama-download-id" value={downloadId} onChange={event => setDownloadId(event.target.value)}
+          <input id="pi-llama-download-id" value={downloadId} onChange={event => {
+            const value = event.target.value;
+            setState(current => ({ ...(current.scope === scope ? current : emptyState(scope)), downloadId: value }));
+          }}
             placeholder="org/model:Q4_K_M" className="min-w-0 flex-1 rounded border border-border bg-background px-2 py-1 text-sm"
             disabled={busy !== null} />
           <Button type="button" size="sm" disabled={busy !== null || !downloadId.trim()}
