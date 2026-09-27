@@ -250,10 +250,13 @@ export async function settlePiQueueEditDelete(input: PurgeInput & { status: stri
 export function shouldDiscardPiQueueRecoveryAfterSend(
   saved: { sessionId: string; text: string; refs: readonly AttachmentRef[] },
   submission: { sessionId: string | null; text: string; attachments?: readonly AttachmentRef[];
-    result: string },
+    result: string; durablePiRecord: boolean },
 ): boolean {
   const actual = submission.attachments ?? [];
-  return submission.result === "sent" && saved.sessionId === submission.sessionId &&
+  // A send ACK can mean an in-memory Pi queue admission. The profile bookmark
+  // or Pi JSONL may still fail to persist, so an ACK alone cannot retire bytes.
+  return submission.durablePiRecord && submission.result === "sent" &&
+    saved.sessionId === submission.sessionId &&
     saved.text === submission.text && saved.refs.length === actual.length &&
     saved.refs.every((ref, index) => ref.ref === actual[index]?.ref &&
       ref.fileName === actual[index]?.fileName && ref.mime === actual[index]?.mime &&

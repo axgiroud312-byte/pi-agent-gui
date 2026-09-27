@@ -3068,8 +3068,11 @@ export function SessionPane({
         const recovered = activeQueueRecoveryRef.current;
         if (recovered && shouldDiscardPiQueueRecoveryAfterSend(recovered, {
           sessionId, text, attachments: options?.attachments, result: "sent",
+          // dispatchSendText only reports admission. Pi's in-memory queue and
+          // an unflushed JSONL are not a durable receipt after a host crash.
+          durablePiRecord: false,
         })) {
-          // Pi accepted the exact recovered payload. Cleanup is secondary to its ACK.
+          // Only a future verified durable Pi receipt can retire this copy.
           activeQueueRecoveryRef.current = null;
           void discardPiQueueEditRecovery({ storage: window.localStorage,
             workspaceKey: recovered.workspaceKey, sessionId: recovered.sessionId,

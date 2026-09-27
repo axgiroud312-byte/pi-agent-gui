@@ -391,10 +391,10 @@ try {
   await until(() => model.requests.slice(requestsBeforeRecoveredSend).some(request =>
     request.promptText.includes(withdrawalText) && request.imageDigests.includes(digest(image))),
   'The fixed Pi model request must receive the exact restarted image bytes');
-  await until(async () => (await editRecoveryEntries(page)).every(entry => entry.queueItemId !== withdrawnId),
-    'An exact accepted Pi send must retire the private recovery copy');
+  assert((await editRecoveryEntries(page)).some(entry => entry.queueItemId === withdrawnId),
+    'Pi acceptance alone cannot retire the image copy before durable history is proven');
   report.stages.withdrawnAfterRestart = { restored: true, prematureDiscardBlocked: true,
-    exactImageSent: true, backupRetired: true };
+    exactImageSent: true, backupRetainedAfterAcceptedSend: true };
   await page.screenshot({ path: join(f.output, 'pi-queue-withdrawal-recovered-and-sent.png') });
 
   await verifyPiPackageCleanup(f);

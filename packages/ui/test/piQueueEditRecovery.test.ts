@@ -243,19 +243,21 @@ test("stale, noop and rejected Pi delete ACKs keep the only copy after another w
   assert.equal(readPiQueueEditRecoveries(storage, "workspace-a", "session-a")[0]?.state, "withdrawn");
 });
 
-test("only an accepted send of the exact restored text and image refs can retire its backup", () => {
+test("an accepted send cannot retire image backup before a durable Pi record is proven", () => {
   const saved = { sessionId: "session-a", text: "exact text",
     refs: [{ ref: "fresh-ref", fileName: "one.png", mime: "image/png", bytes: 1 }] };
   assert.equal(shouldDiscardPiQueueRecoveryAfterSend(saved, { sessionId: "session-a", text: "exact text",
-    attachments: saved.refs, result: "sent" }), true);
+    attachments: saved.refs, result: "sent", durablePiRecord: false }), false);
+  assert.equal(shouldDiscardPiQueueRecoveryAfterSend(saved, { sessionId: "session-a", text: "exact text",
+    attachments: saved.refs, result: "sent", durablePiRecord: true }), true);
   assert.equal(shouldDiscardPiQueueRecoveryAfterSend(saved, { sessionId: "session-a", text: "edited",
-    attachments: saved.refs, result: "sent" }), false);
+    attachments: saved.refs, result: "sent", durablePiRecord: true }), false);
   assert.equal(shouldDiscardPiQueueRecoveryAfterSend(saved, { sessionId: "session-b", text: "exact text",
-    attachments: saved.refs, result: "sent" }), false);
+    attachments: saved.refs, result: "sent", durablePiRecord: true }), false);
   assert.equal(shouldDiscardPiQueueRecoveryAfterSend(saved, { sessionId: "session-a", text: "exact text",
-    attachments: [], result: "sent" }), false);
+    attachments: [], result: "sent", durablePiRecord: true }), false);
   assert.equal(shouldDiscardPiQueueRecoveryAfterSend(saved, { sessionId: "session-a", text: "exact text",
-    attachments: saved.refs, result: "blocked" }), false);
+    attachments: saved.refs, result: "blocked", durablePiRecord: true }), false);
 });
 
 test("session delete intent resolves crash before cleanup without deleting a surviving Pi session", async () => {
