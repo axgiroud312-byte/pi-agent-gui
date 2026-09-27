@@ -40,14 +40,14 @@
 - 协议没有 `list_sessions`、Git diff、OAuth 登录或通用工具审批命令。会话目录索引与只读 Git 信息属于宿主职责。
 - 文档示例与类型可能存在细节差异，例如命令来源示例使用 `path/location`，固定版本类型使用 `sourceInfo`。实现与 fixture 应以固定版本实际输出和类型核对，保留可选字段的兼容处理。
 
-### 完整 IDE 所需的额外桥接
+### Pi 原生能力所需的额外桥接
 
 - `ExtensionCommandContext.navigateTree()` 能跳转会话树并生成分支摘要；`pi.setLabel()` 能设置书签。基础 RPC 的 `get_tree` 仅提供读取能力。
 - `ctx.reload()` 提供重载入口；会话替换会使旧的 session-bound 上下文失效，桥接必须在替换后重新绑定。
 - `pi.getAllTools()`、`getActiveTools()`、`setActiveTools()` 覆盖动态工具和选择；`getSystemPromptOptions()` 提供上下文与 system prompt 输入来源。
-- Provider 认证和模型配置需要管理面适配；模型调用仍由 Pi 执行。支持全局、工作区和执行环境的真实配置作用域。
-- RPC 模式中的 `custom()`、自定义 header / footer / editor 和部分主题方法存在明确降级。通用 IDE 的兼容实现需要独立验收，不能把基础 RPC 接通记为所有扩展 UI 已支持。
-- Pi README 明确将子 Agent、Plan、MCP、任务等交给扩展。IDE 可通过预置 Pi 扩展提供这些能力；命名和状态需要区分内建能力、预置扩展和第三方扩展。
+- Provider 认证和模型配置需要管理面适配；模型调用仍由 Pi 执行。支持固定 Pi 的用户/项目与当前会话配置作用域；当前产品仅本地执行。
+- RPC 模式中的 `custom()`、自定义 header / footer / editor 和部分主题方法存在明确降级。必要 GUI 等价交互需要独立验收，复杂 TUI 逐类记录限制，不能把基础 RPC 接通记为所有扩展 UI 已支持；不默认建设通用兼容引擎。
+- Pi README 明确将子 Agent、Plan、MCP、任务等交给扩展。用户可安装相关扩展；本项目不默认随附维护这些业务系统，扩展兼容本身仍在范围。
 - 项目信任是当前 Pi 的既有语义：RPC 不会自行弹出 TUI 信任提示，未信任时可能忽略项目资源。GUI 需呈现 Pi 的实际决策和资源加载结果，保持用户配置。
 
 ### 测试先例
@@ -100,7 +100,7 @@ Claude Code 仓库的 [LICENSE.md](https://github.com/anthropics/claude-code/blo
 
 ZCode UI 依赖 services、store、provider、platform 和 i18n。保留其原生交互状态及可复用宿主，通过 Agent service/session subscription 边界映射 Pi；仅更换模型 provider 不会更换原 Agent loop。导入时核对 [LICENSE](https://github.com/zai-org/ZCode/blob/872ad960de7ec172591f7e1952f7849229f94521/LICENSE)、[NOTICE](https://github.com/zai-org/ZCode/blob/872ad960de7ec172591f7e1952f7849229f94521/NOTICE.md)、[第三方总表](https://github.com/zai-org/ZCode/blob/872ad960de7ec172591f7e1952f7849229f94521/THIRD-PARTY-NOTICES.md) 和各资源自己的许可。
 
-原生边界事实（源码核实，尚未在本项目运行）：
+原生边界事实（初次源码调研记录；后续实际运行见 #32/#33 验收）：
 
 - 原 UI package 导出 TypeScript 源码并依赖内部 services/shared/rpc/provider；它不是可单独运行的皮肤包。
 - Electron renderer bootstrap → service accessor / platform → session pane / conversation transport → Agent/session service → process manager → 原 `app-server --stdio` / v4 协议。原生 ack、epoch、snapshot/delta、session index 必须映射，而非因同为 stdio 就透传 Pi JSONL。

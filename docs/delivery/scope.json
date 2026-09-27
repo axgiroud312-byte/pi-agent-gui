@@ -1,0 +1,256 @@
+{
+  "revision": "pi-first-2026-09-27",
+  "piVersion": "0.87.0",
+  "capabilities": [
+    {
+      "id": "P01",
+      "name": "文本 / 图片 prompt、Skills 与模板展开",
+      "path": "R：`prompt`"
+    },
+    {
+      "id": "P02",
+      "name": "转向、后续、双队列与投递模式",
+      "path": "R：`steer`、`follow_up`、两种 mode 设置、`clear_queue`"
+    },
+    {
+      "id": "P03",
+      "name": "停止 Agent、shell 与重试",
+      "path": "R：`abort`、`abort_bash`、`abort_retry`"
+    },
+    {
+      "id": "P04",
+      "name": "状态、消息、流式 thinking、工具和扩展消息",
+      "path": "R：`get_state`、`get_messages` 及所有标准事件"
+    },
+    {
+      "id": "P05",
+      "name": "模型枚举、搜索、选择、循环与 scoped models",
+      "path": "R：`get_available_models`、`set_model`、`cycle_model`；B/H：scope 与默认值"
+    },
+    {
+      "id": "P06",
+      "name": "thinking 等级、循环、预算及默认值",
+      "path": "R：`get_available_thinking_levels`、`set_thinking_level`、`cycle_thinking_level`；H：设置"
+    },
+    {
+      "id": "P07",
+      "name": "自动重试开关、退避与失败展示",
+      "path": "R：`set_auto_retry`、retry 事件；H：完整参数"
+    },
+    {
+      "id": "P08",
+      "name": "手动 / 自动压缩、摘要及 overflow 恢复",
+      "path": "R：`compact`、`set_auto_compaction` 和 compaction 事件"
+    },
+    {
+      "id": "P09",
+      "name": "用户 shell、带 / 不带模型上下文的执行",
+      "path": "R：`bash`、`abort_bash`，按固定版本支持 `excludeFromContext`"
+    },
+    {
+      "id": "P10",
+      "name": "创建、切换、重命名会话",
+      "path": "R：`new_session`、`switch_session`、`set_session_name`"
+    },
+    {
+      "id": "P11",
+      "name": "Pi 会话目录查询、排序、筛选、重命名与确认删除",
+      "path": "Pi 原生 JSONL 索引/公开管理接口；不增加自有归档回收站"
+    },
+    {
+      "id": "P12",
+      "name": "fork、clone、历史输入编辑和分支重试",
+      "path": "R：`get_fork_messages`、`fork`、`clone`；B：树导航"
+    },
+    {
+      "id": "P13",
+      "name": "全树、增量 entries、书签、过滤和树跳转",
+      "path": "R：`get_tree`、`get_entries`；B：`navigateTree`、`setLabel`"
+    },
+    {
+      "id": "P14",
+      "name": "当前上下文、原始历史、context edits 与摘要检查",
+      "path": "R/B：entries、上下文投影与公开扩展钩子"
+    },
+    {
+      "id": "P15",
+      "name": "token / cache / 费用 / 上下文与会话信息",
+      "path": "R：`get_session_stats`；B：可用附加诊断"
+    },
+    {
+      "id": "P16",
+      "name": "复制、HTML / JSONL 导出、导入及 gist 分享",
+      "path": "R：`get_last_assistant_text`、`export_html`；H/B：原生格式与分享流程"
+    },
+    {
+      "id": "P17",
+      "name": "持久 / 临时会话、自定义存储与 CLI 续接",
+      "path": "R 启动参数、H：索引及会话所有权"
+    },
+    {
+      "id": "P18",
+      "name": "本地 API key、OAuth、自定义 provider 认证与登出",
+      "path": "Pi 公开认证接口；在线模型/OAuth 保留，非远程工作区"
+    },
+    {
+      "id": "P19",
+      "name": "内建与自定义 provider、headers、协议、动态模型目录",
+      "path": "H/B：Pi 模型配置及 `registerProvider` 能力"
+    },
+    {
+      "id": "P20",
+      "name": "llama.cpp router 配置、模型下载 / 加载 / 卸载",
+      "path": "H/B：Pi provider 与 router 管理能力"
+    },
+    {
+      "id": "P21",
+      "name": "上下文指令、system prompt 替换 / 追加与来源",
+      "path": "H/B：Pi 资源解析、公开 prompt 输入查询"
+    },
+    {
+      "id": "P22",
+      "name": "Skills、模板的发现、创建、编辑、调用及来源",
+      "path": "R：`get_commands` / `prompt`；H/B：资源管理"
+    },
+    {
+      "id": "P23",
+      "name": "全部内建工具、自定义工具、覆盖工具及动态启停",
+      "path": "R：工具事件；B：工具枚举与 active tools"
+    },
+    {
+      "id": "P24",
+      "name": "扩展命令、生命周期、输入变换、自定义消息和 provider",
+      "path": "R/B：公开扩展机制"
+    },
+    {
+      "id": "P25",
+      "name": "选择 / 确认 / 输入 / 多行编辑等扩展交互",
+      "path": "R：完整 `extension_ui_request/response`"
+    },
+    {
+      "id": "P26",
+      "name": "通知、状态、widget、标题、输入区文本",
+      "path": "R：全部 fire-and-forget UI 方法"
+    },
+    {
+      "id": "P27",
+      "name": "公开扩展 UI 的 GUI 等价交互与兼容边界",
+      "path": "必要交互由公开接口/版本化适配承接；复杂 TUI 逐类说明限制，非任意第三方零适配"
+    },
+    {
+      "id": "P28",
+      "name": "主题、快捷键、显示偏好、帮助、changelog 与退出",
+      "path": "H/B/C：GUI 等价交互和兼容映射"
+    },
+    {
+      "id": "P29",
+      "name": "npm / Git / 本地包安装、卸载、更新、固定版本与资源过滤",
+      "path": "H：Pi 包管理命令；B：重载"
+    },
+    {
+      "id": "P30",
+      "name": "资源热重载、临时扩展与精确资源加载选项",
+      "path": "B：`reload`；H：本地启动选项"
+    },
+    {
+      "id": "P31",
+      "name": "完整 Pi 设置、网络、重试、缓存、图片与工具配置",
+      "path": "H：表单 + schema 感知的高级配置"
+    },
+    {
+      "id": "P32",
+      "name": "Pi 既有项目信任、启动离线、遥测和更新设置",
+      "path": "H/B：实际 Pi 设置与启动策略"
+    },
+    {
+      "id": "P33",
+      "name": "Pi 版本、模型目录刷新、维护与诊断/bug 报告",
+      "path": "Pi 公开维护能力与必要宿主入口；用户主动更新/外发，不建设云更新平台"
+    },
+    {
+      "id": "P34",
+      "name": "影响 GUI 的本地启动、环境及 CLI 会话互通选项",
+      "path": "映射 cwd/存储/资源/Pi 路径等；interactive/print/JSON 仍用 Pi CLI，不另造 profiles 产品"
+    },
+    {
+      "id": "D01",
+      "name": "本地项目选择与最近目录",
+      "path": "复用原生 ZCode 桌面组件与本地服务，按 Pi 必要使用路径验收"
+    },
+    {
+      "id": "D02",
+      "name": "原生会话切换、标签、布局和交互",
+      "path": "复用原生 ZCode 桌面组件与本地服务，按 Pi 必要使用路径验收"
+    },
+    {
+      "id": "D03",
+      "name": "输入框、草稿、图片与文件引用",
+      "path": "复用原生 ZCode 桌面组件与本地服务，按 Pi 必要使用路径验收"
+    },
+    {
+      "id": "D04",
+      "name": "本地文件预览与必要编辑保存",
+      "path": "复用原生 ZCode 桌面组件与本地服务，按 Pi 必要使用路径验收"
+    },
+    {
+      "id": "D05",
+      "name": "必要设置、中文输入、键盘和可用性",
+      "path": "复用原生 ZCode 桌面组件与本地服务，按 Pi 必要使用路径验收"
+    },
+    {
+      "id": "D06",
+      "name": "可靠启动、Windows 交付和保存恢复",
+      "path": "复用原生 ZCode 桌面组件与本地服务，按 Pi 必要使用路径验收"
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "V01",
+      "name": "本地项目→实际 Windows exe→Pi 启动、退出与恢复"
+    },
+    {
+      "id": "V02",
+      "name": "文本/图片/thinking/工具真实流式输入输出与错误"
+    },
+    {
+      "id": "V03",
+      "name": "双队列、取回、停止、重试、压缩及错误恢复"
+    },
+    {
+      "id": "V04",
+      "name": "两个本地会话隔离、CLI 历史互续、草稿保存恢复"
+    },
+    {
+      "id": "V05",
+      "name": "真实树/书签/分支/fork/clone、摘要和取消"
+    },
+    {
+      "id": "V06",
+      "name": "真实 provider 认证、模型/thinking、作用域和配置"
+    },
+    {
+      "id": "V07",
+      "name": "Pi llama.cpp router 管理及真实模型会话"
+    },
+    {
+      "id": "V08",
+      "name": "Skills/模板/上下文/包/trust/启动参数与重载"
+    },
+    {
+      "id": "V09",
+      "name": "扩展必要交互、生命周期与明确兼容限制"
+    },
+    {
+      "id": "V10",
+      "name": "会话导入/导出/复制与用户主动分享"
+    },
+    {
+      "id": "V11",
+      "name": "文件引用、预览、工具文件回链及保存冲突"
+    },
+    {
+      "id": "V12",
+      "name": "原生 UI、中文/键盘/长记录、打包及诊断"
+    }
+  ]
+}

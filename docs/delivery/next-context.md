@@ -1,36 +1,25 @@
-# 新上下文：从 #34 连续完成完整首版
+# 当前入口：Pi 范围已收缩，#34 等待用户验收
 
-更新：2026-09-23。**原生底座已交付，用户已确认实际界面。** 下一次实施直接使用 [后续任务一次性开发执行文档](full-development.md)，从GitHub实际就绪前沿继续；当前为#34。
+更新时间：2026-09-27。先读 [产品目标](../product-goal.md)、[ADR 0001](../adr/0001-native-zcode-base.md)、[范围修订](pi-first-scope.md)，再核对 GitHub 最新正文与本地 `git status`。此次用户授权更新远程文档、任务与后续 Issues，不授权自动开始新功能或合并 #34。
 
-## 已完成与权威记录
+## 当前状态
 
-- PR #37已合并到主线 `59362a37f044157a17b49950dc46b33c4d83842b`，#32/#36 CLOSED；产品源码/构建为 `0de01e26b86f7bc2ed023623516a0907f848819d`，证据提交为 `36e3eb811c1467c1b43646b5d2b3ff9a6c1e8cba`。
-- **#33 CLOSED，用户确认已记录**：[原话、日期、版本与GitHub链接](native-ui-confirmation.md)。已完成的实际界面关卡不重复询问。
-- 两轴独立审查通过；最终Windows CI [35796732198](https://github.com/axgiroud312-byte/pi-agent-gui/actions/runs/35796732198) / [35796727209](https://github.com/axgiroud312-byte/pi-agent-gui/actions/runs/35796727209)通过。真实运行、87项回归和26对截图见 [#32验收](issue-32-acceptance.md)。
-- 本次完成关卡记录和后续执行文档。**#34尚未实施，#3–#28仍需在原生Pi链路交付，#1仍OPEN。** 实时状态以GitHub为准。
+- #32 原生导入与 #33 实际界面确认已完成。ZCode 原生组件、布局和交互继续复用。
+- #34 OPEN / [PR #39](https://github.com/axgiroud312-byte/pi-agent-gui/pull/39) Draft；`issue-34-native-pi-rpc@ef77805` 之后的本地压缩错误修复、恢复回归和证据纠正仍未提交。不要把文档分支合并当成 #34 已合并。
+- 本地 #34 试用包与验证材料保留在 `C:\Users\niilo\Desktop\pi-agent-gui\release\issue-34-closeout\2026-09-27\`；可运行入口为 `bundle/win-unpacked/Pi Agent IDE Preview.exe`。这些本地产物不在文档提交中，也不是远程可下载发行版。
+- 本地工作树中的 `docs/delivery/issue-34-closeout/closeout-2026-09-27.md`、Standards/Spec 报告和 `manifest.json` 记录本次收尾证据。固定真实 Pi + 受控 loopback 模型验证不等于在线账号验收；安装器安装/升级尚未验证。
+- 清理证据中的 `forced=[]` 仅表示测试 harness 在应用退出后无需补杀；`survivors=[]` 表示它记录的进程无残留，不能证明运行时内部从未强杀。
+- 远程 CI 已取消；旧正文/评论/报告的 CI 门槛由当前 CONTRIBUTING 覆盖，不恢复工作流。
 
-## 恢复步骤
+## 当前任务范围
 
-1. 读根AGENTS、产品目标、ADR0001、CONTEXT、CONTRIBUTING及 `docs/agents/` 约定。
-2. 读 [full-development.md](full-development.md)，按其中顺序核对GitHub #1/#33/当前票、原生依赖和现有PR。
-3. 核对 `git status`、`git worktree list`、最新 `origin/main`。原项目目录曾在旧 `issue-32-native-zcode-import@317d286` 且有未提交文件；保留这些工作，从包含上述原生底座的最新主线创建或恢复正确独立worktree。
-4. 在新文档所在工作树运行 `node scripts/check-delivery-plan.mjs --github`。截至本轮，30张管理票、71条原生依赖、27张剩余执行票核对一致，唯一就绪实施票为#34。
-5. #34完成并合并后，按各票实际依赖连续实施；跨上下文更新本文件与Issue，不以完成一批作为完整首版完成。
+#1 保持开启；#34 是当前验收关卡。之后保留 15 张功能票 + #28 最终验收，见 [执行表](full-development.md)、[能力账本](coverage.md) 与 [机器合同](tickets.json)。#15–#24 共 10 张旧票按 not_planned/wontfix 退出，并非已交付；其旧正文、依赖见 [历史快照](archive/scope-before-2026-09-27/README.md)，原评论/分支/源码不删除。
 
-## 按任务加载资料
+Pi 能力包括对话、图片、工具、模型/认证/thinking、队列/停止/重试/压缩、历史/树/分支、Skills/模板/扩展/配置，以及固定版本的其他原生能力。桌面只补使用 Pi 所必要的本地项目、输入/引用/预览、会话切换、设置和可靠启动/保存恢复。在线 API/OAuth 仍保留，复杂 TUI 按实际接口记录边界。
 
-| 正在做什么 | 先读 |
-| --- | --- |
-| 实施#34或修改RPC/会话/队列 | 当前Issue、[固定上游与协议](../references/upstream-and-ui.md)、[复用清单](reuse-inventory.md) |
-| 调整数据目录、认证或迁移 | [应用profile合同](desktop-profile-contract.md)，并区分Pi的目标侧认证/历史与GUI元数据 |
-| 修改用户界面 | [原生一致性标准](native-ui-parity.md)、已确认产品及原版截图 |
-| 更改CLI或CI | 当前包AGENTS与实际workflow、[CLI lint基线政策](native-cli-lint-policy.md) |
-| 最终发行 | #27/#28、[覆盖账本](coverage.md)、第三方inventory/README和严格发行检查 |
+## 接手动作
 
-## 遗留差额与记录
-
-固定原版未启用的会话split、物理IME、完整性能/安装升级恢复和19项继承发行材料差额按#5/#26/#27/#28补齐。真实OAuth、llama.cpp、MCP、GitHub、WSL/SSH及新Pi链路均需自己的证据；详细处理见执行文档，旧分支结果仅为资产。
-
-旧路线和历史检查保存在 [execution-log.md](execution-log.md)、[reuse-inventory.md](reuse-inventory.md) 及原提交；恢复工作时以本入口、最新执行文档及GitHub为准。
-
-下一具体操作：核对#34最新正文/评论和前置关闭状态，建立 `issue-34-native-pi-runtime` 或恢复已有对应分支，执行完整开发循环。用户若仅要求评审/文档，则交付所请求的材料后结束，不把阅读本文件当作立即改产品代码的请求。
+1. 原工作树 `C:\Users\niilo\Desktop\pi-agent-gui` 的所有未提交内容必须保留，尤其 #34 源码/测试、历史交接、`%SystemDrive%/`、`用`。不 reset、clean、强推或批量暂存。
+2. 文档与任务同步通过独立 `docs/pi-first-scope-20260927` 分支进行，不包含产品修复；保留原分支。后续集成 main 时逐文件解决范围文档冲突，不覆盖本地产品代码。
+3. 先核对 #34 当前用户验收结果。未获后续功能实施指令时停在此处；ready 标签或无依赖不等于自动开工。
+4. 进入具体实施后按最新 Issue、原生依赖、复用边界和本地验证规则交付。`node scripts/check-delivery-plan.mjs --github` 只验证账本一致，不证明任何功能完成。
