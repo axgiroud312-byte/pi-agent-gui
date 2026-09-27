@@ -66,7 +66,8 @@ async function fixture() {
       if (command.type === 'set_model') {
         this.modelRequested?.();
         await this.modelGate;
-        this.model = { provider: command.provider!, id: command.modelId!, reasoning: false };
+        this.model = { provider: command.provider!, id: command.modelId!,
+          reasoning: command.modelId === 'reasoning' };
       }
       if (command.type === 'set_thinking_level') this.thinkingLevel = command.level!;
       if (command.type === 'get_commands') {
@@ -100,9 +101,13 @@ async function fixture() {
           pendingMessageCount: this.queued.steering.length + this.queued.followUp.length }
         : command.type === 'get_entries' ? { entries: [], leafId: null }
         : command.type === 'get_messages' ? { messages: this.messages }
-        : command.type === 'get_available_thinking_levels' ? { levels: ['off', 'medium'] }
+        : command.type === 'get_available_thinking_levels' ? { levels: this.model?.reasoning
+          ? ['off', 'minimal', 'low', 'medium', 'high'] : ['off'] }
         : command.type === 'get_session_stats' ? { tokens: { input: 1, output: 2 }, contextUsage: { tokens: 3, contextWindow: 100 } }
-        : command.type === 'get_available_models' ? { models: [{ provider: 'test', id: 'model', name: 'Test Model', input: ['text', 'image'] }] }
+        : command.type === 'get_available_models' ? { models: [
+          { provider: 'test', id: 'model', name: 'Test Model', input: ['text', 'image'] },
+          { provider: 'test', id: 'reasoning', name: 'Reasoning Model', input: ['text'] },
+        ] }
         : command.type === 'get_commands' ? { commands: [
           { name: 'skill-command', description: 'A Pi resource command', source: 'skill' },
           ...(this.extensionCommand ? [{ name: 'handled', description: 'A no-model Pi extension command',
@@ -249,6 +254,32 @@ test('workspace config projects Pi model and resource command catalogs', async (
     assert.equal(wire.frame.payload.snapshot.config.slashCommands[0]?.name, 'skill-command');
     await f.service.unsubscribeWorkspaceConfigV4({ ...f.target, subscriptionId: subscription.ack.subscriptionId });
   } finally { listener.dispose(); await f.close(); }
+});
+
+test('model selected for a real Pi send refreshes the same session thinking catalog', async () => {
+  const f = await fixture();
+  try {
+    const created = await f.service.sendConversationCommandV4({ ...f.target, envelope: {
+      commandId: randomUUID(), clientId: 'thinking-catalog', sessionId: null,
+      issuedAt: Date.now(), type: 'createSession', payload: { workspaceId: f.root },
+    } });
+    assert.equal(created.status, 'accepted', created.message);
+    const before = await f.service.readPiModelCatalog({ ...f.target, sessionId: f.id() });
+    assert.deepEqual(before.options?.find(option => option.value === 'test/reasoning')?.modelThoughtLevels,
+      ['off'], 'Pi reports thinking levels only for the active model');
+    const sent = await f.service.sendConversationCommandV4({ ...f.target, envelope: {
+      commandId: randomUUID(), clientId: 'thinking-catalog', sessionId: f.id(),
+      issuedAt: Date.now(), type: 'sendText', payload: { text: 'use reasoning model',
+        modelSelection: { providerId: 'test', modelId: 'reasoning',
+          options: { reasoningLevel: 'off' } } },
+    } });
+    assert.equal(sent.status, 'accepted', sent.message);
+    assert.equal(f.client.model?.id, 'reasoning', 'the selected model must actually reach Pi');
+    const after = await f.service.readPiModelCatalog({ ...f.target, sessionId: f.id() });
+    assert.equal(after.currentValue, 'test/reasoning');
+    assert.deepEqual(after.options?.find(option => option.value === 'test/reasoning')?.modelThoughtLevels,
+      ['off', 'minimal', 'low', 'medium', 'high']);
+  } finally { await f.close(); }
 });
 
 test('blocking extension UI is projected for the native dialog and explicitly resolved back to Pi', async () => {

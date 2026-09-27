@@ -1759,6 +1759,13 @@ export class PiNativeV4Service implements V4Methods {
         record.admissionGeneration++;
         this.recordVersions.set(record.view.sessionId, (this.recordVersions.get(record.view.sessionId) ?? 0) + 1);
         await this.applyModelSelection(record.view.sessionId, payload.modelSelection);
+        if (payload.modelSelection) {
+          // A send can switch Pi's model before the prompt starts. The picker
+          // must read the new model's levels from this same RPC session; the
+          // prior catalog only knew the previous model's capabilities.
+          await this.refreshRuntimeFacts(record);
+          this.refreshWorkspaceConfig(record.workspaceKey, record.view.sessionId);
+        }
         record.projection.expectUserCommand(commandId);
         record.state.piPendingIntent = { textHash: createHash("sha256").update(prompt.text).digest("hex"),
           commandId, priorUserCount: record.projection.getRows().filter(row => row.kind === "userInput").length,
