@@ -9,6 +9,7 @@ import { settlePiSessionBeforeClose } from "./pi-session-teardown.js";
 import { getPiHistoryMessages } from "./pi-session-history.js";
 import { canonicalSessionLeaf, reserveNewSessionPath, sessionFileExists } from "./pi-session-path.js";
 import type { PiSessionSupervisorOptions, PiSessionView, SessionRuntime, SupervisorEvents } from "./pi-session-types.js";
+import type { PiPromptImage } from "./pi-prompt-images.js";
 export type { PiSessionPhase, PiSessionView, PiSessionSupervisorOptions } from "./pi-session-types.js";
 
 function object(value: unknown): Record<string, unknown> {
@@ -48,21 +49,11 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
     const current = () => this.sessions.get(view.sessionId) === runtime && runtime.generation === generation;
     client.on("record", record => {
       if (!current()) return;
-      this.emit("record", view.sessionId, record);
-      // Pi RPC advertises UI dialogs to extensions, but #34 has no GUI reply
-      // bridge. Cancel only blocking dialogs; never grant permissions by default.
       if (record.type === "extension_ui_request" && typeof record.id === "string" &&
         ["select", "confirm", "input", "editor"].includes(String(record.method))) {
-        void client.notify({ type: "extension_ui_response", id: record.id, cancelled: true })
-          .catch(error => {
-            view.uncertainDelivery = true;
-            view.error = `Could not cancel Pi extension dialog: ${message(error)}`;
-            view.phase = "error";
-            this.publish(runtime);
-            // A failed cancellation cannot leave an extension waiting forever.
-            void client.dispose();
-          });
+        runtime.pendingExtensionRequests.add(record.id);
       }
+      this.emit("record", view.sessionId, record);
       if (runtime.stopping || !runtime.acceptRunEvents) return;
       switch (record.type) {
         case "agent_start":
@@ -272,6 +263,7 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
         acceptRunEvents: state.isStreaming === true || state.isCompacting === true,
         hadRunError: false,
         persistentRunError: false,
+        pendingExtensionRequests: new Set(),
         lease,
       };
       this.sessions.set(view.sessionId, runtime);
@@ -381,13 +373,48 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
     }
   }
 
-  async sendText(sessionId: string, text: string): Promise<"run" | "noRun" | "reconcile"> {
+  async command(sessionId: string, command: { type: string; [key: string]: unknown }): Promise<unknown> {
+    const runtime = this.requireSession(sessionId);
+    if (runtime.view.uncertainDelivery || runtime.view.reconciliationRequired) {
+      throw new Error("Pi session requires reconciliation before this command");
+    }
+    const response = await runtime.client.request(command);
+    if (!response.success) throw new Error(response.error ?? `Pi rejected ${command.type}`);
+    return response.data;
+  }
+
+  async refreshState(sessionId: string): Promise<Record<string, unknown>> {
+    return this.getState(sessionId);
+  }
+
+  forgetExtensionRequest(sessionId: string, requestId: string): void {
+    this.sessions.get(sessionId)?.pendingExtensionRequests.delete(requestId);
+  }
+
+  async respondExtension(sessionId: string, requestId: string,
+    response: { value?: string; confirmed?: boolean; cancelled?: true }): Promise<void> {
+    const runtime = this.requireSession(sessionId);
+    if (!runtime.pendingExtensionRequests.has(requestId)) throw new Error("Pi extension request is no longer pending");
+    await runtime.client.notify({ type: "extension_ui_response", id: requestId, ...response });
+    runtime.pendingExtensionRequests.delete(requestId);
+  }
+
+  async enqueueText(sessionId: string, text: string, behavior: "steer" | "followUp",
+    images: readonly PiPromptImage[] = []): Promise<void> {
+    if (!text.trim() && images.length === 0) throw new Error("Pi input is empty");
+    await this.command(sessionId, {
+      type: behavior === "steer" ? "steer" : "follow_up", message: text,
+      ...(images.length ? { images: [...images] } : {}),
+    });
+  }
+
+  async sendText(sessionId: string, text: string, images: readonly PiPromptImage[] = []): Promise<"run" | "noRun" | "reconcile"> {
     const runtime = this.requireSession(sessionId);
     if (runtime.view.uncertainDelivery || runtime.view.reconciliationRequired) {
       throw new Error("Pi session requires reconciliation before another input");
     }
     if (!["idle", "settled", "stopped", "error"].includes(runtime.view.phase)) throw new Error("Pi session is already busy");
-    if (text.trim().length === 0) throw new Error("Pi input is empty");
+    if (text.trim().length === 0 && images.length === 0) throw new Error("Pi input is empty");
     runtime.hadRunError = false;
     runtime.persistentRunError = false;
     runtime.modelRetryError = undefined;
@@ -400,7 +427,8 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
     runtime.view.foregroundExecutionId = randomUUID();
     this.publish(runtime);
     try {
-      const response = await runtime.client.request({ type: "prompt", message: text });
+      const response = await runtime.client.request({ type: "prompt", message: text,
+        ...(images.length ? { images: [...images] } : {}) });
       if (!response.success) throw new Error(response.error ?? "Pi rejected the prompt");
     } catch (error) {
       runtime.acceptRunEvents = false;
@@ -447,6 +475,11 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
     runtime.view.phase = "stopping";
     this.publish(runtime);
     try {
+      // Cancel blocking extension input before aborting the run that owns it.
+      for (const requestId of runtime.pendingExtensionRequests) {
+        await runtime.client.notify({ type: "extension_ui_response", id: requestId, cancelled: true });
+        runtime.pendingExtensionRequests.delete(requestId);
+      }
       // Pi's abort continues queued work unless the queues are cleared first.
       const clear = await runtime.client.request({ type: "clear_queue" });
       if (!clear.success) throw new Error(clear.error ?? "Pi clear_queue failed");
@@ -455,6 +488,12 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
         steering: Array.isArray(returned.steering) ? returned.steering.filter((value): value is string => typeof value === "string") : [],
         followUp: Array.isArray(returned.followUp) ? returned.followUp.filter((value): value is string => typeof value === "string") : [],
       };
+      const [bash, retry] = await Promise.all([
+        runtime.client.request({ type: "abort_bash" }),
+        runtime.client.request({ type: "abort_retry" }),
+      ]);
+      if (!bash.success) throw new Error(bash.error ?? "Pi abort_bash failed");
+      if (!retry.success) throw new Error(retry.error ?? "Pi abort_retry failed");
       const abort = await runtime.client.request({ type: "abort" });
       if (!abort.success) throw new Error(abort.error ?? "Pi abort failed");
       const state = await this.getState(sessionId);

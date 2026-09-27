@@ -5,6 +5,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { conversationTopicWireFrameSchema } from '@zcode/shared/zcode-protocol-v4';
 import { PiRpcClient, PiRpcError } from '../src/pi-agent/pi-rpc-client.js';
 import { PiSessionSupervisor } from '../src/pi-agent/pi-session-supervisor.js';
 import { PiNativeV4Service } from '../src/pi-agent/pi-native-v4-service.js';
@@ -18,6 +19,7 @@ async function fixture() {
     prompts = 0;
     streaming = false;
     readonly calls: string[] = [];
+    readonly notifications: Array<Record<string, unknown>> = [];
     modelGate?: Promise<void>;
     modelRequested?: () => void;
     postAdmissionError: Error | undefined;
@@ -28,6 +30,7 @@ async function fixture() {
     thinkingLevel = 'off';
     async start() {}
     async dispose() {}
+    async notify(command: Record<string, unknown>) { this.notifications.push(command); }
     async request(command: { type: string; message?: string; provider?: string; modelId?: string; level?: string }) {
       this.calls.push(command.type);
       if (command.type === 'set_model') {
@@ -159,7 +162,7 @@ test('unsupported permissions and execution constraints fail before any Pi side 
     for (const extras of [
       { mode: 'yolo' }, { mode: 'plan' }, { planEnabled: true },
       { browserAmbientContext: { tabCount: 1, currentUrl: 'https://example.com' } },
-      { toolDisallowlist: ['bash'] }, { requestedDelivery: 'queue' },
+      { toolDisallowlist: ['bash'] },
     ]) {
       const ack = await f.service.sendConversationCommandV4({ ...f.target, envelope: {
         commandId: randomUUID(), clientId: 'constraints', sessionId: f.id(), type: 'sendText',
@@ -168,7 +171,54 @@ test('unsupported permissions and execution constraints fail before any Pi side 
       assert.equal(ack.status, 'failed', JSON.stringify(extras));
       assert.equal(ack.reasonCode, 'pi.commandNotImplemented');
     }
+    for (const requestedDelivery of ['queue', 'guide'] as const) {
+      const ack = await f.service.sendConversationCommandV4({ ...f.target, envelope: {
+        commandId: randomUUID(), clientId: 'constraints', sessionId: f.id(), type: 'sendText',
+        issuedAt: Date.now(), payload: { text: `accepted ${requestedDelivery}`, requestedDelivery },
+      } });
+      assert.equal(ack.status, 'accepted');
+      assert.equal(ack.result?.type, 'inputAccepted');
+      assert.equal(ack.result?.type === 'inputAccepted' ? ack.result.delivery : null, requestedDelivery);
+    }
     assert.equal(f.client.prompts, 0);
+    assert.deepEqual(f.client.calls.slice(-2), ['follow_up', 'steer']);
+  } finally { await f.close(); }
+});
+
+test('blocking extension UI is projected for the native dialog and explicitly resolved back to Pi', async () => {
+  const f = await fixture();
+  try {
+    await f.service.sendConversationCommandV4({ ...f.target, envelope: {
+      commandId: randomUUID(), clientId: 'extension-ui', sessionId: null, type: 'createSession',
+      issuedAt: Date.now(), payload: { workspaceId: f.root },
+    } });
+    f.client.emit('record', { type: 'extension_ui_request', id: 'ext-confirm-1', method: 'confirm',
+      title: 'Allow the extension action?' });
+    const frames: unknown[] = [];
+    const listener = f.service.onDynamicConversationFrame(f.target)(frame => frames.push(frame));
+    const subscription = await f.service.subscribeConversationV4({ ...f.target, sessionId: f.id() });
+    await new Promise(resolve => setImmediate(resolve));
+    const initial = conversationTopicWireFrameSchema.parse(frames.at(-1));
+    assert.equal(initial.kind, 'complete');
+    if (initial.kind !== 'complete' || initial.frame.payload.kind !== 'snapshot') throw Error('missing snapshot');
+    assert.equal(initial.frame.payload.snapshot.pendingInteractions[0]?.interactionId, 'ext-confirm-1');
+    assert.equal(initial.frame.payload.snapshot.pendingInteractions[0]?.payload.kind, 'userInput');
+    const ack = await f.service.sendConversationCommandV4({ ...f.target, envelope: {
+      commandId: randomUUID(), clientId: 'extension-ui', sessionId: f.id(), type: 'resolveInteraction',
+      issuedAt: Date.now(), payload: { interactionId: 'ext-confirm-1', answer: { optionId: 'false', action: 'decline' } },
+    } });
+    assert.equal(ack.status, 'accepted');
+    assert.deepEqual(f.client.notifications.at(-1),
+      { type: 'extension_ui_response', id: 'ext-confirm-1', confirmed: false });
+    const resolvedSubscription = await f.service.subscribeConversationV4({ ...f.target, sessionId: f.id() });
+    await new Promise(resolve => setImmediate(resolve));
+    const resolvedFrame = conversationTopicWireFrameSchema.parse(frames.at(-1));
+    assert.equal(resolvedFrame.kind, 'complete');
+    if (resolvedFrame.kind !== 'complete' || resolvedFrame.frame.payload.kind !== 'snapshot') throw Error('missing resolved snapshot');
+    assert.equal(resolvedFrame.frame.payload.snapshot.pendingInteractions.length, 0);
+    await f.service.unsubscribeConversationV4({ ...f.target, subscriptionId: resolvedSubscription.ack.subscriptionId });
+    await f.service.unsubscribeConversationV4({ ...f.target, subscriptionId: subscription.ack.subscriptionId });
+    listener.dispose();
   } finally { await f.close(); }
 });
 

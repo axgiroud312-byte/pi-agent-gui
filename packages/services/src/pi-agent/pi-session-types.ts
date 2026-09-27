@@ -44,6 +44,7 @@ export interface SessionRuntime {
   hadRunError: boolean;
   persistentRunError: boolean;
   modelRetryError?: string;
+  pendingExtensionRequests: Set<string>;
   lease: PiSessionLease;
 }
 

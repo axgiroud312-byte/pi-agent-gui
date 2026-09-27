@@ -9,17 +9,20 @@ import type { PiSessionPhase, PiSessionView } from "./pi-session-supervisor.js";
 const unavailable = (reasonCode: string) => ({ allowed: false as const, reasonCode });
 
 function availability(): SessionActionAvailability {
-  // Capability tickets enable actions only after their Pi implementation lands.
   return {
-    fork: unavailable("pi.notImplemented"),
-    compact: unavailable("pi.notImplemented"),
-    switchModelConfig: unavailable("pi.notImplemented"),
-    setFollowupMode: unavailable("pi.notImplemented"),
-    queueEdit: unavailable("pi.notImplemented"),
-    sendQueuedNow: unavailable("pi.notImplemented"),
-    pauseGoal: unavailable("pi.notImplemented"),
-    resumeGoal: unavailable("pi.notImplemented"),
+    fork: unavailable("pi.treeBridgeRequired"),
+    compact: { allowed: true },
+    switchModelConfig: { allowed: true },
+    setFollowupMode: { allowed: true },
+    queueEdit: unavailable("pi.queueEditRequiresLosslessAttachmentRecovery"),
+    sendQueuedNow: unavailable("pi.queueEditRequiresLosslessAttachmentRecovery"),
+    pauseGoal: unavailable("pi.notApplicable"),
+    resumeGoal: unavailable("pi.notApplicable"),
   };
+}
+
+function number(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
 function nativePhase(phase: PiSessionPhase, hasHistory: boolean): SessionControl["phase"] {
@@ -56,6 +59,12 @@ export function createPiV4Snapshot(
   const provider = typeof model.provider === "string" && model.provider !== "unknown" ? model.provider : "";
   const modelId = typeof model.id === "string" && model.id !== "unknown" ? model.id : "";
   const hasHistory = typeof state.messageCount === "number" && state.messageCount > 0;
+  const stats = state.piSessionStats && typeof state.piSessionStats === "object"
+    ? state.piSessionStats as Record<string, unknown> : {};
+  const tokens = stats.tokens && typeof stats.tokens === "object"
+    ? stats.tokens as Record<string, unknown> : {};
+  const context = stats.contextUsage && typeof stats.contextUsage === "object"
+    ? stats.contextUsage as Record<string, unknown> : {};
   const incompleteTurn = state.piIncompleteTurn === true;
   const phase = incompleteTurn && (view.phase === "settled" || view.phase === "idle")
     ? "error" : nativePhase(view.phase, hasHistory);
@@ -104,7 +113,7 @@ export function createPiV4Snapshot(
     control,
     availability: availability(),
     inputRouting: running
-      ? { mode: "reject", reasonCode: "pi.busyInputRequiresQueueTicket" }
+      ? { mode: state.piDeliveryMode === "guide" ? "guide" : "enqueue" }
       : incompleteTurn || Boolean(state.piPendingIntent) || view.uncertainDelivery || view.reconciliationRequired || view.phase === "exited"
         ? { mode: "reject", reasonCode: "pi.sessionUnavailable" }
         : { mode: "startNow" },
@@ -113,20 +122,24 @@ export function createPiV4Snapshot(
       provider,
       model: modelId,
       thought: typeof state.thinkingLevel === "string" ? state.thinkingLevel : "",
-      thoughtLevels: [],
-      followupMode: "queue",
+      thoughtLevels: Array.isArray(state.piThinkingLevels)
+        ? state.piThinkingLevels.filter((level): level is string => typeof level === "string") : [],
+      followupMode: state.piDeliveryMode === "guide" ? "guide" : "queue",
       mode: "build",
     },
     modelTransition: null,
     usage: {
-      contextWindow: null,
-      cumulative: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
+      contextWindow: typeof context.contextWindow === "number" && context.contextWindow > 0
+        ? { usedTokens: number(context.tokens), maxTokens: context.contextWindow,
+          autoCompactThresholdTokens: null } : null,
+      cumulative: { inputTokens: number(tokens.input), outputTokens: number(tokens.output),
+        cacheReadTokens: number(tokens.cacheRead), cacheWriteTokens: number(tokens.cacheWrite) },
     },
     queue: { items: (state.piQueueItems as QueueItem[] | undefined) ?? [],
       autoDrain: state.piStoppedQueue !== true,
       ...(state.piStoppedQueue === true ? { pauseReason: "stopped" as const } : {}) },
 
-    pendingInteractions: [],
+    pendingInteractions: (state.piExtensionInteractions as ConversationSnapshot["pendingInteractions"] | undefined) ?? [],
     pendingCommands: [],
     backgroundWorks: [],
     subagents: { revision: 0, childSessionIds: [], running: [], endedTotal: 0 },

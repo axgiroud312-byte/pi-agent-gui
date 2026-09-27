@@ -25,7 +25,7 @@ test('startup extension dialog fails closed before Pi attaches stdin and cannot 
     } finally { await supervisor.dispose(); await rm(root, { recursive: true, force: true }); }
   });
 
-test('real pinned Pi extension dialog without timeout is cancelled, not silently allowed or hung',
+test('real pinned Pi extension dialog is exposed and an explicit denial resumes it safely',
   { timeout: 30_000 }, async () => {
     const root = await mkdtemp(join(tmpdir(), 'pi-dialog-'));
     const piEntry = fileURLToPath(import.meta.resolve('@earendil-works/pi-coding-agent/rpc-entry'));
@@ -35,7 +35,12 @@ test('real pinned Pi extension dialog without timeout is cancelled, not silently
       rpcArgs: ['--offline', '--no-extensions', '-e', extension, '--no-skills', '--no-prompt-templates', '--no-context-files'],
     });
     const events: Record<string, unknown>[] = [];
-    supervisor.on('record', (_id, event) => events.push(event));
+    supervisor.on('record', (sessionId, event) => {
+      events.push(event);
+      if (event.type === 'extension_ui_request' && event.method === 'confirm' && typeof event.id === 'string') {
+        void supervisor.respondExtension(sessionId, event.id, { confirmed: false });
+      }
+    });
     try {
       const view = await supervisor.createSession(root);
       const result = await Promise.race([

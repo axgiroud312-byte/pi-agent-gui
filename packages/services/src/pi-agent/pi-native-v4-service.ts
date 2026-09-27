@@ -16,6 +16,7 @@ import {
   sessionsIndexTopicFrameSchema,
   workspaceConfigTopic,
   workspaceConfigTopicFrameSchema,
+  type AttachmentRef,
   type CommandAck,
   type ConversationDelta,
   type ConversationSnapshot,
@@ -47,6 +48,7 @@ import { PiSessionSupervisor, type PiSessionView } from "./pi-session-supervisor
 import { sessionFileExists } from "./pi-session-path.js";
 import { createPiV4Snapshot } from "./pi-v4-snapshot.js";
 import { piWireFrames } from "./pi-v4-frames.js";
+import { readPiPromptImages } from "./pi-prompt-images.js";
 
 interface SessionRecord {
   workspaceKey: string;
@@ -164,6 +166,7 @@ export class PiNativeV4Service implements V4Methods {
   private readonly recordVersions = new Map<string, number>();
   private readonly workspaceClosures = new Map<string, Promise<void>>();
   private readonly workspaceGenerations = new Map<string, number>();
+  private readonly extensionInteractionTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private disposePromise?: Promise<void>;
   private readonly conversationEmitters = new Map<string, Emitter<ConversationTopicWireCandidate>>();
   private readonly indexEmitters = new Map<string, Emitter<SessionsIndexTopicWireCandidate>>();
@@ -252,6 +255,26 @@ export class PiNativeV4Service implements V4Methods {
     if (JSON.stringify(control) !== JSON.stringify(record.snapshot.control)) {
       this.emitConversation(record, [{ op: "state.updated", patch: { control } }]);
     }
+  }
+
+  private async refreshRuntimeFacts(record: SessionRecord): Promise<void> {
+    // Runtime enrichment is additive: minimal lifecycle test doubles and older
+    // hosts may implement admission without these read-only query helpers.
+    if (typeof this.supervisor.refreshState !== "function" || typeof this.supervisor.command !== "function") return;
+    const [state, levels, stats] = await Promise.all([
+      this.supervisor.refreshState(record.view.sessionId),
+      this.supervisor.command(record.view.sessionId, { type: "get_available_thinking_levels" }).catch(() => undefined),
+      this.supervisor.command(record.view.sessionId, { type: "get_session_stats" }).catch(() => undefined),
+    ]);
+    Object.assign(record.state, state);
+    const levelObject = levels && typeof levels === "object" ? levels as Record<string, unknown> : {};
+    if (Array.isArray(levelObject.levels)) record.state.piThinkingLevels = levelObject.levels;
+    if (stats && typeof stats === "object") record.state.piSessionStats = stats;
+    const projected = createPiV4Snapshot(record.view, record.state, record.snapshot.logEpoch);
+    this.emitConversation(record, [{ op: "state.updated", patch: {
+      config: projected.config, usage: projected.usage, inputRouting: projected.inputRouting,
+      availability: projected.availability,
+    } }]);
   }
 
   private async safelyPersist(record: SessionRecord, requireFile = false): Promise<void> {
@@ -489,6 +512,36 @@ export class PiNativeV4Service implements V4Methods {
   private onPiRecord(sessionId: string, event: Record<string, unknown>): void {
     const record = this.sessions.get(sessionId);
     if (!record) return;
+    if (event.type === "extension_ui_request" && typeof event.id === "string" &&
+      ["select", "confirm", "input", "editor"].includes(String(event.method))) {
+      const options = event.method === "select" && Array.isArray(event.options)
+        ? event.options.filter((value): value is string => typeof value === "string")
+          .map(value => ({ optionId: value, label: value }))
+        : event.method === "confirm"
+          ? [{ optionId: "true", label: "Confirm" }, { optionId: "false", label: "Cancel" }]
+          : undefined;
+      const interactions = Array.isArray(record.state.piExtensionInteractions)
+        ? record.state.piExtensionInteractions as Array<Record<string, unknown>> : [];
+      const interaction = { interactionId: event.id, kind: "userInput" as const, anchorRowId: null,
+        createdAt: Date.now(), payload: { kind: "userInput" as const,
+          prompt: typeof event.title === "string" ? event.title : "Pi extension input",
+          freeText: event.method === "input" || event.method === "editor",
+          ...(options ? { options } : {}), input: { method: event.method,
+            ...(typeof event.placeholder === "string" ? { placeholder: event.placeholder } : {}),
+            ...(typeof event.prefill === "string" ? { prefill: event.prefill } : {}) } } };
+      record.state.piExtensionInteractions = [...interactions.filter(item => item.interactionId !== event.id), interaction];
+      const projected = createPiV4Snapshot(record.view, record.state, record.snapshot.logEpoch);
+      this.emitConversation(record, [{ op: "state.updated", patch: { pendingInteractions: projected.pendingInteractions } }]);
+      if (typeof event.timeout === "number" && event.timeout > 0) {
+        const key = `${sessionId}:${event.id}`;
+        clearTimeout(this.extensionInteractionTimers.get(key));
+        const timer = setTimeout(() => {
+          this.extensionInteractionTimers.delete(key);
+          this.clearExtensionInteraction(record, event.id as string);
+        }, event.timeout + 50);
+        this.extensionInteractionTimers.set(key, timer);
+      }
+    }
     const version = (this.recordVersions.get(sessionId) ?? 0) + 1;
     this.recordVersions.set(sessionId, version);
     if (typeof event.type === "string" && ![
@@ -518,6 +571,11 @@ export class PiNativeV4Service implements V4Methods {
     if (event.type === "auto_retry_end" || event.type === "summarization_retry_finished" || event.type === "agent_settled") {
       delete record.state.piRetryAttempt;
     }
+    if (event.type === "agent_settled" && Array.isArray(record.state.piExtensionInteractions)) {
+      for (const interaction of record.state.piExtensionInteractions as Array<Record<string, unknown>>) {
+        if (typeof interaction.interactionId === "string") this.clearExtensionInteraction(record, interaction.interactionId);
+      }
+    }
     const deltas = record.projection.apply(event);
     if (deltas.length > 0) {
       record.lastActivityAt = Date.now();
@@ -536,6 +594,17 @@ export class PiNativeV4Service implements V4Methods {
       const projected = createPiV4Snapshot(record.view, record.state, record.snapshot.logEpoch);
       this.emitConversation(record, [{ op: "state.updated", patch: { queue: projected.queue, control: projected.control } }]);
     }
+  }
+
+  private clearExtensionInteraction(record: SessionRecord, interactionId: string): void {
+    this.supervisor.forgetExtensionRequest(record.view.sessionId, interactionId);
+    const interactions = Array.isArray(record.state.piExtensionInteractions)
+      ? record.state.piExtensionInteractions as Array<Record<string, unknown>> : [];
+    const next = interactions.filter(item => item.interactionId !== interactionId);
+    if (next.length === interactions.length) return;
+    record.state.piExtensionInteractions = next;
+    const projected = createPiV4Snapshot(record.view, record.state, record.snapshot.logEpoch);
+    this.emitConversation(record, [{ op: "state.updated", patch: { pendingInteractions: projected.pendingInteractions } }]);
   }
 
   private reconcileSettled(record: SessionRecord, version: number, admissionGeneration: number): void {
@@ -598,6 +667,9 @@ export class PiNativeV4Service implements V4Methods {
       const intent = record.state.piPendingIntent as PendingIntent | undefined;
       record.state.piIncompleteTurn = record.projection.hasIncompleteTurn() ||
         Boolean(intent && !projectedIntentComplete(record, intent));
+    }
+    if (view.phase === "stopped" && Array.isArray(record.state.piExtensionInteractions)) {
+      record.state.piExtensionInteractions = [];
     }
     if (view.phase === "stopped" && view.clearedQueue) {
       record.state.piReturnedQueue = view.clearedQueue;
@@ -702,7 +774,7 @@ export class PiNativeV4Service implements V4Methods {
       this.assertWorkspaceOpen(params);
       if (envelope.type === "createSession") {
         const payload = envelope.payload as { workspaceId: string;
-          firstInput?: { text: string; attachments?: unknown[]; mode?: string; planEnabled?: boolean;
+          firstInput?: { text: string; attachments?: AttachmentRef[]; mode?: string; planEnabled?: boolean;
             modelSelection?: { providerId: string; modelId: string; options?: { reasoningLevel?: string } } };
           config?: { mode?: string; planEnabled?: boolean; followupMode?: string;
             modelSelection?: { providerId: string; modelId: string; options?: { reasoningLevel?: string } };
@@ -723,7 +795,7 @@ export class PiNativeV4Service implements V4Methods {
           if (key === "thought") return Boolean(value) && value !== selection?.options?.reasoningLevel;
           return true;
         });
-        if (payload.firstInput?.attachments?.length || (payload.firstInput?.mode && payload.firstInput.mode !== "build") ||
+        if ((payload.firstInput?.mode && payload.firstInput.mode !== "build") ||
           payload.firstInput?.planEnabled || unsupportedConfig ||
           payload.mcpServers?.length || payload.offPeakToolEnabled || payload.dynamicWorkflowEnabled) {
           return unsupported(commandId, "createSession execution constraints", 0);
@@ -742,6 +814,7 @@ export class PiNativeV4Service implements V4Methods {
           createdAt: now, lastActivityAt: now,
         };
         this.sessions.set(view.sessionId, record);
+        await this.refreshRuntimeFacts(record);
         this.emitIndex(workspaceKey, record);
         if (payload.firstInput) {
           record.admissionGeneration++;
@@ -753,7 +826,8 @@ export class PiNativeV4Service implements V4Methods {
           // handle an extension command without ever writing user JSONL.
           if (!await this.persist(record)) throw new Error("Cannot persist Pi session identity before delivery");
           firstPromptAttempted = true;
-          const outcome = await this.supervisor.sendText(view.sessionId, payload.firstInput.text);
+          const images = await readPiPromptImages(payload.firstInput.attachments);
+          const outcome = await this.supervisor.sendText(view.sessionId, payload.firstInput.text, images);
           if (outcome === "noRun") {
             projection.cancelExpectedUserCommand(commandId);
           }
@@ -769,18 +843,25 @@ export class PiNativeV4Service implements V4Methods {
       await this.loadSession(params, envelope.sessionId);
       record = this.recordFor(params, envelope.sessionId);
       if (envelope.type === "sendText") {
-        const payload = envelope.payload as { text: string; attachments?: unknown[]; requestedDelivery?: string;
+        const payload = envelope.payload as { text: string; attachments?: AttachmentRef[]; requestedDelivery?: string;
           mode?: string; planEnabled?: boolean; modelSelection?: { providerId: string; modelId: string; options?: { reasoningLevel?: string } };
           browserAmbientContext?: unknown; context_refs?: unknown[]; heldQueueDisposition?: string;
           expectedHeldQueueItemIds?: string[]; modelExecution?: unknown; automationId?: string;
           offPeakTaskId?: string; offPeakRunType?: string; toolDisallowlist?: string[] };
-        if (payload.attachments?.length || (payload.requestedDelivery && payload.requestedDelivery !== "startNow") ||
-          (payload.mode && payload.mode !== "build") || payload.planEnabled || payload.browserAmbientContext ||
+        if ((payload.mode && payload.mode !== "build") || payload.planEnabled || payload.browserAmbientContext ||
           payload.context_refs?.length || payload.heldQueueDisposition || payload.expectedHeldQueueItemIds?.length ||
           payload.modelExecution || payload.automationId || payload.offPeakTaskId || payload.offPeakRunType ||
           payload.toolDisallowlist?.length) return unsupported(commandId, "sendText execution constraints", record.snapshot.revision);
         if (record.state.piPendingIntent || record.view.uncertainDelivery || record.view.reconciliationRequired) {
           return failure(commandId, "pi.deliveryUnknown", "Pi input requires history reconciliation", record.snapshot.revision);
+        }
+        const images = await readPiPromptImages(payload.attachments);
+        const requested = payload.requestedDelivery ?? "startNow";
+        if (requested === "queue" || requested === "guide") {
+          await this.supervisor.enqueueText(record.view.sessionId, payload.text,
+            requested === "guide" ? "steer" : "followUp", images);
+          return { commandId, status: "accepted", revisionAtDecision: record.snapshot.revision,
+            result: { type: "inputAccepted", delivery: requested, inputId: randomUUID() } };
         }
         record.admissionGeneration++;
         this.recordVersions.set(record.view.sessionId, (this.recordVersions.get(record.view.sessionId) ?? 0) + 1);
@@ -792,7 +873,7 @@ export class PiNativeV4Service implements V4Methods {
         try {
           const saved = await this.persist(record);
           if (!saved) throw new Error("Cannot persist Pi input correlation before delivery");
-          const outcome = await this.supervisor.sendText(record.view.sessionId, payload.text);
+          const outcome = await this.supervisor.sendText(record.view.sessionId, payload.text, images);
           if (outcome === "noRun") {
             record.projection.cancelExpectedUserCommand(commandId);
           }
@@ -810,6 +891,57 @@ export class PiNativeV4Service implements V4Methods {
         }
         return { commandId, status: "accepted", revisionAtDecision: record.snapshot.revision,
           result: { type: "inputAccepted", delivery: "startNow", inputId: randomUUID() } };
+      }
+      if (envelope.type === "resolveInteraction") {
+        const payload = envelope.payload as { interactionId: string; answer: { optionId?: string; freeText?: string;
+          action?: "accept" | "decline" | "cancel" } };
+        const interactions = Array.isArray(record.state.piExtensionInteractions)
+          ? record.state.piExtensionInteractions as Array<Record<string, unknown>> : [];
+        const interaction = interactions.find(item => item.interactionId === payload.interactionId);
+        if (!interaction) return { commandId, status: "noop", reasonCode: "proto.alreadyResolved",
+          revisionAtDecision: record.snapshot.revision };
+        const interactionPayload = interaction.payload && typeof interaction.payload === "object"
+          ? interaction.payload as Record<string, unknown> : {};
+        const input = interactionPayload.input && typeof interactionPayload.input === "object"
+          ? interactionPayload.input as Record<string, unknown> : {};
+        const answer = payload.answer;
+        await this.supervisor.respondExtension(record.view.sessionId, payload.interactionId,
+          answer.action === "cancel" ? { cancelled: true }
+            : input.method === "confirm" ? { confirmed: answer.action === "accept" || answer.optionId === "true" }
+              : { value: answer.freeText ?? answer.optionId ?? "" });
+        clearTimeout(this.extensionInteractionTimers.get(`${record.view.sessionId}:${payload.interactionId}`));
+        this.extensionInteractionTimers.delete(`${record.view.sessionId}:${payload.interactionId}`);
+        this.clearExtensionInteraction(record, payload.interactionId);
+        return { commandId, status: "accepted", revisionAtDecision: record.snapshot.revision,
+          result: { type: "resolveInteraction", resolvedBy: { clientId: envelope.clientId,
+            ...(answer.optionId ? { optionId: answer.optionId } : {}) } } };
+      }
+      if (envelope.type === "compact") {
+        await this.supervisor.command(record.view.sessionId, { type: "compact" });
+        await this.refreshRuntimeFacts(record);
+        return { commandId, status: "accepted", revisionAtDecision: record.snapshot.revision };
+      }
+      if (envelope.type === "switchModelConfig") {
+        const payload = envelope.payload as { provider: string; model: string; thought: string };
+        await this.supervisor.setModel(record.view.sessionId, payload.provider, payload.model, payload.thought);
+        await this.refreshRuntimeFacts(record);
+        return { commandId, status: "accepted", revisionAtDecision: record.snapshot.revision };
+      }
+      if (envelope.type === "setFollowupMode") {
+        const payload = envelope.payload as { mode: "queue" | "guide" };
+        record.state.piDeliveryMode = payload.mode;
+        await this.refreshRuntimeFacts(record);
+        return { commandId, status: "accepted", revisionAtDecision: record.snapshot.revision };
+      }
+      if (envelope.type === "renameSession") {
+        const payload = envelope.payload as { title: string };
+        await this.supervisor.command(record.view.sessionId, { type: "set_session_name", name: payload.title });
+        record.state.sessionName = payload.title;
+        const projected = createPiV4Snapshot(record.view, record.state, record.snapshot.logEpoch);
+        this.emitConversation(record, [{ op: "state.updated", patch: { meta: { ...projected.meta, titleSource: "custom" } } }]);
+        this.emitIndex(record.workspaceKey, record);
+        await this.safelyPersist(record);
+        return { commandId, status: "accepted", revisionAtDecision: record.snapshot.revision };
       }
       if (envelope.type === "stop") {
         const payload = envelope.payload as { expectedForegroundExecutionId?: string };
@@ -993,16 +1125,54 @@ export class PiNativeV4Service implements V4Methods {
     this.assertWorkspaceOpen(params);
     const key = resolveWorkspaceKey(params);
     const sub = this.subscription(key, workspaceConfigTopic(key));
-    queueMicrotask(() => this.sendConfigSnapshot(sub, "initial"));
+    queueMicrotask(() => { void this.sendConfigSnapshot(sub, "initial"); });
     return { ack: { subscriptionId: sub.id, mode: "snapshot", logEpoch: key } };
   }
 
-  private sendConfigSnapshot(sub: Subscription, deliveryKind: "initial" | "recovery"): void {
+  private async sendConfigSnapshot(sub: Subscription, deliveryKind: "initial" | "recovery"): Promise<void> {
+    if (this.subscriptions.get(sub.id) !== sub) return;
+    const record = [...this.sessions.values()].find(candidate => candidate.workspaceKey === sub.workspaceKey);
+    let configOptions: Array<Record<string, unknown>> = [];
+    let slashCommands: Array<Record<string, unknown>> = [];
+    if (record && typeof this.supervisor.command === "function") {
+      const [catalog, commands] = await Promise.all([
+        this.supervisor.command(record.view.sessionId, { type: "get_available_models" }).catch(() => undefined),
+        this.supervisor.command(record.view.sessionId, { type: "get_commands" }).catch(() => undefined),
+      ]);
+      const catalogObject = catalog && typeof catalog === "object" ? catalog as Record<string, unknown> : {};
+      const models = Array.isArray(catalogObject.models) ? catalogObject.models : [];
+      const currentModel = record.state.model && typeof record.state.model === "object"
+        ? record.state.model as Record<string, unknown> : {};
+      configOptions = [{ id: "model", name: "Pi model", type: "select",
+        currentValue: typeof currentModel.provider === "string" && typeof currentModel.id === "string"
+          ? `${currentModel.provider}/${currentModel.id}` : "",
+        options: models.flatMap(raw => {
+          const model = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
+          if (typeof model.provider !== "string" || typeof model.id !== "string") return [];
+          const selected = currentModel.provider === model.provider && currentModel.id === model.id;
+          const levels = selected && Array.isArray(record.state.piThinkingLevels)
+            ? record.state.piThinkingLevels.filter((level): level is string => typeof level === "string") : undefined;
+          return [{ value: `${model.provider}/${model.id}`,
+            name: typeof model.name === "string" ? model.name : model.id,
+            description: `${model.provider} · ${Array.isArray(model.input) ? model.input.join(", ") : "text"}`,
+            origin: "native" as const, modelProviderId: model.provider, modelProviderName: model.provider,
+            ...(levels ? { modelThoughtLevels: levels,
+              modelDefaultThoughtLevel: typeof record.state.thinkingLevel === "string"
+                ? record.state.thinkingLevel : levels[0] } : {}) }];
+        }) }];
+      const commandObject = commands && typeof commands === "object" ? commands as Record<string, unknown> : {};
+      slashCommands = (Array.isArray(commandObject.commands) ? commandObject.commands : []).flatMap(raw => {
+        const command = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
+        if (typeof command.name !== "string") return [];
+        return [{ name: command.name, description: typeof command.description === "string"
+          ? command.description : `Pi ${String(command.source ?? "resource")} command`, source: "custom" as const }];
+      });
+    }
     if (this.subscriptions.get(sub.id) !== sub) return;
     const frame = workspaceConfigTopicFrameSchema.parse({
       topic: sub.topic, subscriptionId: sub.id, fromSeq: 0, toSeq: 0, sentAt: Date.now(),
       payload: { kind: "snapshot", snapshot: { protocolVersion: 1, workspaceId: sub.workspaceKey,
-        logEpoch: sub.workspaceKey, config: { configOptions: [], slashCommands: [] } } },
+        logEpoch: sub.workspaceKey, config: { configOptions, slashCommands } } },
     });
     for (const wire of piWireFrames(frame, deliveryKind, ++sub.ordinal)) {
       getEmitter(this.configEmitters, sub.workspaceKey).fire(wire);
@@ -1011,7 +1181,7 @@ export class PiNativeV4Service implements V4Methods {
 
   async resyncWorkspaceConfigV4(params: ZCodeAgentConversationResyncParams): ReturnType<V4Methods["resyncWorkspaceConfigV4"]> {
     const sub = this.requireSubscription(params, "workspace-config/");
-    queueMicrotask(() => this.sendConfigSnapshot(sub, "recovery"));
+    queueMicrotask(() => { void this.sendConfigSnapshot(sub, "recovery"); });
     return { ack: { subscriptionId: sub.id, mode: "snapshot", logEpoch: sub.workspaceKey } };
   }
 
@@ -1096,6 +1266,8 @@ export class PiNativeV4Service implements V4Methods {
 
   private async disposeOwned(): Promise<void> {
     this.subscriptions.clear();
+    for (const timer of this.extensionInteractionTimers.values()) clearTimeout(timer);
+    this.extensionInteractionTimers.clear();
     // Supervisor fences and drains starts (including the lease-to-registration
     // window). Then drain their service admissions before returning to the host.
     const failures: unknown[] = [];

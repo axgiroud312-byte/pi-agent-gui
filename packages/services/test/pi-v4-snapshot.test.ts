@@ -13,18 +13,27 @@ const view: PiSessionView = {
   uncertainDelivery: false,
 };
 
-test("Pi native draft and run facts produce schema-valid v4 snapshots without advertising missing capabilities", () => {
-  const state = { sessionId: view.sessionId, model: { provider: "openai", id: "gpt-test" }, thinkingLevel: "medium", messageCount: 0 };
+test("Pi native draft and run facts expose implemented queue, model, compaction and usage capabilities", () => {
+  const state = { sessionId: view.sessionId, model: { provider: "openai", id: "gpt-test" }, thinkingLevel: "medium", messageCount: 0,
+    piThinkingLevels: ["off", "medium"], piSessionStats: { tokens: { input: 12, output: 3, cacheRead: 4, cacheWrite: 1 },
+      contextUsage: { tokens: 20, contextWindow: 200 } } };
   const draft = conversationSnapshotSchema.parse(createPiV4Snapshot(view, state, "pi-epoch-a"));
   assert.equal(draft.control.phase, "draft");
   assert.equal(draft.config.provider, "openai");
   assert.equal(draft.inputRouting.mode, "startNow");
   assert.equal(draft.availability.fork.allowed, false);
+  assert.equal(draft.availability.compact.allowed, true);
+  assert.deepEqual(draft.config.thoughtLevels, ["off", "medium"]);
+  assert.equal(draft.usage.contextWindow?.usedTokens, 20);
+  assert.equal(draft.usage.cumulative.cacheReadTokens, 4);
 
   const running = conversationSnapshotSchema.parse(createPiV4Snapshot({ ...view, phase: "running" }, { ...state, messageCount: 1 }, "pi-epoch-a"));
   assert.equal(running.control.phase, "running");
   assert.equal(running.control.canStop, true);
-  assert.equal(running.inputRouting.mode, "reject");
+  assert.equal(running.inputRouting.mode, "enqueue");
+  const guiding = conversationSnapshotSchema.parse(createPiV4Snapshot({ ...view, phase: "running" },
+    { ...state, messageCount: 1, piDeliveryMode: "guide" }, "pi-epoch-a"));
+  assert.equal(guiding.inputRouting.mode, "guide");
 
   const stopped = conversationSnapshotSchema.parse(createPiV4Snapshot({ ...view, phase: "stopped" }, { ...state, messageCount: 2 }, "pi-epoch-a"));
   assert.equal(stopped.control.phase, "completedInterrupted");
