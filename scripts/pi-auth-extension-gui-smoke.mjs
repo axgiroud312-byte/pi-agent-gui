@@ -18,7 +18,9 @@ await mkdir(extensionDir, { recursive: true });
 await copyFile(fileURLToPath(new URL('../packages/services/test/fixtures/pi-ui-sequence.ts', import.meta.url)),
   join(extensionDir, 'pi-ui-sequence.ts'));
 const resultFile = join(f.sandbox, 'pi-ui-result.json');
-f.env.PI_UI_RESULT_FILE = resultFile;
+// bootstrap.cjs deliberately strips unknown process environment variables;
+// NATIVE_SMOKE_ keys are the fixture's explicit pass-through boundary.
+f.env.NATIVE_SMOKE_PI_UI_RESULT_FILE = resultFile;
 const secret = 'fixture-only-anthropic-gui-key';
 const logs = [];
 const report = { at: new Date().toISOString(), workspace: f.workspace, piVersion: '0.87.0',

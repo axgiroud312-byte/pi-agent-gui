@@ -11,7 +11,9 @@ export default function (pi: ExtensionAPI): void {
       const edited = await ctx.ui.editor("Edit multiple lines", "original\nvalue");
       const result = { selected, confirmed, input, edited };
       ctx.ui.notify(`PI_UI_RESULT:${JSON.stringify(result)}`, "info");
-      if (process.env.PI_UI_RESULT_FILE) await writeFile(process.env.PI_UI_RESULT_FILE, JSON.stringify(result));
+      if (process.env.NATIVE_SMOKE_PI_UI_RESULT_FILE) {
+        await writeFile(process.env.NATIVE_SMOKE_PI_UI_RESULT_FILE, JSON.stringify(result));
+      }
     },
   });
 }
