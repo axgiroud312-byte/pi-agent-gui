@@ -12,12 +12,12 @@ const extensions: Record<string, string> = {
 export class PiQueueMediaStore {
   constructor(private readonly directory: string) {}
 
-  private path(sessionId: string, queueItemId: string, index: number, mime: string): string {
+  private path(sessionId: string, queueItemId: string, index: number, mime: string, dataHash: string): string {
     if (!/^[a-f0-9-]{36}$/iu.test(sessionId) || !Number.isSafeInteger(index) || index < 0 || !extensions[mime]) {
       throw new Error("Invalid Pi queued image identity");
     }
     const identity = createHash("sha256").update(queueItemId).digest("hex");
-    return join(this.directory, sessionId, `${identity}-${index}.${extensions[mime]}`);
+    return join(this.directory, sessionId, `${identity}-${index}-${dataHash}.${extensions[mime]}`);
   }
 
   async materialize(sessionId: string, item: PiQueueItemV1): Promise<AttachmentRef[]> {
@@ -25,7 +25,8 @@ export class PiQueueMediaStore {
     for (const [index, image] of item.images.entries()) {
       const data = Buffer.from(image.data, "base64");
       if (data.length > 20 * 1024 * 1024) throw new Error("Pi queued image exceeds 20 MiB");
-      const path = this.path(sessionId, item.id, index, image.mimeType);
+      const dataHash = createHash("sha256").update(data).digest("hex");
+      const path = this.path(sessionId, item.id, index, image.mimeType, dataHash);
       await mkdir(join(this.directory, sessionId), { recursive: true });
       let valid = false;
       try {
