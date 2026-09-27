@@ -2265,6 +2265,10 @@ export class PiNativeV4Service implements V4Methods {
           if (payload.autoDrain === false) catalog = await this.supervisor.setQueuePaused(
             record.view.sessionId, catalog.revision, true);
           else if (payload.autoDrain === true) {
+            if (record.view.uncertainDelivery || record.view.reconciliationRequired) {
+              return failure(commandId, "pi.deliveryUnknown",
+                "Pi queue promotion requires reconciliation before automatic draining", record.snapshot.revision);
+            }
             const resumed = await this.supervisor.resumeQueue(record.view.sessionId, catalog.revision);
             catalog = resumed.catalog;
           }
@@ -2291,16 +2295,25 @@ export class PiNativeV4Service implements V4Methods {
             generation: record.admissionGeneration };
           if (!await this.persist(record)) throw new Error("Cannot persist Pi queue promotion before delivery");
           const outcome = await this.supervisor.sendText(record.view.sessionId, full.text, full.images);
-          if (outcome !== "run") {
+          if (outcome === "noRun" || outcome === "reconcile") {
             record.state.piQueueCompatible = false;
             await this.safelyPersist(record);
             return { commandId, status: "accepted", revisionAtDecision: record.snapshot.revision };
           }
           try {
             const afterAdmission = await this.supervisor.getQueueCatalog(record.view.sessionId);
-            await this.supervisor.mutateQueue(record.view.sessionId, afterAdmission.revision,
-              { kind: "take", id: full.id });
+            if ([...afterAdmission.steering, ...afterAdmission.followUp].some(entry => entry.id === full.id)) {
+              await this.supervisor.mutateQueue(record.view.sessionId, afterAdmission.revision,
+                { kind: "take", id: full.id });
+            }
             await this.refreshQueueFacts(record);
+            if (outcome === "handledCommand" || outcome === "handledInput") {
+              // Pi handled the original queue item without a user JSONL turn.
+              // The exact item is gone; do not strand an impossible correlation.
+              record.projection.cancelExpectedUserCommand(commandId);
+              delete record.state.piPendingIntent;
+              this.onPiChange(record.view);
+            }
           } catch (error) {
             record.state.piQueueCompatible = false;
             this.supervisor.requireReconciliation(record.view.sessionId, true);

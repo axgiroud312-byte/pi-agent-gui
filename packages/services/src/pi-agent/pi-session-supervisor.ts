@@ -820,8 +820,19 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
     // query failure cannot invite a second prompt or discard still arriving events.
     try {
       const state = await this.getState(sessionId);
+      if (promptDisposition === "handled" && state.isStreaming === false && state.isCompacting === false &&
+        !runtime.view.uncertainDelivery && !runtime.view.reconciliationRequired) {
+        // Pi's preflight identified this input as handled without a model run.
+        // A prior turn can settle during the state read, and other Pi queue
+        // items can remain pending; neither changes this prompt's disposition.
+        runtime.view.phase = runtime.hadRunError || runtime.view.error ? "error" : "settled";
+        runtime.view.foregroundExecutionId = undefined;
+        runtime.acceptRunEvents = false;
+        this.publish(runtime);
+        return registeredExtensionCommand ? "handledCommand" : "handledInput";
+      }
       if (runtime.view.phase === "accepted" && state.isStreaming === false && state.isCompacting === false && state.pendingMessageCount === 0) {
-        if ((promptDisposition === "handled" || (promptDisposition === undefined && registeredExtensionCommand)) &&
+        if (promptDisposition === undefined && registeredExtensionCommand &&
           !runtime.view.uncertainDelivery && !runtime.view.reconciliationRequired) {
           runtime.view.phase = runtime.hadRunError || runtime.view.error ? "error" : "settled";
           runtime.view.foregroundExecutionId = undefined;
