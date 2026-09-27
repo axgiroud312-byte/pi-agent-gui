@@ -180,6 +180,11 @@ try {
   );
   report.stages.searchInitialFocus = true;
   await page.keyboard.type("new-provider pi-search-reasoning");
+  report.stages.searchTyped = {
+    value: await search.inputValue(),
+    active: await page.evaluate(() => document.activeElement?.getAttribute("data-testid")),
+  };
+  assert.equal(report.stages.searchTyped.value, "new-provider pi-search-reasoning");
   assert.equal(await page.getByRole("menuitemradio", { name: firstModel }).count(), 0);
   await page.getByRole("menuitemradio", { name: "Search Reasoning" }).waitFor();
   report.stages.searchFocused = await search.evaluate((node) => node === document.activeElement);

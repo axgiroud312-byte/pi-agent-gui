@@ -594,8 +594,8 @@ export const ModelConfigSelect = memo(function ModelConfigSelectComponent({
                 size="sm"
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
-                onKeyDown={(event) => {
-                  // Keep model IDs in the input rather than Radix menu typeahead.
+                onKeyDownCapture={(event) => {
+                  // Stop Radix menu typeahead before its content keydown handler can move focus.
                   if (event.key !== "ArrowDown" && event.key !== "ArrowUp" && event.key !== "Escape") {
                     event.stopPropagation();
                   }
