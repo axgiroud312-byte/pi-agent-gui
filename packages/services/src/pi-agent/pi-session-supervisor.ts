@@ -751,8 +751,9 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
     return typeof result.queueItemId === "string" ? result.queueItemId : undefined;
   }
 
-  async sendText(sessionId: string, text: string, images: readonly PiPromptImage[] = []): Promise<
-    "run" | "handledCommand" | "noRun" | "reconcile"> {
+  async sendText(sessionId: string, text: string, images: readonly PiPromptImage[] = [],
+    onEffectiveTextHash?: (hash: string) => void): Promise<
+    "run" | "handledCommand" | "handledInput" | "noRun" | "reconcile"> {
     const runtime = this.requireSession(sessionId);
     if (runtime.controlBridge.blocksPrompt) throw new Error("Pi tree control is active or requires reconciliation");
     if (runtime.view.uncertainDelivery || runtime.view.reconciliationRequired) {
@@ -773,6 +774,7 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
     runtime.view.foregroundExecutionId = executionId;
     this.publish(runtime);
     let registeredExtensionCommand = false;
+    let promptDisposition: unknown;
     try {
       // Claim the admission synchronously before this catalog lookup, so two
       // concurrent callers cannot both cross the busy check above.
@@ -795,6 +797,12 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
       const response = await runtime.client.request({ type: "prompt", message: text,
         ...(images.length ? { images: [...images] } : {}) });
       if (!response.success) throw new Error(response.error ?? "Pi rejected the prompt");
+      const admission = object(response.data);
+      promptDisposition = admission.disposition;
+      if (promptDisposition === "run" && typeof admission.effectiveTextHash === "string" &&
+        /^[0-9a-f]{64}$/u.test(admission.effectiveTextHash)) {
+        onEffectiveTextHash?.(admission.effectiveTextHash);
+      }
     } catch (error) {
       if (!runtime.stopping && runtime.view.foregroundExecutionId === executionId) {
         runtime.acceptRunEvents = false;
@@ -811,13 +819,17 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
     try {
       const state = await this.getState(sessionId);
       if (runtime.view.phase === "accepted" && state.isStreaming === false && state.isCompacting === false && state.pendingMessageCount === 0) {
-        if (registeredExtensionCommand && !runtime.view.uncertainDelivery && !runtime.view.reconciliationRequired) {
+        if ((promptDisposition === "handled" || (promptDisposition === undefined && registeredExtensionCommand)) &&
+          !runtime.view.uncertainDelivery && !runtime.view.reconciliationRequired) {
           runtime.view.phase = runtime.hadRunError || runtime.view.error ? "error" : "settled";
           runtime.view.foregroundExecutionId = undefined;
           runtime.acceptRunEvents = false;
           this.publish(runtime);
-          return "handledCommand";
+          return registeredExtensionCommand ? "handledCommand" : "handledInput";
         }
+        // Pinned Pi reports the preflight disposition before agent_start. An
+        // idle state read at this instant cannot override its accepted run.
+        if (promptDisposition === "run") return "run";
         // Extensions may have performed a side effect without a user message.
         // An idle get_state cannot prove that the accepted prompt did nothing.
         runtime.view.phase = "error";

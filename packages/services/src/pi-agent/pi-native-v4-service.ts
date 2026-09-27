@@ -232,6 +232,11 @@ function matchesCompletedIntent(messages: unknown[], pending: PendingIntent): bo
   return createHash("sha256").update(content).digest("hex") === pending.textHash;
 }
 
+function applyPiEffectiveTextHash(record: SessionRecord, commandId: string, hash: string): void {
+  const pending = record.state.piPendingIntent as PendingIntent | undefined;
+  if (pending?.commandId === commandId) pending.textHash = hash;
+}
+
 function projectedIntentComplete(record: SessionRecord, pending: PendingIntent): boolean {
   const users = record.projection.getRows().filter(row => row.kind === "userInput");
   const last = users[pending.priorUserCount];
@@ -1867,10 +1872,11 @@ export class PiNativeV4Service implements V4Methods {
           // handle an extension command without ever writing user JSONL.
           if (!await this.persist(record)) throw new Error("Cannot persist Pi session identity before delivery");
           firstPromptAttempted = true;
-          const outcome = await this.supervisor.sendText(view.sessionId, firstPrompt!.text, firstImages);
-          if (outcome === "noRun" || outcome === "handledCommand") {
+          const outcome = await this.supervisor.sendText(view.sessionId, firstPrompt!.text, firstImages,
+            hash => applyPiEffectiveTextHash(record!, commandId, hash));
+          if (outcome === "noRun" || outcome === "handledCommand" || outcome === "handledInput") {
             projection.cancelExpectedUserCommand(commandId);
-            if (outcome === "handledCommand") {
+            if (outcome === "handledCommand" || outcome === "handledInput") {
               delete record.state.piPendingIntent;
               this.onPiChange(record.view);
             }
@@ -2042,8 +2048,9 @@ export class PiNativeV4Service implements V4Methods {
             generation: record.admissionGeneration };
           try {
             if (!await this.persist(record)) throw new Error("Cannot persist Pi retry correlation before delivery");
-            const outcome = await this.supervisor.sendText(sourceId, prompt.text, prompt.images);
-            if (outcome === "noRun" || outcome === "handledCommand") {
+            const outcome = await this.supervisor.sendText(sourceId, prompt.text, prompt.images,
+              hash => applyPiEffectiveTextHash(record!, commandId, hash));
+            if (outcome === "noRun" || outcome === "handledCommand" || outcome === "handledInput") {
               record.projection.cancelExpectedUserCommand(commandId);
               delete record.state.piPendingIntent;
               await this.safelyPersist(record);
@@ -2118,10 +2125,11 @@ export class PiNativeV4Service implements V4Methods {
         try {
           const saved = await this.persist(record);
           if (!saved) throw new Error("Cannot persist Pi input correlation before delivery");
-          const outcome = await this.supervisor.sendText(record.view.sessionId, prompt.text, images);
-          if (outcome === "noRun" || outcome === "handledCommand") {
+          const outcome = await this.supervisor.sendText(record.view.sessionId, prompt.text, images,
+            hash => applyPiEffectiveTextHash(record!, commandId, hash));
+          if (outcome === "noRun" || outcome === "handledCommand" || outcome === "handledInput") {
             record.projection.cancelExpectedUserCommand(commandId);
-            if (outcome === "handledCommand") {
+            if (outcome === "handledCommand" || outcome === "handledInput") {
               delete record.state.piPendingIntent;
               this.onPiChange(record.view);
             }

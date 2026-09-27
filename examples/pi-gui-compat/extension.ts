@@ -11,6 +11,21 @@ const customType = "pi-gui-compat.result";
 const sampleImage = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRhsAAAAASUVORK5CYII=";
 
 export default function (pi: ExtensionAPI): void {
+  // Pi's public input event owns both the transformed prompt and its images.
+  // The GUI sends the original image once; it never runs a second prompt.
+  pi.on("input", (event, ctx) => {
+    if (event.text === "PI_GUI_INPUT_HANDLED") {
+      ctx.ui.notify("PI_GUI_INPUT_HANDLED_BY_EXTENSION", "info");
+      return { action: "handled" };
+    }
+    if (event.text.startsWith("PI_GUI_INPUT_TRANSFORM")) {
+      const suffix = event.text.slice("PI_GUI_INPUT_TRANSFORM".length).trim();
+      return { action: "transform", text: `PI_IMAGE transformed by Pi GUI compatibility extension${suffix ? `: ${suffix}` : ""}`,
+        images: event.images };
+    }
+    return { action: "continue" };
+  });
+
   pi.registerTool({ name: "gui_rich_probe", label: "GUI rich result probe",
     description: "Return ordered text and image plus original result details for GUI compatibility testing",
     parameters: Type.Object({}),

@@ -46,6 +46,19 @@
 
 ## #25 代表样例与明确不兼容边界
 
+Pi 0.87.0 的 `input` 事件接受 `transform`（文字及图片）与 `handled`。原始 RPC `prompt`
+对已处理且无 Agent 回合的输入只回成功，不能仅凭随后空闲的 `get_state` 猜测是哪种情况。
+本仓库固定 Pi 0.87.0 补丁在同一次 preflight 回执中附 `disposition`；Host 仅在 Pi
+明确报告 `handled` 时收口普通输入，不伪造用户消息或模型回合。代表样例同时覆盖
+原图进入同一模型请求与 Pi JSONL，以及 `handled` 后输入区恢复。补丁缺失或回执
+未知时保持待核对状态；动态扩展的转换逻辑本身不在 GUI 中重做。
+对实际运行输入，Pi 回执另给扩展、模板与图像提示处理后的文本 SHA256；Host 仅以
+Pi 的该值关联待完成输入，不在 GUI 中重算转换。固定 Pi 合同还验证模板展开后的下一条
+输入可继续发送。`D:/Temp/pi-input-transform-gui-20260928-b/pi-extension-input-transform-gui-report.json`
+记录隔离原生 GUI 的两个 Pi 会话、图片 MIME/字节 SHA、扩展重载和 `handled` 无模型调用；
+`pageErrors=[]`，退出 `graceful=true`、`forced=[]`、`survivors=[]`。该报告使用受控
+loopback 模型，不代表在线 provider 或包内 GUI。
+
 可运行样例为 [`examples/pi-gui-compat/extension.ts`](../../examples/pi-gui-compat/extension.ts)，
 使用方法见 [样例 README](../../examples/pi-gui-compat/README.md)。它在同一固定 Pi RPC 会话中
 依次触发四种问答、status、字符串 widget、title 与 notify；结束时清除自身 status/widget，

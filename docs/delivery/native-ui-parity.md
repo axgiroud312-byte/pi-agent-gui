@@ -198,6 +198,13 @@ Pi 0.87.0 的公开 `update(source)` 没有作用域参数，会按包身份同�
 
 ## #25 Pi 扩展原始消息行（开发增量，视觉待验）
 
+#13/P24 输入变换沿用原生 Lexical composer 和会话时间线；用户提交的图文只进入同一
+固定 Pi RPC `prompt`。Pi 扩展将其 `transform` 后，时间线显示 Pi 实际 JSONL 中的
+变换后消息；`handled` 且无模型回合时只显示扩展通知并恢复输入区，不生成假用户行。
+原版 ZCode 没有 Pi 扩展输入语义，这是必要的 Pi 兼容差异。隔离原生 GUI 截图在
+`D:/Temp/pi-input-transform-gui-20260928-b/pi-input-transformed-first.png` 与
+`pi-input-transformed-second.png`；同状态原版/产品截图待最终对照。
+
 | ID | 原生入口/行为 | Pi 产品行为 | 必要性 / 状态 |
 | --- | --- | --- | --- |
 | PI25-E1 | 原生时间线的消息行、附件预览和可折叠详情 | 保留原生行与图片按需预览；新增 `Pi 扩展消息` 行，展示固定 Pi `display:true` custom message 的有序文字、图片和折叠 details。Pi TUI renderer 不经 RPC，不能直接移植为组件。 | #25 / P27 要求 renderer 不兼容时保留原始消息。固定 Pi 合同和服务图片读取已测；真实原生 GUI、原版同状态截图及包内运行待验。 |

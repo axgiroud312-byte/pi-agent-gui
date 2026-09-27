@@ -1,5 +1,5 @@
 diff --git a/dist/core/agent-session.d.ts b/dist/core/agent-session.d.ts
-index 5620ac326bd3885819f4dbca401522c3058a640b..f1066c4250a3c005aa47bdf7e9453ed83bc3faf0 100644
+index 5620ac326bd3885819f4dbca401522c3058a640b..d55960aff2c88a12a51ed19dbb977639ccf6c2bc 100644
 --- a/dist/core/agent-session.d.ts
 +++ b/dist/core/agent-session.d.ts
 @@ -50,6 +50,11 @@ export type AgentSessionEvent = Exclude<AgentEvent, {
@@ -14,10 +14,12 @@ index 5620ac326bd3885819f4dbca401522c3058a640b..f1066c4250a3c005aa47bdf7e9453ed8
  } | {
      type: "compaction_start";
      reason: "manual" | "threshold" | "overflow";
-@@ -160,6 +165,8 @@ export interface PromptOptions {
+@@ -159,7 +164,9 @@ export interface PromptOptions {
+     /** Source of input for extension input event handlers. Defaults to "interactive". */
      source?: InputSource;
      /** Internal hook used by RPC mode to observe prompt preflight acceptance or rejection. */
-     preflightResult?: (success: boolean) => void;
+-    preflightResult?: (success: boolean) => void;
++    preflightResult?: (success: boolean, disposition?: "handled" | "queued" | "run", effectiveText?: string) => void;
 +    /** Pinned GUI queue resume: input was already processed when Pi admitted the queued item. */
 +    piQueueResume?: boolean;
  }
@@ -42,7 +44,7 @@ index 5620ac326bd3885819f4dbca401522c3058a640b..f1066c4250a3c005aa47bdf7e9453ed8
      private _queueFollowUp;
      /**
 diff --git a/dist/core/agent-session.js b/dist/core/agent-session.js
-index 36fdb31c121d1121cebc51c6f0d61d09cf07bae0..d007f700f032f25579ffb81c43a7fb0aef5ace7a 100644
+index 36fdb31c121d1121cebc51c6f0d61d09cf07bae0..f40afe421f04787deaa25c878094e9cb8929f34c 100644
 --- a/dist/core/agent-session.js
 +++ b/dist/core/agent-session.js
 @@ -147,6 +147,7 @@ export class AgentSession {
@@ -104,7 +106,24 @@ index 36fdb31c121d1121cebc51c6f0d61d09cf07bae0..d007f700f032f25579ffb81c43a7fb0a
          }
          // Emit to extensions first, then notify public listeners.
          await this._emitExtensionEvent(event);
-@@ -1227,7 +1219,9 @@ export class AgentSession {
+@@ -1212,6 +1204,7 @@ export class AgentSession {
+         const expandPromptTemplates = options?.expandPromptTemplates ?? true;
+         const preflightResult = options?.preflightResult;
+         let messages;
++        let effectiveUserText;
+         try {
+             // Handle extension commands first (execute immediately, even during streaming)
+             // Extension commands manage their own LLM interaction via pi.sendMessage()
+@@ -1219,7 +1212,7 @@ export class AgentSession {
+                 const handled = await this._tryExecuteExtensionCommand(text);
+                 if (handled) {
+                     // Extension command executed, no prompt to send
+-                    preflightResult?.(true);
++                    preflightResult?.(true, "handled");
+                     return;
+                 }
+             }
+@@ -1227,9 +1220,11 @@ export class AgentSession {
                  throw new Error("Cannot submit a prompt while compaction is in progress. Wait for compaction to finish and retry.");
              }
              // Emit input event for extension interception (before skill/template expansion)
@@ -113,9 +132,38 @@ index 36fdb31c121d1121cebc51c6f0d61d09cf07bae0..d007f700f032f25579ffb81c43a7fb0a
 +                ? { text, images: options?.images }
 +                : await this._runInputHandlers(text, options?.images, options?.source ?? "interactive", this.isStreaming ? options?.streamingBehavior : undefined);
              if (!processedInput) {
-                 preflightResult?.(true);
+-                preflightResult?.(true);
++                preflightResult?.(true, "handled");
                  return;
-@@ -1397,10 +1391,10 @@ export class AgentSession {
+             }
+             const { text: currentText, images: currentImages } = processedInput;
+@@ -1250,7 +1245,7 @@ export class AgentSession {
+                 else {
+                     await this._queueSteer(expandedText, currentImages);
+                 }
+-                preflightResult?.(true);
++                preflightResult?.(true, "queued");
+                 return;
+             }
+             // Flush any pending bash and custom messages before the new prompt
+@@ -1290,6 +1285,7 @@ export class AgentSession {
+                 result.systemPromptOptions.selectedTools = this.getActiveToolNames();
+             const normalized = await this._normalizePromptImages(currentImages);
+             const userText = normalized.hints.length > 0 ? `${expandedText}\n\n${normalized.hints.join("\n")}` : expandedText;
++            effectiveUserText = userText;
+             // Build messages only after hooks and image normalization have completed.
+             messages = [];
+             const userContent = [{ type: "text", text: userText }];
+@@ -1327,7 +1323,7 @@ export class AgentSession {
+         if (!messages) {
+             return;
+         }
+-        preflightResult?.(true);
++        preflightResult?.(true, "run", effectiveUserText);
+         await this._runAgentPrompt(messages);
+     }
+     /**
+@@ -1397,10 +1393,10 @@ export class AgentSession {
          let expandedText = this._expandSkillCommand(processedInput.text);
          expandedText = expandPromptTemplate(expandedText, [...this.promptTemplates]);
          if (behavior === "steer") {
@@ -128,7 +176,7 @@ index 36fdb31c121d1121cebc51c6f0d61d09cf07bae0..d007f700f032f25579ffb81c43a7fb0a
          }
      }
      /**
-@@ -1413,7 +1407,7 @@ export class AgentSession {
+@@ -1413,7 +1409,7 @@ export class AgentSession {
       * @throws Error if text is an extension command
       */
      async steer(text, images, options) {
@@ -137,7 +185,7 @@ index 36fdb31c121d1121cebc51c6f0d61d09cf07bae0..d007f700f032f25579ffb81c43a7fb0a
      }
      /**
       * Queue a follow-up message to be processed after the agent finishes.
-@@ -1424,19 +1418,17 @@ export class AgentSession {
+@@ -1424,19 +1420,17 @@ export class AgentSession {
       * @throws Error if text is an extension command
       */
      async followUp(text, images, options) {
@@ -159,7 +207,7 @@ index 36fdb31c121d1121cebc51c6f0d61d09cf07bae0..d007f700f032f25579ffb81c43a7fb0a
              role: "user",
              content,
              timestamp: Date.now(),
-@@ -1446,13 +1438,11 @@ export class AgentSession {
+@@ -1446,13 +1440,11 @@ export class AgentSession {
       * Internal: Queue a follow-up message (already expanded, no extension command check).
       */
      async _queueFollowUp(text, images) {
@@ -174,7 +222,7 @@ index 36fdb31c121d1121cebc51c6f0d61d09cf07bae0..d007f700f032f25579ffb81c43a7fb0a
      }
      /**
       * Throw an error if the text is an extension command.
-@@ -1579,25 +1569,24 @@ export class AgentSession {
+@@ -1579,25 +1571,24 @@ export class AgentSession {
       * @returns Object with steering and followUp arrays
       */
      clearQueue() {
@@ -208,7 +256,7 @@ index 36fdb31c121d1121cebc51c6f0d61d09cf07bae0..d007f700f032f25579ffb81c43a7fb0a
      get resourceLoader() {
          return this._resourceLoader;
 diff --git a/dist/modes/rpc/rpc-mode.js b/dist/modes/rpc/rpc-mode.js
-index f6c667c8ed48515f1830abe7ffc32e688d668b5e..bde2594e575d8c25af9cbe424fbbd5a8d4b97067 100644
+index f6c667c8ed48515f1830abe7ffc32e688d668b5e..bbf3bed234e121b29574e2ac1d59c6a549332a16 100644
 --- a/dist/modes/rpc/rpc-mode.js
 +++ b/dist/modes/rpc/rpc-mode.js
 @@ -42,6 +42,7 @@ export async function runRpcMode(runtimeHost) {
@@ -219,7 +267,22 @@ index f6c667c8ed48515f1830abe7ffc32e688d668b5e..bde2594e575d8c25af9cbe424fbbd5a8
      const signalCleanupHandlers = [];
      /** Helper for dialog methods with signal/timeout support */
      function createDialogPromise(opts, defaultValue, request, parseResponse) {
-@@ -319,20 +320,141 @@ export async function runRpcMode(runtimeHost) {
+@@ -304,10 +305,12 @@ export async function runRpcMode(runtimeHost) {
+                     images: command.images,
+                     streamingBehavior: command.streamingBehavior,
+                     source: "rpc",
+-                    preflightResult: (didSucceed) => {
++                    preflightResult: (didSucceed, disposition, effectiveText) => {
+                         if (didSucceed) {
+                             preflightSucceeded = true;
+-                            output(success(id, "prompt"));
++                            output(success(id, "prompt", { disposition,
++                                ...(typeof effectiveText === "string" ? { effectiveTextHash: crypto.createHash("sha256")
++                                    .update(effectiveText).digest("hex") } : {}) }));
+                         }
+                     },
+                 })
+@@ -319,20 +322,141 @@ export async function runRpcMode(runtimeHost) {
                  return undefined;
              }
              case "steer": {
@@ -366,7 +429,7 @@ index f6c667c8ed48515f1830abe7ffc32e688d668b5e..bde2594e575d8c25af9cbe424fbbd5a8
                  const options = command.parentSession ? { parentSession: command.parentSession } : undefined;
                  const result = await runtimeHost.newSession(options);
 diff --git a/dist/modes/rpc/rpc-types.d.ts b/dist/modes/rpc/rpc-types.d.ts
-index 82b5793d34cb04c1772e0ca0e664ece6b0a5c7ce..2be47e0e5813da888131ad7dd2a0081518fb8f4a 100644
+index 82b5793d34cb04c1772e0ca0e664ece6b0a5c7ce..d154d9918414c1a76d57621f45e9fba257a7089a 100644
 --- a/dist/modes/rpc/rpc-types.d.ts
 +++ b/dist/modes/rpc/rpc-types.d.ts
 @@ -4,7 +4,7 @@
@@ -411,7 +474,13 @@ index 82b5793d34cb04c1772e0ca0e664ece6b0a5c7ce..2be47e0e5813da888131ad7dd2a00815
  } | {
      id?: string;
      type: "new_session";
-@@ -169,11 +195,13 @@ export type RpcResponse = {
+@@ -164,16 +190,19 @@ export type RpcResponse = {
+     type: "response";
+     command: "prompt";
+     success: true;
++    data: { disposition: "handled" | "queued" | "run"; effectiveTextHash?: string };
+ } | {
+     id?: string;
      type: "response";
      command: "steer";
      success: true;
@@ -425,7 +494,7 @@ index 82b5793d34cb04c1772e0ca0e664ece6b0a5c7ce..2be47e0e5813da888131ad7dd2a00815
  } | {
      id?: string;
      type: "response";
-@@ -188,6 +216,42 @@ export type RpcResponse = {
+@@ -188,6 +217,42 @@ export type RpcResponse = {
          steering: string[];
          followUp: string[];
      };
