@@ -21,6 +21,7 @@ import {
   type CommandAck,
   type ConversationDelta,
   type ConversationSnapshot,
+  type QueueItem,
   type ConversationTopicWireCandidate,
   type SessionSummary,
   type StatePatch,
@@ -48,7 +49,7 @@ import type {
 import { getAppConfigDir } from "../paths.js";
 import { PiCommandLedger } from "./pi-command-ledger.js";
 import { PiMessageRows } from "./pi-message-rows.js";
-import { PiSessionCatalog, type PiSessionBookmark } from "./pi-session-catalog.js";
+import { PiSessionCatalog, type PiQueueRecoveryEntry, type PiSessionBookmark } from "./pi-session-catalog.js";
 import { PiSessionSupervisor, type PiSessionView } from "./pi-session-supervisor.js";
 import { sessionFileExists } from "./pi-session-path.js";
 import { createPiV4Snapshot } from "./pi-v4-snapshot.js";
@@ -56,6 +57,8 @@ import { piWireFrames } from "./pi-v4-frames.js";
 import { readPiPromptImages } from "./pi-prompt-images.js";
 import { PiImageUploads } from "./pi-image-upload.js";
 import { piControlView, type PiControlAction, type PiControlView } from "./pi-control-protocol.js";
+import { PiQueueMediaStore } from "./pi-queue-media-store.js";
+import type { PiQueueCatalogV1 } from "./pi-queue-compat.js";
 
 interface SessionRecord {
   workspaceKey: string;
@@ -137,6 +140,18 @@ function piQueueItems(queue: ReturnedQueue, source: "pi-rpc" | "pi-returned", of
   });
 }
 
+function projectPiQueueCatalog(catalog: PiQueueCatalogV1, refs: Map<string, AttachmentRef[]>): QueueItem[] {
+  return [...catalog.steering.map(item => ({ item, requested: "guide" as const })),
+    ...catalog.followUp.map(item => ({ item, requested: "queue" as const }))].map(({ item, requested }, index) => ({
+    sourceCommandId: `pi-${item.id}`, queueItemId: item.id, clientId: "pi-rpc",
+    kind: "sendText" as const, text: item.text, attachments: refs.get(item.id) ?? [],
+    delivery: { requested, admitted: requested },
+    order: { admissionSeq: index, queuePosition: index },
+    steer: { state: "notRequested" as const },
+    dispatch: { state: "queued" as const }, admittedAt: Date.now(),
+  }));
+}
+
 function matchesCompletedIntent(messages: unknown[], pending: PendingIntent): boolean {
   const users = messages.filter(message => typeof message === "object" && message !== null &&
     (message as Record<string, unknown>).role === "user") as Record<string, unknown>[];
@@ -174,6 +189,8 @@ export class PiNativeV4Service implements V4Methods {
   private readonly catalog: PiSessionCatalog;
   private readonly ledger: PiCommandLedger;
   private readonly imageUploads = new PiImageUploads();
+  private readonly queueMedia: PiQueueMediaStore;
+  private readonly queueRefreshes = new Map<string, Promise<void>>();
   private readonly catalogWrites = new Map<string, Promise<boolean>>();
   private readonly workspaceLoads = new Map<string, Promise<void>>();
   private readonly bookmarks = new Map<string, PiSessionBookmark>();
@@ -218,6 +235,7 @@ export class PiNativeV4Service implements V4Methods {
   constructor(supervisor: PiSessionSupervisor, catalogDir = join(getAppConfigDir(), "pi-sessions")) {
     this.supervisor = supervisor;
     this.catalog = new PiSessionCatalog(catalogDir);
+    this.queueMedia = new PiQueueMediaStore(join(catalogDir, "queue-media"));
     this.ledger = new PiCommandLedger(join(catalogDir, "command-admission"));
     supervisor.on("record", (sessionId, record) => this.onPiRecord(sessionId, record));
     supervisor.on("change", view => this.onPiChange(view));
@@ -245,6 +263,10 @@ export class PiNativeV4Service implements V4Methods {
       rowIds: record.projection.getRowIds(),
       ...(record.state.piPendingIntent ? { pendingIntent: record.state.piPendingIntent as PiSessionBookmark["pendingIntent"] } : {}),
       ...(record.state.piReturnedQueue ? { returnedQueue: record.state.piReturnedQueue as ReturnedQueue } : {}),
+      ...(record.state.piQueueRecovery ? { queueRecovery: record.state.piQueueRecovery as PiQueueRecoveryEntry[] } : {}),
+      ...(record.state.piInterruptedQueueRecovery ? {
+        interruptedQueueRecovery: record.state.piInterruptedQueueRecovery as PiQueueRecoveryEntry[],
+      } : {}),
       commandAnchors: record.projection.getRows().flatMap(row => row.kind === "userInput" && row.sourceCommandId
         ? [{ textHash: createHash("sha256").update(row.text).digest("hex"), commandId: row.sourceCommandId }] : []),
     };
@@ -286,11 +308,59 @@ export class PiNativeV4Service implements V4Methods {
     const levelObject = levels && typeof levels === "object" ? levels as Record<string, unknown> : {};
     if (Array.isArray(levelObject.levels)) record.state.piThinkingLevels = levelObject.levels;
     if (stats && typeof stats === "object") record.state.piSessionStats = stats;
+    if (typeof this.supervisor.getQueueCatalog === "function") {
+      try { await this.refreshQueueFacts(record); }
+      catch { record.state.piQueueCompatible = false; }
+    }
     const projected = createPiV4Snapshot(record.view, record.state, record.snapshot.logEpoch);
     this.emitConversation(record, [{ op: "state.updated", patch: {
       config: projected.config, usage: projected.usage, inputRouting: projected.inputRouting,
       availability: projected.availability,
     } }]);
+  }
+
+  private refreshQueueFacts(record: SessionRecord): Promise<void> {
+    const id = record.view.sessionId;
+    const prior = this.queueRefreshes.get(id) ?? Promise.resolve();
+    const pending = prior.catch(() => {}).then(async () => {
+      for (let attempt = 0; attempt < 4; attempt++) {
+        const catalog = await this.supervisor.getQueueCatalog(id);
+        const refs = new Map<string, AttachmentRef[]>();
+        try {
+          for (const item of [...catalog.steering, ...catalog.followUp]) {
+            if (item.images.length === 0) continue;
+            const full = await this.supervisor.readQueueItem(id, catalog.revision, item.id);
+            refs.set(item.id, await this.queueMedia.materialize(id, full));
+          }
+          const current = await this.supervisor.getQueueCatalog(id);
+          if (current.revision !== catalog.revision) continue;
+          if (this.sessions.get(id) !== record) return;
+          record.state.piQueueItems = projectPiQueueCatalog(current, refs);
+          record.state.piQueueRecovery = [
+            ...current.steering.map(item => ({ id: item.id, text: item.text,
+              lane: "steering" as const, attachments: refs.get(item.id) ?? [] })),
+            ...current.followUp.map(item => ({ id: item.id, text: item.text,
+              lane: "followUp" as const, attachments: refs.get(item.id) ?? [] })),
+          ];
+          record.state.piQueueCompatible = true;
+          record.state.piStoppedQueue = current.paused;
+          const projected = createPiV4Snapshot(record.view, record.state, record.snapshot.logEpoch);
+          this.emitConversation(record, [{ op: "state.updated", patch: {
+            queue: projected.queue, availability: projected.availability,
+          } }]);
+          await this.safelyPersist(record);
+          return;
+        } catch (error) {
+          if (error instanceof Error && /revision changed|consumed or removed/iu.test(error.message)) continue;
+          throw error;
+        }
+      }
+      throw new Error("Pi queue changed throughout readback");
+    });
+    this.queueRefreshes.set(id, pending);
+    void pending.finally(() => { if (this.queueRefreshes.get(id) === pending) this.queueRefreshes.delete(id); })
+      .catch(() => {});
+    return pending;
   }
 
   private async safelyPersist(record: SessionRecord, requireFile = false): Promise<void> {
@@ -363,6 +433,7 @@ export class PiNativeV4Service implements V4Methods {
           const projection = new PiMessageRows(entry.workspacePath);
           const state: Record<string, unknown> = { piPendingIntent: entry.pendingIntent,
             piOfflinePending: true, messageCount: 0 };
+          state.piInterruptedQueueRecovery = [...(entry.interruptedQueueRecovery ?? []), ...(entry.queueRecovery ?? [])];
           if (entry.returnedQueue) {
             state.piReturnedQueue = entry.returnedQueue;
             state.piStoppedQueue = true;
@@ -384,6 +455,7 @@ export class PiNativeV4Service implements V4Methods {
         const projection = new PiMessageRows(entry.workspacePath);
         let rows = projection.restore(messages, entry.commandAnchors, entry.rowIds);
         state.messageCount = messages.length;
+        state.piInterruptedQueueRecovery = [...(entry.interruptedQueueRecovery ?? []), ...(entry.queueRecovery ?? [])];
         if (messages.some(message => typeof message === "object" && message !== null &&
           (message as Record<string, unknown>).role === "compactionSummary")) state.piCompacted = true;
         // Only a matching Pi user message *after* the pre-admission history,
@@ -566,6 +638,7 @@ export class PiNativeV4Service implements V4Methods {
     if (typeof event.type === "string" && ![
       "agent_start", "agent_end", "agent_settled", "message_start", "message_update", "message_end",
       "tool_execution_start", "tool_execution_update", "tool_execution_end", "queue_update",
+      "pi_gui_queue_update_v1",
       "auto_retry_start", "auto_retry_end", "summarization_retry_scheduled",
       "summarization_retry_finished", "compaction_start", "compaction_end", "extension_error",
       "extension_ui_request", "extension_ui_response", "session_start", "session_shutdown", "entry_appended",
@@ -574,12 +647,15 @@ export class PiNativeV4Service implements V4Methods {
       // Only the record type is logged. Unknown payloads may contain secrets.
       console.warn("[pi-agent] unprojected Pi record", event.type.slice(0, 64).replace(/[^a-z0-9_-]/giu, "?"));
     }
-    if (event.type === "queue_update") {
+    if (event.type === "queue_update" && record.state.piQueueCompatible !== true) {
       const live = { steering: Array.isArray(event.steering) ? event.steering.filter((x): x is string => typeof x === "string") : [],
         followUp: Array.isArray(event.followUp) ? event.followUp.filter((x): x is string => typeof x === "string") : [] };
-      const liveItems = piQueueItems(live, "pi-rpc");
-      const returned = record.state.piReturnedQueue as ReturnedQueue | undefined;
-      record.state.piQueueItems = [...liveItems, ...(returned ? piQueueItems(returned, "pi-returned", liveItems.length) : [])];
+      record.state.piQueueItems = piQueueItems(live, "pi-rpc");
+    }
+    if (event.type === "pi_gui_queue_update_v1") {
+      void this.refreshQueueFacts(record).catch(error => {
+        console.warn("[pi-agent] queue readback failed", error instanceof Error ? error.name : "unknown");
+      });
     }
     if (event.type === "auto_retry_start" || event.type === "summarization_retry_scheduled") {
       record.state.piRetryAttempt = event.attempt;
@@ -608,7 +684,8 @@ export class PiNativeV4Service implements V4Methods {
     if (event.type === "agent_settled") {
       this.reconcileSettled(record, version, record.admissionGeneration);
     }
-    else if (event.type === "queue_update" || event.type === "auto_retry_start" || event.type === "auto_retry_end" ||
+    else if (event.type === "queue_update" && record.state.piQueueCompatible !== true ||
+      event.type === "auto_retry_start" || event.type === "auto_retry_end" ||
       event.type === "summarization_retry_scheduled" || event.type === "summarization_retry_finished") {
       const projected = createPiV4Snapshot(record.view, record.state, record.snapshot.logEpoch);
       this.emitConversation(record, [{ op: "state.updated", patch: { queue: projected.queue, control: projected.control } }]);
@@ -695,7 +772,10 @@ export class PiNativeV4Service implements V4Methods {
       record.state.piQueueItems = piQueueItems(view.clearedQueue, "pi-returned");
       record.state.piStoppedQueue = true;
     }
-    if (view.phase === "accepted" && !record.state.piReturnedQueue) record.state.piStoppedQueue = false;
+    if (view.phase === "stopped" && view.queuePaused === true) record.state.piStoppedQueue = true;
+    if (view.phase === "accepted" && view.queuePaused !== true && !record.state.piReturnedQueue) {
+      record.state.piStoppedQueue = false;
+    }
     if (oldPhase !== view.phase && view.phase === "accepted") record.state.piRunStartedAt = Date.now();
     else if (oldPhase !== view.phase && ["running", "retrying", "compacting"].includes(view.phase)) {
       record.state.piRunStartedAt ??= Date.now();
@@ -867,7 +947,8 @@ export class PiNativeV4Service implements V4Methods {
 
   private dispatchSerialized(params: ZCodeAgentConversationCommandParams,
     envelope: ZCodeAgentConversationCommandParams["envelope"]): Promise<CommandAck> {
-    if (!envelope.sessionId || !["sendText", "deleteSession"].includes(envelope.type)) {
+    if (!envelope.sessionId || !["sendText", "deleteSession", "stop", "sendQueuedNow",
+      "editQueueItem", "reorderQueueItem", "deleteQueueItem", "setAutoDrain"].includes(envelope.type)) {
       return this.dispatch(params, envelope);
     }
     const key = `${resolveWorkspaceKey(params)}:${envelope.sessionId}`;
@@ -977,14 +1058,6 @@ export class PiNativeV4Service implements V4Methods {
         // otherwise become an unintended queued side effect behind the winner.
         const requested = payload.requestedDelivery ?? "startNow";
         const busyDelivery = requested === "queue" || requested === "guide";
-        if (busyDelivery && payload.attachments?.length) {
-          // Pi 0.87 queue_update/clear_queue expose only text. Accepting an image
-          // here would show a text-only queue item and irreversibly discard its
-          // image on Stop/edit. Do not acknowledge a lossy admission as success.
-          return failure(commandId, "pi.queueImagesRequireLosslessRecovery",
-            "This Pi version cannot recover queued images after Stop; the image remains in the composer",
-            record.snapshot.revision);
-        }
         if ((record.state.piPendingIntent && !(busyDelivery &&
           ["accepted", "running", "retrying", "compacting"].includes(record.view.phase))) ||
           record.view.uncertainDelivery || record.view.reconciliationRequired) {
@@ -992,10 +1065,16 @@ export class PiNativeV4Service implements V4Methods {
         }
         const images = await readPiPromptImages(payload.attachments);
         if (requested === "queue" || requested === "guide") {
-          await this.supervisor.enqueueText(record.view.sessionId, payload.text,
+          const queueItemId = await this.supervisor.enqueueText(record.view.sessionId, payload.text,
             requested === "guide" ? "steer" : "followUp", images);
+          if (!queueItemId) throw new Error("Pinned Pi omitted queue item identity after admission");
+          try { await this.refreshQueueFacts(record); }
+          catch (error) {
+            record.state.piQueueCompatible = false;
+            console.warn("[pi-agent] accepted queue readback pending", error instanceof Error ? error.name : "unknown");
+          }
           return { commandId, status: "accepted", revisionAtDecision: record.snapshot.revision,
-            result: { type: "inputAccepted", delivery: requested, inputId: randomUUID() } };
+            result: { type: "inputAccepted", delivery: requested, inputId: queueItemId } };
         }
         record.admissionGeneration++;
         this.recordVersions.set(record.view.sessionId, (this.recordVersions.get(record.view.sessionId) ?? 0) + 1);
@@ -1025,6 +1104,84 @@ export class PiNativeV4Service implements V4Methods {
         }
         return { commandId, status: "accepted", revisionAtDecision: record.snapshot.revision,
           result: { type: "inputAccepted", delivery: "startNow", inputId: randomUUID() } };
+      }
+      if (["editQueueItem", "reorderQueueItem", "deleteQueueItem", "sendQueuedNow", "setAutoDrain"]
+        .includes(envelope.type)) {
+        if (envelope.baseRevision !== record.snapshot.revision) return {
+          commandId, status: "stale", reasonCode: "pi.queueSnapshotChanged",
+          revisionAtDecision: record.snapshot.revision,
+        };
+        let catalog = await this.supervisor.getQueueCatalog(record.view.sessionId);
+        const payload = envelope.payload as { queueItemId?: string; newText?: string;
+          beforeQueueItemId?: string | null; autoDrain?: boolean };
+        const item = [...catalog.steering, ...catalog.followUp].find(entry => entry.id === payload.queueItemId);
+        if (envelope.type !== "setAutoDrain" && !item) return {
+          commandId, status: "noop", reasonCode: "pi.queueItemGone", revisionAtDecision: record.snapshot.revision,
+        };
+        if (envelope.type === "setAutoDrain") {
+          if (payload.autoDrain === false) catalog = await this.supervisor.setQueuePaused(
+            record.view.sessionId, catalog.revision, true);
+          else if (payload.autoDrain === true) {
+            const resumed = await this.supervisor.resumeQueue(record.view.sessionId, catalog.revision);
+            catalog = resumed.catalog;
+          }
+          await this.refreshQueueFacts(record);
+          return { commandId, status: "accepted", revisionAtDecision: record.snapshot.revision };
+        }
+        if (envelope.type === "sendQueuedNow") {
+          if (record.view.foregroundExecutionId) {
+            const stopped = await this.supervisor.stop(record.view.sessionId, record.view.foregroundExecutionId);
+            if (stopped !== "stopped") return {
+              commandId, status: "stale", reasonCode: `pi.stop.${stopped}`,
+              revisionAtDecision: record.snapshot.revision,
+            };
+            catalog = await this.supervisor.getQueueCatalog(record.view.sessionId);
+          } else if (!catalog.paused) {
+            catalog = await this.supervisor.setQueuePaused(record.view.sessionId, catalog.revision, true);
+          }
+          const full = await this.supervisor.readQueueItem(record.view.sessionId, catalog.revision, item!.id);
+          await this.queueMedia.materialize(record.view.sessionId, full);
+          record.admissionGeneration++;
+          record.projection.expectUserCommand(commandId);
+          record.state.piPendingIntent = { textHash: createHash("sha256").update(full.text).digest("hex"),
+            commandId, priorUserCount: record.projection.getRows().filter(row => row.kind === "userInput").length,
+            generation: record.admissionGeneration };
+          if (!await this.persist(record)) throw new Error("Cannot persist Pi queue promotion before delivery");
+          const outcome = await this.supervisor.sendText(record.view.sessionId, full.text, full.images);
+          if (outcome !== "run") {
+            record.state.piQueueCompatible = false;
+            await this.safelyPersist(record);
+            return { commandId, status: "accepted", revisionAtDecision: record.snapshot.revision };
+          }
+          try {
+            const afterAdmission = await this.supervisor.getQueueCatalog(record.view.sessionId);
+            await this.supervisor.mutateQueue(record.view.sessionId, afterAdmission.revision,
+              { kind: "take", id: full.id });
+            await this.refreshQueueFacts(record);
+          } catch (error) {
+            record.state.piQueueCompatible = false;
+            this.supervisor.requireReconciliation(record.view.sessionId, true);
+            console.warn("[pi-agent] accepted queue promotion requires reconciliation",
+              error instanceof Error ? error.name : "unknown");
+          }
+          await this.safelyPersist(record);
+          return { commandId, status: "accepted", revisionAtDecision: record.snapshot.revision };
+        }
+        try {
+          await this.supervisor.mutateQueue(record.view.sessionId, catalog.revision,
+            envelope.type === "reorderQueueItem"
+              ? { kind: "move", id: item!.id, beforeId: payload.beforeQueueItemId ?? null }
+              : envelope.type === "editQueueItem"
+                ? { kind: "replace", id: item!.id, text: payload.newText ?? "" }
+                : { kind: "take", id: item!.id });
+          await this.refreshQueueFacts(record);
+          return { commandId, status: "accepted", revisionAtDecision: record.snapshot.revision };
+        } catch (error) {
+          if (error instanceof Error && /revision changed|consumed or removed/iu.test(error.message)) return {
+            commandId, status: "stale", reasonCode: "pi.queueChanged", revisionAtDecision: record.snapshot.revision,
+          };
+          throw error;
+        }
       }
       if (envelope.type === "resolveInteraction") {
         const payload = envelope.payload as { interactionId: string; answer: { optionId?: string; freeText?: string;

@@ -24,6 +24,7 @@ export interface PiSessionView {
   uncertainDelivery: boolean;
   reconciliationRequired?: boolean;
   foregroundExecutionId?: string;
+  queuePaused?: boolean;
   clearedQueue?: { steering: string[]; followUp: string[] };
   error?: string;
 }

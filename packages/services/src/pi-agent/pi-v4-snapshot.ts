@@ -8,14 +8,14 @@ import type { PiSessionPhase, PiSessionView } from "./pi-session-supervisor.js";
 
 const unavailable = (reasonCode: string) => ({ allowed: false as const, reasonCode });
 
-function availability(): SessionActionAvailability {
+function availability(queueCompatible: boolean): SessionActionAvailability {
   return {
     fork: unavailable("pi.treeBridgeRequired"),
     compact: { allowed: true },
     switchModelConfig: { allowed: true },
     setFollowupMode: { allowed: true },
-    queueEdit: unavailable("pi.queueEditRequiresLosslessAttachmentRecovery"),
-    sendQueuedNow: unavailable("pi.queueEditRequiresLosslessAttachmentRecovery"),
+    queueEdit: queueCompatible ? { allowed: true } : unavailable("pi.queueEditRequiresLosslessAttachmentRecovery"),
+    sendQueuedNow: queueCompatible ? { allowed: true } : unavailable("pi.queueEditRequiresLosslessAttachmentRecovery"),
     pauseGoal: unavailable("pi.notApplicable"),
     resumeGoal: unavailable("pi.notApplicable"),
   };
@@ -93,6 +93,13 @@ export function createPiV4Snapshot(
       recoverable: false,
       at: errorAt,
       source: "runtime",
+    } : Array.isArray(state.piInterruptedQueueRecovery) && state.piInterruptedQueueRecovery.length > 0 ? {
+      code: "pi.queueRecoveryUnverified",
+      message: `${state.piInterruptedQueueRecovery.length} previously queued Pi inputs survived as recovery copies. ` +
+        "Pi did not persist its queue across restart; inspect session history and app data before resending.",
+      recoverable: false,
+      at: errorAt,
+      source: "runtime",
     } : state.piBookmarkError === true ? {
       code: "pi.historyBookmarkFailed",
       message: "Pi history could not be indexed. Keep this session open and check app data storage.",
@@ -111,7 +118,7 @@ export function createPiV4Snapshot(
     seq: 0,
     revision: 0,
     control,
-    availability: availability(),
+    availability: availability(state.piQueueCompatible === true && !view.uncertainDelivery && !view.reconciliationRequired),
     inputRouting: running
       ? { mode: state.piDeliveryMode === "guide" ? "guide" : "enqueue" }
       : incompleteTurn || Boolean(state.piPendingIntent) || view.uncertainDelivery || view.reconciliationRequired || view.phase === "exited"

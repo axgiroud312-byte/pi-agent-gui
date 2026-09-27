@@ -7,7 +7,8 @@ import { test } from "node:test";
 import { PiRpcClient } from "../src/pi-agent/pi-rpc-client.js";
 
 type QueueItem = { id: string; text: string; images: Array<{ type: "image"; data: string; mimeType: string }> };
-type QueueCatalog = { revision: number; steering: Array<{ id: string; text: string; images: Array<{ bytes: number }> }>;
+type QueueCatalog = { revision: number; paused: boolean;
+  steering: Array<{ id: string; text: string; images: Array<{ bytes: number }> }>;
   followUp: Array<{ id: string; text: string; images: Array<{ bytes: number }> }> };
 
 test("fixed Pi queue compatibility preserves duplicate text images and rejects stale edits", { timeout: 30_000 }, async () => {
@@ -40,17 +41,25 @@ test("fixed Pi queue compatibility preserves duplicate text images and rejects s
     assert.notEqual(before.steering[0]!.id, before.steering[1]!.id);
     assert.deepEqual(before.steering.map(item => item.images[0]?.bytes), [7, 7]);
     assert.deepEqual(before.followUp.map(item => item.text), ["later"]);
-    const readFirst = await client.request({ type: "pi_gui_queue_read_item_v1", expectedRevision: before.revision,
+    const pausedResponse = await client.request({ type: "pi_gui_queue_set_paused_v1",
+      expectedRevision: before.revision, paused: true });
+    assert.equal(pausedResponse.success, true, pausedResponse.error);
+    const paused = pausedResponse.data as QueueCatalog;
+    assert.equal(paused.paused, true);
+    assert.deepEqual(paused.steering.map(item => item.id), before.steering.map(item => item.id));
+    const stateWhilePaused = await client.request({ type: "get_state" });
+    assert.equal((stateWhilePaused.data as { pendingMessageCount: number }).pendingMessageCount, 3);
+    const readFirst = await client.request({ type: "pi_gui_queue_read_item_v1", expectedRevision: paused.revision,
       queueItemId: before.steering[0]!.id });
     assert.deepEqual((readFirst.data as QueueItem).images, [firstImage]);
 
-    const move = await client.request({ type: "pi_gui_queue_mutate_v1", expectedRevision: before.revision,
+    const move = await client.request({ type: "pi_gui_queue_mutate_v1", expectedRevision: paused.revision,
       operation: { kind: "move", id: before.steering[1]!.id, beforeId: before.steering[0]!.id } });
     assert.equal(move.success, true, move.error);
     const moved = (move.data as { catalog: QueueCatalog }).catalog;
     assert.deepEqual(moved.steering.map(item => item.id), [before.steering[1]!.id, before.steering[0]!.id]);
 
-    const stale = await client.request({ type: "pi_gui_queue_mutate_v1", expectedRevision: before.revision,
+    const stale = await client.request({ type: "pi_gui_queue_mutate_v1", expectedRevision: paused.revision,
       operation: { kind: "take", id: before.steering[0]!.id } });
     assert.equal(stale.success, false, "an old UI snapshot must not remove a changed queue item");
     assert.match(stale.error ?? "", /revision|changed|conflict/iu);

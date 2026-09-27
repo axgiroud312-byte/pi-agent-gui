@@ -1,5 +1,5 @@
 diff --git a/dist/core/agent-session.d.ts b/dist/core/agent-session.d.ts
-index 5620ac326bd3885819f4dbca401522c3058a640b..d2366c84ffb20190c8b606ebe484c37ec80c5089 100644
+index 5620ac326bd3885819f4dbca401522c3058a640b..f1066c4250a3c005aa47bdf7e9453ed83bc3faf0 100644
 --- a/dist/core/agent-session.d.ts
 +++ b/dist/core/agent-session.d.ts
 @@ -50,6 +50,11 @@ export type AgentSessionEvent = Exclude<AgentEvent, {
@@ -14,7 +14,16 @@ index 5620ac326bd3885819f4dbca401522c3058a640b..d2366c84ffb20190c8b606ebe484c37e
  } | {
      type: "compaction_start";
      reason: "manual" | "threshold" | "overflow";
-@@ -434,7 +439,7 @@ export declare class AgentSession {
+@@ -160,6 +165,8 @@ export interface PromptOptions {
+     source?: InputSource;
+     /** Internal hook used by RPC mode to observe prompt preflight acceptance or rejection. */
+     preflightResult?: (success: boolean) => void;
++    /** Pinned GUI queue resume: input was already processed when Pi admitted the queued item. */
++    piQueueResume?: boolean;
+ }
+ /** Options for model/thinking mutations. */
+ export interface ModelMutationOptions {
+@@ -434,7 +441,7 @@ export declare class AgentSession {
       */
      steer(text: string, images?: ImageContent[], options?: {
          source?: InputSource;
@@ -23,7 +32,7 @@ index 5620ac326bd3885819f4dbca401522c3058a640b..d2366c84ffb20190c8b606ebe484c37e
      /**
       * Queue a follow-up message to be processed after the agent finishes.
       * Delivered only when agent has no more tool calls or steering messages.
-@@ -445,7 +450,7 @@ export declare class AgentSession {
+@@ -445,7 +452,7 @@ export declare class AgentSession {
       */
      followUp(text: string, images?: ImageContent[], options?: {
          source?: InputSource;
@@ -33,7 +42,7 @@ index 5620ac326bd3885819f4dbca401522c3058a640b..d2366c84ffb20190c8b606ebe484c37e
      private _queueFollowUp;
      /**
 diff --git a/dist/core/agent-session.js b/dist/core/agent-session.js
-index 36fdb31c121d1121cebc51c6f0d61d09cf07bae0..098a4b62b2b382c380ac2b6006f1234e97822759 100644
+index 36fdb31c121d1121cebc51c6f0d61d09cf07bae0..d007f700f032f25579ffb81c43a7fb0aef5ace7a 100644
 --- a/dist/core/agent-session.js
 +++ b/dist/core/agent-session.js
 @@ -147,6 +147,7 @@ export class AgentSession {
@@ -44,7 +53,7 @@ index 36fdb31c121d1121cebc51c6f0d61d09cf07bae0..098a4b62b2b382c380ac2b6006f1234e
          this.sessionManager = config.sessionManager;
          this.settingsManager = config.settingsManager;
          this._scopedModels = config.scopedModels ?? [];
-@@ -500,10 +501,17 @@ export class AgentSession {
+@@ -500,10 +501,18 @@ export class AgentSession {
          }
      }
      _emitQueueUpdate() {
@@ -59,12 +68,13 @@ index 36fdb31c121d1121cebc51c6f0d61d09cf07bae0..098a4b62b2b382c380ac2b6006f1234e
 +        this._emit({
 +            type: "pi_gui_queue_update_v1",
 +            revision: snapshot.revision,
++            paused: this.agent.queueCatalog().paused,
 +            steering: snapshot.steering.map(({ id, text, images }) => ({ id, text, imageCount: images.length })),
 +            followUp: snapshot.followUp.map(({ id, text, images }) => ({ id, text, imageCount: images.length })),
          });
      }
      async _emitSessionCompactFailed(event) {
-@@ -554,27 +562,10 @@ export class AgentSession {
+@@ -554,27 +563,10 @@ export class AgentSession {
      }
      /** Internal handler for agent events - shared by subscribe and reconnect */
      _handleAgentEvent = async (event) => {
@@ -94,7 +104,18 @@ index 36fdb31c121d1121cebc51c6f0d61d09cf07bae0..098a4b62b2b382c380ac2b6006f1234e
          }
          // Emit to extensions first, then notify public listeners.
          await this._emitExtensionEvent(event);
-@@ -1397,10 +1388,10 @@ export class AgentSession {
+@@ -1227,7 +1219,9 @@ export class AgentSession {
+                 throw new Error("Cannot submit a prompt while compaction is in progress. Wait for compaction to finish and retry.");
+             }
+             // Emit input event for extension interception (before skill/template expansion)
+-            const processedInput = await this._runInputHandlers(text, options?.images, options?.source ?? "interactive", this.isStreaming ? options?.streamingBehavior : undefined);
++            const processedInput = options?.piQueueResume === true
++                ? { text, images: options?.images }
++                : await this._runInputHandlers(text, options?.images, options?.source ?? "interactive", this.isStreaming ? options?.streamingBehavior : undefined);
+             if (!processedInput) {
+                 preflightResult?.(true);
+                 return;
+@@ -1397,10 +1391,10 @@ export class AgentSession {
          let expandedText = this._expandSkillCommand(processedInput.text);
          expandedText = expandPromptTemplate(expandedText, [...this.promptTemplates]);
          if (behavior === "steer") {
@@ -107,7 +128,7 @@ index 36fdb31c121d1121cebc51c6f0d61d09cf07bae0..098a4b62b2b382c380ac2b6006f1234e
          }
      }
      /**
-@@ -1413,7 +1404,7 @@ export class AgentSession {
+@@ -1413,7 +1407,7 @@ export class AgentSession {
       * @throws Error if text is an extension command
       */
      async steer(text, images, options) {
@@ -116,7 +137,7 @@ index 36fdb31c121d1121cebc51c6f0d61d09cf07bae0..098a4b62b2b382c380ac2b6006f1234e
      }
      /**
       * Queue a follow-up message to be processed after the agent finishes.
-@@ -1424,19 +1415,17 @@ export class AgentSession {
+@@ -1424,19 +1418,17 @@ export class AgentSession {
       * @throws Error if text is an extension command
       */
      async followUp(text, images, options) {
@@ -138,7 +159,7 @@ index 36fdb31c121d1121cebc51c6f0d61d09cf07bae0..098a4b62b2b382c380ac2b6006f1234e
              role: "user",
              content,
              timestamp: Date.now(),
-@@ -1446,13 +1435,11 @@ export class AgentSession {
+@@ -1446,13 +1438,11 @@ export class AgentSession {
       * Internal: Queue a follow-up message (already expanded, no extension command check).
       */
      async _queueFollowUp(text, images) {
@@ -153,7 +174,7 @@ index 36fdb31c121d1121cebc51c6f0d61d09cf07bae0..098a4b62b2b382c380ac2b6006f1234e
      }
      /**
       * Throw an error if the text is an extension command.
-@@ -1579,25 +1566,24 @@ export class AgentSession {
+@@ -1579,25 +1569,24 @@ export class AgentSession {
       * @returns Object with steering and followUp arrays
       */
      clearQueue() {
@@ -187,10 +208,18 @@ index 36fdb31c121d1121cebc51c6f0d61d09cf07bae0..098a4b62b2b382c380ac2b6006f1234e
      get resourceLoader() {
          return this._resourceLoader;
 diff --git a/dist/modes/rpc/rpc-mode.js b/dist/modes/rpc/rpc-mode.js
-index f6c667c8ed48515f1830abe7ffc32e688d668b5e..c2582d7052ca8d4467fa7a96874f3868e536c793 100644
+index f6c667c8ed48515f1830abe7ffc32e688d668b5e..bde2594e575d8c25af9cbe424fbbd5a8d4b97067 100644
 --- a/dist/modes/rpc/rpc-mode.js
 +++ b/dist/modes/rpc/rpc-mode.js
-@@ -319,12 +319,12 @@ export async function runRpcMode(runtimeHost) {
+@@ -42,6 +42,7 @@ export async function runRpcMode(runtimeHost) {
+     // Shutdown request flag
+     let shutdownRequested = false;
+     let shuttingDown = false;
++    let queuePromotionPending = false;
+     const signalCleanupHandlers = [];
+     /** Helper for dialog methods with signal/timeout support */
+     function createDialogPromise(opts, defaultValue, request, parseResponse) {
+@@ -319,20 +320,141 @@ export async function runRpcMode(runtimeHost) {
                  return undefined;
              }
              case "steer": {
@@ -207,13 +236,17 @@ index f6c667c8ed48515f1830abe7ffc32e688d668b5e..c2582d7052ca8d4467fa7a96874f3868
              }
              case "abort": {
                  await session.abort();
-@@ -333,6 +333,64 @@ export async function runRpcMode(runtimeHost) {
+                 return success(id, "abort");
+             }
              case "clear_queue": {
++                if (queuePromotionPending)
++                    return error(id, command.type, "Pi queue promotion is in progress");
                  return success(id, "clear_queue", session.clearQueue());
              }
 +            case "pi_gui_queue_capabilities_v1": {
 +                if (typeof session.agent.queueCatalog !== "function" ||
 +                    typeof session.agent.queueReadItem !== "function" ||
++                    typeof session.agent.queueSetPaused !== "function" ||
 +                    typeof session.agent.queueMutate !== "function" ||
 +                    typeof session.agent.queueTakeAll !== "function") {
 +                    return error(id, command.type, "Pinned Pi queue core compatibility patch is missing");
@@ -230,6 +263,62 @@ index f6c667c8ed48515f1830abe7ffc32e688d668b5e..c2582d7052ca8d4467fa7a96874f3868
 +            case "pi_gui_queue_catalog_v1": {
 +                return success(id, command.type, session.agent.queueCatalog());
 +            }
++            case "pi_gui_queue_set_paused_v1": {
++                if (queuePromotionPending)
++                    return error(id, command.type, "Pi queue promotion is in progress");
++                if (!Number.isSafeInteger(command.expectedRevision) || command.expectedRevision < 0 ||
++                    typeof command.paused !== "boolean") {
++                    return error(id, command.type, "Invalid Pi queue pause request");
++                }
++                return success(id, command.type,
++                    session.agent.queueSetPaused(command.expectedRevision, command.paused));
++            }
++            case "pi_gui_queue_resume_v1": {
++                if (queuePromotionPending)
++                    return error(id, command.type, "Pi queue promotion is in progress");
++                const catalog = session.agent.queueCatalog();
++                if (!Number.isSafeInteger(command.expectedRevision) || command.expectedRevision !== catalog.revision)
++                    return error(id, command.type, "Pi queue revision changed");
++                if (!catalog.paused)
++                    return success(id, command.type, { catalog, promotedId: null });
++                const head = catalog.steering[0] ?? catalog.followUp[0];
++                if (!head || session.isStreaming) {
++                    return success(id, command.type, {
++                        catalog: session.agent.queueSetPaused(catalog.revision, false), promotedId: null,
++                    });
++                }
++                const item = session.agent.queueReadItem(catalog.revision, head.id);
++                queuePromotionPending = true;
++                let admitted = false;
++                void session.prompt(item.text, {
++                    images: item.images,
++                    source: "rpc",
++                    expandPromptTemplates: false,
++                    piQueueResume: true,
++                    preflightResult: (didSucceed) => {
++                        if (!didSucceed)
++                            return;
++                        admitted = true;
++                        try {
++                            const current = session.agent.queueCatalog();
++                            const taken = session.agent.queueMutate(current.revision, { kind: "take", id: head.id });
++                            const resumed = session.agent.queueSetPaused(taken.snapshot.revision, false);
++                            output(success(id, command.type, { catalog: resumed, promotedId: head.id }));
++                        }
++                        catch (e) {
++                            output(error(id, command.type, `Pi accepted resume but queue reconciliation failed: ${e.message}`));
++                        }
++                        finally {
++                            queuePromotionPending = false;
++                        }
++                    },
++                }).catch((e) => {
++                    queuePromotionPending = false;
++                    if (!admitted)
++                        output(error(id, command.type, e.message));
++                });
++                return undefined;
++            }
 +            case "pi_gui_queue_read_item_v1": {
 +                if (!Number.isSafeInteger(command.expectedRevision) || command.expectedRevision < 0 ||
 +                    typeof command.queueItemId !== "string") {
@@ -239,6 +328,8 @@ index f6c667c8ed48515f1830abe7ffc32e688d668b5e..c2582d7052ca8d4467fa7a96874f3868
 +                    session.agent.queueReadItem(command.expectedRevision, command.queueItemId));
 +            }
 +            case "pi_gui_queue_mutate_v1": {
++                if (queuePromotionPending)
++                    return error(id, command.type, "Pi queue promotion is in progress");
 +                if (!Number.isSafeInteger(command.expectedRevision) || command.expectedRevision < 0 ||
 +                    !command.operation || typeof command.operation.id !== "string") {
 +                    return error(id, command.type, "Invalid Pi queue mutation request");
@@ -260,6 +351,8 @@ index f6c667c8ed48515f1830abe7ffc32e688d668b5e..c2582d7052ca8d4467fa7a96874f3868
 +                });
 +            }
 +            case "pi_gui_queue_take_all_v1": {
++                if (queuePromotionPending)
++                    return error(id, command.type, "Pi queue promotion is in progress");
 +                if (!Number.isSafeInteger(command.expectedRevision) || command.expectedRevision < 0) {
 +                    return error(id, command.type, "Invalid Pi queue take-all revision");
 +                }
@@ -273,7 +366,7 @@ index f6c667c8ed48515f1830abe7ffc32e688d668b5e..c2582d7052ca8d4467fa7a96874f3868
                  const options = command.parentSession ? { parentSession: command.parentSession } : undefined;
                  const result = await runtimeHost.newSession(options);
 diff --git a/dist/modes/rpc/rpc-types.d.ts b/dist/modes/rpc/rpc-types.d.ts
-index 82b5793d34cb04c1772e0ca0e664ece6b0a5c7ce..6b9ff34005346960940ec1c1a4256373969334b2 100644
+index 82b5793d34cb04c1772e0ca0e664ece6b0a5c7ce..2be47e0e5813da888131ad7dd2a0081518fb8f4a 100644
 --- a/dist/modes/rpc/rpc-types.d.ts
 +++ b/dist/modes/rpc/rpc-types.d.ts
 @@ -4,7 +4,7 @@
@@ -285,13 +378,22 @@ index 82b5793d34cb04c1772e0ca0e664ece6b0a5c7ce..6b9ff34005346960940ec1c1a4256373
  import type { ImageContent, Model } from "@earendil-works/pi-ai";
  import type { SessionStats } from "../../core/agent-session.ts";
  import type { BashResult } from "../../core/bash-executor.ts";
-@@ -33,6 +33,23 @@ export type RpcCommand = {
+@@ -33,6 +33,32 @@ export type RpcCommand = {
  } | {
      id?: string;
      type: "clear_queue";
 +} | {
 +    id?: string;
 +    type: "pi_gui_queue_capabilities_v1" | "pi_gui_queue_catalog_v1";
++} | {
++    id?: string;
++    type: "pi_gui_queue_set_paused_v1";
++    expectedRevision: number;
++    paused: boolean;
++} | {
++    id?: string;
++    type: "pi_gui_queue_resume_v1";
++    expectedRevision: number;
 +} | {
 +    id?: string;
 +    type: "pi_gui_queue_read_item_v1";
@@ -309,7 +411,7 @@ index 82b5793d34cb04c1772e0ca0e664ece6b0a5c7ce..6b9ff34005346960940ec1c1a4256373
  } | {
      id?: string;
      type: "new_session";
-@@ -169,11 +186,13 @@ export type RpcResponse = {
+@@ -169,11 +195,13 @@ export type RpcResponse = {
      type: "response";
      command: "steer";
      success: true;
@@ -323,7 +425,7 @@ index 82b5793d34cb04c1772e0ca0e664ece6b0a5c7ce..6b9ff34005346960940ec1c1a4256373
  } | {
      id?: string;
      type: "response";
-@@ -188,6 +207,36 @@ export type RpcResponse = {
+@@ -188,6 +216,42 @@ export type RpcResponse = {
          steering: string[];
          followUp: string[];
      };
@@ -336,9 +438,15 @@ index 82b5793d34cb04c1772e0ca0e664ece6b0a5c7ce..6b9ff34005346960940ec1c1a4256373
 +} | {
 +    id?: string;
 +    type: "response";
-+    command: "pi_gui_queue_catalog_v1";
++    command: "pi_gui_queue_catalog_v1" | "pi_gui_queue_set_paused_v1";
 +    success: true;
 +    data: PiGuiQueueCatalogV1;
++} | {
++    id?: string;
++    type: "response";
++    command: "pi_gui_queue_resume_v1";
++    success: true;
++    data: { catalog: PiGuiQueueCatalogV1; promotedId: string | null };
 +} | {
 +    id?: string;
 +    type: "response";

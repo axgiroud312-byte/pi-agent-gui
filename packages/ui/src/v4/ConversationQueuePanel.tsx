@@ -21,7 +21,7 @@ import {
   testId,
 } from "@zcode/shared";
 import type { QueueState } from "@zcode/shared/zcode-protocol-v4";
-import { ArrowUpFromLine, GripVertical, PencilIcon, Trash2Icon } from "lucide-react";
+import { ArrowUpFromLine, GripVertical, PaperclipIcon, PencilIcon, Trash2Icon } from "lucide-react";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
@@ -207,6 +207,10 @@ const QueueRow = memo(function QueueRow({
         title={item.text}
       >
         <span className="truncate">{isCompact ? "/compact" : item.text}</span>
+        {item.attachments.length > 0 ? <span className="inline-flex shrink-0 items-center gap-0.5 text-foreground-subtlest"
+          title={item.attachments.map(attachment => attachment.fileName).join(", ")}>
+          <PaperclipIcon className="size-3.5" aria-hidden="true" />{item.attachments.length}
+        </span> : null}
       </span>
       {onSendNow ? (
         <Button

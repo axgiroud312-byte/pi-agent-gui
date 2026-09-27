@@ -1,7 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, readdir, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { SessionSummary } from "@zcode/shared/zcode-protocol-v4";
+import type { AttachmentRef, SessionSummary } from "@zcode/shared/zcode-protocol-v4";
+
+export interface PiQueueRecoveryEntry {
+  id: string;
+  text: string;
+  lane: "steering" | "followUp";
+  attachments: AttachmentRef[];
+}
 
 export interface PiSessionBookmark {
   sessionId: string;
@@ -21,6 +28,21 @@ export interface PiSessionBookmark {
   uncertainDelivery?: boolean;
   pendingIntent?: { textHash: string; commandId: string; priorUserCount: number; generation?: number };
   returnedQueue?: { steering: string[]; followUp: string[] };
+  /** Recovery evidence only. Never an executable Host queue. */
+  queueRecovery?: PiQueueRecoveryEntry[];
+  interruptedQueueRecovery?: PiQueueRecoveryEntry[];
+}
+
+function recoveryEntries(value: unknown): boolean {
+  return Array.isArray(value) && value.every(entry => {
+    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) return false;
+    const row = entry as Record<string, unknown>;
+    return typeof row.id === "string" && row.id.length > 0 && typeof row.text === "string" &&
+      ["steering", "followUp"].includes(String(row.lane)) && Array.isArray(row.attachments) &&
+      row.attachments.every(ref => typeof ref === "object" && ref !== null &&
+        typeof ref.ref === "string" && typeof ref.fileName === "string" &&
+        typeof ref.mime === "string" && Number.isSafeInteger(ref.bytes));
+  });
 }
 
 function bookmark(value: unknown): value is PiSessionBookmark {
@@ -45,6 +67,8 @@ function bookmark(value: unknown): value is PiSessionBookmark {
     (row.returnedQueue === undefined || (typeof row.returnedQueue === "object" && row.returnedQueue !== null &&
       ["steering", "followUp"].every(key => Array.isArray((row.returnedQueue as Record<string, unknown>)[key]) &&
         ((row.returnedQueue as Record<string, unknown>)[key] as unknown[]).every(item => typeof item === "string")))) &&
+    (row.queueRecovery === undefined || recoveryEntries(row.queueRecovery)) &&
+    (row.interruptedQueueRecovery === undefined || recoveryEntries(row.interruptedQueueRecovery)) &&
     (row.rowIds === undefined || (typeof row.rowIds === "object" && row.rowIds !== null &&
       Object.values(row.rowIds).every(id => Number.isSafeInteger(id) && (id as number) > 0))) &&
     (row.commandAnchors === undefined || (Array.isArray(row.commandAnchors) && row.commandAnchors.every(anchor =>

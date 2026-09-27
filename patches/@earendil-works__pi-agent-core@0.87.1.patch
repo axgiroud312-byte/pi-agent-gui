@@ -1,8 +1,8 @@
 diff --git a/dist/agent.d.ts b/dist/agent.d.ts
-index 59ec7e8fa52502e881f57d83362fde822b574b20..a2a38809218b1346f5ec1b6cb7044e0b721c4622 100644
+index 59ec7e8fa52502e881f57d83362fde822b574b20..3a0b29b4872c6b87a679867ea61e0ad3efc195a5 100644
 --- a/dist/agent.d.ts
 +++ b/dist/agent.d.ts
-@@ -3,6 +3,25 @@ import type { AfterToolCallContext, AfterToolCallResult, AgentEvent, AgentLoopTu
+@@ -3,6 +3,26 @@ import type { AfterToolCallContext, AfterToolCallResult, AgentEvent, AgentLoopTu
  export type { QueueMode } from "./types.ts";
  /** Initial state for {@link Agent}. `systemPrompt` and `tools` become the leading system message unless `messages` already starts with one. */
  export type AgentInitialState = Partial<Omit<AgentState, "pendingToolCalls" | "isStreaming" | "streamingMessage" | "errorMessage">>;
@@ -18,6 +18,7 @@ index 59ec7e8fa52502e881f57d83362fde822b574b20..a2a38809218b1346f5ec1b6cb7044e0b
 +}
 +export interface PiGuiQueueCatalogV1 {
 +    revision: number;
++    paused: boolean;
 +    steering: Array<{ id: string; text: string; images: Array<{ mimeType: string; bytes: number }> }>;
 +    followUp: Array<{ id: string; text: string; images: Array<{ mimeType: string; bytes: number }> }>;
 +}
@@ -28,18 +29,19 @@ index 59ec7e8fa52502e881f57d83362fde822b574b20..a2a38809218b1346f5ec1b6cb7044e0b
  /** Options for constructing an {@link Agent}. */
  export interface AgentOptions {
      initialState?: AgentInitialState;
-@@ -37,6 +56,10 @@ export declare class Agent {
+@@ -37,6 +57,11 @@ export declare class Agent {
      private readonly listeners;
      private readonly steeringQueue;
      private readonly followUpQueue;
 +    private queueRevision;
++    private queuePaused;
 +    private queueSerial;
 +    private queueNonce;
 +    onQueueChange?: () => void;
      convertToLlm: (messages: AgentMessage[]) => Message[] | Promise<Message[]>;
      transformContext?: (messages: AgentMessage[], signal?: AbortSignal) => Promise<AgentMessage[]>;
      streamFunction: StreamFn;
-@@ -85,9 +108,9 @@ export declare class Agent {
+@@ -85,9 +110,9 @@ export declare class Agent {
      set followUpMode(mode: QueueMode);
      get followUpMode(): QueueMode;
      /** Queue a message to be injected after the current assistant turn finishes. */
@@ -51,12 +53,13 @@ index 59ec7e8fa52502e881f57d83362fde822b574b20..a2a38809218b1346f5ec1b6cb7044e0b
      /** Remove all queued steering messages. */
      clearSteeringQueue(): void;
      /** Remove all queued follow-up messages. */
-@@ -98,6 +121,11 @@ export declare class Agent {
+@@ -98,6 +123,12 @@ export declare class Agent {
      hasQueuedMessages(): boolean;
      /** Preview the messages selected for the next turn without consuming them. */
      peekQueuedMessages(): AgentMessage[];
 +    queueSnapshot(): PiGuiQueueSnapshotV1;
 +    queueCatalog(): PiGuiQueueCatalogV1;
++    queueSetPaused(expectedRevision: number, paused: boolean): PiGuiQueueCatalogV1;
 +    queueReadItem(expectedRevision: number, id: string): PiGuiQueueItemV1;
 +    queueMutate(expectedRevision: number, operation: PiGuiQueueOperationV1): { snapshot: PiGuiQueueSnapshotV1; taken?: PiGuiQueueItemV1 };
 +    queueTakeAll(expectedRevision: number): PiGuiQueueSnapshotV1;
@@ -64,7 +67,7 @@ index 59ec7e8fa52502e881f57d83362fde822b574b20..a2a38809218b1346f5ec1b6cb7044e0b
      get signal(): AbortSignal | undefined;
      /** Abort the current run, if one is active. */
 diff --git a/dist/agent.js b/dist/agent.js
-index a2f462f84a260b6026252295e3e7bae220e09c53..a4257f245c325fe2ece25409e15ce000a0d30817 100644
+index a2f462f84a260b6026252295e3e7bae220e09c53..ab9fa98b13ce5f7c3cb69625c2f4cf82421f2fac 100644
 --- a/dist/agent.js
 +++ b/dist/agent.js
 @@ -60,28 +60,36 @@ function createMutableAgentState(initialState) {
@@ -111,18 +114,19 @@ index a2f462f84a260b6026252295e3e7bae220e09c53..a4257f245c325fe2ece25409e15ce000
      }
  }
  /**
-@@ -95,6 +103,10 @@ export class Agent {
+@@ -95,6 +103,11 @@ export class Agent {
      listeners = new Set();
      steeringQueue;
      followUpQueue;
 +    queueRevision = 0;
++    queuePaused = false;
 +    queueSerial = 0;
 +    queueNonce = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
 +    onQueueChange;
      convertToLlm;
      transformContext;
      streamFunction;
-@@ -134,8 +146,12 @@ export class Agent {
+@@ -134,8 +147,12 @@ export class Agent {
          this.prepareRequest = runtimeOptions.prepareRequest;
          this.prepareNextTurn = runtimeOptions.prepareNextTurn;
          this.prepareNextTurnWithContext = runtimeOptions.prepareNextTurnWithContext;
@@ -137,7 +141,7 @@ index a2f462f84a260b6026252295e3e7bae220e09c53..a4257f245c325fe2ece25409e15ce000
          this.sessionId = runtimeOptions.sessionId;
          this.thinkingBudgets = runtimeOptions.thinkingBudgets;
          this.transport = runtimeOptions.transport ?? "auto";
-@@ -180,11 +196,15 @@ export class Agent {
+@@ -180,11 +197,15 @@ export class Agent {
      }
      /** Queue a message to be injected after the current assistant turn finishes. */
      steer(message) {
@@ -155,10 +159,19 @@ index a2f462f84a260b6026252295e3e7bae220e09c53..a4257f245c325fe2ece25409e15ce000
      }
      /** Remove all queued steering messages. */
      clearSteeringQueue() {
-@@ -208,6 +228,109 @@ export class Agent {
-         const steering = this.steeringQueue.peek();
-         return steering.length > 0 ? steering : this.followUpQueue.peek();
+@@ -201,12 +222,128 @@ export class Agent {
      }
+     /** Returns true when either queue still contains pending messages. */
+     hasQueuedMessages() {
+-        return this.steeringQueue.hasItems() || this.followUpQueue.hasItems();
++        return !this.queuePaused && (this.steeringQueue.hasItems() || this.followUpQueue.hasItems());
+     }
+     /** Preview the messages selected for the next turn without consuming them. */
+     peekQueuedMessages() {
+         const steering = this.steeringQueue.peek();
+-        return steering.length > 0 ? steering : this.followUpQueue.peek();
++        return this.queuePaused ? [] : steering.length > 0 ? steering : this.followUpQueue.peek();
++    }
 +    /** Pi-owned, versioned queue snapshot. IDs remain stable across edits and reorders. */
 +    queueSnapshot() {
 +        const project = (item) => {
@@ -187,7 +200,20 @@ index a2f462f84a260b6026252295e3e7bae220e09c53..a4257f245c325fe2ece25409e15ce000
 +            })),
 +        });
 +        return { revision: snapshot.revision,
++            paused: this.queuePaused,
 +            steering: snapshot.steering.map(project), followUp: snapshot.followUp.map(project) };
++    }
++    queueSetPaused(expectedRevision, paused) {
++        if (expectedRevision !== this.queueRevision)
++            throw new Error("Pi queue revision changed");
++        if (typeof paused !== "boolean")
++            throw new Error("Invalid Pi queue pause state");
++        if (this.queuePaused !== paused) {
++            this.queuePaused = paused;
++            this.queueRevision++;
++            this.onQueueChange?.();
++        }
++        return this.queueCatalog();
 +    }
 +    queueReadItem(expectedRevision, id) {
 +        if (expectedRevision !== this.queueRevision)
@@ -261,7 +287,37 @@ index a2f462f84a260b6026252295e3e7bae220e09c53..a4257f245c325fe2ece25409e15ce000
 +        this.queueRevision++;
 +        this.onQueueChange?.();
 +        return taken;
-+    }
+     }
      /** Active abort signal for the current run, if any. */
      get signal() {
-         return this.activeRun?.abortController.signal;
+@@ -255,12 +392,12 @@ export class Agent {
+             throw new Error("No messages to continue from");
+         }
+         if (lastMessage.role === "assistant") {
+-            const queuedSteering = this.steeringQueue.drain();
++            const queuedSteering = this.queuePaused ? [] : this.steeringQueue.drain();
+             if (queuedSteering.length > 0) {
+                 await this.runPromptMessages(queuedSteering, { skipInitialSteeringPoll: true });
+                 return;
+             }
+-            const queuedFollowUps = this.followUpQueue.drain();
++            const queuedFollowUps = this.queuePaused ? [] : this.followUpQueue.drain();
+             if (queuedFollowUps.length > 0) {
+                 await this.runPromptMessages(queuedFollowUps);
+                 return;
+@@ -326,13 +463,14 @@ export class Agent {
+             transformContext: this.transformContext,
+             getApiKey: this.getApiKey,
+             getSteeringMessages: async () => {
++                if (this.queuePaused) return [];
+                 if (skipInitialSteeringPoll) {
+                     skipInitialSteeringPoll = false;
+                     return [];
+                 }
+                 return this.steeringQueue.drain();
+             },
+-            getFollowUpMessages: async () => this.followUpQueue.drain(),
++            getFollowUpMessages: async () => this.queuePaused ? [] : this.followUpQueue.drain(),
+         };
+     }
+     async runWithLifecycle(executor) {

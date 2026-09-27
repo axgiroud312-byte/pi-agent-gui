@@ -121,16 +121,18 @@ test("native Pi image paste uses the real v4 chunk upload and rejects tampering"
         { ref: result.ref, fileName: "粘贴.png", mime: "image/png", bytes: bytes.length },
       ] },
     } });
-    assert.equal(queueImage.status, "failed");
-    assert.equal(queueImage.reasonCode, "pi.queueImagesRequireLosslessRecovery");
-    assert.equal((await supervisor.getState(sessionId)).pendingMessageCount, 0,
-      "reject before Pi admission: no text-only queue item can lose the image on Stop");
+    assert.equal(queueImage.status, "accepted", queueImage.message);
+    assert.equal((await supervisor.getState(sessionId)).pendingMessageCount, 1);
+    const catalog = await supervisor.getQueueCatalog(sessionId);
+    assert.equal(catalog.followUp[0]?.images.length, 1);
+    const queuedImage = await supervisor.readQueueItem(sessionId, catalog.revision, catalog.followUp[0]!.id);
+    assert.equal(queuedImage.images[0]?.data, bytes.toString("base64"));
     const queuedText = await service.sendConversationCommandV4({ workspacePath, envelope: {
       commandId: randomUUID(), clientId: "image-upload-test", sessionId, issuedAt: Date.now(),
       type: "sendText", payload: { text: "FOLLOW_AFTER_QUEUE", requestedDelivery: "queue" },
     } });
     assert.equal(queuedText.status, "accepted", queuedText.message);
-    assert.equal((await supervisor.getState(sessionId)).pendingMessageCount, 1,
+    assert.equal((await supervisor.getState(sessionId)).pendingMessageCount, 2,
       "busy text must be admitted to Pi's queue despite the foreground durable intent");
     releaseSlowResponse?.();
     await slowSettled;
@@ -164,7 +166,7 @@ test("native Pi image paste uses the real v4 chunk upload and rejects tampering"
         ref: historical.attachments[0]!.ref, offset: 0, limit: 1024 });
       assert.deepEqual(Buffer.from(replay.dataBase64, "base64"), bytes,
         "preview after restart must come from Pi JSONL, not the temporary upload file");
-      assert.equal(requests.length, 4, "resuming a session must not replay image, foreground or queued prompts");
+      assert.equal(requests.length, 5, "resuming a session must not replay image, foreground or queued prompts");
     } finally { await restored.disposeAllAndWait(); }
   } finally {
     releaseSlowResponse?.();

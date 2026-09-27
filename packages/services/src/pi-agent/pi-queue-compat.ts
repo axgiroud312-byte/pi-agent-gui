@@ -19,6 +19,7 @@ export interface PiQueueCatalogItemV1 {
 
 export interface PiQueueCatalogV1 {
   revision: number;
+  paused: boolean;
   steering: PiQueueCatalogItemV1[];
   followUp: PiQueueCatalogItemV1[];
 }
@@ -72,14 +73,15 @@ function parseCatalogItem(value: unknown): PiQueueCatalogItemV1 {
 
 export function parsePiQueueCatalog(value: unknown): PiQueueCatalogV1 {
   const raw = object(value);
-  if (!Number.isSafeInteger(raw.revision) || !Array.isArray(raw.steering) || !Array.isArray(raw.followUp)) {
+  if (!Number.isSafeInteger(raw.revision) || typeof raw.paused !== "boolean" ||
+    !Array.isArray(raw.steering) || !Array.isArray(raw.followUp)) {
     throw new Error("Pi queue returned an invalid catalog");
   }
   const steering = raw.steering.map(parseCatalogItem);
   const followUp = raw.followUp.map(parseCatalogItem);
   const ids = [...steering, ...followUp].map(item => item.id);
   if (new Set(ids).size !== ids.length) throw new Error("Pi queue returned duplicate item IDs");
-  return { revision: raw.revision as number, steering, followUp };
+  return { revision: raw.revision as number, paused: raw.paused as boolean, steering, followUp };
 }
 
 export function parsePiQueueMutation(value: unknown): PiQueueMutationV1 {

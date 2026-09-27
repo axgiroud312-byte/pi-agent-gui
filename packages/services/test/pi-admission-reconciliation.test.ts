@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -25,14 +25,40 @@ async function fixture() {
     postAdmissionError: Error | undefined;
     noRun = false;
     queued = { steering: [] as string[], followUp: [] as string[] };
+    queueRevision = 0;
+    queuePaused = false;
     readonly messages: Record<string, unknown>[] = [];
     model: { provider: string; id: string; reasoning: boolean } | undefined;
     thinkingLevel = 'off';
     async start() {}
     async dispose() {}
     async notify(command: Record<string, unknown>) { this.notifications.push(command); }
-    async request(command: { type: string; message?: string; provider?: string; modelId?: string; level?: string }) {
+    async request(command: { type: string; message?: string; provider?: string; modelId?: string; level?: string;
+      expectedRevision?: number; paused?: boolean }) {
       this.calls.push(command.type);
+      const queueCatalog = () => ({ revision: this.queueRevision, paused: this.queuePaused,
+        steering: this.queued.steering.map((text, index) => ({ id: `steer-${index}`, text, images: [] })),
+        followUp: this.queued.followUp.map((text, index) => ({ id: `follow-${index}`, text, images: [] })) });
+      if (command.type === 'pi_gui_queue_capabilities_v1') return { success: true, data: {
+        protocol: 'pi-gui-queue/1', codingAgent: '0.87.0', agentCore: '0.87.1',
+        stableItemIds: true, atomicRevision: true, images: true,
+      } };
+      if (command.type === 'pi_gui_queue_catalog_v1') return { success: true, data: queueCatalog() };
+      if (command.type === 'pi_gui_queue_set_paused_v1') {
+        if (command.expectedRevision !== this.queueRevision) return { success: false, error: 'revision changed' };
+        this.queuePaused = command.paused === true;
+        this.queueRevision++;
+        this.emit('record', { type: 'pi_gui_queue_update_v1', ...queueCatalog() });
+        return { success: true, data: queueCatalog() };
+      }
+      if (command.type === 'steer' || command.type === 'follow_up') {
+        const lane = command.type === 'steer' ? this.queued.steering : this.queued.followUp;
+        lane.push(command.message ?? '');
+        this.queueRevision++;
+        this.emit('record', { type: 'pi_gui_queue_update_v1', ...queueCatalog() });
+        return { success: true, data: { queueItemId: command.type === 'steer'
+          ? `steer-${lane.length - 1}` : `follow-${lane.length - 1}` } };
+      }
       if (command.type === 'set_model') {
         this.modelRequested?.();
         await this.modelGate;
@@ -61,7 +87,8 @@ async function fixture() {
       return { success: true, data: command.type === 'get_state'
         ? { sessionId: id, sessionFile, messageCount: this.prompts,
           model: this.model, thinkingLevel: this.thinkingLevel,
-          isStreaming: this.streaming, isCompacting: false, pendingMessageCount: 0 }
+          isStreaming: this.streaming, isCompacting: false,
+          pendingMessageCount: this.queued.steering.length + this.queued.followUp.length }
         : command.type === 'get_entries' ? { entries: [], leafId: null }
         : command.type === 'get_messages' ? { messages: this.messages }
         : command.type === 'get_available_thinking_levels' ? { levels: ['off', 'medium'] }
@@ -186,7 +213,7 @@ test('unsupported permissions and execution constraints fail before any Pi side 
       assert.equal(ack.result?.type === 'inputAccepted' ? ack.result.delivery : null, requestedDelivery);
     }
     assert.equal(f.client.prompts, 0);
-    assert.deepEqual(f.client.calls.slice(-2), ['follow_up', 'steer']);
+    assert.ok(f.client.calls.indexOf('follow_up') >= 0 && f.client.calls.indexOf('steer') >= 0);
   } finally { await f.close(); }
 });
 
@@ -291,7 +318,7 @@ test('late Stop neither rewrites a settled turn nor cancels a newer run', async 
   } finally { await f.close(); }
 });
 
-test('Stop retains Pi clear_queue handback without claiming queued work will auto-run', async () => {
+test('Stop pauses the Pi-owned queue without claiming queued work will auto-run', async () => {
   const f = await fixture();
   let resumed: PiNativeV4Service | undefined;
   try {
@@ -329,6 +356,10 @@ test('Stop retains Pi clear_queue handback without claiming queued work will aut
     assert.equal(session?.snapshot.queue.autoDrain, false,
       'a new foreground input must not silently enqueue or auto-run returned work');
     assert.deepEqual(session?.snapshot.queue.items.map(item => item.text), ['change direction', 'later']);
+    const beforeRestart = JSON.parse(await readFile(join(f.catalogDir, `${f.id()}.json`), 'utf8')) as {
+      queueRecovery?: Array<{ text: string }>;
+    };
+    assert.deepEqual(beforeRestart.queueRecovery?.map(item => item.text), ['change direction', 'later']);
     await f.service.dispose();
     const restartedSupervisor = new PiSessionSupervisor({ piEntry: join(f.root, 'unused.js'),
       env: { PI_CODING_AGENT_SESSION_DIR: f.root },
@@ -337,9 +368,13 @@ test('Stop retains Pi clear_queue handback without claiming queued work will aut
     await resumed.subscribeConversationV4({ ...f.target, sessionId: f.id() });
     const restored = (resumed as unknown as { sessions: Map<string, { snapshot: { queue: {
       items: { text: string }[]; autoDrain: boolean; pauseReason?: string } } }> }).sessions.get(f.id());
-    assert.deepEqual(restored?.snapshot.queue.items.map(item => item.text), ['change direction', 'later']);
-    assert.equal(restored?.snapshot.queue.autoDrain, false);
-    assert.equal(restored?.snapshot.queue.pauseReason, 'stopped');
+    assert.deepEqual(restored?.snapshot.queue.items.map(item => item.text), [],
+      'a new Pi process has an empty queue; recovery copies must never masquerade as live Pi work');
+    const interrupted = (resumed as unknown as { sessions: Map<string, {
+      state: { piInterruptedQueueRecovery: Array<{ text: string }> };
+    }> }).sessions.get(f.id());
+    assert.deepEqual(interrupted?.state.piInterruptedQueueRecovery.map(item => item.text),
+      ['change direction', 'later']);
     assert.equal(f.client.prompts, 2, 'reopening must not replay either returned queue item');
   } finally { await resumed?.dispose(); await f.close(); }
 });

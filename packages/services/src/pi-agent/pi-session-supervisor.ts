@@ -426,6 +426,59 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
     return parsePiQueueCatalog(await this.command(sessionId, { type: "pi_gui_queue_catalog_v1" }));
   }
 
+  async setQueuePaused(sessionId: string, expectedRevision: number, paused: boolean): Promise<PiQueueCatalogV1> {
+    await this.requireQueueCompatibility(sessionId);
+    return parsePiQueueCatalog(await this.command(sessionId,
+      { type: "pi_gui_queue_set_paused_v1", expectedRevision, paused }));
+  }
+
+  async resumeQueue(sessionId: string, expectedRevision: number): Promise<{ catalog: PiQueueCatalogV1; promotedId: string | null }> {
+    await this.requireQueueCompatibility(sessionId);
+    const runtime = this.requireSession(sessionId);
+    const wasIdle = ["idle", "settled", "stopped", "error"].includes(runtime.view.phase);
+    const oldPhase = runtime.view.phase;
+    if (wasIdle) {
+      runtime.hadRunError = false;
+      runtime.persistentRunError = false;
+      runtime.modelRetryError = undefined;
+      runtime.acceptRunEvents = true;
+      runtime.view.phase = "accepted";
+      runtime.view.foregroundExecutionId = randomUUID();
+      this.publish(runtime);
+    }
+    let raw: Record<string, unknown>;
+    try {
+      raw = object(await this.command(sessionId, { type: "pi_gui_queue_resume_v1", expectedRevision }));
+    } catch (error) {
+      if (wasIdle) {
+        if (error instanceof PiRpcError && error.delivery === "unknown") {
+          runtime.view.uncertainDelivery = true;
+          runtime.view.reconciliationRequired = true;
+          runtime.view.phase = "error";
+          runtime.view.error = "Pi queue resume delivery is unknown; inspect history before another input";
+        } else {
+          runtime.view.phase = oldPhase;
+          runtime.view.foregroundExecutionId = undefined;
+          runtime.acceptRunEvents = false;
+        }
+        this.publish(runtime);
+      }
+      throw error;
+    }
+    if (raw.promotedId !== null && typeof raw.promotedId !== "string") {
+      throw new Error("Pi queue returned an invalid promoted ID");
+    }
+    const catalog = parsePiQueueCatalog(raw.catalog);
+    runtime.view.queuePaused = catalog.paused;
+    if (wasIdle && raw.promotedId === null && runtime.view.phase === "accepted") {
+      runtime.view.phase = oldPhase;
+      runtime.view.foregroundExecutionId = undefined;
+      runtime.acceptRunEvents = false;
+    }
+    this.publish(runtime);
+    return { catalog, promotedId: raw.promotedId as string | null };
+  }
+
   async readQueueItem(sessionId: string, expectedRevision: number, queueItemId: string): Promise<PiQueueItemV1> {
     await this.requireQueueCompatibility(sessionId);
     return parsePiQueueItem(await this.command(sessionId,
@@ -547,14 +600,11 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
         await runtime.client.notify({ type: "extension_ui_response", id: requestId, cancelled: true });
         runtime.pendingExtensionRequests.delete(requestId);
       }
-      // Pi's abort continues queued work unless the queues are cleared first.
-      const clear = await runtime.client.request({ type: "clear_queue" });
-      if (!clear.success) throw new Error(clear.error ?? "Pi clear_queue failed");
-      const returned = object(clear.data);
-      runtime.view.clearedQueue = {
-        steering: Array.isArray(returned.steering) ? returned.steering.filter((value): value is string => typeof value === "string") : [],
-        followUp: Array.isArray(returned.followUp) ? returned.followUp.filter((value): value is string => typeof value === "string") : [],
-      };
+      // Pause inside Pi before abort. Pi keeps the original text and image
+      // content; its agent loop cannot drain a queued item after this point.
+      const queue = await this.getQueueCatalog(sessionId);
+      const paused = await this.setQueuePaused(sessionId, queue.revision, true);
+      runtime.view.queuePaused = paused.paused;
       const [bash, retry] = await Promise.all([
         runtime.client.request({ type: "abort_bash" }),
         runtime.client.request({ type: "abort_retry" }),
@@ -564,7 +614,7 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
       const abort = await runtime.client.request({ type: "abort" });
       if (!abort.success) throw new Error(abort.error ?? "Pi abort failed");
       const state = await this.getState(sessionId);
-      if (state.isStreaming || state.isCompacting || Number(state.pendingMessageCount) > 0) {
+      if (state.isStreaming || state.isCompacting || !runtime.view.queuePaused) {
         throw new Error("Pi did not settle after stop");
       }
       runtime.view.phase = "stopped";
