@@ -14,7 +14,7 @@
 
 - 工作目录：`C:\Users\niilo\Desktop\pi-agent-gui`
 - 分支：`issue-34-native-pi-rpc`
-- 本轮未发送图片草稿源码提交：`77481f1`（初始 HEAD 为 `c483200`；旧图片/队列增量 `1337c33` 仅是更早历史）。接手时仍以 `git log -1`、`git status -sb` 和远程为准，不要 reset 到旧交接哈希。
+- 本轮未发送图片草稿源码提交：`77481f1`；文档 `4d115f0`；GitHub 校验重试修复 `de7b789`（初始 HEAD 为 `c483200`；旧图片/队列增量 `1337c33` 仅是更早历史）。接手时仍以 `git log -1`、`git status -sb` 和远程为准，不要 reset 到旧交接哈希。
 - 远程：Draft PR #39 分支，核对 `origin/issue-34-native-pi-rpc` 的最新推送。
 - Draft PR：[PR #39](https://github.com/axgiroud312-byte/pi-agent-gui/pull/39)，保持 OPEN / Draft。
 - #34 保持 OPEN，等待最终统一用户验收；这不再阻止技术上继续后续保留范围，但不得把依赖票标记为完成。
@@ -26,11 +26,11 @@
 
 - 起始差距见 [remaining-gap-audit-2026-09-27.md](remaining-gap-audit-2026-09-27.md)。GitHub #1/#34/#3/#4/#5 与依赖票按最新正文评论核对；PR #39 仍 Draft，#34 OPEN，旧“#34 后暂停”文字不再适用。
 - `77481f1` 修复已确认的未发送图片重启丢失：profile IndexedDB 存原始字节/哈希，localStorage 只存 scope 顺序索引；保存完成前同步阻止 Enter/Send；保存失败或单张损坏显示可移除的失败 chip；原生文件选择时先取不可变快照。Pi 仍是已发送消息与运行的权威，草稿存储不充当队列。
-- 红测：原会话图片重启后丢失；延迟读图时 Enter 使纯文字独自发出；20 MiB 图片 base64 被 16 MiB JSONL 上限拒绝；两张 13 MiB 图越过单条总量限制。绿测：`D:/Temp/pi-agent-draft-corrupt-green2-20260927/pi-native-gui-report.json`，生产入口 Windows GUI + 固定 Pi + 受控本地模型，三次完整进程退出/重启；会话与新任务图文恢复、源图片修改后发出原字节、损坏一张保留另一张、无自动重发/页面错误/强制退出/残留。完整 Pi 顺序测试 120/120 PASS；typecheck PASS；lint 0 error/70 既有 warning；桌面 production build PASS；本地 delivery plan 与 6 项测试 PASS。
-- `node scripts/check-delivery-plan.mjs --github` 本轮两次在 GitHub dependencies API 请求中收到 `EOF`（分别 #33、#32）；本地结构校验通过，上一轮远程校验通过。需待网络恢复重跑，不能把此轮记成 PASS。
+- 红测：原会话图片重启后丢失；延迟读图时 Enter 使纯文字独自发出；20 MiB 图片 base64 被 16 MiB JSONL 上限拒绝；两张 13 MiB 图越过单条总量限制。绿测：`D:/Temp/pi-agent-draft-corrupt-green2-20260927/pi-native-gui-report.json`，生产入口 Windows GUI + 固定 Pi + 受控本地模型，三次完整进程退出/重启；会话与新任务图文恢复、源图片修改后发出原字节、损坏一张保留另一张、无自动重发/页面错误/强制退出/残留。完整 Pi 顺序测试 120/120 PASS；typecheck PASS；lint 0 error/70 既有 warning；桌面 production build PASS；本地 delivery plan 与校验器 7 项测试 PASS。
+- `node scripts/check-delivery-plan.mjs --github` 本轮先两次在 GitHub dependencies API 请求中收到 `EOF`（分别 #33、#32）；`de7b789` 为单次 API 传输 EOF 加有界重试与红绿测试后，已重跑 PASS：parent #1、30 child issues、45 blocking edges。校验器单测 7/7 PASS。
 - 该提交仅完成 #5 首个故障及部分回归。仍需两项目两会话同名图片、粘贴/拖入、文字单侧存储失败、会话删除/项目移除后的图片生命周期、全局容量边界、首次发送期间新附件的 scope 迁移与打包 GUI 复测；#3/#4 的其它条件仍开放。旧 `D:/Temp/pi-agent-gui-preview-20260927-b/` 不含此提交，不能当最终包。
 - 隔离并行：`D:/Temp/pi-agent-gui-queue-audit-20260927` 正做 #4 固定 Pi 兼容队列；`D:/Temp/pi-agent-gui-auth-audit-20260927` 正做 #6 同会话公开 bridge；`D:/Temp/pi-agent-gui-files-audit-20260927` 正做 #14 文件纵向批次。均不得直接写主目录；根代理整合、回归、提交和推送。
-- 下一步：完成本批文档提交/推送、#5 技术进度及 Draft PR #39 更新；继续 #5 剩余回归与修复，同时整合隔离 #4/#6/#14 的可验证提交，再按依赖推进其余票。不要请求分批用户试用。
+- #5 技术进度已写入 Issue 评论；Draft PR #39 已更新并保持 Draft。下一步继续 #5 剩余回归与修复，同时整合隔离 #4/#6/#14 的可验证提交，再按依赖推进其余票。不要请求分批用户试用。
 
 ## 已完成并验证
 
