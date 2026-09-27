@@ -95,7 +95,7 @@
 | 能力 / Issue | 实测与证据 | 仍开放 |
 | --- | --- | --- |
 | #4：P02、P03 / V03 | `D:/Temp/pi-queue-gui-main-20260927/pi-queue-gui-report.json`：生产入口原生 GUI→Host→固定 Pi→离线受控模型。相同文本的两张不同图片按 Pi ID 分别排入 follow-up；取回编辑保留原字节；steering/follow-up 分别重排、立即发送、Stop 后保留、手动恢复按 Pi 顺序执行。重启后 Pi 内存队列为空，恢复副本明确提示、没有自动重发。两轮完整退出 `graceful=true`，`forced=[]`、`survivors=[]`，`pageErrors=[]`。5 项定向真实 Pi/投影测试通过。 | shell、retry、compaction、扩展等待各运行态 Stop 矩阵及更长压力测试未完成；重启恢复副本不是活队列，用户需显式重新提交。 |
-| #5：P01、D03 / V02、V04 | `D:/Temp/pi-agent-integrated-green8-20260927/pi-native-gui-report.json`：选择、粘贴、拖入，两个项目的同名未发图片与文字跨完整重启独立恢复；分别发送后固定 Pi 收到各自 SHA-256 原字节。第一项目两会话切换不重放，文件草稿及布局也恢复。`pageErrors=[]`，所有退出无强杀/幸存。 | 快速关窗文本快照加固仍待在当前源码重新跑 GUI；会话/项目删除后图片生命周期、文字单侧写失败、首次发送同时添加附件及最终包内复测仍开放。 |
+| #5：P01、D03 / V02、V04 | `D:/Temp/pi-agent-integrated-postsnapshot-20260927/pi-native-gui-report.json`：当前源码 `87a25b5` 的快速关窗文本快照已在生产入口原生 GUI 重跑。选择、粘贴、拖入，两个项目的同名未发图片与文字跨完整重启独立恢复；分别发送后固定 Pi 收到各自 SHA-256 原字节。第一项目两会话切换不重放，文件草稿及布局也恢复。`error=null`、`pageErrors=[]`，所有退出 `graceful=true`、`forced=[]`、`survivors=[]`，私有 Pi 包清理通过。 | 会话/项目删除后图片生命周期、文字单侧写失败、首次发送同时添加附件及最终包内复测仍开放。 |
 | #6：P13、P24 / V05、V09 | `66e1763` 将 tree/entries、书签、跳转、reload 接到同一 Pi 的公开扩展 bridge；定向真实 Pi 合同与独立原生 GUI 已通过。 | fork/clone 与扩展完整生命周期、包内 GUI 仍开放。 |
 | #9：P10、P11、P17 / V04 | `46c3e73` 用固定 Pi `SessionManager.list` 发现 CLI JSONL 历史；隔离 GUI `D:/Temp/pi-cli-history-gui3-20260927/pi-cli-history-gui-report.json` 验证 CLI→GUI→CLI 同一 session ID/JSONL 续接，退出无残留。定向测试 5/5 中包含实际固定 Pi 历史恢复。 | 主分支整合后的 GUI 复测、目录管理、fork/clone/编辑/重试、导入导出与主动分享仍开放。 |
 | #14：D04 / V11 | `8910b33` 的有界 UTF-8 编辑与 SHA 版本冲突保护已在同一次 `green8` 原生 GUI 中验证：未保存草稿切换/重启恢复、外部改动阻断覆盖、用户明确比较后保存。 | 文件引用、更多预览类型和最终包内 GUI 未完成。 |
