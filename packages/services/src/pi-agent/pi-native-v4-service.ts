@@ -714,7 +714,15 @@ export class PiNativeV4Service implements V4Methods {
           this.emitConversation(record, [{ op: "state.updated", patch: {
             queue: projected.queue, availability: projected.availability,
           } }]);
-          await this.safelyPersist(record);
+          const saved = await this.safelyPersist(record);
+          if (saved) {
+            try { await this.pruneQueueMedia(record, current.revision); }
+            catch (error) {
+              // Cache cleanup is secondary to the Pi queue ACK. Retain bytes
+              // when provenance or filesystem checks cannot be completed.
+              console.warn("[pi-agent] queue media cleanup deferred", error instanceof Error ? error.name : "unknown");
+            }
+          }
           return;
         } catch (error) {
           if (error instanceof Error && /revision changed|consumed or removed/iu.test(error.message)) continue;
@@ -729,7 +737,42 @@ export class PiNativeV4Service implements V4Methods {
     return pending;
   }
 
-  private async safelyPersist(record: SessionRecord, requireFile = false): Promise<void> {
+  private async pruneQueueMedia(record: SessionRecord, queueRevision: number): Promise<void> {
+    const id = record.view.sessionId;
+    const bookmark = this.bookmarks.get(record.view.sessionId);
+    if (!bookmark || bookmark.sessionFile !== record.view.sessionFile) return;
+    const recordVersion = this.recordVersions.get(id);
+    const stillUnreferenced = async () => {
+      if (!record.state.piQueueCompatible || !["idle", "settled"].includes(record.view.phase) ||
+        record.view.foregroundExecutionId || record.view.uncertainDelivery || record.view.reconciliationRequired ||
+        record.state.piPendingIntent || record.state.piReturnedQueue || record.state.piBookmarkError ||
+        this.sessions.get(id) !== record || this.bookmarks.get(id) !== bookmark ||
+        this.recordVersions.get(id) !== recordVersion) return false;
+      const [catalog, piState] = await Promise.all([
+        this.supervisor.getQueueCatalog(id), this.supervisor.getState(id),
+      ]);
+      return catalog.revision === queueRevision && piState.isStreaming === false && piState.isCompacting === false &&
+        this.sessions.get(id) === record && this.bookmarks.get(id) === bookmark &&
+        this.recordVersions.get(id) === recordVersion && ["idle", "settled"].includes(record.view.phase) &&
+        !record.view.foregroundExecutionId && !record.state.piPendingIntent;
+    };
+    if (!await stillUnreferenced()) return;
+    const retained: AttachmentRef[] = [];
+    const recoveries = [record.state.piQueueRecovery, record.state.piInterruptedQueueRecovery,
+      bookmark.queueRecovery, bookmark.interruptedQueueRecovery];
+    for (const recovery of recoveries) {
+      if (recovery === undefined) continue;
+      if (!Array.isArray(recovery)) return;
+      for (const item of recovery as PiQueueRecoveryEntry[]) retained.push(...item.attachments);
+    }
+    for (const row of record.projection.getRows()) {
+      if (row.kind === "userInput" || row.kind === "extensionMessage") retained.push(...(row.attachments ?? []));
+      else if (row.kind === "toolCall") retained.push(...(row.piResult?.attachments ?? []));
+    }
+    await this.queueMedia.pruneUnreferenced(id, retained, record.view.sessionFile, stillUnreferenced);
+  }
+
+  private async safelyPersist(record: SessionRecord, requireFile = false): Promise<boolean> {
     try {
       const saved = await this.persist(record);
       if (!saved && requireFile && record.projection.getRows().some(row => row.kind === "userInput")) {
@@ -740,6 +783,7 @@ export class PiNativeV4Service implements V4Methods {
         delete record.state.piBookmarkErrorAt;
         this.bookmarkControlChanged(record);
       }
+      return saved;
     } catch (error) {
       // Never turn an already accepted Pi prompt into a failed ACK: that would
       // invite a duplicate side effect. Surface the history failure in v4 state.
@@ -750,6 +794,7 @@ export class PiNativeV4Service implements V4Methods {
         record.state.piBookmarkErrorAt = Date.now();
         this.bookmarkControlChanged(record);
       }
+      return false;
     }
   }
 
@@ -1147,7 +1192,13 @@ export class PiNativeV4Service implements V4Methods {
         if (record.state.piIncompleteTurn) {
           this.supervisor.requireReconciliation(id, false);
         }
-        await this.safelyPersist(record, true);
+        const saved = await this.safelyPersist(record, true);
+        if (saved && record.state.piQueueCompatible === true &&
+          typeof this.supervisor.getQueueCatalog === "function") {
+          void this.refreshQueueFacts(record).catch(error => {
+            console.warn("[pi-agent] settled queue readback failed", error instanceof Error ? error.name : "unknown");
+          });
+        }
         if (deltas.length) {
           this.emitConversation(record, deltas);
           this.emitIndex(record.workspaceKey, record);
