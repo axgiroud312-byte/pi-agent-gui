@@ -2,7 +2,8 @@ import { createServer } from 'node:http';
 import { createHash } from 'node:crypto';
 
 // External OpenAI Chat Completions boundary; Pi (not this server) executes tools.
-export async function startPiModel({ holdAfterRequests = Infinity, failFirstRequests = 0 } = {}) {
+export async function startPiModel({ holdAfterRequests = Infinity, failFirstRequests = 0,
+  overflowAtRequest = Infinity } = {}) {
   const requests = [];
   const sockets = new Set();
   const held = new Set();
@@ -47,6 +48,12 @@ export async function startPiModel({ holdAfterRequests = Infinity, failFirstRequ
       toolResults: toolResults.map(message => text(message.content)), stream: body.stream, closed: false };
     requests.push(request);
     res.on('close', () => { request.closed = true; });
+    if (requests.length === overflowAtRequest) {
+      res.writeHead(400, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: { message: 'Your input exceeds the context window of this model',
+        type: 'invalid_request_error' } }));
+      return;
+    }
     if (requests.length <= failFirstRequests) {
       res.writeHead(503, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ error: { message: 'PI_RETRY_CONTROLLED_FAILURE', type: 'server_error' } }));
