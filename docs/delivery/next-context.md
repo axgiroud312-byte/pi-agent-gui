@@ -1,25 +1,60 @@
-# 当前入口：Pi 范围已收缩，#34 等待用户验收
+# 当前入口：继续完成剩余 Pi-first 范围，统一后再请用户验收
 
-更新时间：2026-09-27。先读 [产品目标](../product-goal.md)、[ADR 0001](../adr/0001-native-zcode-base.md)、[范围修订](pi-first-scope.md)，再核对 GitHub 最新正文与本地 `git status`。此次用户授权更新远程文档、任务与后续 Issues，不授权自动开始新功能或合并 #34。
+更新时间：2026-09-27。开始前读取 [产品目标](../product-goal.md)、[ADR 0001](../adr/0001-native-zcode-base.md)、[Pi-first 范围](pi-first-scope.md)、[完整开发计划](full-development.md)、[任务账本](tickets.json)、[复用清单](reuse-inventory.md) 和 [本次预览证据](pi-capability-preview-2026-09-27.md)，再核对 GitHub 最新 Issue/PR 与本地 Git 状态。
 
-## 当前状态
+## 用户最新决定
 
-- #32 原生导入与 #33 实际界面确认已完成。ZCode 原生组件、布局和交互继续复用。
-- #34 OPEN / [PR #39](https://github.com/axgiroud312-byte/pi-agent-gui/pull/39) Draft；`issue-34-native-pi-rpc@ef77805` 之后的本地压缩错误修复、恢复回归和证据纠正仍未提交。不要把文档分支合并当成 #34 已合并。
-- 本地 #34 试用包与验证材料保留在 `C:\Users\niilo\Desktop\pi-agent-gui\release\issue-34-closeout\2026-09-27\`；可运行入口为 `bundle/win-unpacked/Pi Agent IDE Preview.exe`。这些本地产物不在文档提交中，也不是远程可下载发行版。
-- 本地工作树中的 `docs/delivery/issue-34-closeout/closeout-2026-09-27.md`、Standards/Spec 报告和 `manifest.json` 记录本次收尾证据。固定真实 Pi + 受控 loopback 模型验证不等于在线账号验收；安装器安装/升级尚未验证。
-- 清理证据中的 `forced=[]` 仅表示测试 harness 在应用退出后无需补杀；`survivors=[]` 表示它记录的进程无残留，不能证明运行时内部从未强杀。
-- 远程 CI 已取消；旧正文/评论/报告的 CI 门槛由当前 CONTRIBUTING 覆盖，不恢复工作流。
+- 用户不希望在功能尚未贯通时分批进行人工试用或逐票验收。
+- 继续实施所有保留范围，完成统一、连贯的产品后，再提供一份完整测试清单并请求一次用户实际验收。
+- 开发期间仍必须执行代理可完成的本地自动测试、受控真实 Pi、桌面宿主、包内启动和回归验证；“暂缓用户测试”不等于暂缓工程验证。
+- 不得因用户暂缓验收而伪造 #34 或后续 Issue 的人工通过、关闭 Issue、合并 Draft PR 或正式发布。
+- 缺少在线账号、OAuth 人工回调、真实 llama.cpp/GGUF 或安装权限时，明确记录待最终验收项，但继续所有不依赖这些条件的开发。
 
-## 当前任务范围
+## 当前 Git 与交付状态
 
-#1 保持开启；#34 是当前验收关卡。之后保留 15 张功能票 + #28 最终验收，见 [执行表](full-development.md)、[能力账本](coverage.md) 与 [机器合同](tickets.json)。#15–#24 共 10 张旧票按 not_planned/wontfix 退出，并非已交付；其旧正文、依赖见 [历史快照](archive/scope-before-2026-09-27/README.md)，原评论/分支/源码不删除。
+- 工作目录：`C:\Users\niilo\Desktop\pi-agent-gui`
+- 分支：`issue-34-native-pi-rpc`
+- 当前提交：`331a9b168073ed4178746f498b0a84cbbab4b1d2`
+- 远程：已推送至 `origin/issue-34-native-pi-rpc`
+- Draft PR：[PR #39](https://github.com/axgiroud312-byte/pi-agent-gui/pull/39)，保持 OPEN / Draft。
+- #34 保持 OPEN，等待最终统一用户验收；这不再阻止技术上继续后续保留范围，但不得把依赖票标记为完成。
+- `origin/main@9db2da4` 的 Pi-first 范围基线已通过合并提交 `f41457e` 集成。
+- 必须保留未跟踪 `%SystemDrive%/`、`用`，以及 `stash@{0}: scope-doc-copies-before-main-integration-2026-09-27`；禁止 reset/clean/强推或批量暂存未知文件。
 
-Pi 能力包括对话、图片、工具、模型/认证/thinking、队列/停止/重试/压缩、历史/树/分支、Skills/模板/扩展/配置，以及固定版本的其他原生能力。桌面只补使用 Pi 所必要的本地项目、输入/引用/预览、会话切换、设置和可靠启动/保存恢复。在线 API/OAuth 仍保留，复杂 TUI 按实际接口记录边界。
+## 已完成并验证
 
-## 接手动作
+- #34 压缩错误保存、恢复续跑和证据语义收口：`04de955`、`ddbf196`。
+- 图片 RPC、steer/follow-up、完整停止、模型/thinking/usage、compact、扩展阻塞对话：`06c0f88`。
+- Pi 拥有草稿模型 readiness：`0b71ff0`。
+- Pi 模型和资源命令 catalog 刷新：`f9b24c4`。
+- Composer 资源面保持 Pi 范围并移除子 Agent 建议：`2856e28`、`8d42fb9`。
+- 技术预览与 Standards/Spec 记录：`docs/delivery/pi-capability-preview-2026-09-27.md`。
+- `pnpm --dir packages/services exec tsx --test --test-concurrency=1 test/pi-*.test.ts`：116/116 PASS。
+- `pnpm run typecheck`、定向 oxlint：PASS。
+- delivery plan、本地 6 项测试及 `--github`：PASS，17 active / 10 retired。
+- Desktop production build、Windows electron-builder、runtime dependency audit、170.6 MiB size audit：PASS。
+- 最终包内启动/恢复：PASS；无继承的 no-model 门禁、Skill catalog 错误或 Composer 子 Agent 区域。
+- 当前可运行包：`packages/desktop/dist/win-unpacked/Pi Agent IDE Preview.exe`。
+- 当前 NSIS：`packages/desktop/dist/Pi Agent IDE Preview-3.14.0-win-x64_TEST.exe`，尚未安装验证。
+- 全仓 `pnpm run build` 仍被嵌套 CLI debug 包的 esbuild host `0.28.2` / binary `0.25.12` 不匹配阻塞；桌面目标构建通过。
 
-1. 原工作树 `C:\Users\niilo\Desktop\pi-agent-gui` 的所有未提交内容必须保留，尤其 #34 源码/测试、历史交接、`%SystemDrive%/`、`用`。不 reset、clean、强推或批量暂存。
-2. 文档与任务同步通过独立 `docs/pi-first-scope-20260927` 分支进行，不包含产品修复；保留原分支。后续集成 main 时逐文件解决范围文档冲突，不覆盖本地产品代码。
-3. 先核对 #34 当前用户验收结果。未获后续功能实施指令时停在此处；ready 标签或无依赖不等于自动开工。
-4. 进入具体实施后按最新 Issue、原生依赖、复用边界和本地验证规则交付。`node scripts/check-delivery-plan.mjs --github` 只验证账本一致，不证明任何功能完成。
+## 剩余范围
+
+详细验收以 GitHub 最新正文为准，不能用以下摘要替代：
+
+1. **#3/#4/#5**：补齐 GUI 图片手势与在线模型证据、自动压缩/重试、队列附件取回/编辑/重排、上下文 shell，以及草稿/附件/布局保存恢复。
+2. **#6/#7/#8/#14**：版本化公开扩展 tree/bookmark/reload bridge；真实 Pi API key/OAuth 认证中心；扩展 UI 类别矩阵与 notify/status/widget；文件引用、预览、必要编辑保存完整验收。
+3. **#9/#10/#11**：Pi 历史目录、分支/fork/clone、导入导出/主动分享；Pi 设置与自定义 provider 配置；llama.cpp router 管理。
+4. **#12/#13/#25**：Skills/模板/上下文/扩展包管理与重载；扩展对话、状态、工具和生命周期；必要 GUI 等价交互与可见兼容限制。
+5. **#26/#27**：中文 IME、键盘、焦点、滚动、长会话；Windows 保存恢复、诊断、安装/升级/卸载。
+6. **#28**：所有保留能力的统一 Standards/Spec、真实链路、包内运行和最终本地验收，随后才交给用户实际测试。
+
+#15–#24 仍为 `not_planned/wontfix`，不得恢复。不得新建 MCP、Plan、子 Agent 或调度系统；继承界面中超出范围且会误导用户的入口应隐藏或明确不可用，而不是连接旧执行引擎。
+
+## 接手后第一步
+
+1. 读取 GitHub #1、#34、当前批次 Issue 正文与评论，以及父规格和阻塞关系。
+2. 检查 `git status -sb`、worktree、stash、当前 HEAD 和远程差异，保存新的恢复清单。
+3. 从 `docs/delivery/pi-capability-preview-2026-09-27.md` 的“remaining gaps”与 #3/#4/#5 开始，先做一次代码/界面差距清单，再实施，不重复已通过的 #34 基础调查。
+4. 每批做聚焦提交和推送，更新 Draft PR/任务账本；不关闭需人工验收的 Issue。
+5. 连续推进直到剩余范围全部实现或只剩确实需要用户账号/设备操作的阻塞，然后生成统一试用包、完整测试步骤和阻塞清单，停在一次最终用户验收。

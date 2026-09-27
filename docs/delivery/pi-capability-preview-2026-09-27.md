@@ -1,10 +1,10 @@
 # Pi capability preview — 2026-09-27
 
-Status: **technical preview; waiting for user acceptance**  
+Status: **technical preview; user acceptance deferred until the retained scope is complete**
 Branch: `issue-34-native-pi-rpc`  
 Baseline closeout: `docs/delivery/issue-34-closeout/closeout-2026-09-27.md`
 
-This note records work performed after the #34 technical closeout. It does not close #34, bypass the issue dependency graph, or claim the dependent capability issues complete.
+This note records work performed after the #34 technical closeout. It does not close #34 or claim the dependent capability issues complete. The user has explicitly deferred piecemeal manual testing: technical implementation may continue across the retained scope, while all Issues that require human acceptance remain open until one coherent final trial.
 
 ## Included changes
 
