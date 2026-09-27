@@ -78,6 +78,26 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
       if (!current()) return;
       if (record.type === "extension_ui_request" && typeof record.id === "string" &&
         ["select", "confirm", "input", "editor"].includes(String(record.method))) {
+        if (runtime.cancellingExtensionRequests) {
+          // A cancelled extension can ask another question before its prompt
+          // command finishes. Keep it in Pi, but never show a new live dialog
+          // or accept an answer from the renderer after Stop has claimed it.
+          if (!runtime.extensionStopQueueReady) {
+            // Pi has not acknowledged the queue pause yet. Hold this request
+            // rather than letting its answer resume a queued Agent input.
+            runtime.pendingExtensionRequests.add(record.id);
+          } else {
+            void client.notify({ type: "extension_ui_response", id: record.id, cancelled: true })
+              .catch(error => {
+                if (!current()) return;
+                runtime.extensionCancellationError = message(error);
+                view.reconciliationRequired = true;
+                view.error = `Pi extension cancellation failed: ${message(error)}`;
+                this.publish(runtime);
+              });
+          }
+          return;
+        }
         runtime.pendingExtensionRequests.add(record.id);
       }
       this.emit("record", view.sessionId, record);
@@ -303,6 +323,8 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
         hadRunError: false,
         persistentRunError: false,
         pendingExtensionRequests: new Set(),
+        cancellingExtensionRequests: false,
+        extensionStopQueueReady: false,
         lease,
       };
       this.sessions.set(view.sessionId, runtime);
@@ -730,6 +752,9 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
   async respondExtension(sessionId: string, requestId: string,
     response: { value?: string; confirmed?: boolean; cancelled?: true }): Promise<void> {
     const runtime = this.requireSession(sessionId);
+    if (runtime.cancellingExtensionRequests || runtime.stopping) {
+      throw new Error("Pi extension request is no longer pending after Stop");
+    }
     if (!runtime.pendingExtensionRequests.has(requestId)) throw new Error("Pi extension request is no longer pending");
     // Claim before the asynchronous write so two renderer commands cannot both
     // answer the same Pi prompt, or race Stop into delivering a second answer.
@@ -878,20 +903,31 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
     // Check and claim synchronously, before clear_queue/abort can yield. A new
     // admission cannot enter while this generation's Stop is pending.
     runtime.stopping = true;
+    runtime.cancellingExtensionRequests = true;
+    runtime.extensionStopQueueReady = false;
+    runtime.extensionCancellationError = undefined;
+    const extensionRequests = [...runtime.pendingExtensionRequests];
+    runtime.pendingExtensionRequests.clear();
     runtime.acceptRunEvents = false;
     runtime.view.phase = "stopping";
     this.publish(runtime);
     try {
-      // Cancel blocking extension input before aborting the run that owns it.
-      for (const requestId of runtime.pendingExtensionRequests) {
-        await runtime.client.notify({ type: "extension_ui_response", id: requestId, cancelled: true });
-        runtime.pendingExtensionRequests.delete(requestId);
-      }
-      // Pause inside Pi before abort. Pi keeps the original text and image
-      // content; its agent loop cannot drain a queued item after this point.
-      const queue = await this.getQueueCatalog(sessionId);
-      const paused = await this.setQueuePaused(sessionId, queue.revision, true);
-      runtime.view.queuePaused = paused.paused;
+      // Pause Pi's authoritative queue before releasing a blocked extension;
+      // otherwise its handler can let the agent drain the next queued input.
+      // Even if pause fails, cancel the visible dialogs and fail closed.
+      let pauseError: unknown;
+      try {
+        const queue = await this.getQueueCatalog(sessionId);
+        const paused = await this.setQueuePaused(sessionId, queue.revision, true);
+        runtime.view.queuePaused = paused.paused;
+      } catch (error) { pauseError = error; }
+      runtime.extensionStopQueueReady = true;
+      extensionRequests.push(...runtime.pendingExtensionRequests);
+      runtime.pendingExtensionRequests.clear();
+      await Promise.all(extensionRequests.map(requestId => runtime.client.notify({
+        type: "extension_ui_response", id: requestId, cancelled: true,
+      })));
+      if (pauseError) throw pauseError;
       const [bash, retry] = await Promise.all([
         runtime.client.request({ type: "abort_bash" }),
         runtime.client.request({ type: "abort_retry" }),
@@ -912,6 +948,14 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
           throw new Error("Pi compaction did not settle after abort");
         }
       }
+      // An extension command can issue a later dialog after its first answer.
+      // An idle get_state is not proof that the RPC prompt handler has ended.
+      if (!await runtime.client.waitForPendingCommand("prompt", 3_000)) {
+        throw new Error("Pi extension command did not settle after Stop");
+      }
+      if (runtime.extensionCancellationError) {
+        throw new Error(`Pi extension cancellation failed: ${runtime.extensionCancellationError}`);
+      }
       const state = await this.getState(sessionId);
       if (state.isStreaming || state.isCompacting || !runtime.view.queuePaused) {
         throw new Error("Pi did not settle after stop");
@@ -920,9 +964,12 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
       runtime.view.foregroundExecutionId = undefined;
       runtime.view.reconciliationRequired = false;
       runtime.view.error = undefined;
+      runtime.cancellingExtensionRequests = false;
+      runtime.extensionStopQueueReady = false;
       return "stopped";
     } catch (error) {
       if (error instanceof PiRpcError && error.delivery === "unknown") runtime.view.uncertainDelivery = true;
+      runtime.view.reconciliationRequired = true;
       runtime.view.phase = "error";
       runtime.view.error = message(error);
       throw error;

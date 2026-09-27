@@ -102,6 +102,178 @@ test("Stop cancels a pending pinned Pi extension input and retires its request",
   } finally { await supervisor.dispose(); await rm(root, { recursive: true, force: true }); }
 });
 
+for (const method of ["select", "confirm", "input", "editor"] as const) {
+  test(`Stop rejects a ${method} answer arriving while Pi cancellation is being sent`,
+    { timeout: 30_000 }, async () => {
+      const root = await mkdtemp(join(tmpdir(), `pi-native-extension-stop-race-${method}-`));
+      const supervisor = new PiSessionSupervisor({
+        piEntry: fileURLToPath(import.meta.resolve("@earendil-works/pi-coding-agent/rpc-entry")),
+        env: { PI_CODING_AGENT_DIR: join(root, "profile"), PI_TELEMETRY: "0" },
+        rpcArgs: ["--offline", "--no-extensions", "-e",
+          fileURLToPath(new URL("./fixtures/pi-ui-sequence.ts", import.meta.url)),
+          "--no-skills", "--no-prompt-templates", "--no-context-files"],
+      });
+      let releaseCancel = () => {};
+      try {
+        const session = await supervisor.createSession(root);
+        const ordered = ["select", "confirm", "input", "editor"] as const;
+        let reached!: (id: string) => void;
+        const pending = new Promise<string>(resolve => { reached = resolve; });
+        supervisor.on("record", (id, event) => {
+          if (id !== session.sessionId || event.type !== "extension_ui_request" ||
+            typeof event.id !== "string") return;
+          if (event.method === method) reached(event.id);
+          else if (ordered.indexOf(event.method as typeof method) < ordered.indexOf(method)) {
+            const response = event.method === "confirm" ? { confirmed: false } : { value: "alpha" };
+            void supervisor.respondExtension(id, event.id, response).catch(() => {});
+          }
+        });
+        const command = supervisor.sendText(session.sessionId, "/pi-ui-sequence");
+        void command.catch(() => {});
+        const requestId = await pending;
+        const runtime = (supervisor as unknown as { sessions: Map<string, { client: {
+          notify: (response: Record<string, unknown>) => Promise<void>;
+        } }> }).sessions.get(session.sessionId);
+        assert.ok(runtime);
+        const originalNotify = runtime.client.notify.bind(runtime.client);
+        let entered!: () => void;
+        const cancelling = new Promise<void>(resolve => { entered = resolve; });
+        const gate = new Promise<void>(resolve => { releaseCancel = resolve; });
+        runtime.client.notify = async response => {
+          if (response.type === "extension_ui_response" && response.cancelled === true &&
+            response.id === requestId) {
+            entered();
+            await gate;
+          }
+          return originalNotify(response);
+        };
+        const executionId = supervisor.getSession(session.sessionId)?.foregroundExecutionId;
+        assert.ok(executionId);
+        const stopping = supervisor.stop(session.sessionId, executionId);
+        void stopping.catch(() => {});
+        await cancelling;
+        const late = method === "confirm" ? { confirmed: true } : { value: "beta" };
+        await assert.rejects(supervisor.respondExtension(session.sessionId, requestId, late),
+          /no longer pending|stopping/);
+        releaseCancel();
+        assert.equal(await stopping, "stopped");
+        assert.equal(supervisor.getSession(session.sessionId)?.pid, session.pid);
+      } finally {
+        releaseCancel();
+        await supervisor.dispose();
+        await rm(root, { recursive: true, force: true });
+      }
+    });
+}
+
+test("Stop drains later Pi dialogs before reporting stopped and the next command can ask again",
+  { timeout: 30_000 }, async () => {
+    const root = await mkdtemp(join(tmpdir(), "pi-native-extension-stop-cascade-"));
+    const supervisor = new PiSessionSupervisor({
+      piEntry: fileURLToPath(import.meta.resolve("@earendil-works/pi-coding-agent/rpc-entry")),
+      env: { PI_CODING_AGENT_DIR: join(root, "profile"), PI_TELEMETRY: "0" },
+      rpcArgs: ["--offline", "--no-extensions", "-e",
+        fileURLToPath(new URL("./fixtures/pi-ui-sequence.ts", import.meta.url)),
+        "--no-skills", "--no-prompt-templates", "--no-context-files"],
+    });
+    try {
+      const session = await supervisor.createSession(root);
+      const seen: string[] = [];
+      let first!: (id: string) => void;
+      const firstDialog = new Promise<string>(resolve => { first = resolve; });
+      let answerNext = false;
+      supervisor.on("record", (id, event) => {
+        if (id !== session.sessionId || event.type !== "extension_ui_request" ||
+          typeof event.id !== "string" || !["select", "confirm", "input", "editor"].includes(String(event.method))) return;
+        seen.push(String(event.method));
+        if (!answerNext) first(event.id);
+        else void supervisor.respondExtension(id, event.id,
+          event.method === "confirm" ? { confirmed: false } : { value: "alpha" }).catch(() => {});
+      });
+      const command = supervisor.sendText(session.sessionId, "/pi-ui-sequence");
+      void command.catch(() => {});
+      await firstDialog;
+      const executionId = supervisor.getSession(session.sessionId)?.foregroundExecutionId;
+      assert.ok(executionId);
+      assert.equal(await supervisor.stop(session.sessionId, executionId), "stopped");
+      await command;
+      assert.deepEqual(seen, ["select"], "later dialogs of the stopped extension must not reach the UI");
+      assert.equal(supervisor.getSession(session.sessionId)?.phase, "stopped");
+      assert.equal(supervisor.getSession(session.sessionId)?.pid, session.pid);
+      answerNext = true;
+      assert.equal(await supervisor.sendText(session.sessionId, "/pi-ui-sequence"), "handledCommand");
+      assert.deepEqual(seen.slice(1), ["select", "confirm", "input", "editor"]);
+    } finally {
+      await supervisor.dispose();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+test("Stop holds newly arrived extension requests until Pi queue pause is confirmed",
+  { timeout: 30_000 }, async () => {
+    const root = await mkdtemp(join(tmpdir(), "pi-native-extension-stop-queue-order-"));
+    const supervisor = new PiSessionSupervisor({
+      piEntry: fileURLToPath(import.meta.resolve("@earendil-works/pi-coding-agent/rpc-entry")),
+      env: { PI_CODING_AGENT_DIR: join(root, "profile"), PI_TELEMETRY: "0" },
+      rpcArgs: ["--offline", "--no-extensions", "-e",
+        fileURLToPath(new URL("./fixtures/pi-ui-parallel-stop.ts", import.meta.url)),
+        "--no-skills", "--no-prompt-templates", "--no-context-files"],
+    });
+    let releasePause = () => {};
+    try {
+      const session = await supervisor.createSession(root);
+      const runtime = (supervisor as unknown as { sessions: Map<string, { client: {
+        notify: (response: Record<string, unknown>) => Promise<void>;
+        on: (event: string, handler: (record: Record<string, unknown>) => void) => void;
+      } }> }).sessions.get(session.sessionId);
+      assert.ok(runtime);
+      const originalNotify = runtime.client.notify.bind(runtime.client);
+      const originalCatalog = supervisor.getQueueCatalog.bind(supervisor);
+      let pauseReached!: () => void;
+      const waitingForPause = new Promise<void>(resolve => { pauseReached = resolve; });
+      const pauseGate = new Promise<void>(resolve => { releasePause = resolve; });
+      supervisor.getQueueCatalog = async id => {
+        pauseReached();
+        await pauseGate;
+        return originalCatalog(id);
+      };
+      const cancelled: string[] = [];
+      runtime.client.notify = async response => {
+        if (response.type === "extension_ui_response" && response.cancelled === true) {
+          cancelled.push(String(response.id));
+        }
+        return originalNotify(response);
+      };
+      let first!: (id: string) => void;
+      let second!: (id: string) => void;
+      const firstDialog = new Promise<string>(resolve => { first = resolve; });
+      const secondDialog = new Promise<string>(resolve => { second = resolve; });
+      runtime.client.on("record", record => {
+        if (record.method === "select" && typeof record.id === "string") first(record.id);
+        if (record.method === "input" && typeof record.id === "string") second(record.id);
+      });
+      const command = supervisor.sendText(session.sessionId, "/pi-ui-parallel-stop");
+      void command.catch(() => {});
+      const firstId = await firstDialog;
+      const executionId = supervisor.getSession(session.sessionId)?.foregroundExecutionId;
+      assert.ok(executionId);
+      const stopping = supervisor.stop(session.sessionId, executionId);
+      void stopping.catch(() => {});
+      await waitingForPause;
+      const secondId = await secondDialog;
+      assert(!cancelled.includes(firstId) && !cancelled.includes(secondId),
+        "extension answers must remain blocked until Pi owns a paused queue");
+      releasePause();
+      assert.equal(await stopping, "stopped");
+      await command;
+      assert(cancelled.includes(firstId) && cancelled.includes(secondId));
+    } finally {
+      releasePause();
+      await supervisor.dispose();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
 test("cancelled Pi UI prompt cannot receive a stale answer after public bridge reload", { timeout: 30_000 }, async () => {
   const root = await mkdtemp(join(tmpdir(), "pi-native-extension-reload-"));
   const supervisor = new PiSessionSupervisor({

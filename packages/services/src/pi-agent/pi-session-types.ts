@@ -55,6 +55,10 @@ export interface SessionRuntime {
   persistentRunError: boolean;
   modelRetryError?: string;
   pendingExtensionRequests: Set<string>;
+  /** Reject and cancel dialogs from the execution claimed by Stop, including late dialogs. */
+  cancellingExtensionRequests: boolean;
+  extensionStopQueueReady: boolean;
+  extensionCancellationError?: string;
   lease?: PiSessionLease;
 }
 
