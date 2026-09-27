@@ -212,6 +212,11 @@ try {
     reasoningModel,
     "Pi provider request must use the searched model",
   );
+  report.stages.thinkingBefore = {
+    model: await config.getAttribute("data-model"),
+    levels: await config.getAttribute("data-thought-levels"),
+    selected: await config.getAttribute("data-thought"),
+  };
   await page.waitForFunction(() => {
     const levels =
       document
@@ -296,6 +301,7 @@ try {
   }
   for (const socket of sockets) socket.destroy();
   await new Promise((resolve) => server.close(resolve));
+  report.requests = requests;
   await writeFile(
     join(f.output, "pi-model-thinking-gui-report.json"),
     JSON.stringify(report, null, 2),
