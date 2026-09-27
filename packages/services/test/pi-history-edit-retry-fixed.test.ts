@@ -56,6 +56,16 @@ export default function(pi) { pi.on("session_before_tree", () => existsSync(${JS
         ...(revision !== undefined ? { baseRevision: revision } : {}),
         ...(epoch ? { baseLogEpoch: epoch } : {}),
       } });
+      const retryOnCurrentSnapshot = async (sessionId: string, entryId: string) => {
+        for (let attempt = 0; attempt < 4; attempt++) {
+          const range = await service!.conversationRowsRangeV4({ workspacePath, sessionId, limit: 100 });
+          const ack = await service!.sendConversationCommandV4(command(sessionId, "retryPiEntry",
+            { entryId }, range.atRevision, range.atLogEpoch) as never);
+          if (ack.status !== "stale") return ack;
+          assert.equal(ack.reasonCode, "pi.branchSnapshotChanged");
+        }
+        throw new Error("Pi snapshot kept changing before retry admission");
+      };
       const settledAfter = () => (async () => {
         for await (const [id, event] of on(supervisor, "record", { signal: AbortSignal.timeout(25_000) })) {
           if (id === sessionId && event.type === "agent_settled") return;
@@ -93,13 +103,13 @@ export default function(pi) { pi.on("session_before_tree", () => existsSync(${JS
       assert.equal(users[1]?.message?.content?.find(part => part.type === "image")?.data,
         png.toString("base64"), "Pi JSONL is the original image source");
       const beforeRange = await service.conversationRowsRangeV4({ workspacePath, sessionId, limit: 100 });
+      assert(beforeRange.atRevision > 0);
       const stale = await service.sendConversationCommandV4(command(sessionId, "retryPiEntry",
-        { entryId: users[1]!.id }, beforeRange.atRevision + 1, beforeRange.atLogEpoch) as never);
+        { entryId: users[1]!.id }, beforeRange.atRevision - 1, beforeRange.atLogEpoch) as never);
       assert.equal(stale.status, "stale");
       assert.deepEqual(await readFile(source.sessionFile), original);
       settled = settledAfter();
-      const retry = await service.sendConversationCommandV4(command(sessionId, "retryPiEntry",
-        { entryId: users[1]!.id }, beforeRange.atRevision, beforeRange.atLogEpoch) as never);
+      const retry = await retryOnCurrentSnapshot(sessionId, users[1]!.id);
       assert.equal(retry.status, "accepted", retry.message);
       assert.equal(retry.result?.type, "inputAccepted");
       await settled;
@@ -135,10 +145,8 @@ export default function(pi) { pi.on("session_before_tree", () => existsSync(${JS
           part.text === "edited historical input")), "Pi owns the edited branch's new user entry");
       await (service as unknown as { reconciliations: Map<string, Promise<void>> }).reconciliations.get(sessionId);
       const beforeCancel = await readFile(source.sessionFile);
-      const finalRange = await service.conversationRowsRangeV4({ workspacePath, sessionId, limit: 100 });
       await writeFile(cancellationFlag, "cancel");
-      const cancelled = await service.sendConversationCommandV4(command(sessionId, "retryPiEntry",
-        { entryId: users[0]!.id }, finalRange.atRevision, finalRange.atLogEpoch) as never);
+      const cancelled = await retryOnCurrentSnapshot(sessionId, users[0]!.id);
       assert.equal(cancelled.status, "noop", "Pi extension cancellation is an explicit no-op");
       assert.equal(cancelled.reasonCode, "pi.branchCancelled");
       assert.equal(requests.length, 4, "cancelled retry cannot reach the model");
@@ -163,11 +171,8 @@ export default function(pi) { pi.on("session_before_tree", () => existsSync(${JS
         { type: "text"; text: string };
       assert.equal(referenceText.text.match(/Pi file snapshots captured at send time/gu)?.length, 1);
       await writeFile(referencedPath, "CHANGED_REFERENCE_BYTES");
-      const beforeReferenceRetry = await service.conversationRowsRangeV4({ workspacePath, sessionId, limit: 100 });
       settled = settledAfter();
-      const referenceRetry = await service.sendConversationCommandV4(command(sessionId, "retryPiEntry", {
-        entryId: originalReference.id,
-      }, beforeReferenceRetry.atRevision, beforeReferenceRetry.atLogEpoch) as never);
+      const referenceRetry = await retryOnCurrentSnapshot(sessionId, originalReference.id);
       assert.equal(referenceRetry.status, "accepted", referenceRetry.message);
       await settled;
       const afterReferenceRetry = await supervisor.command(sessionId, { type: "get_entries" }) as typeof entriesBefore;

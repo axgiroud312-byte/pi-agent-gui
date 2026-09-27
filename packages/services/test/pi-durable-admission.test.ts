@@ -134,6 +134,7 @@ test('a first-input extension side effect without JSONL leaves a discoverable, b
   const fake = Object.assign(new EventEmitter(), {
     createSession: async () => ({ sessionId, sessionFile, workspacePath: root,
       pid: process.pid, phase: 'idle' as const, uncertainDelivery: false }),
+    getSession: () => undefined,
     getState: async () => ({ sessionId, sessionFile, isStreaming: false, isCompacting: false,
       pendingMessageCount: 0 }),
     sendText: async () => {

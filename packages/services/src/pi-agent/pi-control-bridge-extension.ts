@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- One bound Pi extension handles control commands in a single registration. */
 import { createHash, randomUUID } from "node:crypto";
 import { lstat, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
@@ -344,8 +345,14 @@ export default function piControlExtension(pi: ExtensionAPI): void {
               "Pi user entry is already the leaf; select an earlier message to edit");
             // Retry resubmits the original canonical content from Pi JSONL in Host.
             // Ordinary navigation still refuses media that the text editor cannot restore.
-            const editorText = content === undefined || intent.mode === "retry"
-              ? undefined : editablePiHistoryText(content);
+            let editorText: string | undefined;
+            if (content !== undefined && intent.mode !== "retry") {
+              try { editorText = editablePiHistoryText(content); }
+              catch (error) {
+                throw new ControlError("ENTRY_NOT_EDITABLE", error instanceof Error ? error.message :
+                  "Pi history cannot be restored to the text editor losslessly");
+              }
+            }
             const result = await ctx.navigateTree(intent.targetId,
               { summarize: intent.summarize, customInstructions: intent.customInstructions });
             if (!result.cancelled && !wasLeaf) {

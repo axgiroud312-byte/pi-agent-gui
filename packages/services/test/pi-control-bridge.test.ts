@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import { PiRpcClient } from "../src/pi-agent/pi-rpc-client.js";
-import { PiControlBridge } from "../src/pi-agent/pi-control-bridge.js";
+import { PiControlBridge, PiControlError } from "../src/pi-agent/pi-control-bridge.js";
 
 test("pinned Pi public bridge changes native tree, label and generation on reload", { timeout: 90_000 }, async () => {
   const root = await mkdtemp(join(tmpdir(), "pi-native-bridge-"));
@@ -100,15 +100,20 @@ test("pinned Pi public bridge changes native tree, label and generation on reloa
     await prompt("attached image", [{ type: "image",
       data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC",
       mimeType: "image/png" }]);
+    // Editing the current leaf is rejected before media restoration is checked.
+    // Add a later turn so this targets an earlier image entry's editor path.
+    await prompt("after image");
     const withImage = await bridge.refresh();
     const imageUser = withImage.entries.find(entry => entry.type === "message" && entry.message.role === "user" &&
       "content" in entry.message && Array.isArray(entry.message.content) &&
       entry.message.content.some(part => part.type === "image"));
     assert(imageUser);
     await assert.rejects(bridge.act({ operation: "navigate", targetId: imageUser.id, summarize: false,
-      sessionId, generation: withImage.info.generation }), /image attachments losslessly/i);
+      sessionId, generation: withImage.info.generation }), error =>
+      error instanceof PiControlError && error.code === "ENTRY_NOT_EDITABLE" &&
+        /image.*losslessly/i.test(error.message));
     assert.equal((await bridge.refresh()).leafId, withImage.leafId, "image branch must stay untouched");
-    assert.equal(calls.length, 4, "control commands must not invoke the model");
+    assert.equal(calls.length, 5, "control commands must not invoke the model");
   } finally {
     bridge?.dispose();
     await client?.dispose();

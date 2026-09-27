@@ -47,7 +47,8 @@ test('real pinned Pi extension dialog is exposed and an explicit denial resumes 
         supervisor.sendText(view.sessionId, '/pi-dialog-gate'),
         new Promise<never>((_, reject) => setTimeout(() => reject(Error('Pi dialog hung')), 5000).unref()),
       ]);
-      assert.equal(result, 'noRun');
+      assert.equal(result, 'handledCommand');
+      assert.equal(supervisor.getSession(view.sessionId)?.phase, 'settled');
       assert.ok(events.some(event => event.type === 'extension_ui_request' && event.method === 'confirm'));
       assert.ok(events.some(event => event.type === 'extension_ui_request' && event.message === 'SAFE_DENIED'));
       assert.ok(!events.some(event => event.message === 'UNSAFE_GRANTED'));
