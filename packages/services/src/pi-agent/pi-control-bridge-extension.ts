@@ -107,6 +107,14 @@ export default function piControlExtension(pi: ExtensionAPI): void {
             reply(binding);
             break;
           }
+          case "refresh_models": {
+            const result = await ctx.modelRegistry.refresh({ allowNetwork: false });
+            if (result.aborted || result.errors.size) {
+              throw new ControlError("MODEL_REFRESH_FAILED", "Pi model directory could not be refreshed");
+            }
+            reply(binding, { modelsRefreshed: true });
+            break;
+          }
           case "reload": {
             const operation: ReloadOperation = { request };
             state.reload = operation;

@@ -571,6 +571,16 @@ export interface IZCodeAgentService {
     expectedRevision: string;
     text: string;
   }): Promise<import("../pi-agent/pi-settings-documents.js").PiSettingsSnapshot>;
+  /** Fixed Pi 0.87 ModelRuntime management; inference remains in the owned RPC session. */
+  readPiAuth(params: ZCodeAgentWorkspaceTarget): Promise<import("../pi-agent/pi-auth-manager.js").PiAuthView>;
+  refreshPiAuth(params: ZCodeAgentWorkspaceTarget & { generation: string }): Promise<import("../pi-agent/pi-auth-manager.js").PiAuthView>;
+  startPiAuth(params: ZCodeAgentWorkspaceTarget & { generation: string; providerId: string;
+    action: import("../pi-agent/pi-auth-manager.js").PiAuthAction;
+    method?: import("../pi-agent/pi-auth-manager.js").PiAuthMethod }): Promise<string>;
+  answerPiAuth(params: ZCodeAgentWorkspaceTarget & { generation: string;
+    operationId: string; promptId: string; value: string }): Promise<void>;
+  cancelPiAuth(params: ZCodeAgentWorkspaceTarget & { generation: string;
+    operationId: string }): Promise<void>;
   /** Fixed Pi public extension control, scoped to an active leased session. */
   readPiControlTree(params: ZCodeAgentSessionTarget): Promise<import("../pi-agent/pi-control-protocol.js").PiControlView>;
   runPiControlTree(params: ZCodeAgentSessionTarget & {

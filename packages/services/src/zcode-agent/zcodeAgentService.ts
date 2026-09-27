@@ -3322,6 +3322,11 @@ export function createZCodeAgentService(
   return {
     async readPiSettings() { throw new Error("Pi settings are unavailable in this runtime"); },
     async savePiSettings() { throw new Error("Pi settings are unavailable in this runtime"); },
+    async readPiAuth() { throw new Error("Pi authentication is unavailable in this runtime"); },
+    async refreshPiAuth() { throw new Error("Pi authentication is unavailable in this runtime"); },
+    async startPiAuth() { throw new Error("Pi authentication is unavailable in this runtime"); },
+    async answerPiAuth() { throw new Error("Pi authentication is unavailable in this runtime"); },
+    async cancelPiAuth() { throw new Error("Pi authentication is unavailable in this runtime"); },
     async readPiControlTree() { throw new Error("Pi public control bridge is unavailable in this runtime"); },
     async runPiControlTree() { throw new Error("Pi public control bridge is unavailable in this runtime"); },
     async cancelPiTreeNavigation() { throw new Error("Pi public control bridge is unavailable in this runtime"); },

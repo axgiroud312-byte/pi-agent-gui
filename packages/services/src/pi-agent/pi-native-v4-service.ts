@@ -62,6 +62,7 @@ import { PiQueueMediaStore } from "./pi-queue-media-store.js";
 import { readPiSettingsDocuments, savePiSettingsDocument,
   type PiSettingsScope, type PiSettingsSnapshot } from "./pi-settings-documents.js";
 import type { PiQueueCatalogV1 } from "./pi-queue-compat.js";
+import { PiAuthManager, type PiAuthAction, type PiAuthMethod, type PiAuthView } from "./pi-auth-manager.js";
 
 interface SessionRecord {
   workspaceKey: string;
@@ -215,6 +216,7 @@ export class PiNativeV4Service implements V4Methods {
   private readonly workspaceClosures = new Map<string, Promise<void>>();
   private readonly workspaceGenerations = new Map<string, number>();
   private readonly extensionInteractionTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private readonly authManagers = new Map<string, PiAuthManager>();
   private disposePromise?: Promise<void>;
   private readonly conversationEmitters = new Map<string, Emitter<ConversationTopicWireCandidate>>();
   private readonly indexEmitters = new Map<string, Emitter<SessionsIndexTopicWireCandidate>>();
@@ -657,6 +659,7 @@ export class PiNativeV4Service implements V4Methods {
           freeText: event.method === "input" || event.method === "editor",
           ...(options ? { options } : {}), input: { method: event.method,
             ...(typeof event.placeholder === "string" ? { placeholder: event.placeholder } : {}),
+            ...(typeof event.message === "string" ? { message: event.message } : {}),
             ...(typeof event.prefill === "string" ? { prefill: event.prefill } : {}) } } };
       record.state.piExtensionInteractions = [...interactions.filter(item => item.interactionId !== event.id), interaction];
       const projected = createPiV4Snapshot(record.view, record.state, record.snapshot.logEpoch);
@@ -731,6 +734,9 @@ export class PiNativeV4Service implements V4Methods {
   }
 
   private clearExtensionInteraction(record: SessionRecord, interactionId: string): void {
+    const timerKey = `${record.view.sessionId}:${interactionId}`;
+    clearTimeout(this.extensionInteractionTimers.get(timerKey));
+    this.extensionInteractionTimers.delete(timerKey);
     this.supervisor.forgetExtensionRequest(record.view.sessionId, interactionId);
     const interactions = Array.isArray(record.state.piExtensionInteractions)
       ? record.state.piExtensionInteractions as Array<Record<string, unknown>> : [];
@@ -838,6 +844,66 @@ export class PiNativeV4Service implements V4Methods {
     const record = this.sessions.get(sessionId);
     if (!record || record.workspaceKey !== resolveWorkspaceKey(params)) throw new Error("Pi session is not owned by this workspace");
     return record;
+  }
+
+  private async synchronizePiAuthSessions(agentDir: string): Promise<void> {
+    const records = [...this.sessions.values()].filter(record =>
+      this.supervisor.getAgentDirectory(record.view.workspacePath) === agentDir);
+    for (const record of records) {
+      const sessionId = record.view.sessionId;
+      const key = `${record.workspaceKey}:${sessionId}`;
+      if (this.treeOperations.has(key) || this.sessionAdmissions.has(key) || record.state.piPendingIntent ||
+        !["idle", "settled", "stopped"].includes(record.view.phase)) {
+        throw new Error("Pi session must be idle before synchronizing provider authentication");
+      }
+      this.treeOperations.add(key);
+      try {
+        const current = await this.supervisor.readControlBridge(sessionId);
+        await this.supervisor.runControlBridge(sessionId, { operation: "refresh_models",
+          sessionId, generation: current.info.generation });
+        await this.refreshRuntimeFacts(record);
+      } finally { this.treeOperations.delete(key); }
+    }
+  }
+
+  private authFor(params: ZCodeAgentWorkspaceTarget): PiAuthManager {
+    this.assertWorkspaceOpen(params);
+    const agentDir = this.supervisor.getAgentDirectory(params.workspacePath);
+    let manager = this.authManagers.get(agentDir);
+    if (!manager) {
+      manager = new PiAuthManager(agentDir, undefined, () => this.synchronizePiAuthSessions(agentDir));
+      this.authManagers.set(agentDir, manager);
+    }
+    return manager;
+  }
+
+  private currentAuth(params: ZCodeAgentWorkspaceTarget & { generation: string }): PiAuthManager {
+    const manager = this.authFor(params);
+    if (manager.generation !== params.generation) throw new Error("Pi auth view is stale; refresh providers");
+    return manager;
+  }
+
+  readPiAuth(params: ZCodeAgentWorkspaceTarget): Promise<PiAuthView> {
+    return this.authFor(params).snapshot();
+  }
+
+  refreshPiAuth(params: ZCodeAgentWorkspaceTarget & { generation: string }): Promise<PiAuthView> {
+    return this.currentAuth(params).refresh();
+  }
+
+  startPiAuth(params: ZCodeAgentWorkspaceTarget & { generation: string; providerId: string;
+    action: PiAuthAction; method?: PiAuthMethod }): Promise<string> {
+    return this.currentAuth(params).start(params.providerId, params.action, params.method);
+  }
+
+  async answerPiAuth(params: ZCodeAgentWorkspaceTarget & { generation: string;
+    operationId: string; promptId: string; value: string }): Promise<void> {
+    this.currentAuth(params).answer(params.operationId, params.promptId, params.value);
+  }
+
+  async cancelPiAuth(params: ZCodeAgentWorkspaceTarget & { generation: string;
+    operationId: string }): Promise<void> {
+    this.currentAuth(params).cancel(params.operationId);
   }
 
   async readPiControlTree(params: ZCodeAgentWorkspaceTarget & { sessionId: string }): Promise<PiControlView> {
@@ -1234,6 +1300,25 @@ export class PiNativeV4Service implements V4Methods {
         const input = interactionPayload.input && typeof interactionPayload.input === "object"
           ? interactionPayload.input as Record<string, unknown> : {};
         const answer = payload.answer;
+        const method = input.method;
+        if (answer.action !== "cancel") {
+          if (method === "select" && (typeof answer.optionId !== "string" ||
+            !Array.isArray(interactionPayload.options) ||
+            !interactionPayload.options.some(option => typeof option === "object" && option !== null &&
+              (option as Record<string, unknown>).optionId === answer.optionId))) {
+            return failure(commandId, "pi.invalidExtensionChoice", "Choose an offered Pi extension option",
+              record.snapshot.revision);
+          }
+          if (method === "confirm" && answer.action !== "accept" && answer.action !== "decline" &&
+            answer.optionId !== "true" && answer.optionId !== "false") {
+            return failure(commandId, "pi.invalidExtensionConfirmation", "Confirm or decline the Pi extension request",
+              record.snapshot.revision);
+          }
+          if ((method === "input" || method === "editor") && typeof answer.freeText !== "string") {
+            return failure(commandId, "pi.invalidExtensionText", "Submit text or cancel the Pi extension request",
+              record.snapshot.revision);
+          }
+        }
         await this.supervisor.respondExtension(record.view.sessionId, payload.interactionId,
           answer.action === "cancel" ? { cancelled: true }
             : input.method === "confirm" ? { confirmed: answer.action === "accept" || answer.optionId === "true" }
@@ -1603,6 +1688,8 @@ export class PiNativeV4Service implements V4Methods {
   }
 
   private async disposeOwned(): Promise<void> {
+    for (const manager of this.authManagers.values()) manager.dispose();
+    this.authManagers.clear();
     this.subscriptions.clear();
     for (const timer of this.extensionInteractionTimers.values()) clearTimeout(timer);
     this.extensionInteractionTimers.clear();

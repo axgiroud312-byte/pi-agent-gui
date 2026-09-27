@@ -111,7 +111,8 @@ export class PiControlBridge {
       }
       const result = piControlObject(reply.result);
       if (operation === "navigate" && typeof result.cancelled !== "boolean" ||
-        operation === "reload" && result.reloaded !== true) {
+        operation === "reload" && result.reloaded !== true ||
+        operation === "refresh_models" && result.modelsRefreshed !== true) {
         throw new PiControlError("BAD_REPLY", "Pi control result is incomplete", true);
       }
       return reply;

@@ -33,6 +33,12 @@ worktree 父目录：`C:\Users\niilo\AppData\Local\Temp\opencode`。以下提交
 
 另有 #2 的 `issue-2-rpc-transport`、`issue-2-renderer`、`issue-2-e2e` 工作树，内容已进入 #31，不重复领取。`integration/first-release` 停在 `46c34f1`，不继续旧批次整合。
 
+### #7/#8 原生认证与扩展交互移植记录（2026-09-27，隔离分支待整合）
+
+对照旧 #7 `bde41fc` 的 ModelRuntime 认证、取消和凭据状态测试，仅沿用固定 Pi 公开 API 的做法；旧私有 loopback、旧 Settings UI 和自有 provider 状态源没有移植。新实现是 `packages/services/src/pi-agent/pi-auth-manager.ts`，使用 Pi 0.87.0 `ModelRuntime` 管理 RPC 子进程实际 `PI_CODING_AGENT_DIR` 内的 `auth.json` / `models.json`，在原生 Settings 的模型提供商页显示非秘密状态。认证写入后由版本化公开控制桥在同一 Pi RPC 会话调用 `ctx.modelRegistry.refresh({allowNetwork:false})`；不能把宿主侧保存成功冒充为在线推理通过。公开桥版本从 1.0.0 增至 1.1.0，Pi 协议版本仍为 1。
+
+对照旧 #8 `7d9e407` 的 TUI 兼容研究，本次只移植 RPC 可序列化的 `select`、`confirm`、`input`、`editor` 交互合同和真 Pi 顺序测试；旧 headless TUI 宿主、CLI 补丁、组件渲染器和第二会话没有移植。原生 `V4InteractionDialogs` / `V4UserInputDialog` 复用已有弹窗路径，具体类别边界见 [扩展 UI 兼容表](pi-extension-ui-compatibility.md)。这些增量代码使用固定 Pi 的公开接口；版权与许可证沿用 `THIRD_PARTY_NOTICES.md` 的 Pi 声明。
+
 ## 已知外部验收差额
 
 - 旧主线真实 `openai-codex/gpt-5.5` 文本成功（449 tokens）；`aio-codex/gpt-5.4-mini` 为 Connection error，未通过。

@@ -2,7 +2,8 @@
 import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { realpath, stat } from "node:fs/promises";
-import { isAbsolute } from "node:path";
+import { homedir } from "node:os";
+import { isAbsolute, join, resolve } from "node:path";
 import { PiRpcClient, PiRpcError } from "./pi-rpc-client.js";
 import { PiSessionLease } from "./pi-session-lease.js";
 import { settlePiSessionBeforeClose } from "./pi-session-teardown.js";
@@ -48,6 +49,15 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
   /** The same environment and flags passed to pinned Pi RPC at startup. */
   settingsEnvironment(): { env: NodeJS.ProcessEnv; rpcArgs: string[] } {
     return { env: { ...process.env, ...this.options.env }, rpcArgs: [...(this.options.rpcArgs ?? [])] };
+  }
+
+  /** Resolve the same local Pi profile path that each RPC child receives. */
+  getAgentDirectory(workspacePath: string): string {
+    const raw = this.options.env?.PI_CODING_AGENT_DIR ?? process.env.PI_CODING_AGENT_DIR ??
+      join(homedir(), ".pi", "agent");
+    const expanded = raw === "~" ? homedir() : raw.startsWith("~/") || raw.startsWith("~\\")
+      ? join(homedir(), raw.slice(2)) : raw;
+    return resolve(workspacePath, expanded);
   }
 
   private publish(runtime: SessionRuntime): void {
@@ -519,8 +529,10 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
     response: { value?: string; confirmed?: boolean; cancelled?: true }): Promise<void> {
     const runtime = this.requireSession(sessionId);
     if (!runtime.pendingExtensionRequests.has(requestId)) throw new Error("Pi extension request is no longer pending");
-    await runtime.client.notify({ type: "extension_ui_response", id: requestId, ...response });
+    // Claim before the asynchronous write so two renderer commands cannot both
+    // answer the same Pi prompt, or race Stop into delivering a second answer.
     runtime.pendingExtensionRequests.delete(requestId);
+    await runtime.client.notify({ type: "extension_ui_response", id: requestId, ...response });
   }
 
   async enqueueText(sessionId: string, text: string, behavior: "steer" | "followUp",

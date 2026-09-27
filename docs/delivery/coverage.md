@@ -75,6 +75,8 @@
 | P01、P04、D03 / V02 | 固定 Pi 0.87.0 + 离线受控模型：原生 GUI 图片选择经 Host 分块上传，模型收到真实 PNG，Pi JSONL 的 user row 图片可预览并在重启后恢复。测试 `pi-native-image-upload.test.ts` 与 `scripts/pi-native-gui-smoke.mjs`。 | 拖入/粘贴各自完整矩阵、未知消息、在线模型图片仍未验收；本表的旧包尚未包含下方新草稿修复。 |
 | P02、P03 / V03 | GUI 运行中纯文本自动路由到 Pi 队列；Stop 先清队列，再取消运行；返回的文本在 GUI/重启后只读可见、不自动重发。运行中图片入队被拒且保留草稿及 Stop，避免 `clear_queue` 仅返文本而静默丢图。 | 双队列逐项编辑/删除/重排/立即发送、图片队列的无损取回、shell/retry/compaction/扩展等待的 GUI Stop 矩阵均**未完成**（#4）。 |
 | D06 / V01 | 本次生产源码入口及隔离的 Windows unpacked 包均通过原生 GUI→宿主→固定 Pi 图片/队列/停止/恢复，进程树检查无幸存；本地 TypeScript、lint、Pi 单测及桌面 production build 通过。NSIS 未安装产物已生成并通过依赖/大小检查。 | **未实际安装** NSIS、覆盖升级、卸载、在线 provider 或用户实际验收（#27/#28）；当前预览包不能当作统一最终交付。 |
+| P18、P19、P33 / V06（#7 局部） | 固定 Pi 0.87.0 `ModelRuntime` 的 API key 保存/解析/登出与合成 OAuth 回调/刷新/取消合同通过；真实 Pi RPC 子进程同一 PID 在保存 key 后经公开桥 1.1.0 刷新模型快照，登出后恢复原模型可见性。原生 Settings 页接入非秘密状态和输入。测试 `pi-auth-manager.test.ts`、`pi-auth-service.test.ts`。 | 在线 provider 推理、真实 OAuth 账号/人工回调、扩展注册 provider 的认证、原生 GUI/包内 UI 与用户验收未完成；保存成功不可冒充在线模型成功。 |
+| P27 / V09（#8 局部） | 固定 Pi 同一 RPC 会话扩展连续发出 select/confirm/input/editor，宿主对四类请求回传，拒绝非法选项与 Stop/重载后旧回答；原生弹窗保留正文、预填、多行和取消。测试 `pi-extension-native-interaction.test.ts`、`piExtensionProjection.test.ts`。 | notify/status/widget/title/editor text 未投影；复杂 TUI factory 无 RPC 等价合同。GUI、包内及键盘/焦点待验，逐类边界见 [兼容表](pi-extension-ui-compatibility.md)。 |
 
 本地原始输出位于 `test-results/pi-*.log`、`test-results/native-parity/product/`（ignored，非提交证据）；`1337c33` 的隔离增量包位于 `D:/Temp/pi-agent-gui-preview-20260927-b/`（不是最终用户试用包）：`win-unpacked/Pi Agent IDE Preview.exe` 已实际运行，`Pi Agent IDE Preview-3.14.0-win-x64_TEST.exe` 仅已生成、未安装。对应实现与差异见 `packages/services/src/pi-agent/`、`scripts/native-smoke/` 及 [原生 UI 差异登记](native-ui-parity.md)。受控模型不等于在线供应商。下表所有“待逐项验收”维持原状。
 

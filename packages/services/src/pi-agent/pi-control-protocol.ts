@@ -1,18 +1,19 @@
 import type { ExtensionAPI, ExtensionCommandContext, SessionEntry, SessionTreeNode } from "@earendil-works/pi-coding-agent";
 
 export const PI_CONTROL_PROTOCOL = 1;
-export const PI_CONTROL_VERSION = "1.0.0";
+export const PI_CONTROL_VERSION = "1.1.0";
 export const PI_CONTROL_COMMAND = "pi-ide-control-v1";
 export const PI_CONTROL_DESCRIPTION = "Pi Agent IDE public control bridge v1";
 export const PI_CONTROL_PREFIX = "pi-ide-control:";
-export const PI_CONTROL_OPERATIONS = ["handshake", "inspect", "navigate", "label", "set_tools", "reload"] as const;
+export const PI_CONTROL_OPERATIONS = ["handshake", "inspect", "navigate", "label", "set_tools", "reload", "refresh_models"] as const;
 export type PiControlOperation = typeof PI_CONTROL_OPERATIONS[number];
 
 export type PiControlIntent =
   | { operation: "navigate"; targetId: string; summarize: boolean; customInstructions?: string }
   | { operation: "label"; targetId: string; label: string | null }
   | { operation: "set_tools"; names: string[] }
-  | { operation: "reload" };
+  | { operation: "reload" }
+  | { operation: "refresh_models" };
 export type PiControlAction = PiControlIntent & { generation: string; sessionId: string };
 
 export interface PiControlRequest {
@@ -40,7 +41,7 @@ export interface PiControlInspection {
   systemPrompt: string;
   projectTrusted: boolean;
 }
-export interface PiControlResult { cancelled?: boolean; editorText?: string; reloaded?: boolean }
+export interface PiControlResult { cancelled?: boolean; editorText?: string; reloaded?: boolean; modelsRefreshed?: boolean }
 export interface PiControlReply extends PiControlInfo {
   id: string;
   operation: PiControlOperation;
@@ -78,6 +79,7 @@ export function piControlIntent(value: unknown): PiControlIntent {
   const input = piControlObject(value);
   switch (input.operation) {
     case "reload": return { operation: "reload" };
+    case "refresh_models": return { operation: "refresh_models" };
     case "navigate":
       if (identifier(input.targetId) && typeof input.summarize === "boolean" &&
         (input.customInstructions === undefined || typeof input.customInstructions === "string" && input.customInstructions.length <= 32_768)) {

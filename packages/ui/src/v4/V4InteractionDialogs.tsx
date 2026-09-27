@@ -393,10 +393,9 @@ export function V4InteractionDialogs({
   });
   return (
     <V4UserInputDialog
+      key={pending.interactionId}
       model={model}
-      onSubmit={(answer) => {
-        void resolveInteraction(pending.interactionId, answer);
-      }}
+      onSubmit={(answer) => resolveInteraction(pending.interactionId, answer)}
     />
   );
 }
