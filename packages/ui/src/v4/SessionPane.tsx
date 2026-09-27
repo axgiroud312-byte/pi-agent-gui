@@ -1208,7 +1208,11 @@ export function SessionPane({
   // Pi exposes thinking levels for the currently selected model. After set_model,
   // read that model's levels from the same session instead of retaining the
   // previous model's picker options.
-  }, [piCatalogKey, refreshPiModelCatalog, snapshot?.config.provider, snapshot?.config.model]);
+  // Settings keeps the workspace mounted but removes foreground focus. An
+  // auth refresh can finish while that layer is open, after an earlier read
+  // projected an empty Pi catalog. Re-read the same Pi child on return even
+  // if the settings notification was missed while the pane was inactive.
+  }, [focused, piCatalogKey, refreshPiModelCatalog, snapshot?.config.provider, snapshot?.config.model]);
   useEffect(() => {
     if (!piCatalogKey) return;
     const refresh = () => { void refreshPiModelCatalog().catch(error => {

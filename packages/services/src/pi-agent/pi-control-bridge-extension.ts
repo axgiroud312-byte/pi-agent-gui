@@ -340,7 +340,9 @@ export default function piControlExtension(pi: ExtensionAPI): void {
             const provider = ctx.modelRegistry.getProvider(id);
             if (!provider) return [];
             const status = ctx.modelRegistry.getProviderAuthStatus(id);
-            return [{ id: safeProviderLabel(id), name: safeProviderLabel(provider.name), configured: status.configured,
+            // The ID is an authorization identity. Keep Pi's exact value so a
+            // settings action can never compare against a lossy display label.
+            return [{ id, name: safeProviderLabel(provider.name), configured: status.configured,
               modelCount: modelCounts.get(id) ?? 0,
               methods: [
                 ...(provider.auth.apiKey ? ["api_key" as const] : []),

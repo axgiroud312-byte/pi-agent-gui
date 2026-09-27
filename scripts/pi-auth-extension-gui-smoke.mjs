@@ -125,16 +125,28 @@ try {
   assert(!(await page.locator('body').innerText()).includes('{ invalid models.json'));
   await page.screenshot({ path: join(f.output, 'pi-auth-catalog-error.png') });
   await writeFile(modelsPath, validModels);
-  await auth.getByRole('button', { name: '刷新目录', exact: true }).click();
-  await auth.getByText(/Pi 模型目录或认证状态存在错误/).waitFor({ state: 'hidden', timeout: 20_000 });
-  await auth.getByRole('button', { name: /new-provider/i }).waitFor();
+  const refreshCatalog = auth.getByRole('button', { name: '刷新目录', exact: true });
+  await refreshCatalog.click();
+  // The user can return while Pi's same-child refresh is still in flight.
+  // SessionPane must recover the authoritative catalog after it regains focus.
   report.auth = { saved: true, secretHidden: true, loggedOut: true,
-    catalogErrorThenRepaired: true, customProviderRestored: true };
+    catalogErrorThenRepaired: true, returnedImmediatelyAfterRefreshClick: true };
   await page.getByTestId('settings-back-button').click();
   await page.getByTestId('settings-page').waitFor({ state: 'hidden' });
 
+  await page.getByTestId('pi-resources-open').click();
+  const resources = page.getByTestId('pi-resources-dialog');
+  await resources.getByTestId('pi-resource-command-row').first().waitFor();
+  report.piCommandsAfterAuth = await resources.getByTestId('pi-resource-command-row')
+    .evaluateAll(rows => rows.map(row => row.getAttribute('data-command-name')));
+  await page.keyboard.press('Escape');
+  await resources.waitFor({ state: 'hidden' });
   await composer.click();
   await page.keyboard.type('/pi-ui-sequence');
+  const send = page.getByTestId('v4-composer-send').filter({ visible: true }).first();
+  for (let count = 0; count < 100 && !await send.isEnabled(); count++) await page.waitForTimeout(50);
+  assert(await send.isEnabled(), 'composer must recover the Pi model catalog after early settings return');
+  report.auth.customProviderRestored = true;
   await page.getByTestId('v4-composer-send').filter({ visible: true }).first().click();
   const dialog = page.getByTestId('v4-user-input-dialog');
   await dialog.waitFor({ timeout: 20_000 });

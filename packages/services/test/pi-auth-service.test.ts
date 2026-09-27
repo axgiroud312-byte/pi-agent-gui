@@ -17,6 +17,8 @@ test("auth view reads runtime extension providers from the same Pi RPC child wit
     const profile = join(root, "profile");
     const extensions = join(profile, "extensions");
     const marker = join(root, "factory-runs.txt");
+    const unusualProviderId = "fixture-control\nprovider";
+    const longProviderId = `fixture-long-${"x".repeat(240)}`;
     await mkdir(extensions, { recursive: true });
     await writeFile(join(extensions, "fixture-provider.js"), `
 import { appendFileSync } from "node:fs";
@@ -27,6 +29,13 @@ export default function (pi) {
     api: "openai-completions", models: [{ id: "fixture-model", name: "Fixture model",
       input: ["text"], contextWindow: 4096, maxTokens: 256 }],
     oauth: { name: "Fixture OAuth", async login() { throw new Error("No live account"); },
+      async refreshToken(value) { return value; }, getApiKey(value) { return value.access; } }
+  });
+  for (const id of [${JSON.stringify(unusualProviderId)}, ${JSON.stringify(longProviderId)}]) pi.registerProvider(id, {
+    name: "Fixture unusual provider ID", baseUrl: "http://127.0.0.1:1/v1",
+    api: "openai-completions", models: [{ id: "fixture-unusual-model", name: "Fixture unusual model",
+      input: ["text"], contextWindow: 4096, maxTokens: 256 }],
+    oauth: { name: "Fixture unusual OAuth", async login() { throw new Error("No live account"); },
       async refreshToken(value) { return value; }, getApiKey(value) { return value.access; } }
   });
   pi.registerCommand("fixture-auth-override", { description: "Register a provider after auth was read",
@@ -70,6 +79,10 @@ export default function (pi) {
       assert.equal(extension?.configured, false);
       assert.equal(extension?.methods.find(item => item.type === "oauth")?.canLogin, false);
       assert.equal(first.runtimeCatalogStatus, "ready");
+      assert.equal(first.providers.find(item => item.id === unusualProviderId)?.runtimeOnly, true,
+        "the dynamic provider identity must match Pi's raw ID even when its display needs escaping");
+      assert.equal(first.providers.find(item => item.id === longProviderId)?.runtimeOnly, true,
+        "the dynamic provider identity must not be truncated to a display length");
       assert.equal(first.providers.find(item => item.id === "anthropic")?.runtimeOnly, undefined);
       let registered = false;
       const onRecord = (id: string, event: Record<string, unknown>) => {
@@ -92,6 +105,12 @@ export default function (pi) {
         "an action-time inspect must replace a cached built-in provider after a runtime override");
       await assert.rejects(service.startPiAuth({ ...target, generation: first.generation,
         providerId: "fixture-extension-oauth", action: "login", method: "oauth" }),
+      /not available in this GUI|不可在 GUI/iu);
+      await assert.rejects(service.startPiAuth({ ...target, generation: first.generation,
+        providerId: unusualProviderId, action: "login", method: "oauth" }),
+      /not available in this GUI|不可在 GUI/iu);
+      await assert.rejects(service.startPiAuth({ ...target, generation: first.generation,
+        providerId: longProviderId, action: "login", method: "oauth" }),
       /not available in this GUI|不可在 GUI/iu);
       await service.readPiAuth(target);
       assert.equal(await readFile(marker, "utf8"), factoryRuns,
@@ -241,6 +260,16 @@ test("native Pi service manages the exact RPC child's auth directory without a c
       availableBefore.models.some(model => model.provider === "anthropic"),
       "same-session model availability must return to its previous credential source");
     assert.equal(supervisor.getSession(sessionId)?.pid, pid);
+    const modelsPath = join(profile, "models.json");
+    const validModels = await readFile(modelsPath, "utf8");
+    await writeFile(modelsPath, "{ invalid models.json");
+    const broken = await service.refreshPiAuth({ ...target, generation: after.generation });
+    assert.equal(broken.catalogError, true);
+    await writeFile(modelsPath, validModels);
+    await service.refreshPiAuth({ ...target, generation: after.generation });
+    const restoredCatalog = await service.readPiModelCatalog({ ...target, sessionId });
+    assert(restoredCatalog.options?.some(option => option.value === "test-local-provider/test-local-model"),
+      "after refreshPiAuth completes, the same Pi child must expose the restored model to SessionPane");
   } finally {
     await service.dispose();
     server.closeAllConnections();

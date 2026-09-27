@@ -111,8 +111,12 @@ export function PiAuthSection({ service, workspacePath }: { service: IZCodeAgent
         </p> : null}
       </div>
       <Button variant="outline" disabled={!view || busy || running}
-        onClick={() => { if (view) void perform(() => service.refreshPiAuth({ workspacePath,
-          generation: view.generation })); }}>刷新目录</Button>
+        onClick={() => { if (view) void perform(async () => {
+          await service.refreshPiAuth({ workspacePath, generation: view.generation });
+          // Pi session model synchronization has completed. A polling read can
+          // observe the local catalog earlier, so notify the composer here too.
+          window.dispatchEvent(new Event(PI_AUTH_CATALOG_CHANGED_EVENT));
+        }); }}>刷新目录</Button>
     </div>
     {error ? <p role="alert" className="text-ui-sm text-destructive">{error}</p> : null}
     {!view ? <p className="text-ui-sm text-foreground-subtle">正在读取 Pi provider…</p> :
