@@ -219,6 +219,8 @@ try {
     };
   });
   assert(report.stages.focusRestored.usable, "Focus must remain on an enabled native control");
+  assert.equal(report.stages.focusRestored.testId, "v4-composer-input",
+    "an acknowledged Pi extension command must return focus to the editable native composer");
   let result;
   for (let attempt = 0; attempt < 100; attempt++) {
     try {
@@ -234,6 +236,13 @@ try {
     "Pi, not the host, must resolve both Escape cancellations and the remaining answers",
   );
   report.stages.piResult = result;
+  await composer.click();
+  await page.keyboard.type("PI_TEXT: follow up after Pi extension command");
+  await page.getByTestId("v4-composer-send").filter({ visible: true }).first().click();
+  await page.getByText("PI_TEXT_COMPLETE", { exact: true }).nth(1).waitFor({ timeout: 30_000 });
+  assert.equal(model.requests.filter((request) => request.scenario === "PI_TEXT").length, 2,
+    "the extension command must leave the same Pi session ready for the next model input");
+  report.stages.followUpModelRun = true;
   await verifyPiPackageCleanup(f);
   assert.deepEqual(report.pageErrors, []);
 } catch (error) {

@@ -1635,7 +1635,10 @@ export class PiNativeV4Service implements V4Methods {
           const outcome = await this.supervisor.sendText(view.sessionId, firstPrompt!.text, firstImages);
           if (outcome === "noRun" || outcome === "handledCommand") {
             projection.cancelExpectedUserCommand(commandId);
-            if (outcome === "handledCommand") delete record.state.piPendingIntent;
+            if (outcome === "handledCommand") {
+              delete record.state.piPendingIntent;
+              this.onPiChange(record.view);
+            }
           }
           await this.safelyPersist(record);
         }
@@ -1763,7 +1766,10 @@ export class PiNativeV4Service implements V4Methods {
           const outcome = await this.supervisor.sendText(record.view.sessionId, prompt.text, images);
           if (outcome === "noRun" || outcome === "handledCommand") {
             record.projection.cancelExpectedUserCommand(commandId);
-            if (outcome === "handledCommand") delete record.state.piPendingIntent;
+            if (outcome === "handledCommand") {
+              delete record.state.piPendingIntent;
+              this.onPiChange(record.view);
+            }
           }
           await this.safelyPersist(record);
         } catch (error) {

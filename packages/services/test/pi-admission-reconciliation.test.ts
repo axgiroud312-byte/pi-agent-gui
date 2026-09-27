@@ -432,6 +432,8 @@ test('an acknowledged Pi extension command without an agent turn leaves its sess
     assert.equal(f.supervisor.getSession(f.id())?.reconciliationRequired ?? false, false,
       'Pi acknowledged completion of its registered extension command');
     assert.equal(f.supervisor.getSession(f.id())?.phase, 'settled');
+    assert.equal((await f.service.getPiSessionSummary({ ...f.target, sessionId: f.id() })).phase,
+      'completedSuccess', 'native projection must clear its provisional incomplete turn after Pi handles the command');
     f.client.noRun = false;
     const next = await f.service.sendConversationCommandV4({ ...f.target, envelope: {
       commandId: randomUUID(), clientId: 'known-extension', sessionId: f.id(), type: 'sendText',
