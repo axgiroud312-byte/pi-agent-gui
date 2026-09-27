@@ -14,13 +14,22 @@
 
 - 工作目录：`C:\Users\niilo\Desktop\pi-agent-gui`
 - 分支：`issue-34-native-pi-rpc`
-- 本轮未发送图片草稿源码提交：`77481f1`；文档 `4d115f0`；GitHub 校验重试修复 `de7b789`（初始 HEAD 为 `c483200`；旧图片/队列增量 `1337c33` 仅是更早历史）。接手时仍以 `git log -1`、`git status -sb` 和远程为准，不要 reset 到旧交接哈希。
+- 2026-09-27 19:59（Asia/Shanghai）已推送 HEAD `46c3e73`；初始 HEAD `c483200`，旧图片/队列增量 `1337c33` 仅是更早历史。接手仍须以 `git log -1`、`git status -sb` 和远程为准，不要 reset 到旧交接哈希。
 - 远程：Draft PR #39 分支，核对 `origin/issue-34-native-pi-rpc` 的最新推送。
 - Draft PR：[PR #39](https://github.com/axgiroud312-byte/pi-agent-gui/pull/39)，保持 OPEN / Draft。
 - #34 保持 OPEN，等待最终统一用户验收；这不再阻止技术上继续后续保留范围，但不得把依赖票标记为完成。
 - `origin/main@9db2da4` 的 Pi-first 范围基线已通过合并提交 `f41457e` 集成。
 - 必须保留未跟踪 `%SystemDrive%/`、`用`，以及 `stash@{0}: scope-doc-copies-before-main-integration-2026-09-27`；禁止 reset/clean/强推或批量暂存未知文件。
 - `packages/desktop/dist-pi-incremental/` 是锁住 app.asar 的失败中间物，`packages/desktop/dist/win-unpacked` 正由用户独立进程使用；本轮都未触碰。新包必须使用另一隔离目录。D: 上另有并行开发隔离 worktree，不能与主目录混写。
+
+## 2026-09-27 19:59 集成断点（覆盖下方旧队列只读叙述）
+
+- 主分支已整合 #6 `66e1763`、#14 `8910b33`、#4 固定 Pi 双队列 `af924d4`/`9a317c9`/`c9d4123`/`daf9860`、队列 GUI 测试 `4aac4b2`、Pi patch 锁文件 `0b6d3a1`、#9 CLI 历史发现 `46c3e73`，并已普通推送到 Draft PR #39。所有任务和 PR 保持 OPEN/Draft，未代签用户验收。
+- #5 集成 GUI `D:/Temp/pi-agent-integrated-green8-20260927/pi-native-gui-report.json` 为绿：选择/粘贴/拖入，两个项目同名未发送图片跨重启后分别把正确原字节送入固定 Pi；两会话、文件草稿和布局恢复也通过。失败命令与定位：`green4` 在快速关窗后 Root 图片/文本偶发未恢复；`green5` 第二项目文字未持久化、图已恢复（测试脚本焦点/时序）；`green6` 文件编辑保存异步检查过早；`green7` 预览已开启时再次点同一文件把预览关掉。已修测试脚本焦点、保存等待、预览开关逻辑，`green8` 全程 PASS。另将 `ConversationComposer` 关窗快照改为直接读取可见 Lexical Markdown，**当前生产构建中的 #5 修复尚需重跑集成 GUI**；不要将绿色 `green8` 误报为该新增改动的回归。
+- #4 原生 GUI `D:/Temp/pi-queue-gui-main-20260927/pi-queue-gui-report.json` PASS：同文不同图 Pi ID、两条 lane 的取回/编辑/重排/立即发送、Stop 保留、resume 真正执行、重启不重放而保留恢复副本；两轮 `graceful=true`、`forced=[]`、`survivors=[]`、`pageErrors=[]`。固定 Pi 0.87.0 内同进程公开扩展补齐 ID/revision/image 权威队列；旧版 `queue_update`/`clear_queue` 只返回文本的限制仍属历史协议事实，不再代表当前 GUI 能力。完整 #4 shell/retry/compaction/扩展 Stop 矩阵仍未做完。
+- #9 隔离 GUI `D:/Temp/pi-cli-history-gui3-20260927/pi-cli-history-gui-report.json` PASS CLI→GUI→CLI 同一 Pi JSONL；主分支整合后 GUI 尚待再跑。#14 的保存冲突及重启草稿已随 `green8` 实测；#6 公开 bridge 的独立 Pi/GUI 通过，主分支专项 GUI 待跑。
+- 当前主目录**未提交**只包含 `packages/ui/src/v4/ConversationComposer.tsx`、`scripts/native-smoke/pi-{image,package,queue}.mjs`、`scripts/pi-native-gui-smoke.mjs`；保护的未跟踪 `%SystemDrive%/`、`用`、`packages/desktop/dist-pi-incremental/` 未触碰。最近类型检查、lint（0 error / 70 既有 warning）、`pnpm run build:bootstrap`、#4/#9 定向测试 5/5 PASS；完整 Pi 顺序与 delivery GitHub 校验待后续整合后再跑。
+- 并行隔离：`D:/Temp/pi-agent-gui-auth-ui-20260927` 的 #7/#8 `06c1aaf` 已提交、正在独占桌面 GUI；`D:/Temp/pi-agent-gui-settings-20260927` 的 #10 正待 GUI；#11 router 在另一个隔离 worktree 实施。它们都不直接写主目录。#7/#8 GUI 结束后，先审查并 cherry-pick，安排 #10 GUI，然后继续 #3/#5/#9 等剩余批次。不要停在任一 Issue 请求用户试用。
 
 ## 2026-09-27 持续开发快照（#5 第一纵向批次）
 
@@ -52,7 +61,7 @@
 
 详细验收以 GitHub 最新正文为准，不能用以下摘要替代：
 
-1. **#3/#4/#5**：图片选择经 GUI/固定 Pi 到模型、历史预览及未发送草稿重启已有局部实测；详见上节与 coverage。Pi 0.87 原队列事件/clear_queue **仅返回文本**，运行中图片入队仍拒绝并保留草稿，文本排队/Stop 取回只读可见。接着补两项目两会话、粘贴/拖入、草稿容量/生命周期/并发、在线模型证据、自动压缩/重试、队列附件无损取回/编辑/重排、上下文 shell 和布局恢复。不得将 fail-closed 限制算作 #4 完成。
+1. **#3/#4/#5**：选择/粘贴/拖入图片、两项目同名图及两会话的固定 Pi GUI 回归见上方新证据。#4 通过 Pi 同进程公开扩展得到带图文的真实双队列，取回/编辑/重排/立即发送/Stop/恢复已做一组原生 GUI 实测；仍须补其它运行状态 Stop、带/不带上下文 shell、retry/compaction、草稿存储生命周期/并发、在线模型、当前源码包内回归。原始 Pi RPC 仅返文本是协议边界，不再作为当前 GUI 的能力结论。
 2. **#6/#7/#8/#14**：版本化公开扩展 tree/bookmark/reload bridge；真实 Pi API key/OAuth 认证中心；扩展 UI 类别矩阵与 notify/status/widget；文件引用、预览、必要编辑保存完整验收。
 3. **#9/#10/#11**：Pi 历史目录、分支/fork/clone、导入导出/主动分享；Pi 设置与自定义 provider 配置；llama.cpp router 管理。
 4. **#12/#13/#25**：Skills/模板/上下文/扩展包管理与重载；扩展对话、状态、工具和生命周期；必要 GUI 等价交互与可见兼容限制。
