@@ -14,8 +14,8 @@
 
 - 工作目录：`C:\Users\niilo\Desktop\pi-agent-gui`
 - 分支：`issue-34-native-pi-rpc`
-- 当前提交：`331a9b168073ed4178746f498b0a84cbbab4b1d2`
-- 远程：已推送至 `origin/issue-34-native-pi-rpc`
+- 最新图片/队列增量源码提交：`1337c33`；接手时以 `git log -1` 和 `git status -sb` 核对实际 HEAD 与远程，不要按旧交接哈希 reset。
+- 远程：Draft PR #39 分支，核对 `origin/issue-34-native-pi-rpc` 的最新推送。
 - Draft PR：[PR #39](https://github.com/axgiroud312-byte/pi-agent-gui/pull/39)，保持 OPEN / Draft。
 - #34 保持 OPEN，等待最终统一用户验收；这不再阻止技术上继续后续保留范围，但不得把依赖票标记为完成。
 - `origin/main@9db2da4` 的 Pi-first 范围基线已通过合并提交 `f41457e` 集成。
@@ -29,20 +29,19 @@
 - Pi 模型和资源命令 catalog 刷新：`f9b24c4`。
 - Composer 资源面保持 Pi 范围并移除子 Agent 建议：`2856e28`、`8d42fb9`。
 - 技术预览与 Standards/Spec 记录：`docs/delivery/pi-capability-preview-2026-09-27.md`。
-- `pnpm --dir packages/services exec tsx --test --test-concurrency=1 test/pi-*.test.ts`：116/116 PASS。
+- 最新 `node node_modules/tsx/dist/cli.mjs --test --test-concurrency=1 packages/services/test/pi-*.test.ts`：118/118 PASS；并发全套测试曾在拥塞时超时，一次前置代码版本的顺序测试暴露了“并发 startNow 被错误改为 queue”的回归，已改为 Composer 点击时冻结投递意图，复跑顺序全套通过。
 - `pnpm run typecheck`、定向 oxlint：PASS。
 - delivery plan、本地 6 项测试及 `--github`：PASS，17 active / 10 retired。
-- Desktop production build、Windows electron-builder、runtime dependency audit、170.6 MiB size audit：PASS。
+- 最新 desktop production build、Windows electron-builder、runtime dependency audit、170.6 MiB size audit：PASS；源码入口与隔离 unpacked GUI 图片/队列/Stop/历史恢复均已通过。
 - 最终包内启动/恢复：PASS；无继承的 no-model 门禁、Skill catalog 错误或 Composer 子 Agent 区域。
-- 当前可运行包：`packages/desktop/dist/win-unpacked/Pi Agent IDE Preview.exe`。
-- 当前 NSIS：`packages/desktop/dist/Pi Agent IDE Preview-3.14.0-win-x64_TEST.exe`，尚未安装验证。
+- 本轮增量包（**不是最终统一试用包**）：`D:\Temp\pi-agent-gui-preview-20260927-b\win-unpacked\Pi Agent IDE Preview.exe`；NSIS：同目录 `Pi Agent IDE Preview-3.14.0-win-x64_TEST.exe`，尚未安装验证。原 `packages/desktop/dist/win-unpacked` 被用户独立运行的实例占用，**不要停止该进程或覆盖其目录**。C: 上的 `packages/desktop/dist-pi-incremental/` 是本轮失败的隔离打包中间物，未暂存；D: 的隔离包成功。
 - 全仓 `pnpm run build` 仍被嵌套 CLI debug 包的 esbuild host `0.28.2` / binary `0.25.12` 不匹配阻塞；桌面目标构建通过。
 
 ## 剩余范围
 
 详细验收以 GitHub 最新正文为准，不能用以下摘要替代：
 
-1. **#3/#4/#5**：补齐 GUI 图片手势与在线模型证据、自动压缩/重试、队列附件取回/编辑/重排、上下文 shell，以及草稿/附件/布局保存恢复。
+1. **#3/#4/#5**：图片选择经 GUI/固定 Pi 到模型、历史预览/重启已局部通过；Pi 0.87 队列事件与 clear_queue **仅返回文本**，运行中图片入队现在明确拒绝并保留草稿，文本排队/Stop 取回只读可见。下一断点是**未发送图片附件重启后丢失**（v4 草稿只持久化文字）；需设计有界、按工作区授权的附件草稿保存/恢复，再补粘贴/拖入、在线模型证据、自动压缩/重试、队列附件无损取回/编辑/重排、上下文 shell 和布局恢复。不得将 fail-closed 限制算作 #4 完成。
 2. **#6/#7/#8/#14**：版本化公开扩展 tree/bookmark/reload bridge；真实 Pi API key/OAuth 认证中心；扩展 UI 类别矩阵与 notify/status/widget；文件引用、预览、必要编辑保存完整验收。
 3. **#9/#10/#11**：Pi 历史目录、分支/fork/clone、导入导出/主动分享；Pi 设置与自定义 provider 配置；llama.cpp router 管理。
 4. **#12/#13/#25**：Skills/模板/上下文/扩展包管理与重载；扩展对话、状态、工具和生命周期；必要 GUI 等价交互与可见兼容限制。
@@ -55,6 +54,6 @@
 
 1. 读取 GitHub #1、#34、当前批次 Issue 正文与评论，以及父规格和阻塞关系。
 2. 检查 `git status -sb`、worktree、stash、当前 HEAD 和远程差异，保存新的恢复清单。
-3. 从 `docs/delivery/pi-capability-preview-2026-09-27.md` 的“remaining gaps”与 #3/#4/#5 开始，先做一次代码/界面差距清单，再实施，不重复已通过的 #34 基础调查。
+3. 从 [增量覆盖与限制](coverage.md) 和 #3/#4/#5 开始；优先复现并修复未发送附件重启丢失，再推进其他保留能力。不要重复已通过的 #34 基础调查，也不要把当前预览包当作最终交付。
 4. 每批做聚焦提交和推送，更新 Draft PR/任务账本；不关闭需人工验收的 Issue。
 5. 连续推进直到剩余范围全部实现或只剩确实需要用户账号/设备操作的阻塞，然后生成统一试用包、完整测试步骤和阻塞清单，停在一次最终用户验收。

@@ -48,6 +48,13 @@
 
 源码：`packages/ui/src/v4/composer/V4ComposerModeControls.tsx`、`i18n/locales/{zh-CN,en-US}.ts`。本轮报告 `D:/Temp/pi34-final-native-smoke-3/report.json`；完整语义分流见 [#34 断言映射](issue-34-ci-acceptance-map.md)。其余原生路径的局部通过不抵消当前重启列表标题回归。
 
+## #3/#4 Pi 队列与停止的必要差异（增量，未最终验收）
+
+| ID | 原生入口/行为 | Pi 产品行为 | 必要性 / 状态 |
+| --- | --- | --- | --- |
+| PI04-S1 | 输入区运行时有草稿时，原控制簇显示“发送/加入队列”，Stop 按钮被替换 | 在同一原生控制簇并排显示 Stop 和发送，不用丢弃图片草稿才可停止 | Pi 0.87.0 队列 API 仅回传文本；拒绝图片入队后必须保持 Stop 可达。产品侧真实 GUI→Host→Pi 截图 `test-results/native-parity/product/pi-native-busy-image-refused.png`；固定原版同状态截图与用户感受尚未复核。关联 #3/#4。 |
+| PI04-S2 | 原生队列可单项编辑、删除、拖拽与继续 | Pi 队列按真实 `queue_update` 显示文本；缺少无损附件/逐项修改协议时不呈现虚假的按钮；Stop 后 `clear_queue` 返回文本只读提示、不暗中续发 | 固定 Pi 的 `queue_update`/`clear_queue` 仅返回文本。产品侧队列、停止后、重启后截图见同一 `test-results/native-parity/product/pi-native-{queued-text,stopped-queue}.png`；这些是限制说明，不是 #4 队列功能验收。 |
+
 ## 用户关卡记录
 
 - 关卡 Issue：[#33](https://github.com/axgiroud312-byte/pi-agent-gui/issues/33)，前置导入 [#32](https://github.com/axgiroud312-byte/pi-agent-gui/issues/32)。

@@ -2,7 +2,7 @@
 
 当前合同为 [范围](pi-first-scope.md)、[scope.json](scope.json) 与 [tickets.json](tickets.json)。编号用于追踪，不以固定数量替代真实验收。任务覆盖不代表功能完成；历史原型证据不能自动计入原生 GUI。
 
-#34 已有本地闭环与增量修复/试用证据，但尚未提交与取得本次用户验收；#1/#28 和下列能力最终验收仍未完成。受控模型并不等于在线 provider。
+#34 已有本地闭环与增量修复/试用证据，图片与队列局部修复见 `1337c33`，但尚未取得本次用户验收；#1/#28 和下列能力最终验收仍未完成。受控模型并不等于在线 provider。
 
 实现路径图例：R = Pi RPC；B = 公开扩展桥；H = 必要本地宿主；C = 固定版本兼容适配。路径是实施方向，不是已支持声明。
 
@@ -67,6 +67,16 @@
 | V10 | 会话导入/导出/复制与用户主动分享 | #9 | 待最终验收 |
 | V11 | 文件引用、预览、工具文件回链及保存冲突 | #14 | 待最终验收 |
 | V12 | 原生 UI、中文/键盘/长记录、打包及诊断 | #26, #27 | 待最终验收 |
+
+## 2026-09-27 增量验证（局部证据，均非最终验收）
+
+| 能力 / 场景 | 目前实测 | 未完成 / 不得宣称 |
+| --- | --- | --- |
+| P01、P04、D03 / V02 | 固定 Pi 0.87.0 + 离线受控模型：原生 GUI 图片选择经 Host 分块上传，模型收到真实 PNG，Pi JSONL 的 user row 图片可预览并在重启后恢复。测试 `pi-native-image-upload.test.ts` 与 `scripts/pi-native-gui-smoke.mjs`。 | 拖入/粘贴各自完整矩阵、未知消息、在线模型图片仍未验收；未发送图片**重启后丢失**（#5）。 |
+| P02、P03 / V03 | GUI 运行中纯文本自动路由到 Pi 队列；Stop 先清队列，再取消运行；返回的文本在 GUI/重启后只读可见、不自动重发。运行中图片入队被拒且保留草稿及 Stop，避免 `clear_queue` 仅返文本而静默丢图。 | 双队列逐项编辑/删除/重排/立即发送、图片队列的无损取回、shell/retry/compaction/扩展等待的 GUI Stop 矩阵均**未完成**（#4）。 |
+| D06 / V01 | 本次生产源码入口及隔离的 Windows unpacked 包均通过原生 GUI→宿主→固定 Pi 图片/队列/停止/恢复，进程树检查无幸存；本地 TypeScript、lint、Pi 单测及桌面 production build 通过。NSIS 未安装产物已生成并通过依赖/大小检查。 | **未实际安装** NSIS、覆盖升级、卸载、在线 provider 或用户实际验收（#27/#28）；当前预览包不能当作统一最终交付。 |
+
+本地原始输出位于 `test-results/pi-*.log`、`test-results/native-parity/product/`（ignored，非提交证据）；`1337c33` 的隔离增量包位于 `D:/Temp/pi-agent-gui-preview-20260927-b/`（不是最终用户试用包）：`win-unpacked/Pi Agent IDE Preview.exe` 已实际运行，`Pi Agent IDE Preview-3.14.0-win-x64_TEST.exe` 仅已生成、未安装。对应实现与差异见 `packages/services/src/pi-agent/`、`scripts/native-smoke/` 及 [原生 UI 差异登记](native-ui-parity.md)。受控模型不等于在线供应商。下表所有“待逐项验收”维持原状。
 
 ## 回填要求
 
