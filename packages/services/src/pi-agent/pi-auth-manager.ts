@@ -31,6 +31,8 @@ export interface PiAuthOperationView {
 export interface PiAuthView {
   generation: string;
   agentDir: string;
+  /** Pi reports a catalog/configuration error; raw diagnostics may contain secrets. */
+  catalogError: boolean;
   providers: Array<{ id: string; name: string; configured: boolean; source?: string;
     storedType?: "api_key" | "oauth"; modelCount: number;
     methods: Array<{ type: PiAuthMethod; label: string; canLogin: boolean }> }>;
@@ -75,7 +77,14 @@ export class PiAuthManager {
     }), private readonly synchronizeSessions?: () => Promise<void>) {}
 
   private runtime(): Promise<ModelRuntime> {
-    this.runtimePromise ??= this.createRuntime();
+    if (!this.runtimePromise) {
+      const attempt = Promise.resolve().then(() => this.createRuntime());
+      const retryable = attempt.catch((error: unknown) => {
+        if (this.runtimePromise === retryable) this.runtimePromise = undefined;
+        throw error;
+      });
+      this.runtimePromise = retryable;
+    }
     return this.runtimePromise;
   }
 
@@ -89,6 +98,7 @@ export class PiAuthManager {
     const runtime = await this.runtime();
     const stored = new Map((await runtime.listCredentials()).map(item => [item.providerId, item.type]));
     return { generation: this.generation, agentDir: this.agentDir,
+      catalogError: Boolean(runtime.getError()),
       providers: runtime.getProviders().map(provider => {
         const status = runtime.getProviderAuthStatus(provider.id);
         return { id: provider.id, name: this.sanitize(provider.name), configured: status.configured,
@@ -259,7 +269,8 @@ export class PiAuthManager {
         const verificationUri = safeUrl(event.verificationUri);
         if (verificationUri) notice = { type: "device_code", verificationUri,
           userCode: display(event.userCode).slice(0, 128),
-          ...(event.expiresInSeconds ? { expiresAt: Date.now() + event.expiresInSeconds * 1000 } : {}) };
+          ...(event.expiresInSeconds !== undefined && Number.isFinite(event.expiresInSeconds) ?
+            { expiresAt: Date.now() + Math.max(0, event.expiresInSeconds) * 1000 } : {}) };
         break;
       }
       case "info": notice = { type: "info", message: this.sanitize(event.message) }; break;

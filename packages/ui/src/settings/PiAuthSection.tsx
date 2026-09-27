@@ -84,6 +84,9 @@ export function PiAuthSection({ service, workspacePath }: { service: IZCodeAgent
         <h2 className="text-ui-lg font-medium">Pi 提供商与认证</h2>
         <p className="text-ui-sm text-foreground-subtle">管理固定 Pi 0.87.0 使用的本地凭据。保存或解析成功不代表在线模型推理已通过。</p>
         {view ? <p className="text-ui-xs text-foreground-subtle">配置位置：{view.agentDir}</p> : null}
+        {view?.catalogError ? <p role="alert" className="text-ui-sm text-destructive">
+          Pi 模型目录或认证状态存在错误，部分提供商可能未载入。检查本地 Pi 配置后点击“刷新目录”。
+        </p> : null}
       </div>
       <Button variant="outline" disabled={!view || busy || running}
         onClick={() => { if (view) void perform(() => service.refreshPiAuth({ workspacePath,
@@ -130,6 +133,10 @@ export function PiAuthSection({ service, workspacePath }: { service: IZCodeAgent
                 notice.type === "device_code" ? <div>
                   <Button variant="link" type="button" onClick={() => platform.openExternal(notice.verificationUri)}>
                     打开设备授权页面</Button><p>设备码：{notice.userCode}</p>
+                  {notice.expiresAt !== undefined ? <p className="text-ui-xs text-foreground-subtle">
+                    {notice.expiresAt <= Date.now() ? "设备码已过期；请取消并重新登录。" :
+                      `设备码有效至 ${new Date(notice.expiresAt).toLocaleTimeString()}`}
+                  </p> : null}
                 </div> : <p>{notice.message}</p>}
             </div>)}
             {operation.prompts.map(prompt => <div key={prompt.id} className="space-y-2">

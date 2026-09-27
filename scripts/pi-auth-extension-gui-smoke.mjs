@@ -93,7 +93,19 @@ try {
   await auth.getByRole('button', { name: '登出', exact: true }).click();
   await auth.getByText('状态：logged-out', { exact: true }).waitFor({ timeout: 20_000 });
   assert(!(await readFile(join(profile, 'auth.json'), 'utf8')).includes(secret));
-  report.auth = { saved: true, secretHidden: true, loggedOut: true };
+  const modelsPath = join(profile, 'models.json');
+  const validModels = await readFile(modelsPath, 'utf8');
+  await writeFile(modelsPath, '{ invalid models.json');
+  await auth.getByRole('button', { name: '刷新目录', exact: true }).click();
+  await auth.getByText(/Pi 模型目录或认证状态存在错误/).waitFor({ timeout: 20_000 });
+  assert(!(await page.locator('body').innerText()).includes('{ invalid models.json'));
+  await page.screenshot({ path: join(f.output, 'pi-auth-catalog-error.png') });
+  await writeFile(modelsPath, validModels);
+  await auth.getByRole('button', { name: '刷新目录', exact: true }).click();
+  await auth.getByText(/Pi 模型目录或认证状态存在错误/).waitFor({ state: 'hidden', timeout: 20_000 });
+  await auth.getByRole('button', { name: /new-provider/i }).waitFor();
+  report.auth = { saved: true, secretHidden: true, loggedOut: true,
+    catalogErrorThenRepaired: true, customProviderRestored: true };
   await page.getByTestId('settings-back-button').click();
   await page.getByTestId('settings-page').waitFor({ state: 'hidden' });
 

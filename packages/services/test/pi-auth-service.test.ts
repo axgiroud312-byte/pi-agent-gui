@@ -98,6 +98,9 @@ test("native Pi service manages the exact RPC child's auth directory without a c
     void delayedAdmission.finally(() => admissions.delete(admissionKey));
     const before = await channel.call<Awaited<ReturnType<typeof service.readPiAuth>>>("host", "readPiAuth", [target]);
     assert.equal(before.agentDir, profile);
+    assert.equal(before.catalogError, false);
+    assert.equal(before.providers.find(provider => provider.id === "test-local-provider")?.configured, true,
+      "the auth center must include the custom provider from this Pi profile");
     assert.equal(before.providers.find(provider => provider.id === "anthropic")?.configured, false);
     const operationId = await service.startPiAuth({ ...target, generation: before.generation,
       providerId: "anthropic", action: "login", method: "api_key" });

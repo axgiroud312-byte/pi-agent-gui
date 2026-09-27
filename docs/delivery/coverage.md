@@ -180,6 +180,12 @@
 | --- | --- | --- |
 | #9：P11、P17 / V04 | `ad02452` 整合固定 Pi 0.87.0 合同：真实旧图片 entry 的 base64 原字节被同一 Pi 新回合接收，旧 JSONL 原字节前缀不变；纯文字编辑只回填原生 composer，显式发送后才有新模型请求；扩展取消不产生回合。主分支固定 Pi 与纯合同合计 5/5、typecheck、定向 lint 0/0、完整桌面 build 与 delivery plan 本地校验通过。整合后的原生 GUI `D:/Temp/pi-history-edit-retry-main-20260928-a/pi-history-edit-retry-gui-report.json` 验证 Pi 同一 JSONL 历史重试、编辑预填和显式发送，`pageErrors=[]`、`graceful=true`、`forced=[]`、`survivors=[]`。隔离源码 GUI 另见 `D:/Temp/pi-history-edit-retry-gui-20260928-a/pi-history-edit-retry-gui-report.json`。 | Pi 固定版本 `fork` 仅返回文字，图片 fork 仍入 Pi 前拒绝；图片与未知 content 不进入纯文字编辑器。树跳转与 prompt 两个公开调用之间的失败需要检查当前 leaf；包内 GUI、原版成对截图、在线 provider 和统一人工验收仍待做。 |
 
+## 2026-09-28 #7 本地认证目录错误与设备码期限（隔离分支，非最终验收）
+
+| 能力 / 场景 | 已观察结果 | 仍待完成 |
+| --- | --- | --- |
+| P18、P19 / V06 | `pi-auth-manager.test.ts` 先以 2 项红测复现认证运行时首次创建失败后永久缓存拒绝，以及损坏 `models.json` 时自定义 provider 静默消失；第三项红测复现 `device_code.expiresInSeconds=0` 被当作没有期限。修复后 Pi 0.87.0 进程内 6/6 PASS，自定义 `models.json` provider 的认证解析使用 Pi 公开接口且 key 不进入 renderer。真实 Pi RPC 子进程 `pi-auth-service.test.ts` 2/2 PASS，确认同一 profile 的 custom provider 与保存/登出后目录同步。隔离生产源码 GUI `D:/Temp/pi-auth-recovery-gui-20260928-b/pi-auth-extension-gui-report.json` 通过 API key 保存/隐藏/登出、目录损坏警告、修复后 custom provider 恢复和四类扩展交互，`pageErrors=[]`、`graceful=true`、`forced=[]`、`survivors=[]`；产品错误状态截图 `pi-auth-catalog-error.png`。typecheck、lint 0 error/69 既有 warning、`build:bootstrap`、delivery 本地/7 项测试通过。 | 首轮隔离 GUI `D:/Temp/pi-auth-recovery-gui-20260928-a/` 因该工作树缺 gitignored Agent bundle 在 storage preparation 阶段失败，运行 `pnpm --dir packages/desktop prepare:agent-bundle` 后重跑全绿；不把首次失败归为认证逻辑。扩展运行时动态 `registerProvider` 的 OAuth 登录不在独立宿主 `ModelRuntime` 的公开目录中，不能声称可用。设备码实际时钟跨期 GUI、在线账号、真实人工 OAuth 回调/推理/登出、包内 GUI、原版同状态成对截图与用户验收未完成。 |
+
 ## 回填要求
 
 每项填写实际原生 GUI/Pi 版本、提交、测试命令、结果和证据链接；在线 provider、可控模型、包内运行、实际安装与用户验收分别标明。P27 的限制按 #8/#25 逐类明示，不将复杂 TUI 不支持写为已全面兼容。

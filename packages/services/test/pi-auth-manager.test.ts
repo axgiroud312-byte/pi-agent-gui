@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -120,5 +120,79 @@ test("concurrent Pi auth starts claim one operation after lazy runtime creation"
     const accepted = outcomes.find(item => item.status === "fulfilled");
     assert(accepted && accepted.status === "fulfilled");
     await awaitOperation(manager, accepted.value);
+  } finally { manager.dispose(); await rm(root, { recursive: true, force: true }); }
+});
+
+test("a transient Pi runtime creation failure can recover without restarting the auth center", async () => {
+  const root = await mkdtemp(join(tmpdir(), "pi-auth-retry-"));
+  const runtime = await ModelRuntime.create({ authPath: join(root, "auth.json"), modelsPath: null,
+    refreshOnCreate: false });
+  let attempts = 0;
+  const manager = new PiAuthManager(root, async () => {
+    attempts++;
+    if (attempts === 1) throw new Error("Temporary Pi credential store failure");
+    return runtime;
+  });
+  try {
+    await assert.rejects(manager.snapshot(), /Temporary Pi credential store failure/);
+    const recovered = await manager.snapshot();
+    assert.equal(attempts, 2);
+    assert.equal(recovered.generation, manager.generation);
+    assert(recovered.providers.some(provider => provider.id === "anthropic"));
+  } finally { manager.dispose(); await rm(root, { recursive: true, force: true }); }
+});
+
+test("invalid local Pi models config is visible and can be repaired without losing the auth view", async () => {
+  const root = await mkdtemp(join(tmpdir(), "pi-auth-models-error-"));
+  const agentDir = join(root, "agent");
+  const modelsPath = join(agentDir, "models.json");
+  const secret = "fixture-custom-provider-key";
+  await mkdir(agentDir);
+  await writeFile(modelsPath, "{ broken json");
+  const manager = new PiAuthManager(agentDir);
+  try {
+    const invalid = await manager.snapshot();
+    assert.equal(invalid.catalogError, true);
+    assert(!JSON.stringify(invalid).includes("broken json"), "raw config content must stay out of the renderer view");
+    await writeFile(modelsPath, JSON.stringify({ providers: {
+      "custom-local-test": { baseUrl: "http://127.0.0.1:1/v1", api: "openai-completions",
+        apiKey: secret, models: [{ id: "custom-model" }] },
+    } }));
+    const repaired = await manager.refresh();
+    assert.equal(repaired.catalogError, false);
+    assert.equal(repaired.providers.find(provider => provider.id === "custom-local-test")?.configured, true);
+    assert(!JSON.stringify(repaired).includes(secret));
+    const resolved = await manager.start("custom-local-test", "resolve");
+    assert.equal((await awaitOperation(manager, resolved)).outcome, "ready",
+      "the repaired custom provider must use Pi's authentication resolver");
+  } finally { manager.dispose(); await rm(root, { recursive: true, force: true }); }
+});
+
+test("Pi OAuth device code expiry remains visible while its login waits for a callback", async () => {
+  const root = await mkdtemp(join(tmpdir(), "pi-auth-device-expiry-"));
+  const runtime = await ModelRuntime.create({ authPath: join(root, "auth.json"), modelsPath: null,
+    refreshOnCreate: false });
+  const base = runtime.getProvider("anthropic");
+  assert.ok(base);
+  const provider: Provider = { ...base, id: "auth-test-device", name: "Auth test device",
+    auth: { oauth: { name: "Device OAuth", login: async interaction => {
+      interaction.notify({ type: "device_code", verificationUri: "https://auth.example.test/device",
+        userCode: "ABCD-1234", expiresInSeconds: 0 });
+      await interaction.prompt({ type: "manual_code", message: "Enter callback" });
+      return { type: "oauth", access: "unused", refresh: "unused", expires: Date.now() + 60_000 };
+    }, refresh: async credential => credential,
+    toAuth: async credential => ({ apiKey: credential.access }) } } };
+  runtime.registerNativeProvider(provider);
+  const manager = new PiAuthManager(root, async () => runtime);
+  try {
+    const id = await manager.start(provider.id, "login", "oauth");
+    const waiting = await awaitOperation(manager, id, true);
+    const notice = waiting.notices.find(item => item.type === "device_code");
+    assert(notice && notice.type === "device_code");
+    assert.equal(notice.userCode, "ABCD-1234");
+    assert.equal(typeof notice.expiresAt, "number");
+    assert(notice.expiresAt! <= Date.now(), "zero TTL must be an observable expired device code");
+    manager.cancel(id);
+    assert.equal((await awaitOperation(manager, id)).outcome, "cancelled");
   } finally { manager.dispose(); await rm(root, { recursive: true, force: true }); }
 });
