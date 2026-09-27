@@ -53,7 +53,8 @@ Pi 0.87.0 的 `input` 事件接受 `transform`（文字及图片）与 `handled`
 原图进入同一模型请求与 Pi JSONL，以及 `handled` 后输入区恢复。补丁缺失或回执
 未知时保持待核对状态；动态扩展的转换逻辑本身不在 GUI 中重做。
 对实际运行输入，Pi 回执另给扩展、模板与图像提示处理后的文本 SHA256；Host 仅以
-Pi 的该值关联待完成输入，不在 GUI 中重算转换。固定 Pi 合同还验证模板展开后的下一条
+Pi 的该值关联待完成输入，并在同次 ACK 后、下一次状态读取前持久化会话书签；不在 GUI 中重算转换。
+固定 Pi 合同还验证模板展开后的下一条
 输入可继续发送。`D:/Temp/pi-input-transform-gui-20260928-b/pi-extension-input-transform-gui-report.json`
 记录隔离原生 GUI 的两个 Pi 会话、图片 MIME/字节 SHA、扩展重载和 `handled` 无模型调用；
 `pageErrors=[]`，退出 `graceful=true`、`forced=[]`、`survivors=[]`。该报告使用受控

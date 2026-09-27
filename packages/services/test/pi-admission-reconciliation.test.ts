@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -28,6 +28,9 @@ async function fixture() {
     noRun = false;
     extensionCommand = false;
     extensionError = false;
+    effectivePromptText?: string;
+    deferPromptEvents = false;
+    inspectBookmarkBeforeState?: () => Promise<void>;
     queued = { steering: [] as string[], followUp: [] as string[] };
     queueRevision = 0;
     queuePaused = false;
@@ -86,12 +89,15 @@ async function fixture() {
         this.prompts++;
         this.streaming = !this.noRun;
         if (this.extensionError) this.emit('record', { type: 'extension_error', error: 'command handler failed' });
-        if (!this.noRun) {
-          const message = { role: 'user', content: [{ type: 'text', text: command.message }], timestamp: Date.now() };
+        if (!this.noRun && !this.deferPromptEvents) {
+          const message = { role: 'user', content: [{ type: 'text', text: this.effectivePromptText ?? command.message }], timestamp: Date.now() };
           this.messages.push(message);
           this.emit('record', { type: 'message_start', message });
           this.emit('record', { type: 'message_end', message });
         }
+      }
+      if (command.type === 'get_state' && this.prompts && this.inspectBookmarkBeforeState) {
+        await this.inspectBookmarkBeforeState();
       }
       if (command.type === 'get_state' && this.prompts && this.postAdmissionError) throw this.postAdmissionError;
       return { success: true, data: command.type === 'get_state'
@@ -113,7 +119,9 @@ async function fixture() {
           ...(this.extensionCommand ? [{ name: 'handled', description: 'A no-model Pi extension command',
             source: 'extension' }] : []),
         ] }
-        : {} };
+        : command.type === 'prompt' && this.effectivePromptText ? {
+          disposition: 'run', effectiveTextHash: createHash('sha256').update(this.effectivePromptText).digest('hex'),
+        } : {} };
     }
   }
   const client = new ControlledPi();
@@ -128,6 +136,33 @@ async function fixture() {
     catalogDir, id: () => id,
     close: async () => { await service.dispose(); await rm(root, { recursive: true, force: true }); } };
 }
+
+test('Pi effective input hash is durable before post-admission state inspection', async () => {
+  const f = await fixture();
+  const commandId = randomUUID();
+  const effectiveText = 'extension transformed actual Pi user input';
+  let bookmarkHashAtState: string | undefined;
+  try {
+    await f.service.sendConversationCommandV4({ ...f.target, envelope: {
+      commandId: randomUUID(), clientId: 'effective-hash', sessionId: null, type: 'createSession',
+      issuedAt: Date.now(), payload: { workspaceId: f.root },
+    } });
+    f.client.effectivePromptText = effectiveText;
+    f.client.deferPromptEvents = true;
+    f.client.inspectBookmarkBeforeState = async () => {
+      const bookmark = JSON.parse(await readFile(join(f.catalogDir, `${f.id()}.json`), 'utf8')) as {
+        pendingIntent?: { textHash?: string } };
+      bookmarkHashAtState = bookmark.pendingIntent?.textHash;
+    };
+    const sent = await f.service.sendConversationCommandV4({ ...f.target, envelope: {
+      commandId, clientId: 'effective-hash', sessionId: f.id(), type: 'sendText',
+      issuedAt: Date.now(), payload: { text: 'original GUI input' },
+    } });
+    assert.equal(sent.status, 'accepted', sent.reasonCode);
+    assert.equal(bookmarkHashAtState, createHash('sha256').update(effectiveText).digest('hex'),
+      'the Pi-authoritative transformed hash must be on disk before any post-ACK state read');
+  } finally { await f.close(); }
+});
 
 for (const firstInput of [true, false]) {
   for (const error of [new Error('bad state payload'), new PiRpcError('TIMEOUT', 'get_state timeout', 'unknown')]) {

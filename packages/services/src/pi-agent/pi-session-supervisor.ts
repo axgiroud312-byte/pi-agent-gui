@@ -752,7 +752,7 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
   }
 
   async sendText(sessionId: string, text: string, images: readonly PiPromptImage[] = [],
-    onEffectiveTextHash?: (hash: string) => void): Promise<
+    onEffectiveTextHash?: (hash: string) => Promise<void> | void): Promise<
     "run" | "handledCommand" | "handledInput" | "noRun" | "reconcile"> {
     const runtime = this.requireSession(sessionId);
     if (runtime.controlBridge.blocksPrompt) throw new Error("Pi tree control is active or requires reconciliation");
@@ -801,7 +801,9 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
       promptDisposition = admission.disposition;
       if (promptDisposition === "run" && typeof admission.effectiveTextHash === "string" &&
         /^[0-9a-f]{64}$/u.test(admission.effectiveTextHash)) {
-        onEffectiveTextHash?.(admission.effectiveTextHash);
+        // Pi has admitted this prompt. Let the owner durably correlate the
+        // effective user text before any later state read or process exit.
+        await onEffectiveTextHash?.(admission.effectiveTextHash);
       }
     } catch (error) {
       if (!runtime.stopping && runtime.view.foregroundExecutionId === executionId) {
