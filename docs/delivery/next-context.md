@@ -10,6 +10,14 @@
 - 不得因用户暂缓验收而伪造 #34 或后续 Issue 的人工通过、关闭 Issue、合并 Draft PR 或正式发布。
 - 缺少在线账号、OAuth 人工回调、真实 llama.cpp/GGUF 或安装权限时，明确记录待最终验收项，但继续所有不依赖这些条件的开发。
 
+## 2026-09-28 07:39 继续开发断点（下方 07:31 等均为历史快照）
+
+- 主分支 `issue-34-native-pi-rpc` 当前代码 HEAD `3a433eb` 已普通推送；本文件与 `coverage.md` 记账中。PR #39 仍 Draft，需人工验收的 Issues OPEN；主目录受保护未跟踪 `%SystemDrive%/`、`用`、锁定 `packages/desktop/dist-pi-incremental/`，`stash@{0}`、用户旧 `packages/desktop/dist/win-unpacked` 均未动。所有最终包/安装结果仍未完成，不能沿用旧 3.14.0 基线。
+- #10/P31/P32/P34 `3a433eb` 已合入：设置页新会话联网/版本检查三态映射到固定 Pi 0.87.0 同一 RPC 子进程；显式允许时移除继承 env，避免把 `0` 误当关闭；来源表不误称 Pi 默认值或当前 `get_state`，标出 CLI TUI 专属键。隔离原生 GUI `D:/Temp/pi-settings-launch-gui-20260928-b/pi-settings-gui-report.json` 证实设置持久化、同子进程实际环境/cwd、推理、清洁退出；主树定向 11/11 与 typecheck PASS，隔离树 14/14/build/定向 lint PASS。#10 Issue 技术进度评论已写，仍 OPEN；其余字段/遥测/启动 flags、包内/人工验收未证。
+- #14/D04 P0 保存竞态由隔离树 `D:/Temp/pi-agent-gui-file-save-race-20260928` 的真实 React 组件红测 `node scripts/pi-file-save-race-react.mjs` 稳定复现：保存 A 未 ACK 时输入 B，ACK 清空 B 的 editor/localStorage；切到文件 B 后旧 A ACK 关闭 B 编辑器。代理正在先红绿修组件，尚未合入/GUI 绿。
+- #27/P32/D06 P0 桌面 `setting.json` 保留数据保护由隔离树 `D:/Temp/pi-agent-gui-settings-corrupt-20260928` 先红测证明合法 JSON 单字段 schema 错误与注入 EACCES 读失败均使旧代码返回默认值、随后普通更新覆盖仍存在的原文件；代理修后纯测 3/3 PASS，正跑 typecheck/GUI/回归，尚未提交/合入。语法错误文件仍按原设计隔离备份；用户真实 profile 未触碰。新的只读 Standards/Spec 复审也在进行。
+- 下一步依次审查并合入 #14/#27 的聚焦提交，回归主树固定 Pi 与原生 GUI；记录 coverage/Issue/PR，做完整 Pi 顺序、typecheck/lint/build/delivery 三项；最后全新隔离 3.14.1 unpacked/NSIS、包内 GUI 与进程清理、受控 3.14.0→3.14.1 升级/卸载。真实 GGUF、现场 OAuth/动态 provider GUI 登录、物理 IME、实际 Gist 和用户统一验收各自留界。
+
 ## 2026-09-28 07:31 继续开发断点（下方 07:24 等均为历史快照）
 
 - 主目录 `issue-34-native-pi-rpc` 当前源码 HEAD `84e7685` 已普通推送；`coverage.md` 和本文件正在更新。PR #39 Draft、需最终人工验收的 Issues OPEN。仅受保护未跟踪 `%SystemDrive%/`、`用`、锁定 `packages/desktop/dist-pi-incremental/` 应留在主目录；`stash@{0}` 与用户旧 `packages/desktop/dist/win-unpacked` 不触碰。
