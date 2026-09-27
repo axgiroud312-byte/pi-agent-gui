@@ -10,6 +10,14 @@
 - 不得因用户暂缓验收而伪造 #34 或后续 Issue 的人工通过、关闭 Issue、合并 Draft PR 或正式发布。
 - 缺少在线账号、OAuth 人工回调、真实 llama.cpp/GGUF 或安装权限时，明确记录待最终验收项，但继续所有不依赖这些条件的开发。
 
+## 2026-09-28 02:35 最新断点（下方 02:26 为历史快照）
+
+- 主目录 `issue-34-native-pi-rpc` HEAD `ad02452`，较已推送的 `75318d5` 领先 12 个提交，均为聚焦源码/账本提交；本次 `coverage.md` 与本文件的新证据尚待提交及普通推送。保护未跟踪 `%SystemDrive%/`、`用`、锁定 `packages/desktop/dist-pi-incremental/`、`stash@{0}` 和用户正在用的旧 `packages/desktop/dist/win-unpacked`；不覆盖、不清理、不强制结束。Draft PR #39 与需用户验收的 Issue 均 OPEN，不合并、不代签。
+- #9 `a2be2b9` 已 cherry-pick 成 `ad02452`；`coverage.md` 和 `reuse-inventory.md` 冲突人工保留两侧段落，无遗留 conflict marker，`git diff --check` 通过。主目录固定 Pi/纯合同 `pi-history-edit-retry-fixed.test.ts` + `pi-history-entry.test.ts` 5/5，typecheck、定向 lint 0 error/0 warning、完整 `pnpm --dir packages/desktop build`（日志 `D:/Temp/pi-agent-gui-main-build-ad02452.log`）与 delivery plan 本地校验 PASS。退出时 Pi 固定测试 `taskkill /T` 报非强制 status 128，对应 PID 60352/40296 随后只读复查均不存在；不将其当包内清理证据。
+- 主目录完整构建后的固定 Pi 0.87.0 原生 GUI `D:/Temp/pi-history-edit-retry-main-20260928-a/pi-history-edit-retry-gui-report.json` PASS：历史重试在同一 Pi JSONL，旧前缀原字节不变；编辑只回填草稿，显式发送后才有新请求；`pageErrors=[]`、`graceful=true`、`forced=[]`、`survivors=[]`。推理是受控 loopback provider，尚非在线 provider 或包内 GUI。
+- 并行隔离树：`D:/Temp/pi-agent-gui-history-edit-20260928` 的代理正在修 #4 图片队列撤回编辑的 ACK 切会话/新草稿/重启丢失，并补 #9 文件快照重试合同；`D:/Temp/pi-agent-gui-image-fork-20260928` 的代理修 #9 图片 fork；`D:/Temp/pi-agent-gui-auth-bridge-20260928` 的代理核对并推进 #6–#8 认证/公开桥。各目录单一源码写入者，固定 Pi/GUI 时段必须串行。主目录只有根代理写。
+- 下一步：这批先提交账本、普通推送、更新 Draft PR #39 及 #3/#9/#10/#25 技术评论；随后整合 #4/#9 图片 fork/#6–#8 可用提交，顺序跑主目录固定 Pi 与原生 GUI。最终仍需固定 Pi 完整顺序、typecheck/lint、delivery plan 本地/测试/`--github`、Standards/Spec 最终复审、隔离 Windows unpacked + NSIS、包内 GUI/进程清理、实际安装/覆盖升级/卸载和统一用户试用。在线 provider、真实 GGUF/router、物理中文 IME 和人工 OAuth 回调各自单列，不用受控 fixture 冒充。
+
 ## 2026-09-28 02:26 最新断点（02:18 与更早章节为历史快照）
 
 - 主分支 `issue-34-native-pi-rpc` 代码 HEAD `2dac7d1`，相比已推送 `75318d5` 领先 10 个源码提交：#25 `1c78fd6`、#10 `ecd801b`、#3 `802c8e2`/`3708feb`/`046da9b`/`5b2891b`/`ac39e4b`/`b6f431c`/`28b4871`、#4/#9 队列缓存删除 `2dac7d1`。本文件与 `coverage.md`、扩展兼容表的文字更正未提交。仅受保护未跟踪 `%SystemDrive%/`、`用`、锁定 `packages/desktop/dist-pi-incremental/`；`stash@{0}` 和用户正在使用的旧 unpacked 未动。PR #39 Draft，Issues OPEN，未代签用户验收。
