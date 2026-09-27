@@ -2087,6 +2087,11 @@ export function createLocalServices(options: {
   const zcodeAgentService = options?.piAgentRpcEntry
     ? createPiAgentService(options.piAgentRpcEntry,
       new PiSessionSupervisor({ piEntry: options.piAgentRpcEntry,
+        launchPreferences: async () => {
+          const settings = await settingService.get();
+          return { offline: settings.piOfflineMode ?? "inherit",
+            versionCheck: settings.piVersionCheckMode ?? "inherit" };
+        },
         ...(options.piControlExtensionPath ? { rpcArgs: ["--extension", options.piControlExtensionPath] } : {}) }))
     : createZCodeAgentService({
     ...(agentAccountProviderConfigSource

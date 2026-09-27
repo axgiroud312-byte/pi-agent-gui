@@ -41,6 +41,11 @@ export interface PiSessionSupervisorOptions {
   executable?: string;
   env?: NodeJS.ProcessEnv;
   rpcArgs?: string[];
+  /** Read desktop startup choices for each newly owned Pi child. */
+  launchPreferences?: () => Promise<{
+    offline: "inherit" | "offline" | "online";
+    versionCheck: "inherit" | "skip" | "check";
+  }>;
   clientFactory?: (options: ConstructorParameters<typeof PiRpcClient>[0]) => PiRpcClient;
 }
 

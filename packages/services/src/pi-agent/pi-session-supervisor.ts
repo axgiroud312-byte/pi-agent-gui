@@ -60,9 +60,19 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
     this.options = { ...options, rpcArgs: [...(options.rpcArgs ?? [])] };
   }
 
-  /** The same environment and flags passed to pinned Pi RPC at startup. */
-  settingsEnvironment(): { env: NodeJS.ProcessEnv; rpcArgs: string[] } {
-    return { env: { ...process.env, ...this.options.env }, rpcArgs: [...(this.options.rpcArgs ?? [])] };
+  private async launchEnvironment(): Promise<NodeJS.ProcessEnv> {
+    const env = { ...process.env, ...this.options.env };
+    const preferences = await this.options.launchPreferences?.();
+    if (preferences?.offline === "offline") env.PI_OFFLINE = "1";
+    else if (preferences?.offline === "online") delete env.PI_OFFLINE;
+    if (preferences?.versionCheck === "skip") env.PI_SKIP_VERSION_CHECK = "1";
+    else if (preferences?.versionCheck === "check") delete env.PI_SKIP_VERSION_CHECK;
+    return env;
+  }
+
+  /** Resolve the same environment and flags passed to the next pinned Pi RPC child. */
+  async settingsEnvironment(): Promise<{ env: NodeJS.ProcessEnv; rpcArgs: string[] }> {
+    return { env: await this.launchEnvironment(), rpcArgs: [...(this.options.rpcArgs ?? [])] };
   }
 
   /** Resolve the same local Pi profile path that each RPC child receives. */
@@ -220,7 +230,8 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
     });
   }
 
-  private async start(workspacePath: string, args: string[], expectedId?: string, knownSessionFile?: string,
+  private async start(workspacePath: string, launchEnv: NodeJS.ProcessEnv, args: string[],
+    expectedId?: string, knownSessionFile?: string,
     reservedLease?: PiSessionLease, temporary = false): Promise<PiSessionView> {
     let client: PiRpcClient | undefined;
     let lease = reservedLease;
@@ -251,7 +262,7 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
         args: [this.options.piEntry, ...args, ...(this.options.rpcArgs ?? [])],
         cwd: workspacePath,
         // Inherit target Pi identity, separate from desktop metadata.
-        env: { ...process.env, ...this.options.env, ELECTRON_RUN_AS_NODE: "1" },
+        env: { ...launchEnv, ELECTRON_RUN_AS_NODE: "1" },
       });
       // Extension session_start hooks can ask for a dialog *before* get_state
       // returns and before the runtime is registered. Cancel them at bootstrap.
@@ -365,8 +376,8 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
   }
 
   /** Resolve the same Pi session directory used for new RPC sessions and CLI history discovery. */
-  sessionDirectory(workspacePath: string): Promise<string> {
-    return piSessionDirectory(workspacePath, { ...process.env, ...this.options.env }, this.options.rpcArgs ?? []);
+  async sessionDirectory(workspacePath: string): Promise<string> {
+    return piSessionDirectory(workspacePath, await this.launchEnvironment(), this.options.rpcArgs ?? []);
   }
 
   createSession(workspacePath: string, storageMode: "persistent" | "temporary" = "persistent"): Promise<PiSessionView> {
@@ -375,14 +386,15 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
       if (!isAbsolute(workspacePath) || !(await stat(workspacePath)).isDirectory()) {
         throw new Error("Pi workspace path must be an existing absolute directory");
       }
+      const launchEnv = await this.launchEnvironment();
       if (storageMode === "temporary") {
-        return this.start(workspacePath, ["--no-session"], undefined, undefined, undefined, true);
+        return this.start(workspacePath, launchEnv, ["--no-session"], undefined, undefined, undefined, true);
       }
       const file = await reserveNewSessionPath(workspacePath,
-        { ...process.env, ...this.options.env }, this.options.rpcArgs ?? []);
+        launchEnv, this.options.rpcArgs ?? []);
       if (this.disposed) throw new Error("Pi session supervisor is disposed");
       const lease = await PiSessionLease.acquire(file);
-      return this.start(workspacePath, ["--session", file], undefined, file, lease);
+      return this.start(workspacePath, launchEnv, ["--session", file], undefined, file, lease);
     })());
   }
 
@@ -395,7 +407,8 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
       const canonicalFile = await realpath(sessionFile);
       await this.exitCleanups.get(canonicalFile);
       if (this.disposed) throw new Error("Pi session supervisor is disposed");
-      return this.start(workspacePath, ["--session", canonicalFile], expectedId, canonicalFile);
+      return this.start(workspacePath, await this.launchEnvironment(),
+        ["--session", canonicalFile], expectedId, canonicalFile);
     })());
   }
 

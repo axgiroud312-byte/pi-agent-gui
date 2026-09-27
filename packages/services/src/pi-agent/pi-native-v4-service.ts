@@ -535,14 +535,14 @@ export class PiNativeV4Service implements V4Methods {
   }
 
   async readPiSettings(params: ZCodeAgentWorkspaceTarget): Promise<PiSettingsSnapshot> {
-    const { env, rpcArgs } = this.supervisor.settingsEnvironment();
+    const { env, rpcArgs } = await this.supervisor.settingsEnvironment();
     return readPiSettingsDocuments(params.workspacePath, env, rpcArgs);
   }
 
   async savePiSettings(params: ZCodeAgentWorkspaceTarget & {
     scope: PiSettingsScope; expectedRevision: string; text: string;
   }): Promise<PiSettingsSnapshot> {
-    const { env, rpcArgs } = this.supervisor.settingsEnvironment();
+    const { env, rpcArgs } = await this.supervisor.settingsEnvironment();
     return savePiSettingsDocument(params.workspacePath, env, { ...params, rpcArgs });
   }
   private readonly sessions = new Map<string, SessionRecord>();

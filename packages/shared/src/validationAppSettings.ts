@@ -469,6 +469,8 @@ const appSettingsObjectSchema = z.object({
   pendingPostUpdateReleaseNotes: postUpdateReleaseNotesPayloadSchema.optional(),
   receivePreviewUpdates: z.boolean().default(false),
   autoDownloadAndInstallUpdates: z.boolean().default(false),
+  piOfflineMode: z.enum(["inherit", "offline", "online"]).default("inherit"),
+  piVersionCheckMode: z.enum(["inherit", "skip", "check"]).default("inherit"),
   skippedElectronUpdateVersions: skippedElectronUpdateVersionsSchema,
   settingsSyncFirstRunPromptHandled: z.boolean().optional(),
   zcodeEndpointOrigin: zcodeEndpointOriginSchema.optional(),
@@ -554,6 +556,8 @@ export const appSettingsPatchSchema = z.object({
   pendingPostUpdateReleaseNotes: postUpdateReleaseNotesPayloadSchema.optional(),
   receivePreviewUpdates: z.boolean().optional(),
   autoDownloadAndInstallUpdates: z.boolean().optional(),
+  piOfflineMode: z.enum(["inherit", "offline", "online"]).optional(),
+  piVersionCheckMode: z.enum(["inherit", "skip", "check"]).optional(),
   skippedElectronUpdateVersions: z
     .partialRecord(electronReleaseChannelSchema, nonEmptyStringSchema)
     .optional(),

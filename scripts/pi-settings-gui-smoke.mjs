@@ -13,10 +13,21 @@ const f = await fixture();
 await isolatePiPackage(f);
 const model = await startPiModel();
 await configurePiProfile(f, { url: model.url, modelId: 'pi-native-test', apiKey: 'fixture-not-a-secret' });
+const probeFile = join(f.sandbox, 'pi-launch-observed.json');
+const extensions = join(f.env.PI_CODING_AGENT_DIR, 'extensions');
+await mkdir(extensions, { recursive: true });
+const extension = join(extensions, 'pi-launch-probe.ts');
+await writeFile(extension, `import { writeFileSync } from 'node:fs';
+export default function (pi) {
+  pi.on('session_start', () => writeFileSync(${JSON.stringify(probeFile)},
+    JSON.stringify({ offline: process.env.PI_OFFLINE,
+      skipVersionCheck: process.env.PI_SKIP_VERSION_CHECK, cwd: process.cwd() })));
+}\n`);
 const settingsPath = join(f.sandbox, 'pi-profile', 'settings.json');
 const initial = JSON.parse(await readFile(settingsPath, 'utf8'));
 await writeFile(settingsPath, JSON.stringify({ ...initial, futureSetting: { keep: 'unchanged' },
-  retry: { enabled: true }, defaultProjectTrust: 'ask' }));
+  retry: { enabled: true }, terminal: { showImages: false }, defaultProjectTrust: 'ask',
+  extensions: [extension] }));
 const projectSettingsPath = join(f.workspace, '.pi', 'settings.json');
 await mkdir(join(f.workspace, '.pi'));
 await writeFile(projectSettingsPath, JSON.stringify({ retry: { maxRetries: 7 }, projectUnknown: 42,
@@ -57,6 +68,15 @@ try {
   const editor = settings.getByTestId('pi-settings-json');
   await editor.waitFor();
   await page.waitForFunction(() => document.querySelector('[data-testid="pi-settings-json"]')?.value.includes('futureSetting'));
+  await settings.getByTestId('pi-offline-mode').selectOption('offline');
+  await page.waitForFunction(() => document.querySelector('[data-testid="pi-offline-mode"]')?.value === 'offline');
+  await settings.getByTestId('pi-version-check-mode').selectOption('skip');
+  await page.waitForFunction(() => document.querySelector('[data-testid="pi-version-check-mode"]')?.value === 'skip');
+  const appSettings = JSON.parse(await readFile(join(f.home, '.zcode', 'v2', 'setting.json'), 'utf8'));
+  assert.equal(appSettings.piOfflineMode, 'offline');
+  assert.equal(appSettings.piVersionCheckMode, 'skip');
+  assert.match(await settings.innerText(), /下一条 Pi RPC 子进程：离线；跳过 Pi 版本检查/u);
+  report.launchPreferencesSaved = true;
   const originalText = await editor.inputValue();
   assert.equal(JSON.parse(originalText).futureSetting.keep, 'unchanged');
   report.userPathVisible = (await settings.innerText()).includes(settingsPath);
@@ -91,10 +111,12 @@ try {
   new ProjectTrustStore(join(f.sandbox, 'pi-profile')).set(f.workspace, true);
   await settings.getByRole('button', { name: '读取最新' }).click();
   await settings.getByText(/只从用户设置读取.*cacheWarming/u).waitFor();
-  await settings.getByText('查看 Pi 实际生效值与来源').click();
+  await settings.getByText('查看已配置的 Pi 值与来源').click();
   assert.match(await settings.locator('tr').filter({ hasText: '/retry/enabled' }).innerText(), /用户/u);
   assert.match(await settings.locator('tr').filter({ hasText: '/retry/maxRetries' }).innerText(), /项目/u);
   assert.match(await settings.locator('tr').filter({ hasText: '/cacheWarming' }).innerText(), /"off".*用户/u);
+  assert.match(await settings.locator('tr').filter({ hasText: '/terminal/showImages' }).innerText(), /Pi CLI TUI/u);
+  assert.match(await settings.innerText(), /不含 Pi 内建默认值.*不是正在运行会话的 get_state/u);
   report.trustedNestedSources = true;
   report.globalOnlyProjectOverrideIgnored = true;
   await page.screenshot({ path: join(f.output, 'pi-settings-sources.png') });
@@ -125,6 +147,11 @@ try {
   await page.getByText('PI_TEXT_COMPLETE', { exact: true }).waitFor({ timeout: 30_000 });
   assert(model.requests.some(request => request.scenario === 'PI_TEXT'));
   report.pinnedPiRpcObserved = true;
+  const launched = JSON.parse(await readFile(probeFile, 'utf8'));
+  assert.equal(launched.offline, '1', 'same Pi child must receive selected offline mode');
+  assert.equal(launched.skipVersionCheck, '1', 'same Pi child must skip Pi version check');
+  assert.equal(launched.cwd, f.workspace, 'same Pi child must run in the selected local workspace');
+  report.pinnedPiLaunchObserved = launched;
   await verifyPiPackageCleanup(f);
   assert.deepEqual(report.pageErrors, []);
 } catch (error) {

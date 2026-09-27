@@ -29,6 +29,7 @@ export interface PiSettingsSnapshot {
   ignoredProjectPaths: string[];
   appliesTo: "new-session";
   offline: boolean;
+  versionCheckDisabled: boolean;
   sessionDirectory: string;
 }
 
@@ -110,7 +111,13 @@ function mergeWithSources(user: Record<string, unknown>, project: Record<string,
 }
 
 function isOffline(env: NodeJS.ProcessEnv, rpcArgs: string[]): boolean {
-  return rpcArgs.includes("--offline") || /^(1|true|yes|on)$/iu.test(env.PI_OFFLINE ?? "");
+  // Several Pi 0.87.0 network paths treat any non-empty PI_OFFLINE as disabled,
+  // even when the main CLI parser considers "0" false.
+  return rpcArgs.includes("--offline") || Boolean(env.PI_OFFLINE);
+}
+
+function isVersionCheckDisabled(env: NodeJS.ProcessEnv, rpcArgs: string[]): boolean {
+  return isOffline(env, rpcArgs) || Boolean(env.PI_SKIP_VERSION_CHECK);
 }
 
 function trustOverride(rpcArgs: string[]): boolean | undefined {
@@ -144,6 +151,7 @@ export async function readPiSettingsDocuments(
   const merged = mergeWithSources(global, projectEffective);
   return { user, project, projectTrusted, ...merged, ignoredProjectPaths,
     appliesTo: "new-session", offline: isOffline(env, rpcArgs),
+    versionCheckDisabled: isVersionCheckDisabled(env, rpcArgs),
     sessionDirectory: await piSessionDirectory(cwd, env, rpcArgs) };
 }
 
