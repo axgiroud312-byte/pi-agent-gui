@@ -62,7 +62,7 @@ node scripts/check-delivery-plan.mjs --github
 
 完整方法/事件以固定版本实际类型与行为为准；上述表是高风险检查索引，不取代#1/#34的全部验收。
 
-**#34结束条件：** 原生GUI→真实宿主适配→固定Pi的合同和实机链路均通过，产品无旧Agent回退，后续模块接缝及构建/包路径写清，原生对照、独立Standards/Spec审查和Windows CI通过，PR合并并关闭#34。**完成后暂停，不自动领取其余能力票；范围与优先级等待用户确认。**
+**#34结束条件：** 原生GUI→真实宿主适配→固定Pi的合同和实机链路均通过，产品无旧Agent回退，后续模块接缝及构建/包路径写清，原生对照、独立Standards/Spec审查和必要Windows本地验证通过，PR合并并关闭#34。**完成后暂停，不自动领取其余能力票；范围与优先级等待用户确认。**
 
 ## 4. 剩余27张任务执行索引
 
@@ -116,7 +116,7 @@ node scripts/check-delivery-plan.mjs --github
 3. **实现：** 在既有原生接口接入，先定义行为合同与必要失败场景。会改变共享入口/协议的票由主Agent统一整合，独立子任务使用独立worktree。
 4. **验证：** 聚焦真实边界回归，再执行相关原生检查/GUI操作及所需真实环境；保留失败原因、命令、版本和截图。行为、界面、真实供应商验收分别记录。
 5. **审查：** 对PR merge-base到HEAD的全部变更做独立Standards/Spec两轴审查；修复后复审。每个并行成果集成后重新验证。
-6. **交付：** 只提交预期文件，推送并创建关联Issue的PR；最新HEAD所需CI全部通过后合并。回写实际证据、覆盖账本和任务状态，然后立即领取下一项就绪票。
+6. **交付：** 只提交预期文件，推送并创建关联Issue的PR；相关本地验证和对应验收通过后，按当前授权处理合并。回写实际证据、覆盖账本和任务状态；#34完成后仍按当前范围暂停。
 
 普通实现选择自行解决，不逐票询问“是否继续”。未通过的行为/检查保持未完成；新增缺陷创建关联修复票并维护依赖，不以改验收、空成功或测试跳过消除问题。
 
@@ -145,20 +145,20 @@ node scripts/check-delivery-plan.mjs --github
 
 ## 7. 检查与证据入口
 
-当前执行依据是实际 `package.json`、各包 `AGENTS.md` 和 [.github/workflows/ci.yml](../../.github/workflows/ci.yml)。脚本随实现变化时同步CI/文档，不沿用旧npm结果。以下为本轮已验证的导航：
+2026-09-27 起按用户要求取消远程 CI，旧 CI 合并要求由 [CONTRIBUTING.md 的本地验证规则](../../CONTRIBUTING.md#本地验证2026-09-27-起) 覆盖。当前执行依据是实际 `package.json`、相关测试脚本和各包 `AGENTS.md`。按改动范围选择必要检查，脚本随实现变化时同步文档，不沿用旧npm结果。以下为检查入口导航：
 
 | 类型 | 当前入口及注意事项 |
 | --- | --- |
 | 覆盖与依赖 | `node scripts/check-delivery-plan.mjs`；加`--github`只读核对30张管理票、原生依赖和本执行表。归档的旧publisher不是当前入口 |
 | 类型/静态 | `pnpm typecheck`、`pnpm lint`、`pnpm architecture:check`；涉及CLI另跑`pnpm exec pnpm --dir apps/zcode-cli typecheck --concurrency=1` |
 | CLI样式 | `node scripts/check-native-cli-lint.mjs`及17项回归，规则见[native-cli-lint-policy.md](native-cli-lint-policy.md)。现有86个上游max-lines不是clean；新增错误/增长/抑制仍失败 |
-| 生产构建 | 冻结pnpm安装后按CI的原生资源、metadata、清理、tsup、Vite顺序；低内存串行，类型检查已验证4GiB heap |
+| 生产构建 | 冻结pnpm安装后按实际桌面构建脚本准备原生资源、metadata、清理、tsup、Vite；资源受限时串行运行 |
 | 真实桌面 | `node scripts/native-desktop-smoke.mjs`是阶段0原生Agent对照；#34新增/演进产品Pi-E2E，显式区分参考与产品执行。`node packages/desktop/test/production-profile-entry.mjs --app-root packages/desktop`继续验证真实分包入口 |
 | 来源/发行 | `node scripts/check-native-provenance.mjs`、`node scripts/licenses.mjs check`；发行前要求`node scripts/licenses.mjs check --strict`及与真实打包内容一致 |
 
 最高验收边界为原生GUI→真实宿主/服务适配→Pi外部进程。可控模型/协议端点验证确定性行为；“真实Pi进程+确定性provider”和“真实供应商模型”分开报告。文件/Git/PTY/LSP用真实临时项目和程序；产品链路不靠内部UI/store注入来构造成功。
 
-每票证据至少包含：产品/上游commit与版本、命令和真实结果、P/I/US/T对应行、GUI操作与截图、真实环境/离线分类、发现及修复、PR/CI链接。原生基线截图保留用于复验；阶段0的原Agent输出不计作Pi通过。
+每票证据至少包含：产品/上游commit与版本、命令和真实结果、P/I/US/T对应行、相关GUI操作与截图、真实环境/离线分类、发现及修复、PR和本地验证记录。原生基线截图保留用于复验；阶段0的原Agent输出不计作Pi通过。
 
 ## 8. 已知差额与外部条件
 
@@ -177,7 +177,7 @@ node scripts/check-delivery-plan.mjs --github
 
 逐行核对52项能力、84故事、20场景都有实施Issue、合并PR、真实支持路径和最终集成版本证据；包括真实Pi文本/图片/文件读写/shell/停止/历史/树/扩展/provider/reload，以及OAuth/llama/MCP/GitHub/WSL/SSH。
 
-复验Windows安装、使用、升级、回退、卸载和恢复，原生PTY及发行材料与包一致；补齐性能/IME/键盘/无障碍和原生交互对照。最终文档、快捷键、版本、来源、诊断、下载产物和提交相互对应。所有审查发现、CI失败及必需外部验收已解决，才能关闭#28与#1。
+复验Windows安装、使用、升级、回退、卸载和恢复，原生PTY及发行材料与包一致；补齐性能/IME/键盘/无障碍和原生交互对照。最终文档、快捷键、版本、来源、诊断、下载产物和提交相互对应。所有审查发现、本地验证失败及必需外部验收已解决，才能关闭#28与#1。
 
 ## 10. 可直接复制给后续 Agent 的指令
 
@@ -198,7 +198,7 @@ Pi为Agent/工具/历史/队列权威，产品没有原引擎隐式回退。
 
 使用已有授权维护Issue和依赖、独立分支/worktree、提交推送、PR；
 接口稳定后可依赖内并行subagents，主Agent整合并复验。
-每票按完整PR基线做独立Standards/Spec审查，修复且CI通过后合并、
+每票按完整PR基线做独立Standards/Spec审查，修复且相关本地验证通过后合并、
 回写证据并自动领取下一项就绪任务，不逐票问是否继续。
 
 普通问题自行调查解决；缺少必要账户/设备或确需改变范围时提出具体请求，
@@ -207,4 +207,4 @@ Pi为Agent/工具/历史/队列权威，产品没有原引擎隐式回退。
 跨上下文时更新恢复入口和Issue，保持同一目标继续，直到最终验收完整交付。
 ```
 
-建议技能：实施票用`implement`；收到PR反馈时用`gh-address-comments`；GitHub CI失败时按`gh-fix-ci`适用流程；跨上下文用`handoff`；只有遇到新的领域/架构决定才用`domain-modeling`。按实际可用技能及其说明选择，已有规格/票无需重新拆票。
+建议技能：实施票用`implement`；收到PR反馈时用`gh-address-comments`；跨上下文用`handoff`；只有遇到新的领域/架构决定才用`domain-modeling`。按实际可用技能及其说明选择，已有规格/票无需重新拆票。

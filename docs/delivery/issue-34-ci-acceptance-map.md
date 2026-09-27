@@ -1,6 +1,6 @@
-# #34 Windows CI：原版 / Pi 产品断言映射
+# #34 Windows 本地验证：原版 / Pi 产品断言映射
 
-状态：本轮用户已批准按 Agent 边界分流测试；独立审查、最新提交 Windows CI、逐屏视觉复核仍是合并关卡。只收尾 #34，不实现或关闭后续能力票。
+状态（2026-09-27 更新）：用户已要求取消远程 CI，按 [本地验证规则](../../CONTRIBUTING.md#本地验证2026-09-27-起) 运行必要检查；独立审查与逐屏视觉复核仍按 #34 验收处理。保留原文件名以维持既有链接；下文 CI 运行编号及旧结果属于历史证据。只收尾 #34，不实现或关闭后续能力票。
 
 ## 为什么不能只删除 `/compact`
 
@@ -30,7 +30,7 @@
 | 停止真实活动流 | 原断言保留 | 原生按钮→Pi 停止→HTTP 连接关闭→composer 恢复 | 其他取消类别由对应后续票完整验收 |
 | 任务菜单 / 会话 split | 固定原版入口禁用的事实保留 | 同样禁用，未激活隐藏 pane/store | #5 未完成，未算为可用分栏 |
 | 新任务、快捷命令面板、侧栏恢复 | 原断言保留 | 全部保留 | 补充两条已建立 Pi 会话来回切换不重发 |
-| JSONL 重启恢复、滚动跟随/手动锚点/返回最新 | 独立固定原版滚动对照报告 | 新增 CI `pi-native-gui-smoke.mjs`：真实 Pi 文本/read/stop，重启同 JSONL，模型请求数不增加，三阶段滚动、文件芯片、双会话 | 不用旧原版历史作为 Pi 证据 |
+| JSONL 重启恢复、滚动跟随/手动锚点/返回最新 | 独立固定原版滚动对照报告 | 本地 `pi-native-gui-smoke.mjs`：真实 Pi 文本/read/stop，重启同 JSONL，模型请求数不增加，三阶段滚动、文件芯片、双会话 | 不用旧原版历史作为 Pi 证据 |
 | 原版/产品身份与清理 | 固定源码/旧 Agent 身份保留 | Pi 0.87.0 `rpc-entry`、完整包文件与构建摘要，真实进程清理，准确报告受控模型 | 不再把产品标为 NOT Pi |
 
 ## 两个产品测试入口
@@ -40,15 +40,15 @@ node scripts/native-desktop-smoke.mjs --baseline product
 node scripts/pi-native-gui-smoke.mjs --output test-results/pi-native-gui
 ```
 
-原版入口继续为 `node scripts/native-desktop-smoke.mjs --baseline original --app-root <固定原版工程>`；不得把产品工程传作原版，来源断言必须通过。原版完整旧 Agent smoke 不被产品 CI 假冒运行；此前 #32 原版实际证据和本轮独立原版交互报告分别保留。产品 CI 同时执行以上两项，并上传两者的报告/截图。任何一项失败都使 job 失败，没有 `continue-on-error`、测试排除或失败过滤。
+原版入口继续为 `node scripts/native-desktop-smoke.mjs --baseline original --app-root <固定原版工程>`；不得把产品工程传作原版，来源断言必须通过。此前 #32 原版实际证据和本轮独立原版交互报告分别保留。本地按改动影响选择以上检查，保存实际报告和截图，失败如实记录；远程运行及 artifact 上传已取消。
 
 ## 新发现的 Pi Windows 隔离边界
 
 分流后的首次完整 GUI 操作全部成功，但守卫发现 Pi 启动会尝试清理共享安装旁的 `node_modules/.pi-native-quarantine`。没有放宽文件守卫，也没有忽略这项失败。使用固定 Pi 文档的 `PI_PACKAGE_DIR`，将完整 Pi 包复制到测试 sandbox：源码仍由实际生产入口执行，包资源/自更新清理目录属于隔离副本；native smoke 对安装包与副本所有文件逐字节哈希比对。放置私有 quarantine 哨兵，断言真实 Pi 清理哨兵，且共享目录越界写入仍为零。此设置只属于测试 fixture，不改变产品数据目录或用户 Pi 配置。
 
-## 当前本地结果（不是最新 CI 通过）
+## 历史本地结果
 
 - 服务测试 54/54（包括真实 Pi 命令合同）、fixture 根目录 32/32 / package cwd 31/31；provenance 回归 25/25。
 - 分流后 native GUI `D:/Temp/pi34-closeout/split-product-smoke-5/`：18 组动作、48 张图通过；四组合 empty/running/error/file-preview，真实 Read / PTY / 停止 / 恢复 / 键盘等。没有给未支持 waiting 或 Pi 命令菜单记 PASS。
 - 补充 Pi GUI `D:/Temp/pi34-closeout/pi-product-smoke-current/`：文本、实际 read、停止、重启无重发、两会话、滚动、标签/关闭/resize 通过；`filesystemBlocked=[]`、退出无幸存。
-- 尚需最终增量审查、最新提交 Windows CI，以及独立视觉复核。图片读取当前返回 `Image reading is disabled`，不得据这些操作/截图文件宣称逐屏已审查。
+- 当时尚需最终增量审查、Windows CI 和独立视觉复核，且图片读取返回 `Image reading is disabled`。此为历史记录；当前进展见 [next-context.md](next-context.md)，远程 CI 要求已取消，视觉验收仍需实际查看图片。

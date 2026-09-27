@@ -40,7 +40,7 @@
 
 | ID | 原生入口/行为 | Pi 产品行为 | 必要性 / 状态 |
 | --- | --- | --- | --- |
-| PI34-S1 | composer 的 Build 权限模式及“变更前确认”提示 | 同工具栏位置显示“Pi 工具直接执行”，提示当前没有逐项审批；取消无法兑现的模式选择 | Pi RPC 不提供原版审批合同，不能让用户误以为写入会先询问。固定原版隔离工程不修改；完整 Plan/授权仍未实现。新构建 native smoke 的 18 组操作/48 图通过，独立视觉复核与 CI 尚未通过。 |
+| PI34-S1 | composer 的 Build 权限模式及“变更前确认”提示 | 同工具栏位置显示“Pi 工具直接执行”，提示当前没有逐项审批；取消无法兑现的模式选择 | Pi RPC 不提供原版审批合同，不能让用户误以为写入会先询问。固定原版隔离工程不修改；完整 Plan/授权仍未实现。新构建 native smoke 的 18 组操作/48 图通过，独立视觉复核仍待完成；远程 CI 要求已于 2026-09-27 取消。 |
 
 源码：`packages/ui/src/v4/composer/V4ComposerModeControls.tsx`、`i18n/locales/{zh-CN,en-US}.ts`。本轮报告 `D:/Temp/pi34-final-native-smoke-3/report.json`；完整语义分流见 [#34 断言映射](issue-34-ci-acceptance-map.md)。其余原生路径的局部通过不抵消当前重启列表标题回归。
 

@@ -45,7 +45,7 @@
     "blockedBy": ["native-ui-gate"],
     "outcome": "在用户已确认的原生 ZCode 界面中创建会话、发送文本、看到真实 Pi 流式消息和工具、停止并恢复原生历史；不改造成第二套聊天工作台。",
     "decisions": ["保留原生 service accessor、session/Agent服务接口及前端状态/命令/订阅结构；在该边界映射 Pi，不把更换 model provider 当作换 Agent。", "将原生命令确认、snapshot/delta、session index、epoch/cursor映射到 Pi真实状态；Pi 每活动会话进程隔离、JSONL/单写者/取消及不重放副作用。", "旧 RPC/桥/测试模块按复用清单选择迁入；最终产品的 Agent调用无原 ZCode Agent fallback，前端不运行第二套队列/模型循环。"],
-    "acceptance": ["原生GUI→服务适配→固定真实Pi链路通过创建/文本流/一次真实工具/停止/历史恢复，截图和操作路径相对已确认底座无未登记改变。", "区分命令接收与运行完成，保留agent_settled/retry/compaction/扩展无Run语义、响应关联、异常输出、背压和进程退出结果。", "至少两个实际会话进程互不串台，单写者、generation/取消/重连不重放有合同证据。", "可启动产品中的Agent动作仅由Pi执行；原引擎对照路径隔离，产品无暗中fallback或mock-only成功。", "服务合同、测试seam、构建/包路径与后续迁入接口明确，审查和原生Windows CI通过。"],
+    "acceptance": ["原生GUI→服务适配→固定真实Pi链路通过创建/文本流/一次真实工具/停止/历史恢复，截图和操作路径相对已确认底座无未登记改变。", "区分命令接收与运行完成，保留agent_settled/retry/compaction/扩展无Run语义、响应关联、异常输出、背压和进程退出结果。", "至少两个实际会话进程互不串台，单写者、generation/取消/重连不重放有合同证据。", "可启动产品中的Agent动作仅由Pi执行；原引擎对照路径隔离，产品无暗中fallback或mock-only成功。", "服务合同、测试seam、构建/包路径与后续迁入接口明确，审查和必要的 Windows 本地验证通过。"],
     "tests": ["最高边界为原生GUI用户操作→真实宿主/服务适配→Pi RPC外部进程；复用可控JSONL边界测试并增加原生订阅/命令确认合同。", "固定真实Pi的文本/工具/停止/原生历史验收；独立原版对照与Pi结果区分。后续图片/双队列/完整认证等全量能力仍由原实施票完成。"]
   },
   {
@@ -250,7 +250,7 @@
     "outcome": "用户从 GitHub Issue 创建绑定独立 worktree 的工作，审阅合并成果，创建关联 PR 并查看 review/checks。",
     "decisions": ["GitHub 经宿主 gh，Issue/Task/Session ID 显式关联；失败可重试不伪造成功。", "删除 worktree 前展示 dirty/index 状态，保留未提交内容。"],
     "acceptance": ["创建/列出/打开/移除 worktree 与分支生命周期可用，两个任务文件改动隔离。", "gh 账户状态、Issues 正文/评论、PR 创建、reviews 和 checks 可操作。", "Issue 启动会话带来源链接，PR 正确关联 Issue 与 base/head。", "无认证/网络失败/冲突均有真实错误与恢复路径。"],
-    "tests": ["真实临时 worktree/bare remote 的创建、合并及拒绝脏删除。", "gh 协议边界 CI + 本仓库实际 Issue/PR 读取和可控 PR 创建验收。"]
+    "tests": ["真实临时 worktree/bare remote 的创建、合并及拒绝脏删除。", "本地 gh 协议边界测试 + 本仓库实际 Issue/PR 读取和可控 PR 创建验收。"]
   },
   {
     "key": "plan-tasks",
@@ -357,7 +357,7 @@
     "blockedBy": ["conversation", "queue-stop", "history", "settings", "llama", "resources", "extension-ui", "language", "preview", "github-worktrees", "subagents", "mcp", "remote", "schedule", "tui-complete", "ux-performance", "packaging"],
     "outcome": "维护者取得 P01–P34、I01–I18、84 条故事和 T01–T20 的完整交付/验收证据，用户可安装并完成真实工作闭环。",
     "decisions": ["仅全部通过后关闭父规格；外部环境条件缺失保持任务开启，离线与真实结果分别记录。", "回归创建关联修复票，不降低验收标准；PR 基线独立审查并修复后合并。"],
-    "acceptance": ["每行能力关联实施 Issue、合并 PR、实际支持路径与可复现证据，所有用户故事均有交付。", "真实 Pi 文本/图片/文件读写/shell/停止/续接/fork/tree/扩展 UI/provider/reload 验收。", "真实 OAuth、llama.cpp、MCP、GitHub、WSL/SSH 和 Windows 安装升级恢复按矩阵完成。", "全部必要 CI/typecheck/lint/合同/集成/Electron/build/package 通过，关键状态截图和性能报告齐全。", "文档与最终代码一致，代码推送，安装包可定位，最终提交记录；真实阻塞清单为空才发布完整首版。"],
+    "acceptance": ["每行能力关联实施 Issue、合并 PR、实际支持路径与可复现证据，所有用户故事均有交付。", "真实 Pi 文本/图片/文件读写/shell/停止/续接/fork/tree/扩展 UI/provider/reload 验收。", "真实 OAuth、llama.cpp、MCP、GitHub、WSL/SSH 和 Windows 安装升级恢复按矩阵完成。", "全部必要的本地 typecheck/lint/合同/集成/Electron/build/package 检查通过，关键状态截图和性能报告齐全。", "文档与最终代码一致，代码推送，安装包可定位，最终提交记录；真实阻塞清单为空才发布完整首版。"],
     "tests": ["执行仓库实际脚本并保存结果；按主规格逐项进行跨模块用户旅程与真实环境验收。", "对最终 PR 基线审查完整 diff，复查所有修复与兼容来源许可证。"]
   }
 ]
