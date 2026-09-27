@@ -10,6 +10,16 @@
 - 不得因用户暂缓验收而伪造 #34 或后续 Issue 的人工通过、关闭 Issue、合并 Draft PR 或正式发布。
 - 缺少在线账号、OAuth 人工回调、真实 llama.cpp/GGUF 或安装权限时，明确记录待最终验收项，但继续所有不依赖这些条件的开发。
 
+## 2026-09-27 23:45 主目录继续开发断点（以下历史快照以此为准）
+
+- 当前主目录 `issue-34-native-pi-rpc` 在此记录时 HEAD `b41a48c`；前一提交 `6dc84e7` 已普通推送至远程并更新 Draft PR #39，新提交尚待本批普通推送；PR 仍 Draft/Open，#34 仍 Open。再次接手先读实际 Git/远程，不把本行当永远不变的 HEAD。
+- #4 真实 shell 主提交 `324a344` 与 GUI `D:/Temp/pi-shell-main-first-20260927/pi-shell-gui-report.json` 已通过：固定 Pi 0.87.0 的带/不带上下文差异、长命令 Stop、无进程残留。#13 `2485cf7`、#25 `7b5c8ce`、#9 冷会话删除 `a33a4a0` + `4d54ba4`、#26 IME `6dc84e7` 已整合。#9 最终隔离源码 GUI `D:/Temp/pi-session-delete-gui6-20260927/pi-session-delete-gui-report.json`、#26 最终隔离源码 GUI `D:/Temp/pi-ime-gui-20260927-d/pi-ime-gui-report.json` 均绿；主分支合并后 GUI 与最终包仍需重跑。
+- #4 手动压缩 Stop 切片已在 `b41a48c` 聚焦提交；固定 Pi 延迟摘要取消与早到 Stop 的两项测试 2/2 PASS，services tsc、相关 lint、脚本语法检查 PASS；主分支桌面 production build 与压缩原生 GUI `D:/Temp/pi-manual-compact-main-20260927/pi-manual-compact-gui-report.json` PASS：Pi 0.87.0 摘要请求被 Stop 取消、前两轮历史保留、无后续重试或进程残留。主目录剩余未提交为 `packages/ui/src/TaskList.tsx` 删除一条 cherry-pick 遗留未使用 import，以及本 `next-context.md` 更新。旧的全 Pi 160/160 是这些整合前的证据，新全量回归尚未完成。
+- 未跟踪 `%SystemDrive%/`、`用`、`packages/desktop/dist-pi-incremental/` 与 `stash@{0}` 必须原样保护；用户运行中的旧 `packages/desktop/dist/win-unpacked` 不得覆盖或结束。新 Windows 包仅用隔离输出目录。并行 #14 在 `D:/Temp/pi-agent-gui-files-20260927`，#26 后续滚动在 `D:/Temp/pi-agent-gui-ime-scroll-20260927`，#9 fork/clone 在 `D:/Temp/pi-agent-gui-fork-clone-20260927`，各自单写者；待聚焦 SHA 与 GUI 证据后由主目录逐项整合。
+- Windows 进程工具偶发外部 `^C`（exit `-1073741510`）中断并行 typecheck/build/GUI；这不是代码断言失败。使用独占桌面时段、短 `yield_time_ms` + 轮询重跑；记录最终完整 PASS。当前不应把中断的全量 Pi 顺序测试计为通过。
+- #14 隔离 GUI `D:/Temp/pi-file-reference-gui-20260927-e/pi-file-reference-gui-report.json` 验证文件引用、原字节、预览、重启与进程清理；随后发现侧栏标题泄露 Pi 文件 snapshot 尾注，隔离代理已用固定 Pi 红测复现并修复，尚需绿测、exact-source GUI 与提交，故 #14 暂不整合。#26 长输出滚动红绿测试和静态构建通过，GUI 正在隔离时隙；#9 fork/clone 固定 Pi 合同初绿，GUI 待时隙。
+- 下一动作：`b41a48c` 与小型 UI 清理及本账本普通推送；审查/整合 #14/#26 后续/#9 fork/clone，跑主目录固定 Pi 顺序/typecheck/lint/delivery、本地 GUI、隔离 unpacked/NSIS 与包内 GUI。持续推进 #3/#4/#9–#14/#25–#28；只在全部可实施工作后交一次统一用户试用清单。
+
 ## 当前 Git 与交付状态
 
 - 工作目录：`C:\Users\niilo\Desktop\pi-agent-gui`
