@@ -18,6 +18,13 @@ import { parsePiQueueCatalog, parsePiQueueItem, parsePiQueueMutation, parsePiQue
   type PiQueueOperationV1 } from "./pi-queue-compat.js";
 export type { PiSessionPhase, PiSessionView, PiSessionSupervisorOptions } from "./pi-session-types.js";
 
+export interface PiShellResult {
+  output: string;
+  exitCode: number | null;
+  cancelled: boolean;
+  truncated: boolean;
+}
+
 function object(value: unknown): Record<string, unknown> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new Error("Pi RPC returned an invalid object");
@@ -425,6 +432,49 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
     return getPiHistoryMessages(this.requireSession(sessionId).client, () => this.getMessages(sessionId));
   }
 
+  /** User shell is one direct command to the owned Pi process; Pi writes its own history. */
+  async runBash(sessionId: string, command: string, excludeFromContext: boolean): Promise<PiShellResult> {
+    const runtime = this.requireSession(sessionId);
+    if (typeof command !== "string" || !command.trim() || command.length > 16_384 || command.includes("\0") ||
+      typeof excludeFromContext !== "boolean") throw new Error("Invalid Pi shell request");
+    if (runtime.controlBridge.blocksPrompt || runtime.view.uncertainDelivery || runtime.view.reconciliationRequired ||
+      !["idle", "settled", "stopped", "error"].includes(runtime.view.phase)) {
+      throw new Error("Pi session is not ready for a shell command");
+    }
+    const executionId = randomUUID();
+    runtime.view.foregroundExecutionId = executionId;
+    runtime.view.directBash = true;
+    runtime.view.phase = "running";
+    runtime.view.error = undefined;
+    this.publish(runtime);
+    try {
+      const response = await runtime.client.request({ type: "bash", command, excludeFromContext }, 120_000);
+      if (!response.success) throw new Error(response.error ?? "Pi shell command failed");
+      const data = object(response.data);
+      if (typeof data.output !== "string" || typeof data.cancelled !== "boolean" ||
+        typeof data.truncated !== "boolean" ||
+        data.exitCode !== undefined && (typeof data.exitCode !== "number" || !Number.isInteger(data.exitCode))) {
+        throw new Error("Pi shell response is incomplete");
+      }
+      return { output: data.output, exitCode: typeof data.exitCode === "number" ? data.exitCode : null,
+        cancelled: data.cancelled, truncated: data.truncated };
+    } catch (error) {
+      if (runtime.view.foregroundExecutionId === executionId && !runtime.stopping) {
+        if (error instanceof PiRpcError && error.delivery === "unknown") runtime.view.uncertainDelivery = true;
+        runtime.view.phase = "error";
+        runtime.view.error = message(error);
+      }
+      throw error;
+    } finally {
+      runtime.view.directBash = false;
+      if (runtime.view.foregroundExecutionId === executionId && !runtime.stopping) {
+        runtime.view.foregroundExecutionId = undefined;
+        if (runtime.view.phase !== "error") runtime.view.phase = "settled";
+      }
+      this.publish(runtime);
+    }
+  }
+
   async setModel(sessionId: string, provider: string, modelId: string, thinkingLevel?: string): Promise<void> {
     const runtime = this.requireSession(sessionId);
     if (runtime.controlBridge.blocksPrompt) throw new Error("Pi tree control is active or requires reconciliation");
@@ -651,6 +701,9 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
       if (!retry.success) throw new Error(retry.error ?? "Pi abort_retry failed");
       const abort = await runtime.client.request({ type: "abort" });
       if (!abort.success) throw new Error(abort.error ?? "Pi abort failed");
+      if (runtime.view.directBash && !await runtime.client.waitForPendingCommand("bash", 3_000)) {
+        throw new Error("Pi shell command did not settle after abort_bash");
+      }
       const state = await this.getState(sessionId);
       if (state.isStreaming || state.isCompacting || !runtime.view.queuePaused) {
         throw new Error("Pi did not settle after stop");

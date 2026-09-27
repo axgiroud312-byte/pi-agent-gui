@@ -1043,6 +1043,20 @@ export class PiNativeV4Service implements V4Methods {
     return this.piModelOption(this.recordFor(params, params.sessionId));
   }
 
+  async runPiShell(params: ZCodeAgentWorkspaceTarget & { sessionId: string; command: string;
+    excludeFromContext: boolean }): Promise<import("./pi-session-supervisor.js").PiShellResult> {
+    this.assertWorkspaceOpen(params);
+    await this.loadSession(params, params.sessionId);
+    const record = this.recordFor(params, params.sessionId);
+    if (record.state.piPendingIntent) throw new Error("Pi input requires history reconciliation before shell");
+    if (this.treeOperations.has(`${record.workspaceKey}:${record.view.sessionId}`)) {
+      throw new Error("Pi tree control is active");
+    }
+    const result = await this.supervisor.runBash(record.view.sessionId, params.command, params.excludeFromContext);
+    await this.reconcilePiTreeHistory(record);
+    return result;
+  }
+
   async readPiLlamaRouter(params: ZCodeAgentWorkspaceTarget & { sessionId: string }): Promise<PiLlamaRouterView> {
     this.assertWorkspaceOpen(params);
     await this.loadSession(params, params.sessionId);

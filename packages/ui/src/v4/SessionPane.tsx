@@ -128,6 +128,7 @@ import { PiTreeDialog } from "@/v4/PiTreeDialog.js";
 import { PiLlamaRouterDialog } from "@/v4/PiLlamaRouterDialog.js";
 import { extractPiModelCatalog } from "@/v4/composer/piModelCatalog.js";
 import { PiResourcesDialog } from "@/v4/PiResourcesDialog.js";
+import { PiShellDialog } from "@/v4/PiShellDialog.js";
 import { ConversationQueuePanel } from "@/v4/ConversationQueuePanel.js";
 import { projectPendingGuideQueue } from "@/v4/pendingGuideProjection.js";
 import { ConversationQuotaBanner } from "@/v4/ConversationQuotaBanner.js";
@@ -4672,6 +4673,8 @@ export function SessionPane({
         onClosePane={onClosePane}
         workspaceBadge={workspaceBadge}
         piTreeTrigger={isDesktop && !remoteSessionId && sessionId && !readOnly ? <>
+          <PiShellDialog sessionId={sessionId} workspacePath={workspacePath}
+            workspaceIdentity={workspaceIdentity} onStop={handleStopFromButton} />
           <PiLlamaRouterDialog sessionId={sessionId} workspacePath={workspacePath}
             workspaceIdentity={workspaceIdentity} remoteSessionId={remoteSessionId}
             onModelsChanged={refreshPiModelCatalog} />

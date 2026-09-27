@@ -24,6 +24,8 @@ export interface PiSessionView {
   uncertainDelivery: boolean;
   reconciliationRequired?: boolean;
   foregroundExecutionId?: string;
+  /** A direct fixed Pi `bash` RPC owns this foreground execution. */
+  directBash?: boolean;
   queuePaused?: boolean;
   clearedQueue?: { steering: string[]; followUp: string[] };
   error?: string;

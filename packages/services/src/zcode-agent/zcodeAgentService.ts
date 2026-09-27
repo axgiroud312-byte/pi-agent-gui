@@ -3331,6 +3331,7 @@ export function createZCodeAgentService(
     async runPiControlTree() { throw new Error("Pi public control bridge is unavailable in this runtime"); },
     async cancelPiTreeNavigation() { throw new Error("Pi public control bridge is unavailable in this runtime"); },
     async readPiModelCatalog() { throw new Error("Pi model catalog is unavailable in this runtime"); },
+    async runPiShell() { throw new Error("Pi shell is unavailable in this runtime"); },
     async readPiLlamaRouter() { throw new Error("Pi llama.cpp router is unavailable in this runtime"); },
     async runPiLlamaRouter() { throw new Error("Pi llama.cpp router is unavailable in this runtime"); },
     async cancelPiLlamaRouter() { throw new Error("Pi llama.cpp router is unavailable in this runtime"); },

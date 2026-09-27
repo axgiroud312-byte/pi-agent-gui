@@ -31,7 +31,11 @@ export async function startPiModel() {
     const promptText = typeof latestUser?.content === 'string' ? latestUser.content
       : Array.isArray(latestUser?.content) ? latestUser.content.filter(part => part.type === 'text')
         .map(part => part.text).join('') : '';
+    const contextText = body.messages?.filter(message => message.role === 'user')
+      .map(message => text(message.content)).join('\n') ?? '';
     const request = { scenario, promptText, tools: body.tools?.map(tool => tool.function?.name),
+      contextMarkers: { included: contextText.includes('PI_CONTEXT_INCLUDED'),
+        excluded: contextText.includes('PI_CONTEXT_EXCLUDED') },
       imageMimeTypes: imageUrls.map(url => /^data:([^;]+);base64,/u.exec(url)?.[1] ?? 'unknown'),
       imageDigests: imageUrls.map(url => {
         const encoded = /^data:[^;]+;base64,(.*)$/u.exec(url)?.[1];
