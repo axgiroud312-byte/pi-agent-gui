@@ -4127,6 +4127,8 @@ const zhCN: Record<string, string> = {
   "chat.piSessionUsage.cacheWrite": "缓存写入 token",
   "chat.piSessionUsage.cost": "估计费用（USD）",
   "chat.piSessionUsage.costDetail": "Pi 按模型价格累加，不代表供应商实际账单。",
+  "chat.piSessionUsage.costUnknown": "未知",
+  "chat.piSessionUsage.costUnknownDetail": "Pi 尚未报告估计费用；已知的 token 和缓存用量仍显示在上方。",
   "chat.contextUsageDescription": "提示词、工具调用和回复都会共享上下文窗口。",
   "chat.contextUsage.cacheHitRate": "平均缓存命中率",
   "chat.contextUsage.breakdown": "上下文来源",

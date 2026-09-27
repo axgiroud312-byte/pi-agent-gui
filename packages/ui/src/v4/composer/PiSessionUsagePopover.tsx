@@ -14,7 +14,6 @@ export function PiSessionUsagePopover({
 }) {
   const count = new Intl.NumberFormat(locale);
   const cost = usage.cumulative.costUSD;
-  if (cost === undefined) return null;
   const context = usage.contextWindow;
   const rows = [
     ["chat.piSessionUsage.input", usage.cumulative.inputTokens],
@@ -57,15 +56,18 @@ export function PiSessionUsagePopover({
         <div className="flex justify-between gap-3 border-t border-border pt-2 text-ui-sm">
           <span className="text-foreground-subtle">{intl.formatMessage({ id: "chat.piSessionUsage.cost" })}</span>
           <span className="font-mono tabular-nums" data-testid="pi-session-cost">
-            {new Intl.NumberFormat(locale, {
-              style: "currency",
-              currency: "USD",
-              maximumFractionDigits: 4,
-            }).format(cost)}
+            {cost === undefined
+              ? intl.formatMessage({ id: "chat.piSessionUsage.costUnknown" })
+              : new Intl.NumberFormat(locale, {
+                style: "currency",
+                currency: "USD",
+                maximumFractionDigits: 4,
+              }).format(cost)}
           </span>
         </div>
         <p className="text-ui-xs text-foreground-subtle">
-          {intl.formatMessage({ id: "chat.piSessionUsage.costDetail" })}
+          {intl.formatMessage({ id: cost === undefined
+            ? "chat.piSessionUsage.costUnknownDetail" : "chat.piSessionUsage.costDetail" })}
         </p>
       </PopoverContent>
     </Popover>

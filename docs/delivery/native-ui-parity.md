@@ -54,6 +54,8 @@
 | --- | --- | --- | --- |
 | PI03-M1 | 保留原生 ZCode `ModelConfigSelect` 的触发器、供应商分组、快捷键和关闭后焦点路径 | Pi 目录非空时在同一菜单顶部增设搜索框；按供应商、显示名和真实 model ID 过滤，不另存模型目录。模型目录仍取同一 Pi RPC `get_available_models`，选中模型与 thinking 等级仍取 Pi 当前会话；Pi 在压缩后报告有效上下文 token 为 `null` 时显示“未知”，不伪装为 0。相邻原生 Popover 显示 Pi 历史累计 token/cache 与估计 USD，费用不冒充供应商账单 | #3/P05/P06/P14/P15；复用仓库原生控件，未移植旧 `issue-3-rich-conversation` 界面。搜索、`null`/`0` 与费用投影红绿合同已过；`scripts/pi-model-thinking-gui-smoke.mjs` 的固定 Pi、1280×800 深色/1920×1080 浅色 GUI 尚待独占时段运行。原版同状态成对截图、在线 provider、包内运行及用户验收未完成。 |
 
+2026-09-28 费用未知回归：Pi 未提供 `costUSD` 时，原实现连同已知 token/cache 一起隐藏整个用量入口；现在仍显示同一 Popover，费用明确标为未知。隔离 React 渲染测试先红后绿，原版同状态对照、固定 Pi GUI 和包内运行仍由最终统一版本复验。
+
 ## #7/#8 原生设置与扩展弹窗增量（待 GUI 对照）
 
 | ID | 原生入口/行为 | Pi 产品行为 | 必要性 / 状态 |

@@ -4400,6 +4400,8 @@ const enUS: Record<string, string> = {
   "chat.piSessionUsage.cacheWrite": "Cache write tokens",
   "chat.piSessionUsage.cost": "Estimated cost (USD)",
   "chat.piSessionUsage.costDetail": "Pi sums model rates; this is not a provider bill.",
+  "chat.piSessionUsage.costUnknown": "Unknown",
+  "chat.piSessionUsage.costUnknownDetail": "Pi has not reported an estimated cost; known token and cache usage remains above.",
   "chat.contextUsageDescription":
     "Prompt text, tool calls, and responses all share this context window.",
   "chat.contextUsage.cacheHitRate": "Average cache hit rate",
