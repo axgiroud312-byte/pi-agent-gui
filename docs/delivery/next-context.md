@@ -24,10 +24,10 @@
 
 ## 2026-09-27 20:22 继续开发断点（优先于下方 19:59 快照）
 
-- 主目录最新代码提交 `87a25b5`（#5 快速关窗可见文本快照及 GUI 回归脚本）和 `995077a`（#4 队列烟测更新）；本节写入时尚待文档提交与普通推送，接手须核对实际 HEAD/远程。仅保护的未跟踪 `%SystemDrive%/`、`用`、`packages/desktop/dist-pi-incremental/` 应继续原样保留。
+- 主目录 #5/#4 增量 `87a25b5`（快速关窗可见文本快照及 GUI 回归脚本）、`995077a`（队列烟测更新）、文档 `660999f` 已普通推送；其后 #10 整合至 `b576b25`，当前文档改动尚待提交与普通推送。接手须核对实际 HEAD/远程。仅保护的未跟踪 `%SystemDrive%/`、`用`、`packages/desktop/dist-pi-incremental/` 应继续原样保留。
 - `node scripts/pi-native-gui-smoke.mjs --output D:/Temp/pi-agent-integrated-postsnapshot-20260927` 已在当前源码生产入口完整通过：`pi-native-gui-report.json` 的 `error=null`、根草稿恢复和原字节发送均为 true、两项目同名图 `restoredAndSentDistinctBytes=true`、`pageErrors=[]`；三轮 `graceful=true`、`forced=[]`、`survivors=[]`，私有 Pi 包清理通过。此证据包括 #4 队列、#14 文件保存冲突与布局恢复；受控模型不等于在线 provider，尚非最终 Windows 包。
 - #7/#8 隔离分支 `D:/Temp/pi-agent-gui-auth-ui-20260927` 有 `06c1aaf` + `57a81de`。第一次认证 GUI 的合成 API key 真正保存后显示 `committed-sync-failed`；固定 Pi 红测定位到服务书签保留已关闭会话，认证同步误读该会话。修复后真实 Pi 2/2 通过，活跃会话桥缺失仍失败闭锁；**尚需隔离 GUI 重跑，之后才可主目录整合**。#8 扩展输入 GUI 尚未走完，因为此前被认证步骤阻断。
-- #10 隔离分支 `D:/Temp/pi-agent-gui-settings-20260927` 提交顺序为 `bb3cc83`、`a52651a`，`af4c578` 是主目录已有 lockfile 修复副本，不再 cherry-pick。GUI 第三次报告 `D:/Temp/pi-settings-gui3-20260927/pi-settings-gui-report.json`：设置页真实读取/保存未知字段、外部并发修改冲突保留草稿、未信任项目提示通过，进程 `graceful=true`、无强杀/残留/页面异常；末尾固定 Pi 新会话发送 `createSession:pi.commandFailed`，整次仍失败，隔离代理继续查启动原因，GUI 脚本待提交。
+- #10 的隔离 GUI 前三次中第三次虽通过设置页操作，末尾固定 Pi 新会话发送 `createSession:pi.commandFailed`；原因是旧测试 fixture 的 `PI_PACKAGE_DIR` 多嵌套一级、Pi 缺 `dist/modes/interactive/theme/dark.json`。主目录 `87a25b5` 已修包路径，红绿测试后第四次 `D:/Temp/pi-settings-gui4-20260927/pi-settings-gui-report.json` **整次 PASS**：未知字段保存、外部冲突保留草稿、未信任项目提示、固定 Pi 经 loopback provider 推理完成，`pageErrors=[]`、`graceful=true`、`forced=[]`、`survivors=[]`。隔离提交 `bb3cc83`、`a52651a`、`ee45dcb` 已分别作为主分支 `9fc89ef`、`bd5d373`、`b576b25` 整合；`af4c578` 是已有 lockfile 修复副本，不要再 cherry-pick。整合后定向设置测试 10/10、Pi 包路径测试 1/1 PASS；主分支集成 GUI 尚待跑。
 - #11 隔离分支 `D:/Temp/pi-agent-gui-router-20260927` 已提交 `032240d`，固定 Pi + HTTP/SSE mock router 顺序 15/15、类型检查、lint、交付计划和 GitHub 校验通过；**尚需 cherry-pick 及独占原生 GUI**。本机没有发现 `llama-server`/GGUF，真实模型仍未验。#12 已在新的隔离 worktree 开始；#5 草稿生命周期也在独立 worktree 开始，均不得写主目录。
 - 下一步：先更新 #5 技术评论与 Draft PR、推送当前主分支；桌面时段先给 #7/#8 修后 GUI，再给 #10 修后 GUI，随后 #11。通过的隔离提交逐批审查并整合；主分支完整 Pi 顺序测试、typecheck、lint、delivery 本地/测试/`--github`、包内 GUI 仍需在后续集成后重跑。继续 #3/#4/#5/#9–#14/#25–#28，不请求分批人工试用。
 

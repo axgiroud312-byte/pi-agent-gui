@@ -98,9 +98,10 @@
 | #5：P01、D03 / V02、V04 | `D:/Temp/pi-agent-integrated-postsnapshot-20260927/pi-native-gui-report.json`：当前源码 `87a25b5` 的快速关窗文本快照已在生产入口原生 GUI 重跑。选择、粘贴、拖入，两个项目的同名未发图片与文字跨完整重启独立恢复；分别发送后固定 Pi 收到各自 SHA-256 原字节。第一项目两会话切换不重放，文件草稿及布局也恢复。`error=null`、`pageErrors=[]`，所有退出 `graceful=true`、`forced=[]`、`survivors=[]`，私有 Pi 包清理通过。 | 会话/项目删除后图片生命周期、文字单侧写失败、首次发送同时添加附件及最终包内复测仍开放。 |
 | #6：P13、P24 / V05、V09 | `66e1763` 将 tree/entries、书签、跳转、reload 接到同一 Pi 的公开扩展 bridge；定向真实 Pi 合同与独立原生 GUI 已通过。 | fork/clone 与扩展完整生命周期、包内 GUI 仍开放。 |
 | #9：P10、P11、P17 / V04 | `46c3e73` 用固定 Pi `SessionManager.list` 发现 CLI JSONL 历史；隔离 GUI `D:/Temp/pi-cli-history-gui3-20260927/pi-cli-history-gui-report.json` 验证 CLI→GUI→CLI 同一 session ID/JSONL 续接，退出无残留。定向测试 5/5 中包含实际固定 Pi 历史恢复。 | 主分支整合后的 GUI 复测、目录管理、fork/clone/编辑/重试、导入导出与主动分享仍开放。 |
+| #10：P05、P06、P07、P08、P19、P28、P31、P32、P34、D05 / V06、V08 | `9fc89ef`、`bd5d373`、`b576b25` 把固定 Pi 的用户/项目 `settings.json`、生效值来源、信任/离线/会话目录展示在原生设置页；JSON 编辑保留未知字段，用原始字节 SHA、Pi 锁目录及原子替换防并发覆盖。隔离 GUI `D:/Temp/pi-settings-gui4-20260927/pi-settings-gui-report.json` 验证保存、外部改动冲突、未信任项目和固定 Pi 新会话推理，`error=null`、`pageErrors=[]`、`graceful=true`、`forced=[]`、`survivors=[]`；整合后定向测试 10/10 和 Pi 包路径回归 1/1 PASS。 | 主分支整合后的 GUI 复测、全部设置字段与实际在线 provider/OAuth 行为仍待验证。 |
 | #14：D04 / V11 | `8910b33` 的有界 UTF-8 编辑与 SHA 版本冲突保护已在同一次 `green8` 原生 GUI 中验证：未保存草稿切换/重启恢复、外部改动阻断覆盖、用户明确比较后保存。 | 文件引用、更多预览类型和最终包内 GUI 未完成。 |
 
-当前 `pnpm run typecheck`、`pnpm run lint`（0 error / 70 既有 warning）、`pnpm run build:bootstrap` 与上述 5 项定向测试通过；完整 Pi 顺序回归、delivery GitHub 校验及最终包内回归要在后续集成后再跑。离线受控模型、在线 provider、实际 GGUF/router、NSIS 安装和用户验收仍是独立结果。
+`660999f` 时主分支 `pnpm run typecheck`、`pnpm run lint`（0 error / 70 既有 warning）、`pnpm run build:bootstrap`、固定 Pi 顺序 127/127、delivery plan、本地测试 7/7 和 `--github` 均通过。#10 整合后定向测试已通过；完整 Pi 顺序、类型/静态、原生 GUI 和最终包内回归须在后续集成后重跑。离线受控模型、在线 provider、实际 GGUF/router、NSIS 安装和用户验收仍是独立结果。
 
 ## 回填要求
 
