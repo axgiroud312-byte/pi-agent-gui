@@ -2,7 +2,7 @@
 
 当前合同为 [范围](pi-first-scope.md)、[scope.json](scope.json) 与 [tickets.json](tickets.json)。编号用于追踪，不以固定数量替代真实验收。任务覆盖不代表功能完成；历史原型证据不能自动计入原生 GUI。
 
-#34 已有本地闭环与增量修复/试用证据，图片与队列局部修复见 `1337c33`，但尚未取得本次用户验收；#1/#28 和下列能力最终验收仍未完成。受控模型并不等于在线 provider。
+#34 已有本地闭环与增量修复证据；图片与队列的旧局部修复见 `1337c33`。本轮未发送图片恢复改动见下方最新增量记录，仍未取得用户验收；#1/#28 和下列能力最终验收仍未完成。受控模型并不等于在线 provider。
 
 实现路径图例：R = Pi RPC；B = 公开扩展桥；H = 必要本地宿主；C = 固定版本兼容适配。路径是实施方向，不是已支持声明。
 
@@ -72,11 +72,21 @@
 
 | 能力 / 场景 | 目前实测 | 未完成 / 不得宣称 |
 | --- | --- | --- |
-| P01、P04、D03 / V02 | 固定 Pi 0.87.0 + 离线受控模型：原生 GUI 图片选择经 Host 分块上传，模型收到真实 PNG，Pi JSONL 的 user row 图片可预览并在重启后恢复。测试 `pi-native-image-upload.test.ts` 与 `scripts/pi-native-gui-smoke.mjs`。 | 拖入/粘贴各自完整矩阵、未知消息、在线模型图片仍未验收；未发送图片**重启后丢失**（#5）。 |
+| P01、P04、D03 / V02 | 固定 Pi 0.87.0 + 离线受控模型：原生 GUI 图片选择经 Host 分块上传，模型收到真实 PNG，Pi JSONL 的 user row 图片可预览并在重启后恢复。测试 `pi-native-image-upload.test.ts` 与 `scripts/pi-native-gui-smoke.mjs`。 | 拖入/粘贴各自完整矩阵、未知消息、在线模型图片仍未验收；本表的旧包尚未包含下方新草稿修复。 |
 | P02、P03 / V03 | GUI 运行中纯文本自动路由到 Pi 队列；Stop 先清队列，再取消运行；返回的文本在 GUI/重启后只读可见、不自动重发。运行中图片入队被拒且保留草稿及 Stop，避免 `clear_queue` 仅返文本而静默丢图。 | 双队列逐项编辑/删除/重排/立即发送、图片队列的无损取回、shell/retry/compaction/扩展等待的 GUI Stop 矩阵均**未完成**（#4）。 |
 | D06 / V01 | 本次生产源码入口及隔离的 Windows unpacked 包均通过原生 GUI→宿主→固定 Pi 图片/队列/停止/恢复，进程树检查无幸存；本地 TypeScript、lint、Pi 单测及桌面 production build 通过。NSIS 未安装产物已生成并通过依赖/大小检查。 | **未实际安装** NSIS、覆盖升级、卸载、在线 provider 或用户实际验收（#27/#28）；当前预览包不能当作统一最终交付。 |
 
 本地原始输出位于 `test-results/pi-*.log`、`test-results/native-parity/product/`（ignored，非提交证据）；`1337c33` 的隔离增量包位于 `D:/Temp/pi-agent-gui-preview-20260927-b/`（不是最终用户试用包）：`win-unpacked/Pi Agent IDE Preview.exe` 已实际运行，`Pi Agent IDE Preview-3.14.0-win-x64_TEST.exe` 仅已生成、未安装。对应实现与差异见 `packages/services/src/pi-agent/`、`scripts/native-smoke/` 及 [原生 UI 差异登记](native-ui-parity.md)。受控模型不等于在线供应商。下表所有“待逐项验收”维持原状。
+
+## 2026-09-27 当前开发增量：#5 未发送图片（`77481f1`，技术回归，非最终验收）
+
+| 能力 / 场景 | 已观察结果 | 仍未完成 |
+| --- | --- | --- |
+| P01、D03、D06 / V02、V04 | 先用生产入口 Windows 原生 GUI 复现：会话草稿文字重启后存在、未发送图片消失。修复后将图片原始字节和哈希存入 profile IndexedDB，按工作区/会话保存顺序索引；同一会话及新建任务的图片和文字在完整退出/重启后恢复，发送时受控模型通过固定 Pi 收到原字节。源文件选择器选图后被修改，模型仍收到选择时字节；损坏一张图片时另一张独立恢复、损坏张阻断发送并可手动移除。脚本 `scripts/pi-native-gui-smoke.mjs`，通过证据 `D:/Temp/pi-agent-draft-corrupt-green2-20260927/`；页面异常、强制退出、进程残留均为零。 | 尚需两项目两会话同名图、粘贴/拖入、会话删除/项目移除的存储生命周期、单侧文字存储失败和打包应用复测。用户未验收。 |
+| P01、P03 / V02 | 延迟浏览器读图后立即按 Enter 的红测曾把纯文字送到模型；同步 admission 门禁后桌面 GUI 阻止了这次错误发送。图片落盘失败变成失败 chip，不再作为 ready 图发送。 | 强制关机/崩溃发生在落盘之前的行为仍需单独界定；Stop/队列多状态矩阵未完成。 |
+| P01 / V02 | 单张 20 MiB 的 base64 Pi JSONL 经真实子进程边界通过；32 MiB record 上限与按总量预核算相配。两张 13 MiB 图在读入前按聚合限制拒绝。 | 多张大图不能放入同一条 Pi 0.87.0 JSONL prompt；发送前错误须在最终 GUI 中确认草稿保留。 |
+
+上述改动尚未形成最终 Windows 包；历史 `D:/Temp/pi-agent-gui-preview-20260927-b/` 不能代表它。所有 P/D/V 总表状态继续保持“待逐项验收”。
 
 ## 回填要求
 

@@ -55,6 +55,12 @@
 | PI04-S1 | 输入区运行时有草稿时，原控制簇显示“发送/加入队列”，Stop 按钮被替换 | 在同一原生控制簇并排显示 Stop 和发送，不用丢弃图片草稿才可停止 | Pi 0.87.0 队列 API 仅回传文本；拒绝图片入队后必须保持 Stop 可达。产品侧真实 GUI→Host→Pi 截图 `test-results/native-parity/product/pi-native-busy-image-refused.png`；固定原版同状态截图与用户感受尚未复核。关联 #3/#4。 |
 | PI04-S2 | 原生队列可单项编辑、删除、拖拽与继续 | Pi 队列按真实 `queue_update` 显示文本；缺少无损附件/逐项修改协议时不呈现虚假的按钮；Stop 后 `clear_queue` 返回文本只读提示、不暗中续发 | 固定 Pi 的 `queue_update`/`clear_queue` 仅返回文本。产品侧队列、停止后、重启后截图见同一 `test-results/native-parity/product/pi-native-{queued-text,stopped-queue}.png`；这些是限制说明，不是 #4 队列功能验收。 |
 
+## #5 未发送图片草稿恢复差异（开发增量，未最终验收）
+
+| ID | 原生入口/行为 | Pi 产品行为 | 必要性 / 状态 |
+| --- | --- | --- | --- |
+| PI05-S1 | 原生附件 chip、移除按钮和输入区位置 | 继续复用同一 chip；选图保存期间阻止发送，重启后在原位置恢复图片。损坏/未保存的单张图显示原生失败态，保留文件名 tooltip，可移除后继续 | 防止文字绕过尚未落盘的图片、修复未发送图重启丢失；无新增工具栏。生产入口桌面宿主、固定 Pi 与受控模型的红绿回归见 `scripts/pi-native-gui-smoke.mjs`。打包版与最终人工对照仍待验。关联 #3/#5。 |
+
 ## 用户关卡记录
 
 - 关卡 Issue：[#33](https://github.com/axgiroud312-byte/pi-agent-gui/issues/33)，前置导入 [#32](https://github.com/axgiroud312-byte/pi-agent-gui/issues/32)。
