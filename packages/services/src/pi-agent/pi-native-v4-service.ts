@@ -59,7 +59,8 @@ import { sessionFileExists } from "./pi-session-path.js";
 import { createPiV4Snapshot } from "./pi-v4-snapshot.js";
 import { emptyPiExtensionUiState, reducePiExtensionUiState } from "./pi-extension-ui-state.js";
 import { piWireFrames } from "./pi-v4-frames.js";
-import { readPiPromptImages } from "./pi-prompt-images.js";
+import { assertPiPromptRecordFits, readPiPromptImages } from "./pi-prompt-images.js";
+import { PiFileReferenceError, piFilePromptTitle, snapshotPiFileMentions } from "./pi-file-references.js";
 import { PiImageUploads } from "./pi-image-upload.js";
 import { piControlView, type PiControlAction, type PiControlView } from "./pi-control-protocol.js";
 import { PiQueueMediaStore } from "./pi-queue-media-store.js";
@@ -554,7 +555,7 @@ export class PiNativeV4Service implements V4Methods {
         const previous = this.bookmarks.get(session.id);
         if (previous && previous.workspaceKey !== workspaceKey) continue;
         const title = session.name?.trim() ||
-          (session.firstMessage === "(no messages)" ? "" : session.firstMessage.trim().slice(0, 100));
+          (session.firstMessage === "(no messages)" ? "" : piFilePromptTitle(session.firstMessage));
         this.bookmarks.set(session.id, {
           ...previous,
           sessionId: session.id, sessionFile: previous?.sessionFile ?? session.path,
@@ -694,7 +695,7 @@ export class PiNativeV4Service implements V4Methods {
     const rows = record.snapshot.rows.window;
     const lastAssistant = [...rows].reverse().find(row => row.kind === "assistantText");
     const firstUser = rows.find(row => row.kind === "userInput");
-    const promptTitle = firstUser?.kind === "userInput" ? firstUser.text.trim().slice(0, 100) : "";
+    const promptTitle = firstUser?.kind === "userInput" ? piFilePromptTitle(firstUser.text) : "";
     return {
       sessionId: record.view.sessionId,
       workspaceId: record.workspaceId,
@@ -1394,6 +1395,11 @@ export class PiNativeV4Service implements V4Methods {
           payload.mcpServers?.length || payload.offPeakToolEnabled || payload.dynamicWorkflowEnabled) {
           return unsupported(commandId, "createSession execution constraints", 0);
         }
+        const firstPrompt = payload.firstInput
+          ? await snapshotPiFileMentions(params.workspacePath, payload.firstInput.text) : undefined;
+        const firstImages = payload.firstInput
+          ? [...await readPiPromptImages(payload.firstInput.attachments), ...(firstPrompt?.images ?? [])] : [];
+        if (firstPrompt) assertPiPromptRecordFits(firstPrompt.text, firstImages);
         const view = await this.supervisor.createSession(params.workspacePath);
         createdSessionId = view.sessionId;
         this.assertWorkspaceOpen(params);
@@ -1417,14 +1423,13 @@ export class PiNativeV4Service implements V4Methods {
           record.admissionGeneration++;
           this.recordVersions.set(view.sessionId, (this.recordVersions.get(view.sessionId) ?? 0) + 1);
           projection.expectUserCommand(commandId);
-          record.state.piPendingIntent = { textHash: createHash("sha256").update(payload.firstInput.text).digest("hex"),
+          record.state.piPendingIntent = { textHash: createHash("sha256").update(firstPrompt!.text).digest("hex"),
             commandId, priorUserCount: 0, generation: record.admissionGeneration };
           // The pointer must exist before the first prompt can execute. Pi may
           // handle an extension command without ever writing user JSONL.
           if (!await this.persist(record)) throw new Error("Cannot persist Pi session identity before delivery");
           firstPromptAttempted = true;
-          const images = await readPiPromptImages(payload.firstInput.attachments);
-          const outcome = await this.supervisor.sendText(view.sessionId, payload.firstInput.text, images);
+          const outcome = await this.supervisor.sendText(view.sessionId, firstPrompt!.text, firstImages);
           if (outcome === "noRun") {
             projection.cancelExpectedUserCommand(commandId);
           }
@@ -1526,9 +1531,11 @@ export class PiNativeV4Service implements V4Methods {
           record.view.uncertainDelivery || record.view.reconciliationRequired) {
           return failure(commandId, "pi.deliveryUnknown", "Pi input requires history reconciliation", record.snapshot.revision);
         }
-        const images = await readPiPromptImages(payload.attachments);
+        const prompt = await snapshotPiFileMentions(params.workspacePath, payload.text);
+        const images = [...await readPiPromptImages(payload.attachments), ...prompt.images];
+        assertPiPromptRecordFits(prompt.text, images);
         if (requested === "queue" || requested === "guide") {
-          const queueItemId = await this.supervisor.enqueueText(record.view.sessionId, payload.text,
+          const queueItemId = await this.supervisor.enqueueText(record.view.sessionId, prompt.text,
             requested === "guide" ? "steer" : "followUp", images);
           if (!queueItemId) throw new Error("Pinned Pi omitted queue item identity after admission");
           try { await this.refreshQueueFacts(record); }
@@ -1543,13 +1550,13 @@ export class PiNativeV4Service implements V4Methods {
         this.recordVersions.set(record.view.sessionId, (this.recordVersions.get(record.view.sessionId) ?? 0) + 1);
         await this.applyModelSelection(record.view.sessionId, payload.modelSelection);
         record.projection.expectUserCommand(commandId);
-        record.state.piPendingIntent = { textHash: createHash("sha256").update(payload.text).digest("hex"),
+        record.state.piPendingIntent = { textHash: createHash("sha256").update(prompt.text).digest("hex"),
           commandId, priorUserCount: record.projection.getRows().filter(row => row.kind === "userInput").length,
           generation: record.admissionGeneration };
         try {
           const saved = await this.persist(record);
           if (!saved) throw new Error("Cannot persist Pi input correlation before delivery");
-          const outcome = await this.supervisor.sendText(record.view.sessionId, payload.text, images);
+          const outcome = await this.supervisor.sendText(record.view.sessionId, prompt.text, images);
           if (outcome === "noRun") {
             record.projection.cancelExpectedUserCommand(commandId);
           }
@@ -1754,7 +1761,8 @@ export class PiNativeV4Service implements V4Methods {
         }
       }
       if (record?.view.uncertainDelivery || record?.view.reconciliationRequired) await this.safelyPersist(record);
-      return failure(commandId, record?.view.uncertainDelivery || deliveryUnknown ? "pi.deliveryUnknown" : "pi.commandFailed",
+      return failure(commandId, record?.view.uncertainDelivery || deliveryUnknown ? "pi.deliveryUnknown"
+        : error instanceof PiFileReferenceError ? `pi.fileReference.${error.code}` : "pi.commandFailed",
         error instanceof Error ? error.message : String(error), record?.snapshot.revision ?? 0);
     }
   }

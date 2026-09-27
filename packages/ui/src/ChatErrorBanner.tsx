@@ -35,6 +35,7 @@ import {
   resolveOffPeakTicketExpiredBusinessCode,
 } from "@/lib/providerBusinessError.js";
 import type { ZCodeUiError } from "@/lib/zcodeUiError.js";
+import { piFileReferenceFailureMessageId } from "@/v4/piFileReferenceFailure.js";
 
 const HISTORICAL_MODEL_UNAVAILABLE_MESSAGES = [
   "历史任务使用的模型已不可用",
@@ -73,6 +74,8 @@ export function resolveChatErrorBannerDisplayMessage(
   error: ZCodeUiError,
   intl: IntlInstance,
 ): string {
+  const fileReferenceMessageId = piFileReferenceFailureMessageId(error.detail);
+  if (fileReferenceMessageId) return intl.formatMessage({ id: fileReferenceMessageId });
   if (isModelConfigMissingError(error)) {
     return intl.formatMessage({ id: "chat.error.noAvailableModel" });
   }

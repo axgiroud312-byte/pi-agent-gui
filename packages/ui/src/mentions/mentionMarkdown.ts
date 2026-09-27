@@ -8,7 +8,7 @@ function escapeMarkdownLabel(label: string): string {
 }
 
 function escapeMarkdownDestination(destination: string): string {
-  return destination.replaceAll("\\", "\\\\").replaceAll(">", "\\>");
+  return destination.replaceAll("\\", "\\\\").replaceAll("<", "\\<").replaceAll(">", "\\>");
 }
 
 function unescapeMarkdownText(text: string): string {
@@ -62,7 +62,9 @@ export function buildFileMentionMarkdown(
   kind: "file" | "directory" = "file",
 ): string {
   const normalizedRelativePath = normalizeFileMentionRelativePath(relativePath, kind);
-  return `[${escapeMarkdownLabel(label)}](${escapeMarkdownDestination(normalizeMarkdownDestination(normalizedRelativePath))})`;
+  const destination = normalizeMarkdownDestination(normalizedRelativePath);
+  const escaped = escapeMarkdownDestination(destination);
+  return `[${escapeMarkdownLabel(label)}](${/[\s()<>]/u.test(destination) ? `<${escaped}>` : escaped})`;
 }
 
 export function buildSkillMentionMarkdown(label: string, skillPath?: string): string {

@@ -4295,6 +4295,7 @@ const enUS: Record<string, string> = {
   "chat.message.expand": "Expand",
   "chat.message.collapse": "Collapse",
   "chat.userInput.epilogue.label": "Workflow engine instructions",
+  "chat.userInput.epilogue.piFileSnapshots": "File contents captured at send",
   "chat.message.bodyPreview.notice":
     "This reply is large. Showing a preview only ({previewBytes} / {fullBytes}).",
   "chat.message.bodyPreview.loadFull": "View full message",
@@ -5443,6 +5444,13 @@ const enUS: Record<string, string> = {
     "GitHub feedback requires manual entry. Diagnostics are not attached; copy and paste any details you want to share.",
   "chat.error.noAvailableModel": "No model available. Configure a provider, API key, and model.",
   "chat.error.sendFailed": "Failed to send. Try again later.",
+  "chat.error.piFileReference.missing": "The referenced file is missing or moved. Your draft is saved; select it again before sending.",
+  "chat.error.piFileReference.outside": "The referenced file is outside this project. Your draft is saved; choose a file in this project.",
+  "chat.error.piFileReference.large": "The referenced content exceeds the send limit. Your draft is saved; reduce the file or references.",
+  "chat.error.piFileReference.many": "Too many file references. Your draft is saved; remove some before sending.",
+  "chat.error.piFileReference.changed": "The referenced file changed while reading. Your draft is saved; try again.",
+  "chat.error.piFileReference.unsupported": "This reference format is unsupported. Your draft is saved; choose a text file or image.",
+  "chat.error.piFileReference.workspace": "The current project is unavailable. Your draft is saved; reopen the project.",
   "chat.error.modelSettings": "Model settings",
   "chat.error.setModels": "Set",
 

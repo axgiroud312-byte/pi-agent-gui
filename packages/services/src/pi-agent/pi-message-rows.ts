@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { isAbsolute, resolve } from "node:path";
 import type { ConversationDelta, ConversationRow } from "@zcode/shared/zcode-protocol-v4";
+import { piFileSnapshotEpilogueStart } from "./pi-file-references.js";
 
 type Data = Record<string, unknown>;
 
@@ -300,6 +301,8 @@ export class PiMessageRows {
           ...(sourceCommandId ? { sourceCommandId } : {}),
         });
         const inputId = this.rowId(`${messageIndex}:user`);
+        const userText = text(message.content);
+        const fileSnapshotStart = piFileSnapshotEpilogueStart(userText);
         const images = Array.isArray(message.content) ? message.content.flatMap((part, partIndex) => {
           const image = object(part);
           if (image.type !== "image" || typeof image.mimeType !== "string" || typeof image.data !== "string") return [];
@@ -309,7 +312,9 @@ export class PiMessageRows {
         }) : [];
         rows.push({
           kind: "userInput", rowId: inputId, turnId, createdAt: at, createdAtSeq: inputId,
-          origin: "realUser", text: text(message.content),
+          origin: "realUser", text: userText,
+          ...(fileSnapshotStart !== undefined ? { epilogueStart: fileSnapshotStart,
+            epilogueKind: "piFileSnapshots" as const } : {}),
           ...(images.length ? { attachments: images } : {}),
           ...(sourceCommandId ? { sourceCommandId, rootSourceCommandId: sourceCommandId } : {}),
         });

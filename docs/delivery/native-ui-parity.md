@@ -93,6 +93,9 @@
 | ID | 原生入口/行为 | Pi 产品行为 | 必要性 / 状态 |
 | --- | --- | --- | --- |
 | PI14-F1 | 固定原版 Side Pane 文件预览、标签和外部编辑器入口；#32 已实际运行文件预览与标签操作 | 复用同一 Side Pane，在顶部现有操作区增设铅笔按钮；文本编辑仍在该文件标签内，原有预览/外部编辑器路径保留 | #14 / D04 要求必要编辑保存。受控固定 Pi GUI 的冲突、显式保存和重启草稿截图见 [#14 增量证据](issue-14-native-editor/README.md)。原版与产品编辑状态的同状态成对截图尚未完成，不能以产品截图代替最终原生一致性验收。 |
+| PI14-F2 | 原生文件树、Markdown/图片 Side Pane 标签、二进制/大文件提示和输入框 `@` 文件选择器 | 保留这些原生入口；选择中文空格文件后，发送时把限定的文本/目录快照和图片原字节纳入同一 Pi 0.87.0 输入及 JSONL。用户消息默认收起附加快照，会话标题只用用户正文 | #14 / D03 / D04 / V11。生产入口隔离 GUI `scripts/pi-file-reference-gui-smoke.mjs` 验证文件选择、固定 Pi、发送后磁盘变化、Markdown/图片预览、二进制与 256 KB 预览上限提示、缺失引用后草稿恢复和未送模型、重启恢复；报告 `D:/Temp/pi-file-reference-gui-20260928-h/pi-file-reference-gui-report.json`，两次进程清理均无 harness 强制结束或残留。原版同状态成对截图、未知格式外部打开路径、其它媒体/Office 类型及最终人工验收尚未完成。 |
+
+PI14-F2 继续使用原生 `WorkspaceFileTree`、`PreviewPane`、`MentionPlugin` 与 v4 用户消息组件，来源为固定 [ZCode `872ad960`](https://github.com/zai-org/ZCode/tree/872ad960de7ec172591f7e1952f7849229f94521)，Apache-2.0，许可总表见 `THIRD_PARTY_NOTICES.md`。新增的是 Host 侧文件快照与 Pi 消息投影；没有引入旧自建文件预览或 Agent 执行循环。文件快照有 256 KiB 文本、20 MiB 单图、10 个引用和 Pi RPC 总记录上限；超界或缺失在 Pi 接收前失败，输入草稿保留。
 
 ## #4 Pi shell 入口（开发增量，视觉待验）
 

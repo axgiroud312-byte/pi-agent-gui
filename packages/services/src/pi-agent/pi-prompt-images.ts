@@ -9,6 +9,14 @@ export interface PiPromptImage {
   mimeType: string;
 }
 
+/** Account for images from both the composer and send-time workspace references. */
+export function assertPiPromptRecordFits(text: string, images: readonly PiPromptImage[]): void {
+  const encodedBytes = images.reduce((total, image) => total + image.data.length, 0);
+  if (Buffer.byteLength(text, "utf8") + encodedBytes > RPC_LIMITS.maxRecordBytes - PROMPT_RECORD_HEADROOM_BYTES) {
+    throw new Error("Pi prompt text and images exceed the aggregate JSONL record limit; send fewer or smaller references");
+  }
+}
+
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 const PROMPT_RECORD_HEADROOM_BYTES = 1024 * 1024;
 

@@ -1264,7 +1264,7 @@ const UserInputRowView = memo(function UserInputRowView({
               />
             </ConversationUserInputBody>
           ) : null}
-          {epilogue === undefined ? null : <ConversationUserInputEpilogue text={epilogue} />}
+          {epilogue === undefined ? null : <ConversationUserInputEpilogue text={epilogue} kind={row.epilogueKind} />}
         </div>
       ) : null}
       {status ? (

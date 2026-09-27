@@ -1353,7 +1353,7 @@ function ConversationComposerImpl({
           // 原子抢占需要等旧 turn 退出并提交新 TurnStarted ACK；
           // 若编辑器也等整条链路才清空，用户会误以为快捷键未生效。
           // 先清空可见正文；命令拒绝时用冻结 editor state 原样恢复。
-          inputApiRef.current?.clear();
+          inputApiRef.current?.clearForOptimisticSubmit();
           updateText("");
           cleanupRevision = contentRevisionRef.current;
           editorClearedOptimistically = true;

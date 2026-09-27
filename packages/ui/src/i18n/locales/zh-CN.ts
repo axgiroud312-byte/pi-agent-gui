@@ -4026,6 +4026,7 @@ const zhCN: Record<string, string> = {
   "chat.message.collapse": "收起",
   // 子代理 transcript 里折起来的引擎尾注。
   "chat.userInput.epilogue.label": "工作流引擎附加说明",
+  "chat.userInput.epilogue.piFileSnapshots": "发送时固定的文件内容",
   "chat.message.bodyPreview.notice":
     "这条回复较大，当前只显示预览（{previewBytes} / {fullBytes}）。",
   "chat.message.bodyPreview.loadFull": "查看完整消息",
@@ -5219,6 +5220,13 @@ const zhCN: Record<string, string> = {
   "feedback.external.manualCopyHint": "GitHub 反馈需手动填写；诊断信息未自动附带，请按需复制粘贴。",
   "chat.error.noAvailableModel": "当前没有可用模型。请配置模型供应商、API 密钥和模型。",
   "chat.error.sendFailed": "发送失败，请稍后重试。",
+  "chat.error.piFileReference.missing": "引用文件不存在或已移动。草稿已保留，请重新选择后发送。",
+  "chat.error.piFileReference.outside": "引用文件不在当前项目内。草稿已保留，请选择项目内的文件。",
+  "chat.error.piFileReference.large": "引用文件超过发送上限。草稿已保留，请缩小文件或减少引用。",
+  "chat.error.piFileReference.many": "文件引用过多。草稿已保留，请减少引用后发送。",
+  "chat.error.piFileReference.changed": "引用文件在读取时发生变化。草稿已保留，请重试。",
+  "chat.error.piFileReference.unsupported": "此引用格式暂不支持。草稿已保留，请选择普通文本文件或图片。",
+  "chat.error.piFileReference.workspace": "无法定位当前项目。草稿已保留，请重新打开项目。",
   "chat.error.modelSettings": "模型设置",
   "chat.error.setModels": "配置",
 
