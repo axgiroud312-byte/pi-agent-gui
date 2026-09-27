@@ -25,9 +25,10 @@ export async function startPiModel({ holdAfterRequests = Infinity, failFirstRequ
     const body = JSON.parse(raw);
     const text = value => typeof value === 'string' ? value : JSON.stringify(value);
     const prompt = body.messages?.filter(message => message.role === 'user').map(message => text(message.content)).at(-1) ?? '';
-    const scenario = /PI_(?:LONG_TOOL|TEXT|IMAGE|READ|HELLO|STOP|SCROLL)/.exec(prompt)?.[0] ?? 'other';
+    const scenario = /PI_(?:LONG_TOOL|RICH_TOOL|TEXT|IMAGE|READ|HELLO|STOP|SCROLL)/.exec(prompt)?.[0] ?? 'other';
     const toolResults = body.messages?.filter(message => message.role === 'tool') ?? [];
     const ownLongToolResult = toolResults.some(message => message.tool_call_id === 'pi-native-long-bash');
+    const ownRichToolResult = toolResults.some(message => message.tool_call_id === 'pi-native-rich-tool');
     const imageUrls = body.messages?.filter(message => message.role === 'user')
       .flatMap(message => Array.isArray(message.content) ? message.content : [])
       .filter(part => part.type === 'image_url').map(part => part.image_url?.url) ?? [];
@@ -87,7 +88,13 @@ export async function startPiModel({ holdAfterRequests = Infinity, failFirstRequ
       } }] });
       send({}, 'tool_calls'); res.end('data: [DONE]\n\n'); return;
     }
-    const response = scenario === 'PI_LONG_TOOL' ? 'PI_LONG_TOOL_COMPLETE' : scenario === 'PI_IMAGE' ? 'PI_IMAGE_COMPLETE' : scenario === 'PI_READ' ? 'PI_READ_COMPLETE' : scenario === 'PI_HELLO'
+    if (scenario === 'PI_RICH_TOOL' && !ownRichToolResult) {
+      send({ tool_calls: [{ index: 0, id: 'pi-native-rich-tool', type: 'function', function: {
+        name: 'gui_rich_probe', arguments: '{}',
+      } }] });
+      send({}, 'tool_calls'); res.end('data: [DONE]\n\n'); return;
+    }
+    const response = scenario === 'PI_LONG_TOOL' ? 'PI_LONG_TOOL_COMPLETE' : ownRichToolResult ? 'PI_RICH_TOOL_COMPLETE' : scenario === 'PI_IMAGE' ? 'PI_IMAGE_COMPLETE' : scenario === 'PI_READ' ? 'PI_READ_COMPLETE' : scenario === 'PI_HELLO'
       ? 'PI_HELLO_COMPLETE' : scenario === 'PI_STOP'
       ? 'PI_STOP_PARTIAL' : 'PI_TEXT_COMPLETE';
     if (scenario === 'PI_TEXT') {

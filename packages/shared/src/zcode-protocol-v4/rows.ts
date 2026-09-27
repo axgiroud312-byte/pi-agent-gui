@@ -233,6 +233,13 @@ export const toolCallRowSchema = z.object({
   input: z.unknown().optional(),
   cuaApp: cuaAppIdentitySchema.optional(),
   output: toolOutputSchema.optional(),
+  // Fixed Pi toolResult content/details are authoritative even when a TUI-only
+  // custom renderer is unavailable. Refs point back to the owned Pi JSONL.
+  piResult: z.object({
+    parts: extensionMessageRowSchema.shape.parts,
+    attachments: extensionMessageRowSchema.shape.attachments,
+    details: extensionMessageRowSchema.shape.details,
+  }).optional(),
   display: toolCallDisplaySchema.optional(),
   // status=error 时必带。
   error: z.object({ code: z.string(), message: z.string() }).optional(),

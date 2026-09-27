@@ -153,6 +153,14 @@
 | #9：P16 / V10 | `200a51c` 已整合前表的原生 Pi JSONL/HTML 导入导出、复制及明确确认后 secret Gist 分享实现；主分支纯测试 4/4、typecheck、lint、production build 通过。隔离精确源码 GUI 证据仍见前表，源 JSONL 未被改写。 | 主分支整合 GUI、真实 GitHub Gist 发布、包内及人工验收分别待验证。 |
 | #27：D01、D02 / V01 | `9bfbaf2`、`8be4045` 已整合本地诊断预览和独立复制/打开 GitHub 操作；预览只含本地白名单版本，不带主机名、目录、日志、会话 ID 或凭据。隔离固定 Pi GUI `D:/Temp/pi-diagnostics-gui-20260928-b/pi-diagnostics-gui-report.json` 验证剪贴板等于预览（Windows 换行归一化）、只有显式点击才外开，`pageErrors=[]`、`graceful=true`、`forced=[]`、`survivors=[]`。主分支纯测试 4/4、typecheck、lint、production build 通过。 | 主分支整合/包内 GUI、Windows NSIS 实际安装、覆盖升级、卸载和人工验收未完成。 |
 
+## 2026-09-28 #25 扩展工具原始结果增量（隔离分支，非最终验收）
+
+| 能力 / 场景 | 已观察结果 | 仍待完成 |
+| --- | --- | --- |
+| P27 / V09：公开扩展工具的图文与 details | 先以 `pi-message-rows.test.ts` 红测复现工具图像/details 在原生行丢失，再由固定 Pi 0.87.0 真实子进程执行 `examples/pi-gui-compat/extension.ts` 的 `gui_rich_probe`：Pi JSONL 保留文字、PNG 原字节和 details；原生行只传不含图像字节的 opaque ref，冷投影一致，错误行/工作区拒读。隔离生产源码 GUI `D:/Temp/pi-rich-tool-gui-20260928-c/pi-rich-tool-gui-report.json` 验证模型确实调用工具并收到 PNG、原生工具组展开后有序文字/解码图像/details 可见；`pageErrors=[]`、`graceful=true`、`forced=[]`、`survivors=[]`。外发分享遇富工具行先拒绝。 | 当前只验证一个代表工具；两会话交错、Stop/reload、非消息 entry、复杂第三方 TUI、原版同状态成对截图、包内 GUI、在线 provider 与用户验收仍开放。 |
+
+本增量纯投影 9/9、UI 行 3/3、固定 Pi 新合同 1/1 和既有扩展样例 4/4 PASS；`pnpm typecheck`、`pnpm lint`（0 error / 69 warning）、桌面 `build:no-runtime-assets`、delivery plan 本地、7 项校验测试及 `--github` PASS。GUI 首两轮 a/b 是测试文案与模型请求记录形状的断言失误，均正常退出且无残留，未当作产品失败。受控 loopback 模型不是在线 provider，源码入口 GUI 不是包内 GUI。
+
 ## 回填要求
 
 每项填写实际原生 GUI/Pi 版本、提交、测试命令、结果和证据链接；在线 provider、可控模型、包内运行、实际安装与用户验收分别标明。P27 的限制按 #8/#25 逐类明示，不将复杂 TUI 不支持写为已全面兼容。

@@ -3,6 +3,7 @@ import { isAbsolute, resolve } from "node:path";
 import type { ConversationDelta, ConversationRow } from "@zcode/shared/zcode-protocol-v4";
 import { piFileSnapshotEpilogueStart } from "./pi-file-references.js";
 import { diffPiMessageRows, serializePiValue } from "./pi-message-row-diff.js";
+import { piRichMessageParts, piToolRichResult } from "./pi-rich-message-parts.js";
 
 type Data = Record<string, unknown>;
 
@@ -142,7 +143,7 @@ export class PiMessageRows {
     const match = /^pi-image:(0|[1-9]\d*):(0|[1-9]\d*)$/u.exec(ref);
     if (!match) return undefined;
     const message = this.messages[Number(match[1])];
-    if (!message || !["user", "custom"].includes(String(message.role)) || !Array.isArray(message.content)) return undefined;
+    if (!message || !["user", "custom", "toolResult"].includes(String(message.role)) || !Array.isArray(message.content)) return undefined;
     const part = object(message.content[Number(match[2])]);
     if (part.type !== "image" || typeof part.data !== "string" || typeof part.mimeType !== "string") return undefined;
     return { data: part.data, mimeType: part.mimeType };
@@ -317,30 +318,11 @@ export class PiMessageRows {
         });
       } else if (message.role === "custom") {
         if (message.display === false) continue;
-        const attachments: NonNullable<Extract<ConversationRow, { kind: "userInput" }>["attachments"]> = [];
-        const source = typeof message.content === "string" ? [{ type: "text", text: message.content }]
-          : Array.isArray(message.content) ? message.content : [message.content];
-        const parts = source.map((rawPart, partIndex) => {
-          const part = object(rawPart);
-          if (part.type === "text" && typeof part.text === "string") {
-            return { type: "text" as const, text: part.text };
-          }
-          if (part.type === "image" && typeof part.mimeType === "string" && typeof part.data === "string") {
-            const ref = `pi-image:${messageIndex}:${partIndex}`;
-            const bytes = Buffer.from(part.data, "base64").length;
-            const attachmentIndex = attachments.length;
-            const extension = part.mimeType === "image/jpeg" ? "jpg" : part.mimeType.split("/")[1] ?? "image";
-            attachments.push({ ref, fileName: `extension-image-${attachmentIndex + 1}.${extension}`,
-              mime: part.mimeType, bytes });
-            return { type: "image" as const, ref, mimeType: part.mimeType, bytes, attachmentIndex };
-          }
-          return { type: "unknown" as const, value: rawPart };
-        });
+        const rich = piRichMessageParts(message, messageIndex, "extension-image");
         const rowId = this.rowId(`${messageIndex}:custom`);
         rows.push({ kind: "extensionMessage", rowId, turnId, createdAt: at, createdAtSeq: rowId,
           customType: typeof message.customType === "string" ? message.customType : "unknown",
-          parts, ...(attachments.length ? { attachments } : {}),
-          ...(message.details !== undefined ? { details: message.details } : {}) });
+          ...rich });
       } else if (message.role === "bashExecution") {
         const rowId = this.rowId(`${messageIndex}:bash`);
         rows.push({ kind: "bashExecution", rowId, turnId, createdAt: at, createdAtSeq: rowId,
@@ -406,6 +388,12 @@ export class PiMessageRows {
           call.status = tool.status;
           call.output = { text: text(message.content) };
           if (tool.error) call.error = { code: "pi.toolError", message: tool.error };
+          // Wait for Pi's completed message before exposing its image refs.
+          // Live and cold rows then share the same JSONL-backed identity.
+          if (this.activeMessageIndex !== messageIndex) {
+            const piResult = piToolRichResult(message, messageIndex);
+            if (piResult) call.piResult = piResult;
+          }
         }
       }
     }

@@ -150,6 +150,45 @@ test("Pi extension details and local image refs cannot leak through public shari
     selectedProductTurnIds: ["product-1"] }), /Pi extension messages cannot be shared yet/);
 });
 
+test("Pi tool result keeps ordered text, image and details from the authoritative message", () => {
+  const imageData = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRhsAAAAASUVORK5CYII=";
+  const user = { role: "user", content: "use rich tool", timestamp: 1000 };
+  const assistant = { role: "assistant", timestamp: 1001,
+    content: [{ type: "toolCall", id: "rich-call", name: "extension_probe", arguments: { value: 1 } }] };
+  const result = { role: "toolResult", toolCallId: "rich-call", toolName: "extension_probe", timestamp: 1002,
+    content: [{ type: "text", text: "before" }, { type: "image", mimeType: "image/png", data: imageData },
+      { type: "text", text: "after" }, { type: "reference", label: "unrecognized block" }],
+    details: { source: "fixed Pi", marker: "private tool detail" }, isError: false };
+  const projection = new PiMessageRows();
+  for (const message of [user, assistant, result]) {
+    projection.apply({ type: "message_start", message });
+    projection.apply({ type: "message_end", message });
+  }
+  projection.apply({ type: "agent_settled" });
+  const live = projection.getRows();
+  const row = live.find(item => item.kind === "toolCall");
+  assert(row && row.kind === "toolCall");
+  const parsed = conversationRowSchema.parse(row);
+  assert(parsed.kind === "toolCall");
+  assert.deepEqual(parsed.piResult, row.piResult, "transport validation must retain Pi result blocks");
+  assert.equal(row.status, "success");
+  assert.deepEqual(row.piResult?.parts, [
+    { type: "text", text: "before" },
+    { type: "image", ref: "pi-image:2:1", mimeType: "image/png", bytes: 68, attachmentIndex: 0 },
+    { type: "text", text: "after" },
+    { type: "unknown", value: { type: "reference", label: "unrecognized block" } },
+  ]);
+  assert.deepEqual(row.piResult?.details, result.details);
+  assert.equal(row.piResult?.attachments?.[0]?.ref, "pi-image:2:1");
+  assert.deepEqual(projection.image("pi-image:2:1"), { data: imageData, mimeType: "image/png" });
+  assert.deepEqual(new PiMessageRows().restore([user, assistant, result]), live);
+  assert.deepEqual(new PiMessageRows().reconcile([user, assistant, result]).length > 0, true);
+
+  const publicRow = conversationRowSchema.parse({ ...row, productTurnId: "private-turn" });
+  assert.throws(() => buildConversationSharePublicProjection({ rows: [publicRow],
+    selectedProductTurnIds: ["private-turn"] }), /Pi tool results cannot be shared yet/u);
+});
+
 test("Pi direct bash history preserves command, output, exit and context choice across reconciliation", () => {
   const withContext = { role: "bashExecution", command: "printf first", output: "first",
     exitCode: 7, cancelled: false, truncated: false, timestamp: 1000,

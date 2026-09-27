@@ -1484,11 +1484,14 @@ export class PiNativeV4Service implements V4Methods {
     });
     const record = this.recordFor(params, params.sessionId);
     const row = record.projection.getRows().find(item =>
-      (item.kind === "userInput" || item.kind === "extensionMessage") &&
-      item.attachments?.some(attachment => attachment.ref === ref));
-    if (!row || (row.kind !== "userInput" && row.kind !== "extensionMessage") ||
+      (item.kind === "userInput" || item.kind === "extensionMessage"
+        ? item.attachments?.some(attachment => attachment.ref === ref)
+        : item.kind === "toolCall" ? item.piResult?.attachments?.some(attachment => attachment.ref === ref) : false));
+    const attachments = row?.kind === "toolCall" ? row.piResult?.attachments
+      : row?.kind === "userInput" || row?.kind === "extensionMessage" ? row.attachments : undefined;
+    if (!row || (row.kind !== "userInput" && row.kind !== "extensionMessage" && row.kind !== "toolCall") ||
       (target && (row.rowId !== target.rowId || row.entityId !== target.entityId ||
-      row.attachments?.[attachmentIndex!]?.ref !== ref))) throw new Error("Pi image is not in this session row");
+      attachments?.[attachmentIndex!]?.ref !== ref))) throw new Error("Pi image is not in this session row");
     const image = record.projection.image(ref);
     if (!image || !["image/png", "image/jpeg", "image/gif", "image/webp"].includes(image.mimeType)) {
       throw new Error("Pi image is not available in this session");

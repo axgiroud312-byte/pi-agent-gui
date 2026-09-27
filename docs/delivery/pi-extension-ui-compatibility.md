@@ -50,7 +50,9 @@
 使用方法见 [样例 README](../../examples/pi-gui-compat/README.md)。它在同一固定 Pi RPC 会话中
 依次触发四种问答、status、字符串 widget、title 与 notify；结束时清除自身 status/widget，
 并把原始 custom message 留在 Pi 历史。`/gui-compat-image` 另保留交错文字/图片和 details，
-原生行用有作用域的 Pi 图片引用读取原始字节。取消不会产生成功消息。`/gui-tui-only` 在 RPC 下
+原生行用有作用域的 Pi 图片引用读取原始字节。`gui_rich_probe` 是 Pi 公开扩展工具，
+模型调用后把交错文字/图片与原始 details 留在同一 Pi JSONL 的 toolResult 中；
+原生工具行按同一引用读取图片。取消不会产生成功消息。`/gui-tui-only` 在 RPC 下
 明确发出限制通知；真实 TUI 下才调用 `ctx.ui.custom()`。该样例使用 Pi 公开 API 和本项目原创代码，
 没有移植旧 `pi-tui-8` 的 headless TUI 宿主或组件渲染器。
 
@@ -65,7 +67,7 @@
 | `setHeader` / `setFooter` / `setEditorComponent` | Pi RPC 不调用 factory，也不发事件 | 不复刻任意 TUI 布局、焦点和按键状态机；需要逐扩展适配 |
 | `onTerminalInput`、autocomplete factory、working loader、隐藏 thinking label、工具展开 | RPC 为无操作或固定默认值 | 直接 stdio/ANSI 输入和终端装饰不能由 GUI 假装已经执行 |
 | `setTheme` / 主题对象 | `setTheme()` 返回失败，主题目录查询为空 | GUI 主题由原生设置负责；扩展切换 Pi TUI 主题不代表 GUI 已换主题 |
-| message / entry / tool renderer、Markdown transformer | 只在 Pi TUI 展示流程执行，不提供 RPC 组件协议 | 本分支的原生时间线保留 `display:true` custom message 的有序文字、图片引用和 details；`display:false` 按 Pi 意图留在原始历史但不显示。工具 image/details 与非消息 entry 路径仍需 #13 实测 |
+| message / entry / tool renderer、Markdown transformer | 只在 Pi TUI 展示流程执行，不提供 RPC 组件协议 | 原生时间线保留 `display:true` custom message 及 toolResult 的有序文字、图片引用和 details；`display:false` 按 Pi 意图留在原始历史但不显示。非消息 entry 和复杂 TUI 布局仍需逐扩展验证 |
 
 **判断守卫**：Pi 文档明确 `ctx.hasUI === true` 也适用于 RPC，因为四类问答和单向消息可用。
 组件、直接终端输入、主题和 renderer 必须判断 `ctx.mode === "tui"`。复杂第三方扩展如果
@@ -80,7 +82,9 @@ reload/Stop、包内运行和用户验收尚需与 #13 集成后验证。
 `pi-message-rows.test.ts` 的红绿回归验证 custom message 在 live/restore 均保留有序文字、
 图片引用和 details；`pi-extension-message-service.test.ts` 用真实固定 Pi 验证原生行图片字节
 按会话/工作区读取。预览继续遵守现有 20 MiB 单图上限；更大的 Pi 原始数据仍在 JSONL，
-GUI 的预览会明确失败。外发分享遇到这类行先拒绝，避免未经审查的 details 或本地引用泄漏。
+GUI 的预览会明确失败。`pi-extension-rich-tool.test.ts` 的固定 Pi 0.87.0 合同验证工具注册与执行、Pi JSONL 的图文/details、冷投影和工作区/行范围图片读取；
+`D:/Temp/pi-rich-tool-gui-20260928-c/pi-rich-tool-gui-report.json` 的生产源码原生 GUI 验证模型第二请求确实收到 PNG、展开原生工具组后图文/details 可见，且 `pageErrors=[]`、`graceful=true`、`forced=[]`、`survivors=[]`。
+外发分享遇到这些原始 custom/tool 行先拒绝，避免未经审查的 details 或本地引用泄漏。
 固定来源：
 [`Pi 上游提交`](https://github.com/earendil-works/pi/tree/16787ad5b2dc748047f314ca1bfe7708f30f54f3/packages/coding-agent)
 MIT，npm 0.87.0 的 `dist/modes/rpc/rpc-mode.js`、`rpc-types.d.ts`、`core/extensions/types.d.ts`；

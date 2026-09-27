@@ -97,7 +97,9 @@ export function toolCallRowToLegacyNode(row: ToolCallRow): TaskChatToolCallTreeN
       kind: row.toolName,
       input: inputPreview.input,
       status: legacyStatus,
-      output: row.output?.text,
+      // Pi rich tool results render their original ordered blocks beside the
+      // native card; do not show the flattened text a second time here.
+      output: row.piResult ? undefined : row.output?.text,
       // V4 ToolCallRow 没有 legacy taskNotification raw；background Agent
       // 的终态摘要只落在 output。Agent renderer 读取 content 展示活动结果，因此在
       // Agent/Task 行显式桥接，避免失败详情虽已投影却仍只显示一张空卡。
@@ -109,7 +111,7 @@ export function toolCallRowToLegacyNode(row: ToolCallRow): TaskChatToolCallTreeN
       error: errorText,
       raw: {
         error: row.error,
-        rawOutput: row.output?.text,
+        rawOutput: row.piResult ? undefined : row.output?.text,
         outputPreview: row.outputPreview,
         outputTruncated: row.output?.truncated,
         status: legacyStatus,

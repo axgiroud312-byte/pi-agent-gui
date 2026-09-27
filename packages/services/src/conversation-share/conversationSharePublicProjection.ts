@@ -360,6 +360,9 @@ function projectRow(row: ConversationRow, index: number, ids: PublicIdMaps): Con
         ...(row.durationMs === undefined ? {} : { durationMs: row.durationMs }),
       };
     case "toolCall":
+      if (row.piResult) {
+        throwProjectionError("invalid_conversation", "Pi tool results cannot be shared yet");
+      }
       return {
         ...base,
         kind: "toolCall",

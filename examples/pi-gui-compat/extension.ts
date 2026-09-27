@@ -3,6 +3,7 @@
  * Run /gui-compat-demo for serializable UI, /gui-tui-only for the TUI boundary.
  */
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { Type } from "@earendil-works/pi-ai";
 import { Text } from "@earendil-works/pi-tui";
 
 const statusKey = "gui-compat";
@@ -10,6 +11,17 @@ const customType = "pi-gui-compat.result";
 const sampleImage = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRhsAAAAASUVORK5CYII=";
 
 export default function (pi: ExtensionAPI): void {
+  pi.registerTool({ name: "gui_rich_probe", label: "GUI rich result probe",
+    description: "Return ordered text and image plus original result details for GUI compatibility testing",
+    parameters: Type.Object({}),
+    async execute() {
+      return { content: [{ type: "text" as const, text: "before image" },
+        { type: "image" as const, mimeType: "image/png", data: sampleImage },
+        { type: "text" as const, text: "after image" }],
+      details: { source: "pi-gui-compat", marker: "original tool details" } };
+    },
+  });
+
   // The renderer is TUI-only. Pi still persists the original custom message in RPC mode.
   pi.registerMessageRenderer(customType, message => new Text(
     typeof message.content === "string" ? message.content : JSON.stringify(message.content), 0, 0));

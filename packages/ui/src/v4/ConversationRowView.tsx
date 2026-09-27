@@ -2023,10 +2023,47 @@ const ToolCallRowView = memo(function ToolCallRowView({
           workflowRun={workflowRun}
           workflowDraft={context.workflowDraftByToolCallId?.get(row.toolCallId)}
         />
+        {row.piResult ? <div data-pi-tool-result={row.toolName}
+          className="mt-2 max-w-xl space-y-2 rounded-lg border border-border bg-surface p-3 text-ui-sm">
+          <PiRichParts parts={row.piResult.parts} attachments={row.piResult.attachments}
+            details={row.piResult.details} detailsLabel="原始工具详情"
+            rowId={row.rowId} entityId={row.entityId} context={context} />
+        </div> : null}
       </div>
     </RowShell>
   );
 });
+
+function PiRichParts({ parts, attachments, details, detailsLabel, rowId, entityId, context }: {
+  parts: ExtensionMessageRow["parts"];
+  attachments?: ExtensionMessageRow["attachments"];
+  details?: unknown;
+  detailsLabel: string;
+  rowId: number;
+  entityId?: string;
+  context: ConversationRowRenderContext;
+}) {
+  return <>
+    {parts.map((part, index) => {
+      if (part.type === "image") {
+        const attachment = attachments?.[part.attachmentIndex];
+        return attachment ? <UserInputAttachmentList key={`${part.ref}:${index}`}
+          attachments={[attachment]} attachmentIndices={[part.attachmentIndex]}
+          attachmentKind="media" directItems rowId={rowId} entityId={entityId}
+          sessionId={context.sessionId ?? undefined} readAttachment={context.readAttachment}
+          readAttachmentRange={context.readAttachmentRange} /> : null;
+      }
+      const content = part.type === "text" ? part.text : JSON.stringify(part.value) ?? String(part.value);
+      return <pre key={index} className="max-h-64 overflow-auto whitespace-pre-wrap break-words">{content}</pre>;
+    })}
+    {details !== undefined ? <details>
+      <summary className="cursor-pointer">{detailsLabel}</summary>
+      <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words">
+        {JSON.stringify(details, null, 2) ?? String(details)}
+      </pre>
+    </details> : null}
+  </>;
+}
 
 const ExtensionMessageRowView = memo(function ExtensionMessageRowView({
   row,
@@ -2040,24 +2077,8 @@ const ExtensionMessageRowView = memo(function ExtensionMessageRowView({
       <div data-pi-extension-message={row.customType}
         className="max-w-xl space-y-2 rounded-lg border border-border bg-surface p-3 text-ui-sm">
         <div className="font-medium text-foreground-subtle">Pi 扩展消息 · {row.customType}</div>
-        {row.parts.map((part, index) => {
-          if (part.type === "image") {
-            const attachment = row.attachments?.[part.attachmentIndex];
-            return attachment ? <UserInputAttachmentList key={`${part.ref}:${index}`}
-              attachments={[attachment]} attachmentIndices={[part.attachmentIndex]}
-              attachmentKind="media" directItems rowId={row.rowId} entityId={row.entityId}
-              sessionId={context.sessionId ?? undefined} readAttachment={context.readAttachment}
-              readAttachmentRange={context.readAttachmentRange} /> : null;
-          }
-          const content = part.type === "text" ? part.text : JSON.stringify(part.value);
-          return <pre key={index} className="max-h-64 overflow-auto whitespace-pre-wrap break-words">{content}</pre>;
-        })}
-        {row.details !== undefined ? <details>
-          <summary className="cursor-pointer">原始扩展详情</summary>
-          <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words">
-            {JSON.stringify(row.details, null, 2)}
-          </pre>
-        </details> : null}
+        <PiRichParts parts={row.parts} attachments={row.attachments} details={row.details}
+          detailsLabel="原始扩展详情" rowId={row.rowId} entityId={row.entityId} context={context} />
       </div>
     </RowShell>
   );
