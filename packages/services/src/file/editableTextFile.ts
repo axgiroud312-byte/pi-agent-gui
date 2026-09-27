@@ -89,7 +89,16 @@ export async function saveEditableText(params: {
     await chmod(temporary, original.mode);
     if ((await readVersioned(path)).version !== params.expectedVersion) fail("FILE_CHANGED");
     await rename(temporary, path);
-    return { version: (await readVersioned(path)).version };
+    const version = (await readVersioned(path)).version;
+    // The native GUI smoke holds only the Host ACK after the real disk commit.
+    // This gives the renderer a deterministic window to type into the same
+    // editor while saving. The guard is absent from ordinary and packaged runs.
+    const smokeDelay = Number(process.env.NATIVE_SMOKE_FILE_SAVE_ACK_DELAY_MS ?? 0);
+    if (process.env.NATIVE_SMOKE_HARNESS && Number.isInteger(smokeDelay) &&
+      smokeDelay > 0 && smokeDelay <= 5000) {
+      await new Promise(resolve => setTimeout(resolve, smokeDelay));
+    }
+    return { version };
   } finally {
     await rm(temporary, { force: true }).catch(() => undefined);
     release();

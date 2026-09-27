@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { IFileService } from "@zcode/services";
 import { Button } from "@/components/ui/button.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
@@ -33,11 +33,28 @@ export function PreviewPaneTextEditor({
   const [error, setError] = useState<string | null>(null);
   const [draftError, setDraftError] = useState(false);
   const target = { rootPath, path };
+  const targetIdentity = `${rootPath}\0${path}`;
+  const targetScopeRef = useRef({ identity: targetIdentity, generation: 0 });
+  if (targetScopeRef.current.identity !== targetIdentity) {
+    targetScopeRef.current = { identity: targetIdentity, generation: targetScopeRef.current.generation + 1 };
+  }
+  const generation = targetScopeRef.current.generation;
+  const mountedRef = useRef(false);
+  const documentRef = useRef<EditorState | null>(null);
+  const savingRef = useRef<number | null>(null);
+  const isCurrentTarget = () => mountedRef.current && targetScopeRef.current.generation === generation;
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   useEffect(() => {
     let disposed = false;
+    setSaving(false);
     setLoading(true);
     setError(null);
+    documentRef.current = null;
     setDocument(null);
     void fileService
       .readEditableText({ rootPath, path })
@@ -50,12 +67,14 @@ export function PreviewPaneTextEditor({
           setDraftError(true);
           setError(intl.formatMessage({ id: "codeViewer.edit.draftError" }));
         }
-        setDocument({
+        const loaded: EditorState = {
           content: draft?.content ?? snapshot.content,
           baseVersion: draft?.baseVersion ?? snapshot.version,
           diskContent: snapshot.content,
           diskVersion: snapshot.version,
-        });
+        };
+        documentRef.current = loaded;
+        setDocument(loaded);
       })
       .catch((readError: unknown) => {
         if (disposed) return;
@@ -67,9 +86,10 @@ export function PreviewPaneTextEditor({
     return () => {
       disposed = true;
     };
-  }, [fileService, rootPath, path, intl]);
+  }, [fileService, rootPath, path, intl, generation]);
 
-  const updateDraft = (next: EditorState) => {
+  const updateDraft = (next: EditorState): boolean => {
+    documentRef.current = next;
     setDocument(next);
     try {
       if (next.content === next.diskContent && next.baseVersion === next.diskVersion) {
@@ -81,51 +101,72 @@ export function PreviewPaneTextEditor({
         });
       }
       setDraftError(false);
+      return true;
     } catch {
       setDraftError(true);
       setError(intl.formatMessage({ id: "codeViewer.edit.draftError" }));
+      return false;
     }
   };
 
   const handleSave = async () => {
-    if (!document || saving || document.baseVersion !== document.diskVersion) return;
+    const submitted = documentRef.current;
+    if (!submitted || savingRef.current === generation ||
+      submitted.baseVersion !== submitted.diskVersion) return;
+    savingRef.current = generation;
     setSaving(true);
     setError(null);
     try {
       const saved = await fileService.saveEditableText({
         rootPath,
         path,
-        expectedVersion: document.baseVersion,
-        content: document.content,
+        expectedVersion: submitted.baseVersion,
+        content: submitted.content,
       });
-      setDocument({
-        content: document.content,
-        baseVersion: saved.version,
-        diskContent: document.content,
-        diskVersion: saved.version,
-      });
-      try {
-        clearEditableFileDraft(window.localStorage, target);
-      } catch {
-        setDraftError(true);
-        setError(intl.formatMessage({ id: "codeViewer.edit.draftError" }));
+      if (!isCurrentTarget()) {
+        // The old target may finish after a different file opens. Retire only
+        // the exact draft that was saved and only while that target remains
+        // closed. A-B-A can create a new draft identical to the old submitted
+        // text, and the old ACK must never erase it.
+        try {
+          if (targetScopeRef.current.identity !== targetIdentity) {
+            const stored = loadEditableFileDraft(window.localStorage, target);
+            if (stored?.baseVersion === submitted.baseVersion && stored.content === submitted.content) {
+              clearEditableFileDraft(window.localStorage, target);
+            }
+          }
+        } catch { /* A damaged or unavailable draft remains for explicit recovery. */ }
         return;
       }
-      onSaved();
+      const latest = documentRef.current;
+      if (!latest) return;
+      const next: EditorState = {
+        content: latest.content,
+        baseVersion: saved.version,
+        diskContent: submitted.content,
+        diskVersion: saved.version,
+      };
+      const persisted = updateDraft(next);
+      if (latest.content === submitted.content && persisted) onSaved();
     } catch (saveError) {
+      if (!isCurrentTarget()) return;
       if (saveError instanceof Error && saveError.message.includes("FILE_CHANGED")) {
         try {
           const latest = await fileService.readEditableText({ rootPath, path });
-          setDocument({ ...document, diskContent: latest.content, diskVersion: latest.version });
+          if (!isCurrentTarget() || !documentRef.current) return;
+          updateDraft({ ...documentRef.current, diskContent: latest.content, diskVersion: latest.version });
           setError(intl.formatMessage({ id: "codeViewer.edit.conflict" }));
         } catch (readError) {
-          setError(readError instanceof Error ? readError.message : String(readError));
+          if (isCurrentTarget()) setError(readError instanceof Error ? readError.message : String(readError));
         }
       } else {
         setError(saveError instanceof Error ? saveError.message : String(saveError));
       }
     } finally {
-      setSaving(false);
+      if (savingRef.current === generation) {
+        savingRef.current = null;
+        if (isCurrentTarget()) setSaving(false);
+      }
     }
   };
 
