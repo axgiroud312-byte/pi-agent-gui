@@ -8,6 +8,8 @@ export async function startPiModel({ holdAfterRequests = Infinity } = {}) {
   const held = new Set();
   let releaseText;
   const textObserved = new Promise(resolve => { releaseText = resolve; });
+  let releaseLongTool;
+  const longToolObserved = new Promise(resolve => { releaseLongTool = resolve; });
   let scrollFrames = 0;
   const server = createServer(async (req, res) => {
     if (req.method === 'GET' && req.url.split('?')[0] === '/v1/models') {
@@ -22,8 +24,9 @@ export async function startPiModel({ holdAfterRequests = Infinity } = {}) {
     const body = JSON.parse(raw);
     const text = value => typeof value === 'string' ? value : JSON.stringify(value);
     const prompt = body.messages?.filter(message => message.role === 'user').map(message => text(message.content)).at(-1) ?? '';
-    const scenario = /PI_(?:TEXT|IMAGE|READ|HELLO|STOP|SCROLL)/.exec(prompt)?.[0] ?? 'other';
+    const scenario = /PI_(?:LONG_TOOL|TEXT|IMAGE|READ|HELLO|STOP|SCROLL)/.exec(prompt)?.[0] ?? 'other';
     const toolResults = body.messages?.filter(message => message.role === 'tool') ?? [];
+    const ownLongToolResult = toolResults.some(message => message.tool_call_id === 'pi-native-long-bash');
     const imageUrls = body.messages?.filter(message => message.role === 'user')
       .flatMap(message => Array.isArray(message.content) ? message.content : [])
       .filter(part => part.type === 'image_url').map(part => part.image_url?.url) ?? [];
@@ -65,7 +68,14 @@ export async function startPiModel({ holdAfterRequests = Infinity } = {}) {
       } }] });
       send({}, 'tool_calls'); res.end('data: [DONE]\n\n'); return;
     }
-    const response = scenario === 'PI_IMAGE' ? 'PI_IMAGE_COMPLETE' : scenario === 'PI_READ' ? 'PI_READ_COMPLETE' : scenario === 'PI_HELLO'
+    if (scenario === 'PI_LONG_TOOL' && !ownLongToolResult) {
+      const command = "for i in $(seq 1 120); do printf 'PI_LONG_TOOL_LINE_%s\\n' \"$i\"; done";
+      send({ tool_calls: [{ index: 0, id: 'pi-native-long-bash', type: 'function', function: {
+        name: 'bash', arguments: JSON.stringify({ command }),
+      } }] });
+      send({}, 'tool_calls'); res.end('data: [DONE]\n\n'); return;
+    }
+    const response = scenario === 'PI_LONG_TOOL' ? 'PI_LONG_TOOL_COMPLETE' : scenario === 'PI_IMAGE' ? 'PI_IMAGE_COMPLETE' : scenario === 'PI_READ' ? 'PI_READ_COMPLETE' : scenario === 'PI_HELLO'
       ? 'PI_HELLO_COMPLETE' : scenario === 'PI_STOP'
       ? 'PI_STOP_PARTIAL' : 'PI_TEXT_COMPLETE';
     if (scenario === 'PI_TEXT') {
@@ -73,7 +83,17 @@ export async function startPiModel({ holdAfterRequests = Infinity } = {}) {
       // Hold the partial frame until the GUI has observed it. A fixed delay can
       // expire before a busy Windows CI renderer paints the streaming state.
       await textObserved;
-      send({ content: 'COMPLETE' });
+      const historyItem = /history item (\d+)/u.exec(promptText)?.[1];
+      send({ content: `COMPLETE${historyItem === undefined ? '' : `_${historyItem}`}` });
+    } else if (scenario === 'PI_LONG_TOOL') {
+      send({ content: 'PI_LONG_TOOL_START\n' });
+      await longToolObserved;
+      for (let i = 1; i <= 24 && !res.destroyed; i++) {
+        await new Promise(resolve => setTimeout(resolve, 220));
+        send({ content: `\nPI_LONG_TOOL_FRAME_${i}: continuing after nested scroll` });
+        scrollFrames += 1;
+      }
+      send({ content: '\nPI_LONG_TOOL_COMPLETE' });
     } else if (scenario === 'PI_SCROLL') {
       // Long-enough real Pi text stream to overflow the native virtual timeline.
       send({ content: 'PI_SCROLL_START\n' + Array.from({ length: 100 }, (_, i) => `Line ${i}: native scrolling parity`).join('\n') + '\n' });
@@ -98,6 +118,7 @@ export async function startPiModel({ holdAfterRequests = Infinity } = {}) {
     get held() { return held.size; },
     get scrollFrames() { return scrollFrames; },
     releaseText: () => releaseText(),
-    close: async () => { releaseText(); for (const socket of sockets) socket.destroy(); await new Promise(resolve => server.close(resolve)); },
+    releaseLongTool: () => releaseLongTool(),
+    close: async () => { releaseText(); releaseLongTool(); for (const socket of sockets) socket.destroy(); await new Promise(resolve => server.close(resolve)); },
   };
 }
