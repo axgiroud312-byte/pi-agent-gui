@@ -72,6 +72,9 @@ try {
   await page.getByTestId('v4-composer-send').filter({ visible: true }).first().click();
   await page.getByText('PI_TEXT_COMPLETE', { exact: true }).waitFor({ timeout: 30_000 });
   assert(model.requests.some(request => request.scenario === 'PI_TEXT'));
+  const firstSessionId = await page.locator('[data-testid^="v4-session-pane"]').filter({ visible: true }).first()
+    .getAttribute('data-session-id');
+  assert.ok(firstSessionId && firstSessionId !== 'draft');
   await page.getByTestId('pi-resources-open').click();
   const dialog = page.getByTestId('pi-resources-dialog');
   await dialog.waitFor();
@@ -120,6 +123,39 @@ try {
   report.resources = { generationChanged: firstGeneration !== secondGeneration,
     templateEdited: true, templateDisabledAndEnabled: true, localPackageInstalledFilteredRemoved: true,
     offlineUpdateBlocked: true, pinnedNpmUpdateExplained: true };
+  await page.keyboard.press('Escape');
+  await page.getByText('新建任务', { exact: true }).first().click();
+  await page.getByTestId('chat-model-select-trigger').click();
+  await page.getByTestId('chat-model-select-search').fill('pi-native-test');
+  await page.getByRole('menuitemradio', { name: /pi-native-test/ }).first().click();
+  await page.getByTestId('v4-composer-input').filter({ visible: true }).first().click();
+  await page.keyboard.type('PI_TEXT: second resources session');
+  await page.getByTestId('v4-composer-send').filter({ visible: true }).first().click();
+  await page.locator('[data-testid^="v4-session-pane"]').filter({ visible: true }).first()
+    .getByText('PI_TEXT_COMPLETE', { exact: true }).waitFor({ timeout: 30_000 });
+  const secondSessionId = await page.locator('[data-testid^="v4-session-pane"]').filter({ visible: true }).first()
+    .getAttribute('data-session-id');
+  assert.ok(secondSessionId && secondSessionId !== firstSessionId);
+  await page.locator(`[data-testid="task-item-${firstSessionId}"]`).click();
+  await page.locator(`[data-session-id="${firstSessionId}"]`).filter({ visible: true }).waitFor();
+  await page.getByTestId('pi-resources-open').click();
+  await command('gui-template').getByRole('button', { name: '编辑' }).click();
+  await dialog.getByTestId('pi-resource-editor').getByRole('textbox', { name: 'Pi 资源内容' })
+    .fill('A_SESSION_UNSAVED_RESOURCE_DRAFT');
+  await page.keyboard.press('Escape');
+  await page.locator(`[data-testid="task-item-${secondSessionId}"]`).click();
+  await page.locator(`[data-session-id="${secondSessionId}"]`).filter({ visible: true }).waitFor();
+  await page.getByTestId('pi-resources-open').click();
+  await dialog.getByText('Pi 0.87.0', { exact: false }).waitFor();
+  const leakedEditor = await dialog.getByTestId('pi-resource-editor').count();
+  report.sessionIsolation = { firstSessionId, secondSessionId,
+    leakedEditor,
+    leakedDraft: leakedEditor > 0 && (await dialog.getByTestId('pi-resource-editor')
+      .getByRole('textbox', { name: 'Pi 资源内容' }).inputValue()).includes('A_SESSION_UNSAVED_RESOURCE_DRAFT') };
+  assert.equal(report.sessionIsolation.leakedEditor, 0,
+    'Session B must not inherit session A unsaved resource editor');
+  assert.equal(report.sessionIsolation.leakedDraft, false,
+    'Session B must not display session A unsaved resource draft');
   await verifyPiPackageCleanup(f);
   assert.deepEqual(report.pageErrors, []);
 } catch (error) {

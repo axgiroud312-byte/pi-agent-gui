@@ -1,13 +1,32 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BookOpen, RefreshCw } from "lucide-react";
 import type { IServiceAccessor } from "@zcode/services";
 import { Button } from "@/components/ui/button.js";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog.js";
 import { useServices } from "@/hooks/useServices.js";
+import { PiSessionDialogGuard, type PiSessionDialogTicket } from "@/v4/piSessionDialogGuard.js";
 
 type ResourceView = Awaited<ReturnType<IServiceAccessor["zcodeAgentService"]["readPiControlTree"]>>;
 type ResourceAction = Parameters<IServiceAccessor["zcodeAgentService"]["runPiControlTree"]>[0]["action"];
 type ResourceFile = { path: string; content: string; hash: string };
+interface ResourceUiState {
+  contextScope: number;
+  view: ResourceView | null;
+  busy: boolean;
+  error: string | null;
+  notice: string | null;
+  source: string;
+  scope: "user" | "project";
+  file: ResourceFile | null;
+  draft: string;
+  filterSource: string | null;
+  filterDraft: string;
+  promptKind: "replace" | "append";
+  promptText: string;
+}
+const emptyState = (contextScope: number): ResourceUiState => ({ contextScope, view: null, busy: false,
+  error: null, notice: null, source: "", scope: "project", file: null, draft: "",
+  filterSource: null, filterDraft: "{}", promptKind: "append", promptText: "" });
 
 function filtersText(configuration: ResourceView["resources"]["packages"][number]["configuration"]): string {
   if (typeof configuration === "string") return "{}";
@@ -35,82 +54,116 @@ export function PiResourcesDialog({ sessionId, workspacePath, workspaceIdentity 
 }) {
   const { zcodeAgentService } = useServices();
   const [open, setOpen] = useState(false);
-  const [view, setView] = useState<ResourceView | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [source, setSource] = useState("");
-  const [scope, setScope] = useState<"user" | "project">("project");
-  const [file, setFile] = useState<ResourceFile | null>(null);
-  const [draft, setDraft] = useState("");
-  const [filterSource, setFilterSource] = useState<string | null>(null);
-  const [filterDraft, setFilterDraft] = useState("{}");
-  const [promptKind, setPromptKind] = useState<"replace" | "append">("append");
-  const [promptText, setPromptText] = useState("");
+  const [state, setState] = useState<ResourceUiState>(() => emptyState(0));
+  const guard = useRef(new PiSessionDialogGuard()).current;
   const target = useMemo(() => ({ sessionId, workspacePath,
     ...(workspaceIdentity ? { workspaceIdentity } : {}) }), [sessionId, workspacePath, workspaceIdentity]);
+  const targetKey = JSON.stringify([sessionId, workspacePath, workspaceIdentity]);
+  const contextScope = guard.syncContext(targetKey);
+  const { view, busy, error, notice, source, scope, file, draft, filterSource, filterDraft,
+    promptKind, promptText } = state.contextScope === contextScope ? state : emptyState(contextScope);
+  const editState = (update: (current: ResourceUiState) => ResourceUiState) => {
+    setState(current => update(current.contextScope === contextScope ? current : emptyState(contextScope)));
+  };
+  const setSource = (value: string) => editState(current => ({ ...current, source: value }));
+  const setScope = (value: "user" | "project") => editState(current => ({ ...current, scope: value }));
+  const setFile = (value: ResourceFile | null) => editState(current => ({ ...current, file: value }));
+  const setDraft = (value: string) => editState(current => ({ ...current, draft: value }));
+  const setFilterSource = (value: string | null) => editState(current => ({ ...current, filterSource: value }));
+  const setFilterDraft = (value: string) => editState(current => ({ ...current, filterDraft: value }));
+  const setPromptKind = (value: "replace" | "append") => editState(current => ({ ...current, promptKind: value }));
+  const setPromptText = (value: string) => editState(current => ({ ...current, promptText: value }));
+  const write = useCallback((ticket: PiSessionDialogTicket,
+    update: (current: ResourceUiState) => ResourceUiState) => {
+    if (!guard.isCurrent(ticket)) return;
+    setState(current => guard.isCurrent(ticket)
+      ? update(current.contextScope === ticket.scope ? current : emptyState(ticket.scope)) : current);
+  }, [guard]);
 
   const refresh = useCallback(async () => {
-    setBusy(true); setError(null); setNotice(null);
-    try { setView(await zcodeAgentService.readPiControlTree({ ...target, includeResourceContent: true })); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
-    finally { setBusy(false); }
-  }, [zcodeAgentService, target]);
-
-  useEffect(() => { if (open) void refresh(); }, [open, refresh]);
-
-  const act = async (intent: Record<string, unknown>): Promise<ResourceView | undefined> => {
-    if (!view || busy) return undefined;
-    setBusy(true); setError(null);
+    const ticket = guard.begin(targetKey);
+    write(ticket, current => ({ ...current, view: null, busy: true, error: null, notice: null }));
     try {
-      const next = await zcodeAgentService.runPiControlTree({ ...target, includeResourceContent: true,
-        action: { ...intent, sessionId, generation: view.info.generation } as ResourceAction });
-      setView(next);
-      if (next.info.generation !== view.info.generation) {
-        setNotice("Pi 已重载资源。下一轮使用新资源；已写入的会话历史上下文不会改写。");
-      }
-      return next;
+      const next = await zcodeAgentService.readPiControlTree({ ...target, includeResourceContent: true });
+      write(ticket, current => ({ ...current, view: next }));
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-      try { setView(await zcodeAgentService.readPiControlTree({ ...target, includeResourceContent: true })); }
-      catch { /* Keep first error. */ }
-      return undefined;
-    } finally { setBusy(false); }
+      write(ticket, current => ({ ...current, error: cause instanceof Error ? cause.message : String(cause) }));
+    } finally { write(ticket, current => ({ ...current, busy: false })); }
+  }, [guard, target, targetKey, write, zcodeAgentService]);
+
+  useEffect(() => {
+    if (open) void refresh();
+    return () => guard.invalidate();
+  }, [guard, open, refresh]);
+
+  const act = async (intent: Record<string, unknown>,
+    onSuccess?: (next: ResourceView, ticket: PiSessionDialogTicket) => void): Promise<void> => {
+    if (!view || busy) return;
+    const actionTarget = { ...target };
+    const generation = view.info.generation;
+    const ticket = guard.begin(targetKey);
+    write(ticket, current => ({ ...current, busy: true, error: null }));
+    try {
+      const next = await zcodeAgentService.runPiControlTree({ ...actionTarget, includeResourceContent: true,
+        action: { ...intent, sessionId: actionTarget.sessionId, generation } as ResourceAction });
+      if (guard.isCurrent(ticket)) {
+        write(ticket, current => ({ ...current, view: next,
+          notice: next.info.generation !== generation
+            ? "Pi 已重载资源。下一轮使用新资源；已写入的会话历史上下文不会改写。" : current.notice }));
+        onSuccess?.(next, ticket);
+      }
+    } catch (cause) {
+      if (guard.isCurrent(ticket)) {
+        write(ticket, current => ({ ...current, error: cause instanceof Error ? cause.message : String(cause) }));
+        try {
+          const current = await zcodeAgentService.readPiControlTree({ ...actionTarget, includeResourceContent: true });
+          write(ticket, previous => ({ ...previous, view: current }));
+        } catch { /* Keep first error. */ }
+      }
+    } finally { write(ticket, current => ({ ...current, busy: false })); }
   };
 
   const edit = async (path: string) => {
-    const next = await act({ operation: "resource_read", path });
-    if (next?.result?.resource) {
-      setFile(next.result.resource);
-      setDraft(next.result.resource.content);
-    }
+    await act({ operation: "resource_read", path }, (next, ticket) => {
+      const resource = next.result?.resource;
+      if (resource) write(ticket, current => ({ ...current, file: resource, draft: resource.content }));
+    });
   };
   const save = async () => {
     if (!file) return;
-    const next = await act({ operation: "resource_write", path: file.path,
-      expectedHash: file.hash, content: draft });
-    if (next) setFile(null);
+    await act({ operation: "resource_write", path: file.path,
+      expectedHash: file.hash, content: draft }, (_next, ticket) =>
+      write(ticket, current => ({ ...current, file: null, draft: "" })));
   };
   const applyFilter = async () => {
     if (!filterSource) return;
     let filters: unknown;
     try { filters = JSON.parse(filterDraft); }
-    catch { setError("过滤规则必须是有效 JSON，例如 {\"prompts\": []}"); return; }
+    catch { editState(current => ({ ...current, error: "过滤规则必须是有效 JSON，例如 {\"prompts\": []}" })); return; }
     const pkg = view?.resources.packages.find(item => `${item.scope}:${item.source}` === filterSource);
     if (!pkg) return;
-    const next = await act({ operation: "package_filter", source: pkg.source, scope: pkg.scope, filters });
-    if (next) setFilterSource(null);
+    await act({ operation: "package_filter", source: pkg.source, scope: pkg.scope, filters }, (_next, ticket) =>
+      write(ticket, current => ({ ...current, filterSource: null })));
   };
   const createPrompt = async () => {
-    const next = await act({ operation: "resource_create", kind: promptKind, scope, content: promptText });
-    if (next) setPromptText("");
+    await act({ operation: "resource_create", kind: promptKind, scope, content: promptText }, (_next, ticket) =>
+      write(ticket, current => ({ ...current, promptText: "" })));
+  };
+
+  const changeOpen = (next: boolean) => {
+    if (!next && busy) return;
+    if (!next) {
+      guard.invalidate();
+      editState(current => ({ ...current, busy: false }));
+    }
+    setOpen(next);
   };
 
   return <>
     <Button type="button" variant="outline" size="icon-md" title="Pi 资源" aria-label="Pi 资源"
       className="pointer-events-auto bg-[var(--color-popover)] shadow-md"
       data-testid="pi-resources-open" onClick={() => setOpen(true)}><BookOpen className="size-4" /></Button>
-    <Dialog open={open} onOpenChange={next => { if (!busy) setOpen(next); }}>
+    <Dialog open={open} onOpenChange={changeOpen}>
       <DialogContent data-testid="pi-resources-dialog" data-generation={view?.info.generation ?? ""}
         className="max-h-[90vh] max-w-[min(62rem,calc(100vw-2rem))] overflow-hidden">
         <DialogHeader>
