@@ -67,6 +67,10 @@ import {
   patchNsisInstallSectionFile,
   restoreNsisInstallSectionFileSync,
 } from "./scripts/patch-nsis-install-section.mjs";
+import {
+  patchNsisMultiUserFile,
+  restoreNsisMultiUserFileSync,
+} from "./scripts/patch-nsis-multi-user.mjs";
 
 const buildMetadata = getBuildMetadata();
 const targetPlatform = getTargetPlatform();
@@ -98,9 +102,11 @@ const DEFAULT_ELECTRON_MIRROR = "https://npmmirror.com/mirrors/electron/";
 // Linux CI（pnpm hoisted）往往解析不到该二进制，`asar list` 未运行即 exit 1。
 // 显式依赖 @electron/asar 并用 Node 直接执行 CLI，避免跨平台找不齐 shim。
 const requireFromConfig = createRequire(import.meta.url);
-let nsisInstallSectionPatched = false;
+let nsisTemplatesPatched = false;
 let nsisInstallSectionOriginalSource = null;
 let nsisInstallSectionPath = null;
+let nsisMultiUserOriginalSource = null;
+let nsisMultiUserPath = null;
 const desktopElectronVersion = requireFromConfig("./package.json").devDependencies.electron;
 const asarCliPath = resolve(
   dirname(requireFromConfig.resolve("@electron/asar/package.json")),
@@ -506,30 +512,50 @@ export default {
     runTimedSync("beforePack:restoreTargetNodePtyPrebuild", () =>
       restoreTargetNodePtyPrebuild({ desktopPackageRoot, targetPlatform }),
     );
-    if (context.electronPlatformName !== "win32" || nsisInstallSectionPatched) {
+    if (context.electronPlatformName !== "win32" || nsisTemplatesPatched) {
       return;
     }
 
-    nsisInstallSectionPath = resolve(
+    const nsisTemplateRoot = resolve(
       dirname(requireFromConfig.resolve("app-builder-lib/package.json")),
       "templates",
       "nsis",
-      "installSection.nsh",
     );
-    const patchResult = await runTimedAsync("beforePack:patchNsisInstallSection", () =>
-      patchNsisInstallSectionFile(nsisInstallSectionPath),
-    );
-    nsisInstallSectionPatched = true;
-    nsisInstallSectionOriginalSource = patchResult.originalSource;
-    if (patchResult.changed) {
-      // electron-builder 在当前进程内随后才会编译 NSIS；等整个构建进程退出后恢复 node_modules
-      // 中的上游模板，避免把一次打包的定制内容永久留在开发依赖里。
-      process.once("exit", () => {
+    nsisInstallSectionPath = resolve(nsisTemplateRoot, "installSection.nsh");
+    nsisMultiUserPath = resolve(nsisTemplateRoot, "multiUser.nsh");
+    const restoreNsisTemplates = () => {
+      if (nsisMultiUserPath) {
+        restoreNsisMultiUserFileSync({
+          filePath: nsisMultiUserPath,
+          originalSource: nsisMultiUserOriginalSource,
+        });
+        nsisMultiUserOriginalSource = null;
+      }
+      if (nsisInstallSectionPath) {
         restoreNsisInstallSectionFileSync({
           filePath: nsisInstallSectionPath,
           originalSource: nsisInstallSectionOriginalSource,
         });
-      });
+        nsisInstallSectionOriginalSource = null;
+      }
+    };
+
+    try {
+      const installSectionPatch = await runTimedAsync("beforePack:patchNsisInstallSection", () =>
+        patchNsisInstallSectionFile(nsisInstallSectionPath),
+      );
+      nsisInstallSectionOriginalSource = installSectionPatch.originalSource;
+      const multiUserPatch = await runTimedAsync("beforePack:patchNsisMultiUser", () =>
+        patchNsisMultiUserFile(nsisMultiUserPath),
+      );
+      nsisMultiUserOriginalSource = multiUserPatch.originalSource;
+      nsisTemplatesPatched = true;
+
+      // electron-builder 之后才编译 NSIS；进程结束时恢复两份上游模板。
+      process.once("exit", restoreNsisTemplates);
+    } catch (error) {
+      restoreNsisTemplates();
+      throw error;
     }
   },
   afterExtract: async (context) => {
