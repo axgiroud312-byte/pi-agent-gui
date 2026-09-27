@@ -247,7 +247,8 @@ export const TaskList = memo(function TaskList({
           workspaceIdentity,
           message: error instanceof Error ? error.message : String(error),
         });
-        throw error;
+        toast(intl.formatMessage({ id: "taskList.renameFailed" }));
+        return;
       }
       logger.info("[TaskList] rename submit onRenameTask resolved", {
         taskId,

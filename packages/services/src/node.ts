@@ -2339,6 +2339,7 @@ export function createLocalServices(options: {
   // task wrapper 由 ZCode task service adapter 提供；核心 session 状态由 ZCode agent server 维护。
   const zcodeTaskService = createZCodeTaskServiceAdapter({
     zcodeAgentService,
+    piHistoryAuthoritative: Boolean(options?.piAgentRpcEntry),
     taskIndexRepo,
     taskIndexSyncer: zcodeTaskIndexSyncer,
     settingService,

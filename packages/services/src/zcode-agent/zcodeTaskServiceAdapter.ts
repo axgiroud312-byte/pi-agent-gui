@@ -177,6 +177,8 @@ interface TaskOverlay {
 
 interface CreateZCodeTaskServiceAdapterOptions {
   zcodeAgentService: IZCodeAgentService;
+  /** Pi JSONL owns session names; an app-only title must never mask a rejected Pi rename. */
+  piHistoryAuthoritative?: boolean;
   taskIndexRepo?: TaskIndexRepo;
   // syncer 现在持有 workspace emitter 和 broadcast 入口，adapter 必须共用同一实例，
   // 否则 desktop-continuous 路径和 task adapter 路径的事件订阅会分裂成两份，UI 收不全。
@@ -2881,6 +2883,18 @@ export function createZCodeTaskServiceAdapter(
 
     async renameTask(params): Promise<ZCodeTaskMeta> {
       const renamedAt = Date.now();
+      const syncSessionName = async () => {
+        const ack = await options.zcodeAgentService.sendConversationCommandV4({
+          workspacePath: params.workspacePath,
+          workspaceIdentity: params.workspaceIdentity,
+          envelope: createHostCommandEnvelope({
+            type: "renameSession",
+            sessionId: params.taskId,
+            payload: { title: params.title },
+          }),
+        });
+        assertV4CommandAckOk("renameSession", ack, `session=${params.taskId}`);
+      };
       logger.info(undefined, "[ZCodeTaskService] renameTask start", {
         taskId: params.taskId,
         workspacePath: params.workspacePath,
@@ -2889,6 +2903,7 @@ export function createZCodeTaskServiceAdapter(
         titleLength: params.title.length,
       });
       try {
+        if (options.piHistoryAuthoritative) await syncSessionName();
         setOverlay(params, { title: params.title });
         logger.info(undefined, "[ZCodeTaskService] renameTask overlay set", {
           taskId: params.taskId,
@@ -2907,31 +2922,23 @@ export function createZCodeTaskServiceAdapter(
           updatedAt: meta.updatedAt,
           titleLength: meta.title.length,
         });
-        try {
-          const ack = await options.zcodeAgentService.sendConversationCommandV4({
-            workspacePath: params.workspacePath,
-            workspaceIdentity: params.workspaceIdentity,
-            envelope: createHostCommandEnvelope({
-              type: "renameSession",
-              sessionId: params.taskId,
-              payload: { title: params.title },
-            }),
-          });
-          assertV4CommandAckOk("renameSession", ack, `session=${params.taskId}`);
-        } catch (error) {
-          // 旧侧边栏 rename 过去只写 tasks-index；v4 sessions-index 读 CLI
-          // session store，导致手动标题在新侧边栏丢失。这里尽力同步 renameSession，
-          // 但历史/导入类 task 可能没有活跃 v4 session，不能因此破坏既有重命名。
-          logger.warn(
-            undefined,
-            "同步 task rename 到 v4 session store 失败，保留 task-index 标题",
-            {
-              taskId: params.taskId,
-              workspacePath: params.workspacePath,
-              workspaceIdentity: params.workspaceIdentity,
-              message: error instanceof Error ? error.message : String(error),
-            },
-          );
+        if (!options.piHistoryAuthoritative) {
+          try { await syncSessionName(); }
+          catch (error) {
+            // 旧侧边栏 rename 过去只写 tasks-index；v4 sessions-index 读 CLI
+            // session store，导致手动标题在新侧边栏丢失。这里尽力同步 renameSession，
+            // 但历史/导入类 task 可能没有活跃 v4 session，不能因此破坏既有重命名。
+            logger.warn(
+              undefined,
+              "同步 task rename 到 v4 session store 失败，保留 task-index 标题",
+              {
+                taskId: params.taskId,
+                workspacePath: params.workspacePath,
+                workspaceIdentity: params.workspaceIdentity,
+                message: error instanceof Error ? error.message : String(error),
+              },
+            );
+          }
         }
         // 手动重命名同样是标题变更，与 pin/archive/unread 归属无关，用专属 reason。
         emitWorkspaceTaskListChanged(params, meta, "task_title_changed");
