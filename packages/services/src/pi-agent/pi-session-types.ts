@@ -26,6 +26,8 @@ export interface PiSessionView {
   foregroundExecutionId?: string;
   /** A direct fixed Pi `bash` RPC owns this foreground execution. */
   directBash?: boolean;
+  /** A direct fixed Pi `compact` RPC owns this foreground execution. */
+  directCompaction?: boolean;
   queuePaused?: boolean;
   clearedQueue?: { steering: string[]; followUp: string[] };
   error?: string;

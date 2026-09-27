@@ -1626,7 +1626,7 @@ export class PiNativeV4Service implements V4Methods {
             ...(answer.optionId ? { optionId: answer.optionId } : {}) } } };
       }
       if (envelope.type === "compact") {
-        await this.supervisor.command(record.view.sessionId, { type: "compact" });
+        await this.supervisor.compact(record.view.sessionId);
         await this.refreshRuntimeFacts(record);
         return { commandId, status: "accepted", revisionAtDecision: record.snapshot.revision };
       }

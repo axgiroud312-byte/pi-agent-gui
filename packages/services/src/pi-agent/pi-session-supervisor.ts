@@ -483,6 +483,48 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
     }
   }
 
+  /** Manual compaction is an owned foreground Pi command, so native Stop can cancel it. */
+  async compact(sessionId: string): Promise<void> {
+    const runtime = this.requireSession(sessionId);
+    if (runtime.controlBridge.blocksPrompt || runtime.view.uncertainDelivery || runtime.view.reconciliationRequired ||
+      !["idle", "settled", "stopped", "error"].includes(runtime.view.phase)) {
+      throw new Error("Pi session is not ready for compaction");
+    }
+    const executionId = randomUUID();
+    runtime.hadRunError = false;
+    runtime.persistentRunError = false;
+    runtime.modelRetryError = undefined;
+    runtime.acceptRunEvents = true;
+    runtime.view.foregroundExecutionId = executionId;
+    runtime.view.directCompaction = true;
+    runtime.view.phase = "compacting";
+    runtime.view.error = undefined;
+    this.publish(runtime);
+    try {
+      await this.command(sessionId, { type: "compact" });
+      const state = await this.getState(sessionId);
+      if (state.isCompacting) throw new Error("Pi compaction has not settled");
+    } catch (error) {
+      // Pi reports an aborted manual compact as a failed RPC response. The
+      // separate Stop operation owns the cancellation result and final phase.
+      if (runtime.stopping || this.getSession(sessionId)?.phase === "stopped") return;
+      if (runtime.view.foregroundExecutionId === executionId && !runtime.stopping) {
+        if (error instanceof PiRpcError && error.delivery === "unknown") runtime.view.uncertainDelivery = true;
+        runtime.view.phase = "error";
+        runtime.view.error = message(error);
+      }
+      throw error;
+    } finally {
+      runtime.view.directCompaction = false;
+      if (runtime.view.foregroundExecutionId === executionId && !runtime.stopping) {
+        runtime.view.foregroundExecutionId = undefined;
+        runtime.acceptRunEvents = false;
+        if (runtime.view.phase !== "error") runtime.view.phase = "settled";
+      }
+      this.publish(runtime);
+    }
+  }
+
   async setModel(sessionId: string, provider: string, modelId: string, thinkingLevel?: string): Promise<void> {
     const runtime = this.requireSession(sessionId);
     if (runtime.controlBridge.blocksPrompt) throw new Error("Pi tree control is active or requires reconciliation");
@@ -711,6 +753,15 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
       if (!abort.success) throw new Error(abort.error ?? "Pi abort failed");
       if (runtime.view.directBash && !await runtime.client.waitForPendingCommand("bash", 3_000)) {
         throw new Error("Pi shell command did not settle after abort_bash");
+      }
+      if (runtime.view.directCompaction && !await runtime.client.waitForPendingCommand("compact", 300)) {
+        // Pi's manual compact begins with its own asynchronous abort() before
+        // creating the compaction controller. Stop may arrive in that gap.
+        const secondAbort = await runtime.client.request({ type: "abort" });
+        if (!secondAbort.success) throw new Error(secondAbort.error ?? "Pi abort failed");
+        if (!await runtime.client.waitForPendingCommand("compact", 2_700)) {
+          throw new Error("Pi compaction did not settle after abort");
+        }
       }
       const state = await this.getState(sessionId);
       if (state.isStreaming || state.isCompacting || !runtime.view.queuePaused) {

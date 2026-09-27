@@ -123,6 +123,17 @@
 
 此轮主分支固定 Pi 顺序测试 160/160、typecheck、桌面 production build、交付计划本地/7 项测试/`--github` 均通过；lint 为 0 error / 70 既有 warning。#12 首次 GUI 报告 `pi-resources-main-integrated-20260927` 在异步保存未完成时读旧 generation，修正测试等待后重跑绿色。上述源码 GUI 与本地受控模型证据均不得替代在线 provider、实际 GGUF、包内 GUI、NSIS 安装或用户验收；P/D/V 总表仍为待最终统一验收。
 
+## 2026-09-27 23:30 后续整合与待复验
+
+| 能力 / Issue | 已验证的技术增量 | 尚待完成 |
+| --- | --- | --- |
+| #4：P03、P08、P09 / V03 | 主分支 `324a344` 直接使用固定 Pi `bash`，原生 GUI `D:/Temp/pi-shell-main-first-20260927/pi-shell-gui-report.json` 验证真实输出/退出码、后续模型只收到未排除的 shell 上下文、长命令 Stop 及进程清理。手动压缩 Stop 的固定 Pi 延迟摘要合同 `pi-manual-compaction-fixed.test.ts`、启动竞态测试 `pi-manual-compaction-stop.test.ts` 通过；`D:/Temp/pi-manual-compact-main-20260927/pi-manual-compact-gui-report.json` 从原生 `/compact` 经固定 Pi 0.87.0 请求摘要，Stop 取消摘要且保留前两轮历史，没有错误页面或后续重试，`graceful=true`、`forced=[]`、`survivors=[]`。 | retry、自动 overflow 压缩、扩展等待 Stop 矩阵、更长压力、包内 GUI、用户验收仍开放。 |
+| #9：P11 / V04 | `a33a4a0`、`4d54ba4` 让原生侧栏对冷 Pi JSONL 做真实确认删除，删除后非关键清理失败不误报未删除。隔离最终源码 GUI `D:/Temp/pi-session-delete-gui6-20260927/pi-session-delete-gui-report.json` 验证取消/活动保护、仅删除选中 JSONL、重启不复活、三次进程退出无残留；主分支定向固定 Pi/删除测试 8/8 通过。 | 主分支整合后 GUI 与包内复测、外部 CLI 与最终 unlink 的极短竞争窗、fork/clone/导入导出/主动分享及用户验收仍开放。 |
+| #13、#25：P23–P27 / V09 | `2485cf7`、`7b5c8ce` 已整合 Pi 扩展状态/widget/标题/动态工具和原始 custom 消息、图片/details、shell 历史行；合并时保留资源隐私过滤。整合后定向固定 Pi 测试 14/14、typecheck、相关 lint 通过；隔离 GUI `D:/Temp/pi-extension-state-gui-20260927-d/pi-extension-state-gui-report.json` 通过且无页面错误/进程残留。 | 主分支与包内 GUI、工具图片/details、扩展多会话交错/Stop、复杂 TUI 逐类最终验收仍开放；复杂 TUI 不宣称零适配。 |
+| #26：P28、D03、D05 / V12 | `6dc84e7` 已整合 Lexical 中文 IME 提交保护；隔离最终源码 GUI `D:/Temp/pi-ime-gui-20260927-d/pi-ime-gui-report.json` 在 1280×800 深色/1920×1080 浅色与固定 Pi 下验证候选 Enter 不发送、普通 Enter/按钮发送中文原文；`pageErrors=[]`、`forced=[]`、`survivors=[]`。 | 物理 IME、主分支/包内 GUI、滚动/长历史/焦点矩阵、原版同状态截图和用户验收仍开放。 |
+
+这些技术证据仍是源代码与离线受控模型验证，不能替代在线 provider、真实 GGUF/router、安装器或最终人工验收。后续整合须重跑完整 Pi 顺序、typecheck、lint、delivery 校验和生产包验证。
+
 ## 回填要求
 
 每项填写实际原生 GUI/Pi 版本、提交、测试命令、结果和证据链接；在线 provider、可控模型、包内运行、实际安装与用户验收分别标明。P27 的限制按 #8/#25 逐类明示，不将复杂 TUI 不支持写为已全面兼容。

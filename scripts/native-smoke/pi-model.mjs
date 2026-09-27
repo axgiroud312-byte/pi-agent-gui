@@ -2,7 +2,7 @@ import { createServer } from 'node:http';
 import { createHash } from 'node:crypto';
 
 // External OpenAI Chat Completions boundary; Pi (not this server) executes tools.
-export async function startPiModel() {
+export async function startPiModel({ holdAfterRequests = Infinity } = {}) {
   const requests = [];
   const sockets = new Set();
   const held = new Set();
@@ -50,6 +50,13 @@ export async function startPiModel() {
       choices: [{ index: 0, delta, finish_reason }],
     })}\n\n`);
     send({ role: 'assistant', content: '' });
+    if (requests.length > holdAfterRequests) {
+      await new Promise(resolve => {
+        held.add(resolve);
+        res.on('close', () => { held.delete(resolve); resolve(); });
+      });
+      return;
+    }
     const ownReadResult = toolResults.some(result => text(result.content).includes(
       scenario === 'PI_HELLO' ? 'Native parity file content' : 'NATIVE_PARITY_PREVIEW'));
     if ((scenario === 'PI_READ' || scenario === 'PI_HELLO') && !ownReadResult) {
