@@ -3320,6 +3320,12 @@ export function createZCodeAgentService(
   }
 
   return {
+    async readPiSessionTransfer() { throw new Error("Pi session transfer is unavailable in this runtime"); },
+    async exportPiSession() { throw new Error("Pi session transfer is unavailable in this runtime"); },
+    async importPiSession() { throw new Error("Pi session transfer is unavailable in this runtime"); },
+    async preparePiSessionShare() { throw new Error("Pi session sharing is unavailable in this runtime"); },
+    async publishPiSessionShare() { throw new Error("Pi session sharing is unavailable in this runtime"); },
+    async discardPiSessionShare() { throw new Error("Pi session sharing is unavailable in this runtime"); },
     async readPiSettings() { throw new Error("Pi settings are unavailable in this runtime"); },
     async savePiSettings() { throw new Error("Pi settings are unavailable in this runtime"); },
     async readPiAuth() { throw new Error("Pi authentication is unavailable in this runtime"); },

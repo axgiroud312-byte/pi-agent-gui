@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { ZCodeConfigOption } from "@zcode/shared";
-import { buildPiModelSelectGroups, extractPiModelCatalog } from "../src/v4/composer/piModelCatalog.js";
+import { buildPiModelSelectGroups, extractPiModelCatalog,
+  resolvePiSessionModelSelection } from "../src/v4/composer/piModelCatalog.js";
 import { createComposerSubmissionConfig } from "../src/v4/composer/composerSubmissionConfig.js";
 
 const options: ZCodeConfigOption[] = [{
@@ -33,4 +34,21 @@ test("Pi router catalog supplies the native picker and submission without a ZCod
 
 test("ordinary model options cannot impersonate a Pi catalog", () => {
   assert.deepEqual(extractPiModelCatalog([{ ...options[0]!, category: "model" }]), []);
+});
+
+test("an imported Pi session seeds its composer from the live Pi model only after the catalog arrives", () => {
+  const config = { provider: "llama.cpp", model: "gui.gguf", thought: "off" };
+  assert.deepEqual(resolvePiSessionModelSelection(config, [], false), { ready: false },
+    "a pending catalog must not persist an empty model selection into the imported draft");
+  assert.deepEqual(resolvePiSessionModelSelection(config, extractPiModelCatalog(options), true), {
+    ready: true,
+    modelSelection: { providerId: "llama.cpp", modelId: "gui.gguf", options: { reasoningLevel: "off" } },
+  });
+  assert.deepEqual(resolvePiSessionModelSelection(config, [], true), { ready: true },
+    "an unavailable imported model must require a fresh explicit choice");
+  assert.deepEqual(resolvePiSessionModelSelection({ ...config, thought: "high" },
+    extractPiModelCatalog(options), true), { ready: true },
+  "the renderer must not replace Pi's actual thinking level with a different one");
+  assert.deepEqual(resolvePiSessionModelSelection({ provider: "", model: "", thought: "" }, [], false),
+    { ready: true }, "Pi with no model remains an explicit empty selection");
 });

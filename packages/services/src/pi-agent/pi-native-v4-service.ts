@@ -1,7 +1,8 @@
 /* eslint-disable max-lines -- The v4 subscription registry and command admission share one Pi session ownership map. */
 import { createHash, randomUUID } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { lstat, realpath, unlink } from "node:fs/promises";
+import { lstat, mkdtemp, readFile, realpath, rm, stat, unlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { Emitter } from "@zcode/rpc";
@@ -55,6 +56,9 @@ import { PiMessageRows } from "./pi-message-rows.js";
 import { PiSessionCatalog, type PiQueueRecoveryEntry, type PiSessionBookmark } from "./pi-session-catalog.js";
 import { PiSessionLease } from "./pi-session-lease.js";
 import { PiSessionSupervisor, type PiSessionView } from "./pi-session-supervisor.js";
+import { assertPiImportSourceUnchanged, copyPiExport, piExportDestination, readPiImportSource,
+  type PiSessionExportFormat, type PiSessionExportResult, type PiSessionTransferPreview } from "./pi-session-transfer.js";
+import { decodePiHtmlSessionData, parsePiGistUrl, publishPiSecretGist } from "./pi-session-share.js";
 import { sessionFileExists } from "./pi-session-path.js";
 import { createPiV4Snapshot } from "./pi-v4-snapshot.js";
 import { emptyPiExtensionUiState, reducePiExtensionUiState } from "./pi-extension-ui-state.js";
@@ -94,6 +98,23 @@ interface Subscription {
 interface IndexLog {
   epoch: string;
   seq: number;
+}
+
+export interface PiSharePreparation {
+  token: string;
+  revision: string;
+  bytes: number;
+  html: string;
+  sessionDataJson: string;
+}
+
+interface PreparedPiShare {
+  sessionId: string;
+  workspaceKey: string;
+  sessionFile: string;
+  revision: string;
+  expiresAt: number;
+  bytes: Buffer;
 }
 
 export interface PiSessionDeletionPreview {
@@ -224,6 +245,184 @@ export class PiNativeV4Service implements V4Methods {
     return this.summary(this.recordFor(params, params.sessionId));
   }
 
+  async readPiSessionTransfer(params: ZCodeAgentWorkspaceTarget & { sessionId: string }): Promise<PiSessionTransferPreview> {
+    this.assertWorkspaceOpen(params);
+    await this.loadSession(params, params.sessionId);
+    const record = this.recordFor(params, params.sessionId);
+    if (!await sessionFileExists(record.view.sessionFile)) {
+      throw new Error("Pi session has no persisted JSONL yet; send a message or import a file");
+    }
+    const response = await this.supervisor.command(params.sessionId, { type: "get_last_assistant_text" }) as {
+      text?: unknown };
+    if (response.text !== null && typeof response.text !== "string") {
+      throw new Error("Pi last assistant response is malformed");
+    }
+    return { sessionId: params.sessionId, sessionFile: record.view.sessionFile,
+      revision: await deletionRevision(record.view.sessionFile), bytes: (await stat(record.view.sessionFile)).size,
+      messageCount: Number(record.state.messageCount) || 0, lastAssistantText: response.text };
+  }
+
+  async exportPiSession(params: ZCodeAgentWorkspaceTarget & { sessionId: string; expectedRevision: string;
+    format: PiSessionExportFormat; directory: string }): Promise<PiSessionExportResult> {
+    this.assertWorkspaceOpen(params);
+    if (params.format !== "jsonl" && params.format !== "html") throw new Error("Unsupported Pi export format");
+    await this.loadSession(params, params.sessionId);
+    const record = this.recordFor(params, params.sessionId);
+    const operationKey = `${record.workspaceKey}:${params.sessionId}`;
+    if (this.treeOperations.has(operationKey) || record.state.piPendingIntent ||
+      !["idle", "settled", "stopped"].includes(record.view.phase)) throw new Error("Pi session is busy");
+    this.treeOperations.add(operationKey);
+    let temporaryDirectory: string | undefined;
+    let destination: string | undefined;
+    try {
+      const state = await this.supervisor.getState(params.sessionId);
+      if (state.isStreaming || state.isCompacting || Number(state.pendingMessageCount) !== 0) {
+        throw new Error("Pi session is running or has queued input");
+      }
+      const revision = await deletionRevision(record.view.sessionFile);
+      if (!params.expectedRevision || revision !== params.expectedRevision) {
+        throw new Error("Pi history changed since export preview");
+      }
+      destination = await piExportDestination(params.directory, params.sessionId, params.format);
+      let source = record.view.sessionFile;
+      if (params.format === "html") {
+        temporaryDirectory = await mkdtemp(join(tmpdir(), "pi-html-export-"));
+        source = join(temporaryDirectory, "session.html");
+        await this.supervisor.exportHtml(params.sessionId, source);
+      }
+      const result = await copyPiExport(source, destination, params.format);
+      if (await deletionRevision(record.view.sessionFile) !== revision) {
+        await unlink(destination).catch(() => {});
+        throw new Error("Pi history changed during export; retry from a new preview");
+      }
+      return result;
+    } finally {
+      this.treeOperations.delete(operationKey);
+      if (temporaryDirectory) await rm(temporaryDirectory, { recursive: true, force: true });
+    }
+  }
+
+  /** Render once through Pi RPC; the bytes retained here are exactly what confirmation will publish. */
+  async preparePiSessionShare(params: ZCodeAgentWorkspaceTarget & { sessionId: string;
+    expectedRevision: string }): Promise<PiSharePreparation> {
+    this.assertWorkspaceOpen(params);
+    await this.loadSession(params, params.sessionId);
+    const record = this.recordFor(params, params.sessionId);
+    const operationKey = `${record.workspaceKey}:${params.sessionId}`;
+    if (this.treeOperations.has(operationKey) || record.state.piPendingIntent ||
+      !["idle", "settled", "stopped"].includes(record.view.phase)) throw new Error("Pi session is busy");
+    this.treeOperations.add(operationKey);
+    let temporaryDirectory: string | undefined;
+    try {
+      const state = await this.supervisor.getState(params.sessionId);
+      if (state.isStreaming || state.isCompacting || Number(state.pendingMessageCount) !== 0) {
+        throw new Error("Pi session is running or has queued input");
+      }
+      const revision = await deletionRevision(record.view.sessionFile);
+      if (!params.expectedRevision || revision !== params.expectedRevision) {
+        throw new Error("Pi history changed since share preview");
+      }
+      temporaryDirectory = await mkdtemp(join(tmpdir(), "pi-share-preview-"));
+      const htmlFile = join(temporaryDirectory, "session.html");
+      await this.supervisor.exportHtml(params.sessionId, htmlFile);
+      const fileStat = await lstat(htmlFile);
+      if (!fileStat.isFile() || fileStat.isSymbolicLink() || fileStat.nlink !== 1 ||
+        fileStat.size < 1 || fileStat.size > 8 * 1024 * 1024) {
+        throw new Error("Pi HTML share preview must be a regular file up to 8 MiB; export locally instead");
+      }
+      const bytes = await readFile(htmlFile);
+      const html = bytes.toString("utf8");
+      if (!Buffer.from(html).equals(bytes)) throw new Error("Pi HTML share preview is not valid UTF-8");
+      const sessionDataJson = decodePiHtmlSessionData(html);
+      if (await deletionRevision(record.view.sessionFile) !== revision) {
+        throw new Error("Pi history changed during share preview");
+      }
+      this.assertWorkspaceOpen(params);
+      for (const [token, prepared] of this.preparedShares) {
+        if (prepared.expiresAt <= Date.now() ||
+          (prepared.workspaceKey === record.workspaceKey && prepared.sessionId === params.sessionId)) {
+          this.preparedShares.delete(token);
+        }
+      }
+      if (this.preparedShares.size >= 4) this.preparedShares.delete(this.preparedShares.keys().next().value!);
+      const token = randomUUID();
+      this.preparedShares.set(token, { workspaceKey: record.workspaceKey, sessionId: params.sessionId,
+        sessionFile: record.view.sessionFile, revision, expiresAt: Date.now() + 10 * 60_000, bytes });
+      return { token, revision, bytes: bytes.length, html, sessionDataJson };
+    } finally {
+      this.treeOperations.delete(operationKey);
+      if (temporaryDirectory) await rm(temporaryDirectory, { recursive: true, force: true });
+    }
+  }
+
+  /** This is the only external write; the renderer must ask the user to confirm the preview. */
+  async publishPiSessionShare(params: ZCodeAgentWorkspaceTarget & { sessionId: string; token: string;
+    confirmed: boolean }): Promise<{ gistUrl: string; viewerUrl: string }> {
+    if (params.confirmed !== true) throw new Error("Confirm the exact Pi HTML preview before sharing");
+    this.assertWorkspaceOpen(params);
+    const prepared = this.preparedShares.get(params.token);
+    if (!prepared || prepared.expiresAt <= Date.now() || prepared.sessionId !== params.sessionId ||
+      prepared.workspaceKey !== resolveWorkspaceKey(params)) throw new Error("Pi share preview expired or was used");
+    this.preparedShares.delete(params.token);
+    await this.loadSession(params, params.sessionId);
+    const record = this.recordFor(params, params.sessionId);
+    const operationKey = `${record.workspaceKey}:${params.sessionId}`;
+    if (this.treeOperations.has(operationKey) || record.state.piPendingIntent ||
+      !["idle", "settled", "stopped"].includes(record.view.phase)) throw new Error("Pi session is busy");
+    this.treeOperations.add(operationKey);
+    let temporaryDirectory: string | undefined;
+    try {
+      const state = await this.supervisor.getState(params.sessionId);
+      if (state.isStreaming || state.isCompacting || Number(state.pendingMessageCount) !== 0) {
+        throw new Error("Pi session is running or has queued input");
+      }
+      if (record.view.sessionFile !== prepared.sessionFile ||
+        await deletionRevision(record.view.sessionFile) !== prepared.revision) {
+        throw new Error("Pi history changed since the reviewed share preview");
+      }
+      temporaryDirectory = await mkdtemp(join(tmpdir(), "pi-share-publish-"));
+      const htmlFile = join(temporaryDirectory, "session.html");
+      await writeFile(htmlFile, prepared.bytes, { flag: "wx", mode: 0o600 });
+      return parsePiGistUrl(await this.publishGist(htmlFile));
+    } finally {
+      this.treeOperations.delete(operationKey);
+      if (temporaryDirectory) await rm(temporaryDirectory, { recursive: true, force: true });
+    }
+  }
+
+  async discardPiSessionShare(params: ZCodeAgentWorkspaceTarget & { sessionId: string;
+    token: string }): Promise<void> {
+    const prepared = this.preparedShares.get(params.token);
+    if (prepared?.sessionId === params.sessionId && prepared.workspaceKey === resolveWorkspaceKey(params)) {
+      this.preparedShares.delete(params.token);
+    }
+  }
+
+  async importPiSession(params: ZCodeAgentWorkspaceTarget & { sourcePath: string }): Promise<{ sessionId: string }> {
+    this.assertWorkspaceOpen(params);
+    await this.loadWorkspace(params);
+    const source = await readPiImportSource(params.sourcePath);
+    const directory = await this.supervisor.sessionDirectory(params.workspacePath);
+    const manager = SessionManager.forkFrom(source.path, params.workspacePath, directory);
+    const sessionId = manager.getSessionId();
+    const sessionFile = manager.getSessionFile();
+    if (!sessionFile || !/^[a-f0-9-]{36}$/iu.test(sessionId) ||
+      resolve(dirname(sessionFile)).toLowerCase() !== resolve(directory).toLowerCase()) {
+      throw new Error("Pi import did not create a session in the selected workspace");
+    }
+    try { await assertPiImportSourceUnchanged(source); }
+    catch (error) { await unlink(sessionFile).catch(() => {}); throw error; }
+    const workspaceKey = resolveWorkspaceKey(params);
+    const now = Date.now();
+    this.bookmarks.set(sessionId, { sessionId, sessionFile, workspacePath: params.workspacePath,
+      workspaceKey, workspaceId: workspaceKey, createdAt: now, lastActivityAt: now });
+    await this.loadSession(params, sessionId);
+    const record = this.recordFor(params, sessionId);
+    if (!await this.persist(record)) throw new Error("Pi imported history was created but its bookmark could not be saved");
+    this.emitIndex(workspaceKey, record);
+    return { sessionId };
+  }
+
   /** Cold Pi history readback; never resumes or writes the selected JSONL. */
   async inspectSessionDeletion(params: ZCodeAgentWorkspaceTarget & { sessionId: string }): Promise<PiSessionDeletionPreview> {
     this.assertWorkspaceOpen(params);
@@ -317,6 +516,8 @@ export class PiNativeV4Service implements V4Methods {
   private readonly commandResults = new Map<string, Promise<CommandAck>>();
   private readonly sessionAdmissions = new Map<string, Promise<CommandAck>>();
   private readonly treeOperations = new Set<string>();
+  private readonly preparedShares = new Map<string, PreparedPiShare>();
+  private readonly publishGist: (htmlFile: string) => Promise<string>;
   private readonly reportedCommandFailures = new Set<string>();
   private readonly reportedRecordTypes = new Set<string>();
   private readonly catalog: PiSessionCatalog;
@@ -371,8 +572,10 @@ export class PiNativeV4Service implements V4Methods {
       runtimeIdentity: this.getWorkspaceRuntimeIdentity(params), state: "available" });
   }
 
-  constructor(supervisor: PiSessionSupervisor, catalogDir = join(getAppConfigDir(), "pi-sessions")) {
+  constructor(supervisor: PiSessionSupervisor, catalogDir = join(getAppConfigDir(), "pi-sessions"),
+    options: { publishGist?: (htmlFile: string) => Promise<string> } = {}) {
     this.supervisor = supervisor;
+    this.publishGist = options.publishGist ?? publishPiSecretGist;
     this.catalog = new PiSessionCatalog(catalogDir);
     this.queueMedia = new PiQueueMediaStore(join(catalogDir, "queue-media"));
     this.ledger = new PiCommandLedger(join(catalogDir, "command-admission"));
@@ -2029,6 +2232,9 @@ export class PiNativeV4Service implements V4Methods {
     for (const [id, sub] of this.subscriptions) if (sub.workspaceKey === key) this.subscriptions.delete(id);
     this.workspaceLoads.delete(key);
     for (const [id, entry] of this.bookmarks) if (entry.workspaceKey === key) this.bookmarks.delete(id);
+    for (const [token, prepared] of this.preparedShares) {
+      if (prepared.workspaceKey === key) this.preparedShares.delete(token);
+    }
     this.indexLogs.delete(key);
     const target = this.availableWorkspaces.get(key);
     if (target) this.lifecycleEmitter.fire({ ...target, workspaceKey: key,
@@ -2047,6 +2253,7 @@ export class PiNativeV4Service implements V4Methods {
   }
 
   private async disposeOwned(): Promise<void> {
+    this.preparedShares.clear();
     for (const manager of this.authManagers.values()) manager.dispose();
     this.authManagers.clear();
     this.subscriptions.clear();

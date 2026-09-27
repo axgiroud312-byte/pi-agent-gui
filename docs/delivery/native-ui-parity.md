@@ -120,6 +120,15 @@ PI14-F2 继续使用原生 `WorkspaceFileTree`、`PreviewPane`、`MentionPlugin`
 
 固定 Pi 0.87.0 的 `fork` 仅返回选中用户消息的文字。若该条包含图片，Host 会在命令入 Pi 前拒绝并保留原会话，避免把无图的 child 当成无损分支。图片分支恢复仍待后续实现和验收。
 
+## #9 Pi 会话导入、导出与主动分享（开发增量，源码 GUI 已测）
+
+| ID | 原生入口/行为 | Pi 产品行为 | 必要性 / 状态 |
+| --- | --- | --- | --- |
+| PI09-T1 | 原生会话 pane 的悬浮操作区和 Dialog/Button | 在现有会话树旁增加“Pi 导入与导出”；直接读取当前固定 Pi 的最近助手回复、复制、原始 JSONL，调用同一 Pi RPC `export_html`，使用原生文件/目录选择器；导入经 Pi `SessionManager.forkFrom` 生成新 ID 并切换原生会话 | 保留原生控件和会话切换路径，导入源字节不可修改。固定 Pi 合同和生产入口 GUI `scripts/pi-session-transfer-gui-smoke.mjs` 均通过；导入后 Pi `get_state.model` 与公开模型目录重新初始化 Composer，且新会话确实完成一次 Pi 推理。原版同状态截图、双视口/主题、包内与人工验收仍待统一复验。 |
+| PI09-T2 | 同一 Dialog 的二次确认区 | “预览分享内容”读取 Pi 渲染的完整 HTML，将 Pi HTML 内嵌的 Base64 会话数据解码为可检查文本，并保留完整 HTML 源码查看；预览不执行导出脚本。用户勾选后才运行 Pi 0.87.0 TUI `/share` 的 `gh gist create --public=false` 同协议回退路径，返回 Gist 与 Pi viewer 链接 | 外发 HTML 还含 system prompt、工具定义和潜在凭据。秘密 Gist 不被搜索，但持链接者可访问，没有私有访问控制。自动测试仅用注入的本地假发布器核对预览与外发字节，不创建真实 Gist；真实 gh 登录/外发必须单独验收。 |
+
+JSONL 包含消息、工具结果和可能的秘密；Windows 导出文件继承用户所选目录的 ACL。分享预览限制 8 MiB，超过时只支持本地导出。导入目前仅接受 Pi 0.87 当前 v3 JSONL：公开 `forkFrom` 不先迁移旧 entry，却会写入 v3 头部，因此旧版本要先由 Pi CLI 在源的安全副本上完成迁移。Pi `forkFrom` 重建会话头部身份和格式，非头部 entry 的未知字段保留；源文件原字节在成功或拒绝导入时都保持不变。Pi 的 HTML 导出是当前分支，原始 JSONL 导出是整份历史，两者用途不同。
+
 此入口复用原生侧栏和确认框。删除没有应用自建回收站；确认前后用 Pi 0.87.0 `SessionManager.list`、文件身份与内容摘要验证。产品进程之间的租约不约束独立 Pi CLI；外部 CLI 恰在最终检查和文件删除之间写入的极短竞态仍需由用户避免同时操作。
 
 ## #11 llama.cpp router 面板（开发增量，视觉待验）

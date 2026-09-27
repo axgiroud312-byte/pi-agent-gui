@@ -136,6 +136,13 @@
 | #14：D03、D04 / V11 | `82eb531` 将原生文件 mention 的工作区内有界 UTF-8、图片与目录快照加入同一次 Pi prompt；图片原字节与 MIME、引用文本、JSONL 历史均由固定 Pi 保存，发送后磁盘变动不篡改历史。缺失/越界/超大/不支持引用在投递前给本地化失败横幅，乐观清空失败后 Lexical 草稿恢复；会话标题不包含内部 snapshot 尾注。隔离最终源码 GUI `D:/Temp/pi-file-reference-gui-20260928-h/pi-file-reference-gui-report.json` 含真实 Pi、冷重启、预览、错误草稿保留，`pageErrors=[]`、两轮 `graceful=true`、`forced=[]`、`survivors=[]`；隔离固定 Pi 1/1、主分支纯测试 8/8 PASS。 | 原版成对截图、Office/其它媒体与未知格式外开、主分支/包内 GUI、用户验收仍开放。 |
 
 这些技术证据仍是源代码与离线受控模型验证，不能替代在线 provider、真实 GGUF/router、安装器或最终人工验收。后续整合须重跑完整 Pi 顺序、typecheck、lint、delivery 校验和生产包验证。
+## 2026-09-28 #9 导入、导出与主动分享增量（隔离分支，非最终验收）
+
+| 能力 / 场景 | 已观察结果 | 仍待完成 |
+| --- | --- | --- |
+| P16 / V10 | 固定 Pi 0.87.0 合同使用 `get_last_assistant_text`、`export_html`、`SessionManager.forkFrom`：原始 JSONL 导出逐字节一致，Pi HTML 内嵌完整会话数据可解码审阅，导入新 Pi ID 后 `get_state.model` 恢复并经 Pi 推理，源文件成功/拒绝时均不变；未知 entry 字段保留。本地假发布器验证分享确认前零外发、确认后上传的 HTML Buffer 与预览原字节一致。`pi-session-transfer.test.ts` 3/3、`pi-fork-clone.test.ts` 1/1、`piModelCatalog.test.ts` 3/3。生产源码入口原生 GUI 报告 `D:/Temp/pi-agent-gui-fork-clone-20260927/test-results/native-parity/product/pi-session-transfer-gui-report.json`：复制、JSONL/HTML 导出、完整分享预览和导入后推理通过；`pageErrors=[]`、`graceful=true`、`forced=[]`、`survivors=[]`。 | 真实 GitHub 登录/Gist 外发未执行，用户须逐字审阅可能含 system prompt、工具输出和凭据的完整 HTML，勾选后才能创建持链接者可访问的秘密 Gist。分享预览限 8 MiB，导入仅接受 Pi 0.87 当前 v3 JSONL；Windows 导出目标继承用户所选目录 ACL。包内 GUI、在线 provider、原版同状态视觉与统一人工验收未完成。 |
+
+本增量 `pnpm run build:bootstrap`、`node node_modules/typescript/bin/tsc -b packages/services packages/ui --pretty false`、lint 与差异检查通过。上述受控 loopback 模型的推理不算在线 provider；P16/V10 总表仍为待最终验收。
 
 ## 回填要求
 

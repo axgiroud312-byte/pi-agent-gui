@@ -34,9 +34,11 @@ for (const method of ['setAsDefaultProtocolClient', 'removeAsDefaultProtocolClie
 shell.openExternal = async url => { record('open-external-intercepted', { url }); };
 dialog.showOpenDialog = async (...args) => {
   const options = args.at(-1);
-  if (options?.properties?.includes('openFile') && process.env.NATIVE_SMOKE_PICKED_IMAGE) {
-    record('file-chooser', { properties: options.properties, selected: process.env.NATIVE_SMOKE_PICKED_IMAGE });
-    return { canceled: false, filePaths: [process.env.NATIVE_SMOKE_PICKED_IMAGE] };
+  if (options?.properties?.includes('openFile') &&
+    (process.env.NATIVE_SMOKE_PICKED_FILE || process.env.NATIVE_SMOKE_PICKED_IMAGE)) {
+    const selected = process.env.NATIVE_SMOKE_PICKED_FILE || process.env.NATIVE_SMOKE_PICKED_IMAGE;
+    record('file-chooser', { properties: options.properties, selected });
+    return { canceled: false, filePaths: [selected] };
   }
   if (!options?.properties?.includes('openDirectory')) throw new Error('Unexpected chooser');
   record('directory-chooser', { properties: options.properties, selected: process.env.NATIVE_SMOKE_WORKSPACE });

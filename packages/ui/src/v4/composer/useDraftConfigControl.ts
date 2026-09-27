@@ -39,7 +39,8 @@ import { resolveAppFollowupMode } from "@/v4/composer/followupModeSettings.js";
 import { logger } from "@/logger.js";
 import type { ZCodeUiError } from "@/lib/zcodeUiError.js";
 import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
-import { findPiModel, type PiModelCandidate } from "@/v4/composer/piModelCatalog.js";
+import { findPiModel, resolvePiSessionModelSelection,
+  type PiModelCandidate } from "@/v4/composer/piModelCatalog.js";
 
 /** 目录水合单飞（per workspaceKey）：draft、已有 session 和严格模式双挂载共享一次 RPC。 */
 const workspaceCatalogHydrationFlights = new Map<string, Promise<void>>();
@@ -116,6 +117,8 @@ export function useDraftConfigControl(params: {
   agentStartupAllowed?: boolean;
   modelSelectionService: IModelSelectionService | null;
   piModelCatalog?: readonly PiModelCandidate[];
+  nativePiSession?: boolean;
+  piModelCatalogReady?: boolean;
 }): DraftConfigControl {
   const {
     workspacePath,
@@ -126,6 +129,8 @@ export function useDraftConfigControl(params: {
     agentStartupAllowed = true,
     modelSelectionService,
     piModelCatalog = [],
+    nativePiSession = false,
+    piModelCatalogReady = false,
   } = params;
   const workspaceKey = workspaceIdentity?.trim() || workspacePath;
   const displayProvider = provider ?? ZCODE_AGENT_PROVIDER;
@@ -160,7 +165,10 @@ export function useDraftConfigControl(params: {
   const modelSelectionView =
     modelSelectionRead.state.status === "ready" ? modelSelectionRead.state.view : null;
   const initializeAsNewTask = sessionId === null || draft.initializeFromNewTask === true;
-  if (!draft.mode && (initializeAsNewTask ? modelSelectionView !== null : sessionConfig != null)) {
+  const piSessionSeed = nativePiSession && sessionConfig && !sessionConfig.modelSelection
+    ? resolvePiSessionModelSelection(sessionConfig, piModelCatalog, piModelCatalogReady) : null;
+  if (!draft.mode && (initializeAsNewTask ? modelSelectionView !== null
+    : sessionConfig != null && (piSessionSeed?.ready ?? true))) {
     const mode = submissionModeSchema.safeParse(sessionConfig?.mode);
     // Recent 是初始化原意图，不先按旧 Provider 是否仍在候选中删掉；下一次输入读取
     // 由同一解析入口对应当前账号，或暂时留空。否则冷启动会绕过统一账号对应规则。
@@ -172,7 +180,7 @@ export function useDraftConfigControl(params: {
             ...draft,
             mode: mode.success && mode.data !== "plan" ? mode.data : "build",
             planEnabled: resolveExecutionState(sessionConfig ?? {}).planEnabled,
-            modelSelection: sessionConfig?.modelSelection,
+            modelSelection: sessionConfig?.modelSelection ?? piSessionSeed?.modelSelection,
           };
   }
   if (sessionConfig) {
@@ -187,7 +195,9 @@ export function useDraftConfigControl(params: {
   // 正文/模式自动保存继续保存 draft 中的原意图；读取未就绪时保留展示，提交由 View 门禁阻断。
   const piSelection = draft.modelSelection && findPiModel(piModelCatalog,
     draft.modelSelection.providerId, draft.modelSelection.modelId);
-  const effectiveSelection = piSelection
+  const effectiveSelection = nativePiSession && sessionId !== null
+    ? draft.modelSelection
+    : piSelection
     ? draft.modelSelection
     : modelSelectionView ? (modelSelectionView.effectiveSelection ?? undefined) : draft.modelSelection;
   const draftConfig = useMemo<Partial<SessionConfigState>>(

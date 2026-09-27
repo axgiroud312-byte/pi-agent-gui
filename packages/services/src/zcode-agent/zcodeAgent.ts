@@ -564,6 +564,17 @@ export interface ZCodeAgentStorageStartupSnapshot {
 }
 
 export interface IZCodeAgentService {
+  /** Fixed Pi JSONL/HTML transfer. Share publication has a separate explicit confirmation. */
+  readPiSessionTransfer(params: ZCodeAgentSessionTarget): Promise<import("../pi-agent/pi-session-transfer.js").PiSessionTransferPreview>;
+  exportPiSession(params: ZCodeAgentSessionTarget & { expectedRevision: string;
+    format: import("../pi-agent/pi-session-transfer.js").PiSessionExportFormat;
+    directory: string }): Promise<import("../pi-agent/pi-session-transfer.js").PiSessionExportResult>;
+  importPiSession(params: ZCodeAgentWorkspaceTarget & { sourcePath: string }): Promise<{ sessionId: string }>;
+  preparePiSessionShare(params: ZCodeAgentSessionTarget & { expectedRevision: string }): Promise<
+    import("../pi-agent/pi-native-v4-service.js").PiSharePreparation>;
+  publishPiSessionShare(params: ZCodeAgentSessionTarget & { token: string;
+    confirmed: boolean }): Promise<{ gistUrl: string; viewerUrl: string }>;
+  discardPiSessionShare(params: ZCodeAgentSessionTarget & { token: string }): Promise<void>;
   /** Pi's user/project settings documents, effective values and external-edit CAS save. */
   readPiSettings(params: ZCodeAgentWorkspaceTarget): Promise<import("../pi-agent/pi-settings-documents.js").PiSettingsSnapshot>;
   savePiSettings(params: ZCodeAgentWorkspaceTarget & {

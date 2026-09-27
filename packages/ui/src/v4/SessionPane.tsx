@@ -126,6 +126,7 @@ import { ConversationDraftEmptyState } from "@/v4/ConversationDraftEmptyState.js
 import { ConversationDraftSuggestedPromptsContainer } from "@/v4/ConversationDraftSuggestedPromptsContainer.js";
 import { ConversationHeader, type PaneWorkspaceBadge } from "@/v4/ConversationHeader.js";
 import { PiTreeDialog } from "@/v4/PiTreeDialog.js";
+import { PiSessionTransferDialog } from "@/v4/PiSessionTransferDialog.js";
 import { PiExtensionUiPanel } from "@/v4/PiExtensionUiPanel.js";
 import { PiLlamaRouterDialog } from "@/v4/PiLlamaRouterDialog.js";
 import { extractPiModelCatalog } from "@/v4/composer/piModelCatalog.js";
@@ -1294,6 +1295,8 @@ export function SessionPane({
     agentStartupAllowed: draftAgentStartupAllowed,
     modelSelectionService,
     piModelCatalog,
+    nativePiSession: isDesktop && !remoteSessionId && sessionId !== null,
+    piModelCatalogReady: piCatalogRead?.key === piCatalogKey,
   });
   const modelSelectionView =
     modelSelectionRead.state.status === "ready" ? modelSelectionRead.state.view : null;
@@ -4706,6 +4709,9 @@ export function SessionPane({
             onModelsChanged={refreshPiModelCatalog} />
           <PiResourcesDialog sessionId={sessionId} workspacePath={workspacePath}
             workspaceIdentity={workspaceIdentity} />
+          <PiSessionTransferDialog sessionId={sessionId} workspacePath={workspacePath}
+            workspaceIdentity={workspaceIdentity} beforeSwitch={beforePiTreeNavigate}
+            onImported={onSessionCreated} />
           <PiTreeDialog sessionId={sessionId} workspacePath={workspacePath}
             workspaceIdentity={workspaceIdentity} remoteSessionId={remoteSessionId}
             beforeNavigate={beforePiTreeNavigate} onRestoredText={restorePiTreeEditor}

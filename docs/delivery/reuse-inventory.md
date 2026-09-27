@@ -57,6 +57,10 @@ Pi 的 MIT 来源及固定版本见 `THIRD_PARTY_NOTICES.md` 与
 
 沿用原生 `SessionPane`、`PiTreeDialog` 和 V4 命令/会话选择，不迁入旧原型的会话列表或 Agent 状态。固定 Pi 0.87.0 公开 RPC 的 `get_fork_messages`、`fork(entryId)`、`clone()`、`get_state` 与 Pi JSONL 是分支事实；Host 只维护原生命令回执、进程及文件租约。Pi 成功替换会话后，旧 RPC 进程完整退出再恢复新会话，防止同一进程写着 child 却仍用父会话身份。取消返回 `noop`，不创建 child；不确定的交付阻止自动重试。Pi 来源与 MIT 声明见固定上游参考及 `THIRD_PARTY_NOTICES.md`。
 
+### #9 Pi 导入、导出与主动分享纵向切片（2026-09-28，隔离分支待整合）
+
+继续沿用原生 `SessionPane`、Dialog/Button、文件/目录选择器和会话选择，未迁入旧原型的分享 UI 或任务索引。固定 Pi 0.87.0 公开 RPC 的 `get_last_assistant_text`、`export_html`、根导出 `SessionManager.forkFrom` 和 Pi JSONL 是实现来源；Pi TUI `/share` 的 `gh gist create --public=false` 仅作为外发协议参考，GUI 不调用私有 TUI 组件。Pi MIT 声明见 `THIRD_PARTY_NOTICES.md`。宿主仅做受限 JSONL 字节/版本/树校验、原文件未变化校验与本地导出复制；分享保留 Pi HTML 原字节，必须由用户预览和勾选后才调用 `gh`。测试注入本地发布器，不会产生远程 Gist；Windows 目标目录的 ACL 由用户选择，不能把 POSIX `0600` 宣称为 Windows ACL 隔离。
+
 ## 已知外部验收差额
 
 - 旧主线真实 `openai-codex/gpt-5.5` 文本成功（449 tokens）；`aio-codex/gpt-5.4-mini` 为 Connection error，未通过。

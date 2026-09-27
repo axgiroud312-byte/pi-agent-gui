@@ -547,6 +547,19 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
     return response.data;
   }
 
+  /** Pi itself renders the active branch; the Host only moves its resulting file. */
+  async exportHtml(sessionId: string, outputPath: string): Promise<string> {
+    const runtime = this.requireSession(sessionId);
+    if (runtime.view.uncertainDelivery || runtime.view.reconciliationRequired) {
+      throw new Error("Pi session requires reconciliation before export");
+    }
+    const response = await runtime.client.request({ type: "export_html", outputPath }, 120_000);
+    if (!response.success) throw new Error(response.error ?? "Pi HTML export failed");
+    const path = object(response.data).path;
+    if (path !== outputPath) throw new Error("Pi returned a different HTML export path");
+    return path;
+  }
+
   /** Pi replaces its active JSONL in-place on fork/clone; stop that process before leasing the child. */
   async branchSession(sessionId: string, operation: "fork" | "clone", entryId?: string): Promise<{
     cancelled: boolean; view?: PiSessionView; restoredText?: string;
