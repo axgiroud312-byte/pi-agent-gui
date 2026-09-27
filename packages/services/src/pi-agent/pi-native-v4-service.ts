@@ -949,11 +949,13 @@ export class PiNativeV4Service implements V4Methods {
     this.currentAuth(params).cancel(params.operationId);
   }
 
-  async readPiControlTree(params: ZCodeAgentWorkspaceTarget & { sessionId: string }): Promise<PiControlView> {
+  async readPiControlTree(params: ZCodeAgentWorkspaceTarget & { sessionId: string;
+    includeResourceContent?: boolean }): Promise<PiControlView> {
     this.assertWorkspaceOpen(params);
     await this.loadSession(params, params.sessionId);
     this.recordFor(params, params.sessionId);
-    return piControlView(await this.supervisor.readControlBridge(params.sessionId));
+    return piControlView(await this.supervisor.readControlBridge(params.sessionId),
+      params.includeResourceContent === true);
   }
 
   private async reconcilePiTreeHistory(record: SessionRecord): Promise<void> {
@@ -968,7 +970,8 @@ export class PiNativeV4Service implements V4Methods {
     await this.safelyPersist(record);
   }
 
-  async runPiControlTree(params: ZCodeAgentWorkspaceTarget & { sessionId: string; action: PiControlAction }): Promise<PiControlView> {
+  async runPiControlTree(params: ZCodeAgentWorkspaceTarget & { sessionId: string; action: PiControlAction;
+    includeResourceContent?: boolean }): Promise<PiControlView> {
     this.assertWorkspaceOpen(params);
     await this.loadSession(params, params.sessionId);
     const record = this.recordFor(params, params.sessionId);
@@ -986,7 +989,7 @@ export class PiNativeV4Service implements V4Methods {
         await this.refreshRuntimeFacts(record);
         this.refreshWorkspaceConfig(record.workspaceKey);
       }
-      return piControlView(result);
+      return piControlView(result, params.includeResourceContent === true);
     } catch (error) {
       if (params.action.operation === "navigate") {
         try { await this.reconcilePiTreeHistory(record); }

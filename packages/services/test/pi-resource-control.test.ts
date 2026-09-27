@@ -10,6 +10,8 @@ import { PiRpcClient } from "../src/pi-agent/pi-rpc-client.js";
 import { PiControlBridge } from "../src/pi-agent/pi-control-bridge.js";
 import { piControlIntent, piControlView } from "../src/pi-agent/pi-control-protocol.js";
 
+const fullPiControlView = (snapshot: Parameters<typeof piControlView>[0]) => piControlView(snapshot, true);
+
 test("Pi resource control rejects credential URLs and invalid package filters before invoking Pi", () => {
   assert.throws(() => piControlIntent({ operation: "package_install",
     source: "https://user:secret@example.invalid/group/package.git", scope: "user" }));
@@ -68,7 +70,11 @@ test("pinned Pi owns loaded resources and local package install/filter/remove ac
       cwd: workspace, env: { PI_CODING_AGENT_DIR: profile, PI_TELEMETRY: "0" }, });
     await client.start();
     bridge = new PiControlBridge(client);
-    const initial = piControlView(await bridge.refresh());
+    const resourceSnapshot = await bridge.refresh();
+    const redacted = piControlView(resourceSnapshot);
+    assert.equal(JSON.stringify(redacted).includes("Workspace context fixture"), false);
+    assert.equal(JSON.stringify(redacted).includes("Global appended system prompt fixture"), false);
+    const initial = fullPiControlView(resourceSnapshot);
     assert(initial.resources.commands.some(command => command.name === "project-template" &&
       command.source === "prompt" && command.sourceInfo.scope === "project"));
     assert(initial.resources.skills.some(skill => skill.name === "global-skill" &&
@@ -77,35 +83,37 @@ test("pinned Pi owns loaded resources and local package install/filter/remove ac
       file.content.includes("Workspace context fixture")));
     assert(initial.resources.appendSystemPrompt.includes("Global appended system prompt fixture"));
     const skillPath = join(profile, "skills", "global-skill", "SKILL.md");
-    const disabledSkill = piControlView(await bridge.act({ operation: "resource_toggle", kind: "skill",
+    const disabledSkill = fullPiControlView(await bridge.act({ operation: "resource_toggle", kind: "skill",
       path: skillPath, enabled: false, sessionId: initial.info.sessionId,
       generation: initial.info.generation }));
     assert.equal(disabledSkill.resources.skills.some(skill => skill.name === "global-skill"), false);
     assert(disabledSkill.resources.availableResources.some(item => item.path === skillPath && !item.enabled));
-    const enabledSkill = piControlView(await bridge.act({ operation: "resource_toggle", kind: "skill",
+    const enabledSkill = fullPiControlView(await bridge.act({ operation: "resource_toggle", kind: "skill",
       path: skillPath, enabled: true, sessionId: disabledSkill.info.sessionId,
       generation: disabledSkill.info.generation }));
     assert(enabledSkill.resources.skills.some(skill => skill.name === "global-skill"));
     const templatePath = join(workspace, ".pi", "prompts", "project-template.md");
-    const disabledTemplate = piControlView(await bridge.act({ operation: "resource_toggle", kind: "prompt",
+    const disabledTemplate = fullPiControlView(await bridge.act({ operation: "resource_toggle", kind: "prompt",
       path: templatePath, enabled: false, sessionId: enabledSkill.info.sessionId,
       generation: enabledSkill.info.generation }));
     assert.equal(disabledTemplate.resources.commands.some(command => command.name === "project-template"), false);
-    const enabledTemplate = piControlView(await bridge.act({ operation: "resource_toggle", kind: "prompt",
+    const enabledTemplate = fullPiControlView(await bridge.act({ operation: "resource_toggle", kind: "prompt",
       path: templatePath, enabled: true, sessionId: disabledTemplate.info.sessionId,
       generation: disabledTemplate.info.generation }));
     assert(enabledTemplate.resources.commands.some(command => command.name === "project-template"));
-    const opened = piControlView(await bridge.act({ operation: "resource_read", path: templatePath,
-      sessionId: enabledTemplate.info.sessionId, generation: enabledTemplate.info.generation }));
+    const openedSnapshot = await bridge.act({ operation: "resource_read", path: templatePath,
+      sessionId: enabledTemplate.info.sessionId, generation: enabledTemplate.info.generation });
+    assert.equal(piControlView(openedSnapshot).result?.resource, undefined);
+    const opened = fullPiControlView(openedSnapshot);
     assert(opened.result?.resource?.content.includes("Expanded $1"));
     await writeFile(templatePath, "---\ndescription: External change\n---\nExternal $1");
     await assert.rejects(bridge.act({ operation: "resource_write", path: templatePath,
       expectedHash: opened.result!.resource!.hash, content: "stale overwrite",
       sessionId: enabledTemplate.info.sessionId, generation: enabledTemplate.info.generation }),
     /changed on disk/);
-    const fresh = piControlView(await bridge.act({ operation: "resource_read", path: templatePath,
+    const fresh = fullPiControlView(await bridge.act({ operation: "resource_read", path: templatePath,
       sessionId: enabledTemplate.info.sessionId, generation: enabledTemplate.info.generation }));
-    const saved = piControlView(await bridge.act({ operation: "resource_write", path: templatePath,
+    const saved = fullPiControlView(await bridge.act({ operation: "resource_write", path: templatePath,
       expectedHash: fresh.result!.resource!.hash,
       content: "---\ndescription: Edited in GUI\n---\nEdited $1 and ${2:-default}",
       sessionId: enabledTemplate.info.sessionId, generation: enabledTemplate.info.generation }));
@@ -113,16 +121,16 @@ test("pinned Pi owns loaded resources and local package install/filter/remove ac
     assert.equal((await readFile(templatePath, "utf8")).includes("Edited $1"), true);
     assert(saved.resources.commands.some(command => command.name === "project-template" &&
       command.description === "Edited in GUI"));
-    const createdPrompt = piControlView(await bridge.act({ operation: "resource_create", kind: "replace",
+    const createdPrompt = fullPiControlView(await bridge.act({ operation: "resource_create", kind: "replace",
       scope: "project", content: "Project replacement system prompt fixture",
       sessionId: saved.info.sessionId, generation: saved.info.generation }));
     assert.equal(createdPrompt.resources.customSystemPrompt, "Project replacement system prompt fixture");
     assert(createdPrompt.resources.systemPromptFiles.some(item => item.kind === "replace" &&
       item.scope === "project" && item.active));
     const contextPath = join(workspace, "AGENTS.md");
-    const contextRead = piControlView(await bridge.act({ operation: "resource_read", path: contextPath,
+    const contextRead = fullPiControlView(await bridge.act({ operation: "resource_read", path: contextPath,
       sessionId: createdPrompt.info.sessionId, generation: createdPrompt.info.generation }));
-    const contextSaved = piControlView(await bridge.act({ operation: "resource_write", path: contextPath,
+    const contextSaved = fullPiControlView(await bridge.act({ operation: "resource_write", path: contextPath,
       expectedHash: contextRead.result!.resource!.hash, content: "Updated workspace context fixture",
       sessionId: createdPrompt.info.sessionId, generation: createdPrompt.info.generation }));
     assert(contextSaved.resources.contextFiles.some(item => item.path === contextPath &&
@@ -144,7 +152,7 @@ test("pinned Pi owns loaded resources and local package install/filter/remove ac
     await invoke("/skill:global-skill Beta");
     assert(JSON.stringify(calls.at(-1)).includes("Global skill instructions"), "Pi expanded the loaded Skill");
     assert(JSON.stringify(calls.at(-1)).includes("Beta"), JSON.stringify(calls.at(-1)));
-    const installed = piControlView(await bridge.act({ operation: "package_install", source: fixture, scope: "project",
+    const installed = fullPiControlView(await bridge.act({ operation: "package_install", source: fixture, scope: "project",
       sessionId: contextSaved.info.sessionId, generation: contextSaved.info.generation }));
     assert.notEqual(installed.info.generation, contextSaved.info.generation);
     assert(installed.resources.packages.some(pkg => pkg.scope === "project" && pkg.installedPath === fixture),
@@ -161,7 +169,7 @@ test("pinned Pi owns loaded resources and local package install/filter/remove ac
     settingsBeforeFilter.packages = [{ source: configuredSource, futurePackageField: "preserve" }];
     settingsBeforeFilter.futureSettingsField = { preserved: true };
     await writeFile(projectSettingsPath, JSON.stringify(settingsBeforeFilter));
-    const filtered = piControlView(await bridge.act({ operation: "package_filter", source: configuredSource, scope: "project",
+    const filtered = fullPiControlView(await bridge.act({ operation: "package_filter", source: configuredSource, scope: "project",
       filters: { prompts: [], skills: [] }, sessionId: installed.info.sessionId,
       generation: installed.info.generation }));
     assert.equal(filtered.resources.commands.some(command => command.name === "package-template"), false);
@@ -170,13 +178,13 @@ test("pinned Pi owns loaded resources and local package install/filter/remove ac
     const settingsAfterFilter = JSON.parse(await readFile(projectSettingsPath, "utf8"));
     assert.equal(settingsAfterFilter.packages[0].futurePackageField, "preserve");
     assert.equal(settingsAfterFilter.futureSettingsField.preserved, true);
-    const removed = piControlView(await bridge.act({ operation: "package_remove", source: configuredSource, scope: "project",
+    const removed = fullPiControlView(await bridge.act({ operation: "package_remove", source: configuredSource, scope: "project",
       sessionId: filtered.info.sessionId, generation: filtered.info.generation }));
     assert.equal(removed.resources.packages.some(pkg => pkg.source === configuredSource), false);
     const settings = JSON.parse(await readFile(join(workspace, ".pi", "settings.json"), "utf8"));
     assert.deepEqual(settings.packages ?? [], []);
     await writeFile(join(profile, "settings.json"), "{ invalid JSON");
-    const diagnosed = piControlView(await bridge.refresh());
+    const diagnosed = fullPiControlView(await bridge.refresh());
     assert(diagnosed.resources.diagnostics.some(item => item.includes("global") || item.includes("user")),
       "Pi settings parse errors must remain visible alongside the loaded session snapshot");
   } finally {
@@ -234,13 +242,13 @@ test("pinned Pi installs and removes a pinned Git package from an isolated repos
       cwd: workspace, env: { PI_CODING_AGENT_DIR: profile, PI_TELEMETRY: "0", GIT_TERMINAL_PROMPT: "0" } });
     await client.start();
     bridge = new PiControlBridge(client);
-    const before = piControlView(await bridge.refresh());
-    const installed = piControlView(await bridge.act({ operation: "package_install", source: packageSource,
+    const before = fullPiControlView(await bridge.refresh());
+    const installed = fullPiControlView(await bridge.act({ operation: "package_install", source: packageSource,
       scope: "project", sessionId: before.info.sessionId, generation: before.info.generation }));
     assert(installed.resources.packages.some(pkg => pkg.source === packageSource && pkg.installedPath));
     assert(installed.resources.commands.some(command => command.name === "git-template" &&
       command.sourceInfo.origin === "package"));
-    const removed = piControlView(await bridge.act({ operation: "package_remove", source: packageSource,
+    const removed = fullPiControlView(await bridge.act({ operation: "package_remove", source: packageSource,
       scope: "project", sessionId: installed.info.sessionId, generation: installed.info.generation }));
     assert.equal(removed.resources.packages.some(pkg => pkg.source === packageSource), false);
     assert.equal(removed.resources.commands.some(command => command.name === "git-template"), false);

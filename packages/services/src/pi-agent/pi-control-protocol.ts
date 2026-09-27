@@ -99,19 +99,31 @@ export interface PiControlSnapshot {
   result?: PiControlResult;
 }
 
-/** Renderer gets the user's own Pi resources but no extension tool schema or raw bridge inspection. */
+/** Renderer gets resource contents only for an explicit resource-panel request. */
 export type PiControlView = Pick<PiControlSnapshot, "info" | "tree" | "entries" | "leafId" | "result"> &
   { resources: PiResourceCatalog };
-export function piControlView(snapshot: PiControlSnapshot): PiControlView {
-  return { info: snapshot.info, tree: snapshot.tree, entries: snapshot.entries,
-    leafId: snapshot.leafId, ...(snapshot.result ? { result: snapshot.result } : {}),
+function visibleEntry(entry: SessionEntry): SessionEntry {
+  if (entry.type !== "message") return entry;
+  const message = { ...entry.message } as Record<string, unknown>;
+  delete message.sections;
+  return { ...entry, message: message as typeof entry.message };
+}
+function visibleTree(nodes: SessionTreeNode[]): SessionTreeNode[] {
+  return nodes.map(node => ({ ...node, entry: visibleEntry(node.entry), children: visibleTree(node.children) }));
+}
+export function piControlView(snapshot: PiControlSnapshot, includeResourceContent = false): PiControlView {
+  const result = snapshot.result && (includeResourceContent ? snapshot.result :
+    (({ resource: _resource, ...visible }) => visible)(snapshot.result));
+  return { info: snapshot.info, tree: visibleTree(snapshot.tree), entries: snapshot.entries.map(visibleEntry),
+    leafId: snapshot.leafId, ...(result ? { result } : {}),
     resources: { commands: snapshot.inspection.commands,
       skills: (snapshot.inspection.promptOptions.skills ?? []).map(skill => ({
         name: skill.name, description: skill.description, filePath: skill.filePath, sourceInfo: skill.sourceInfo })),
-      contextFiles: snapshot.inspection.promptOptions.contextFiles ?? [],
-      customSystemPrompt: snapshot.inspection.promptOptions.customPrompt ?? null,
-      appendSystemPrompt: snapshot.inspection.promptOptions.appendSystemPrompt ?? "",
-      effectiveSystemPrompt: snapshot.inspection.systemPrompt,
+      contextFiles: (snapshot.inspection.promptOptions.contextFiles ?? []).map(file => ({
+        path: file.path, content: includeResourceContent ? file.content : "" })),
+      customSystemPrompt: includeResourceContent ? snapshot.inspection.promptOptions.customPrompt ?? null : null,
+      appendSystemPrompt: includeResourceContent ? snapshot.inspection.promptOptions.appendSystemPrompt ?? "" : "",
+      effectiveSystemPrompt: includeResourceContent ? snapshot.inspection.systemPrompt : "",
       projectTrusted: snapshot.inspection.projectTrusted, packages: snapshot.inspection.packages,
       systemPromptFiles: snapshot.inspection.systemPromptFiles,
       availableResources: snapshot.inspection.availableResources,

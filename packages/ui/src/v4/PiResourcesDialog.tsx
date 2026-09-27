@@ -42,7 +42,7 @@ export function PiResourcesDialog({ sessionId, workspacePath, workspaceIdentity 
 
   const refresh = useCallback(async () => {
     setBusy(true); setError(null); setNotice(null);
-    try { setView(await zcodeAgentService.readPiControlTree(target)); }
+    try { setView(await zcodeAgentService.readPiControlTree({ ...target, includeResourceContent: true })); }
     catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
     finally { setBusy(false); }
   }, [zcodeAgentService, target]);
@@ -53,7 +53,7 @@ export function PiResourcesDialog({ sessionId, workspacePath, workspaceIdentity 
     if (!view || busy) return undefined;
     setBusy(true); setError(null);
     try {
-      const next = await zcodeAgentService.runPiControlTree({ ...target,
+      const next = await zcodeAgentService.runPiControlTree({ ...target, includeResourceContent: true,
         action: { ...intent, sessionId, generation: view.info.generation } as ResourceAction });
       setView(next);
       if (next.info.generation !== view.info.generation) {
@@ -62,7 +62,8 @@ export function PiResourcesDialog({ sessionId, workspacePath, workspaceIdentity 
       return next;
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
-      try { setView(await zcodeAgentService.readPiControlTree(target)); } catch { /* Keep first error. */ }
+      try { setView(await zcodeAgentService.readPiControlTree({ ...target, includeResourceContent: true })); }
+      catch { /* Keep first error. */ }
       return undefined;
     } finally { setBusy(false); }
   };

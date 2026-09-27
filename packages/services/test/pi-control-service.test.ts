@@ -27,6 +27,7 @@ test("native session service keeps Pi tree actions in the owned RPC process and 
       const address = server.address();
       assert(address && typeof address !== "string");
       await mkdir(profile);
+      await writeFile(join(workspacePath, "AGENTS.md"), "Private context marker for resource panel only");
       await writeFile(join(profile, "models.json"), JSON.stringify({ providers: {
         "control-provider": { baseUrl: `http://127.0.0.1:${address.port}/v1`, api: "openai-completions",
           apiKey: "local-test-only", models: [{ id: "control-test" }] },
@@ -39,7 +40,7 @@ test("native session service keeps Pi tree actions in the owned RPC process and 
         piEntry: fileURLToPath(import.meta.resolve("@earendil-works/pi-coding-agent/rpc-entry")),
         env: { PI_CODING_AGENT_DIR: profile, PI_TELEMETRY: "0" },
         rpcArgs: ["--offline", "--no-extensions", "--no-skills", "--no-prompt-templates",
-          "--no-context-files", "--extension", extension],
+          "--extension", extension],
       });
       service = new PiNativeV4Service(supervisor, join(workspacePath, "catalog"));
       const created = await service.sendConversationCommandV4({ workspacePath, envelope: {
@@ -62,6 +63,10 @@ test("native session service keeps Pi tree actions in the owned RPC process and 
       await settled;
       await (service as unknown as { reconciliations: Map<string, Promise<void>> }).reconciliations.get(sessionId);
       const before = await service.readPiControlTree({ workspacePath, sessionId });
+      assert.equal(JSON.stringify(before).includes("Private context marker"), false);
+      const resourcePanel = await service.readPiControlTree({ workspacePath, sessionId,
+        includeResourceContent: true });
+      assert.equal(JSON.stringify(resourcePanel).includes("Private context marker"), true);
       const user = before.entries.find(entry => entry.type === "message" && entry.message.role === "user");
       assert(user && user.type === "message");
       await assert.rejects(service.readPiControlTree({ workspacePath: otherWorkspace, sessionId }), /owned|workspace/i);
@@ -87,7 +92,7 @@ test("native session service keeps Pi tree actions in the owned RPC process and 
         piEntry: fileURLToPath(import.meta.resolve("@earendil-works/pi-coding-agent/rpc-entry")),
         env: { PI_CODING_AGENT_DIR: profile, PI_TELEMETRY: "0" },
         rpcArgs: ["--offline", "--no-extensions", "--no-skills", "--no-prompt-templates",
-          "--no-context-files", "--extension", extension],
+          "--extension", extension],
       }), join(workspacePath, "catalog"));
       const restored = await service.readPiControlTree({ workspacePath, sessionId });
       assert(restored.entries.some(entry => entry.type === "label" && entry.label === "first"),
