@@ -1,0 +1,375 @@
+diff --git a/dist/core/agent-session.d.ts b/dist/core/agent-session.d.ts
+index 5620ac326bd3885819f4dbca401522c3058a640b..d2366c84ffb20190c8b606ebe484c37ec80c5089 100644
+--- a/dist/core/agent-session.d.ts
++++ b/dist/core/agent-session.d.ts
+@@ -50,6 +50,11 @@ export type AgentSessionEvent = Exclude<AgentEvent, {
+     type: "queue_update";
+     steering: readonly string[];
+     followUp: readonly string[];
++} | {
++    type: "pi_gui_queue_update_v1";
++    revision: number;
++    steering: readonly { id: string; text: string; imageCount: number }[];
++    followUp: readonly { id: string; text: string; imageCount: number }[];
+ } | {
+     type: "compaction_start";
+     reason: "manual" | "threshold" | "overflow";
+@@ -434,7 +439,7 @@ export declare class AgentSession {
+      */
+     steer(text: string, images?: ImageContent[], options?: {
+         source?: InputSource;
+-    }): Promise<void>;
++    }): Promise<string | undefined>;
+     /**
+      * Queue a follow-up message to be processed after the agent finishes.
+      * Delivered only when agent has no more tool calls or steering messages.
+@@ -445,7 +450,7 @@ export declare class AgentSession {
+      */
+     followUp(text: string, images?: ImageContent[], options?: {
+         source?: InputSource;
+-    }): Promise<void>;
++    }): Promise<string | undefined>;
+     private _queueSteer;
+     private _queueFollowUp;
+     /**
+diff --git a/dist/core/agent-session.js b/dist/core/agent-session.js
+index 36fdb31c121d1121cebc51c6f0d61d09cf07bae0..098a4b62b2b382c380ac2b6006f1234e97822759 100644
+--- a/dist/core/agent-session.js
++++ b/dist/core/agent-session.js
+@@ -147,6 +147,7 @@ export class AgentSession {
+     _runSystemPromptOptions;
+     constructor(config) {
+         this.agent = config.agent;
++        this.agent.onQueueChange = () => this._emitQueueUpdate();
+         this.sessionManager = config.sessionManager;
+         this.settingsManager = config.settingsManager;
+         this._scopedModels = config.scopedModels ?? [];
+@@ -500,10 +501,17 @@ export class AgentSession {
+         }
+     }
+     _emitQueueUpdate() {
++        const snapshot = this.agent.queueSnapshot();
+         this._emit({
+             type: "queue_update",
+-            steering: [...this._steeringMessages],
+-            followUp: [...this._followUpMessages],
++            steering: snapshot.steering.map((item) => item.text),
++            followUp: snapshot.followUp.map((item) => item.text),
++        });
++        this._emit({
++            type: "pi_gui_queue_update_v1",
++            revision: snapshot.revision,
++            steering: snapshot.steering.map(({ id, text, images }) => ({ id, text, imageCount: images.length })),
++            followUp: snapshot.followUp.map(({ id, text, images }) => ({ id, text, imageCount: images.length })),
+         });
+     }
+     async _emitSessionCompactFailed(event) {
+@@ -554,27 +562,10 @@ export class AgentSession {
+     }
+     /** Internal handler for agent events - shared by subscribe and reconnect */
+     _handleAgentEvent = async (event) => {
+-        // When a user message starts, check if it's from either queue and remove it BEFORE emitting
+-        // This ensures the UI sees the updated queue state
++        // The Pi core queue emits at the atomic drain boundary. Matching by text
++        // here would remove the wrong item when two messages have identical text.
+         if (event.type === "message_start" && event.message.role === "user") {
+             this._overflowRecoveryAttempted = false;
+-            const messageText = contentText(event.message.content, "");
+-            if (messageText) {
+-                // Check steering queue first
+-                const steeringIndex = this._steeringMessages.indexOf(messageText);
+-                if (steeringIndex !== -1) {
+-                    this._steeringMessages.splice(steeringIndex, 1);
+-                    this._emitQueueUpdate();
+-                }
+-                else {
+-                    // Check follow-up queue
+-                    const followUpIndex = this._followUpMessages.indexOf(messageText);
+-                    if (followUpIndex !== -1) {
+-                        this._followUpMessages.splice(followUpIndex, 1);
+-                        this._emitQueueUpdate();
+-                    }
+-                }
+-            }
+         }
+         // Emit to extensions first, then notify public listeners.
+         await this._emitExtensionEvent(event);
+@@ -1397,10 +1388,10 @@ export class AgentSession {
+         let expandedText = this._expandSkillCommand(processedInput.text);
+         expandedText = expandPromptTemplate(expandedText, [...this.promptTemplates]);
+         if (behavior === "steer") {
+-            await this._queueSteer(expandedText, processedInput.images);
++            return this._queueSteer(expandedText, processedInput.images);
+         }
+         else {
+-            await this._queueFollowUp(expandedText, processedInput.images);
++            return this._queueFollowUp(expandedText, processedInput.images);
+         }
+     }
+     /**
+@@ -1413,7 +1404,7 @@ export class AgentSession {
+      * @throws Error if text is an extension command
+      */
+     async steer(text, images, options) {
+-        await this._queueUserInput(text, images, "steer", options?.source ?? "interactive");
++        return this._queueUserInput(text, images, "steer", options?.source ?? "interactive");
+     }
+     /**
+      * Queue a follow-up message to be processed after the agent finishes.
+@@ -1424,19 +1415,17 @@ export class AgentSession {
+      * @throws Error if text is an extension command
+      */
+     async followUp(text, images, options) {
+-        await this._queueUserInput(text, images, "followUp", options?.source ?? "interactive");
++        return this._queueUserInput(text, images, "followUp", options?.source ?? "interactive");
+     }
+     /**
+      * Internal: Queue a steering message (already expanded, no extension command check).
+      */
+     async _queueSteer(text, images) {
+-        this._steeringMessages.push(text);
+-        this._emitQueueUpdate();
+         const content = [{ type: "text", text }];
+         if (images) {
+             content.push(...images);
+         }
+-        this.agent.steer({
++        return this.agent.steer({
+             role: "user",
+             content,
+             timestamp: Date.now(),
+@@ -1446,13 +1435,11 @@ export class AgentSession {
+      * Internal: Queue a follow-up message (already expanded, no extension command check).
+      */
+     async _queueFollowUp(text, images) {
+-        this._followUpMessages.push(text);
+-        this._emitQueueUpdate();
+         const content = [{ type: "text", text }];
+         if (images) {
+             content.push(...images);
+         }
+-        this.agent.followUp({ role: "user", content, timestamp: Date.now() });
++        return this.agent.followUp({ role: "user", content, timestamp: Date.now() });
+     }
+     /**
+      * Throw an error if the text is an extension command.
+@@ -1579,25 +1566,24 @@ export class AgentSession {
+      * @returns Object with steering and followUp arrays
+      */
+     clearQueue() {
+-        const steering = [...this._steeringMessages];
+-        const followUp = [...this._followUpMessages];
+-        this._steeringMessages = [];
+-        this._followUpMessages = [];
++        const snapshot = this.agent.queueSnapshot();
++        const steering = snapshot.steering.map((item) => item.text);
++        const followUp = snapshot.followUp.map((item) => item.text);
+         this.agent.clearAllQueues();
+-        this._emitQueueUpdate();
+         return { steering, followUp };
+     }
+     /** Number of pending messages (includes both steering and follow-up) */
+     get pendingMessageCount() {
+-        return this._steeringMessages.length + this._followUpMessages.length;
++        const snapshot = this.agent.queueSnapshot();
++        return snapshot.steering.length + snapshot.followUp.length;
+     }
+     /** Get pending steering messages (read-only) */
+     getSteeringMessages() {
+-        return this._steeringMessages;
++        return this.agent.queueSnapshot().steering.map((item) => item.text);
+     }
+     /** Get pending follow-up messages (read-only) */
+     getFollowUpMessages() {
+-        return this._followUpMessages;
++        return this.agent.queueSnapshot().followUp.map((item) => item.text);
+     }
+     get resourceLoader() {
+         return this._resourceLoader;
+diff --git a/dist/modes/rpc/rpc-mode.js b/dist/modes/rpc/rpc-mode.js
+index f6c667c8ed48515f1830abe7ffc32e688d668b5e..c2582d7052ca8d4467fa7a96874f3868e536c793 100644
+--- a/dist/modes/rpc/rpc-mode.js
++++ b/dist/modes/rpc/rpc-mode.js
+@@ -319,12 +319,12 @@ export async function runRpcMode(runtimeHost) {
+                 return undefined;
+             }
+             case "steer": {
+-                await session.steer(command.message, command.images, { source: "rpc" });
+-                return success(id, "steer");
++                const queueItemId = await session.steer(command.message, command.images, { source: "rpc" });
++                return success(id, "steer", { queueItemId });
+             }
+             case "follow_up": {
+-                await session.followUp(command.message, command.images, { source: "rpc" });
+-                return success(id, "follow_up");
++                const queueItemId = await session.followUp(command.message, command.images, { source: "rpc" });
++                return success(id, "follow_up", { queueItemId });
+             }
+             case "abort": {
+                 await session.abort();
+@@ -333,6 +333,64 @@ export async function runRpcMode(runtimeHost) {
+             case "clear_queue": {
+                 return success(id, "clear_queue", session.clearQueue());
+             }
++            case "pi_gui_queue_capabilities_v1": {
++                if (typeof session.agent.queueCatalog !== "function" ||
++                    typeof session.agent.queueReadItem !== "function" ||
++                    typeof session.agent.queueMutate !== "function" ||
++                    typeof session.agent.queueTakeAll !== "function") {
++                    return error(id, command.type, "Pinned Pi queue core compatibility patch is missing");
++                }
++                return success(id, command.type, {
++                    protocol: "pi-gui-queue/1",
++                    codingAgent: "0.87.0",
++                    agentCore: "0.87.1",
++                    stableItemIds: true,
++                    atomicRevision: true,
++                    images: true,
++                });
++            }
++            case "pi_gui_queue_catalog_v1": {
++                return success(id, command.type, session.agent.queueCatalog());
++            }
++            case "pi_gui_queue_read_item_v1": {
++                if (!Number.isSafeInteger(command.expectedRevision) || command.expectedRevision < 0 ||
++                    typeof command.queueItemId !== "string") {
++                    return error(id, command.type, "Invalid Pi queue item read request");
++                }
++                return success(id, command.type,
++                    session.agent.queueReadItem(command.expectedRevision, command.queueItemId));
++            }
++            case "pi_gui_queue_mutate_v1": {
++                if (!Number.isSafeInteger(command.expectedRevision) || command.expectedRevision < 0 ||
++                    !command.operation || typeof command.operation.id !== "string") {
++                    return error(id, command.type, "Invalid Pi queue mutation request");
++                }
++                const operation = command.operation;
++                if (operation.kind === "move" && operation.beforeId !== null && typeof operation.beforeId !== "string") {
++                    return error(id, command.type, "Invalid Pi queue move target");
++                }
++                if (operation.kind === "replace" && (typeof operation.text !== "string" ||
++                    (operation.images !== undefined && (!Array.isArray(operation.images) ||
++                        operation.images.some((image) => image?.type !== "image" ||
++                            typeof image.data !== "string" || typeof image.mimeType !== "string"))))) {
++                    return error(id, command.type, "Invalid Pi queue replacement content");
++                }
++                const mutation = session.agent.queueMutate(command.expectedRevision, operation);
++                return success(id, command.type, {
++                    catalog: session.agent.queueCatalog(),
++                    ...(mutation.taken ? { takenId: mutation.taken.id } : {}),
++                });
++            }
++            case "pi_gui_queue_take_all_v1": {
++                if (!Number.isSafeInteger(command.expectedRevision) || command.expectedRevision < 0) {
++                    return error(id, command.type, "Invalid Pi queue take-all revision");
++                }
++                const taken = session.agent.queueTakeAll(command.expectedRevision);
++                return success(id, command.type, {
++                    takenIds: [...taken.steering, ...taken.followUp].map((item) => item.id),
++                    catalog: session.agent.queueCatalog(),
++                });
++            }
+             case "new_session": {
+                 const options = command.parentSession ? { parentSession: command.parentSession } : undefined;
+                 const result = await runtimeHost.newSession(options);
+diff --git a/dist/modes/rpc/rpc-types.d.ts b/dist/modes/rpc/rpc-types.d.ts
+index 82b5793d34cb04c1772e0ca0e664ece6b0a5c7ce..6b9ff34005346960940ec1c1a4256373969334b2 100644
+--- a/dist/modes/rpc/rpc-types.d.ts
++++ b/dist/modes/rpc/rpc-types.d.ts
+@@ -4,7 +4,7 @@
+  * Commands are sent as JSON lines on stdin.
+  * Responses and events are emitted as JSON lines on stdout.
+  */
+-import type { AgentMessage, ThinkingLevel } from "@earendil-works/pi-agent-core";
++import type { AgentMessage, PiGuiQueueCatalogV1, PiGuiQueueItemV1, PiGuiQueueOperationV1, ThinkingLevel } from "@earendil-works/pi-agent-core";
+ import type { ImageContent, Model } from "@earendil-works/pi-ai";
+ import type { SessionStats } from "../../core/agent-session.ts";
+ import type { BashResult } from "../../core/bash-executor.ts";
+@@ -33,6 +33,23 @@ export type RpcCommand = {
+ } | {
+     id?: string;
+     type: "clear_queue";
++} | {
++    id?: string;
++    type: "pi_gui_queue_capabilities_v1" | "pi_gui_queue_catalog_v1";
++} | {
++    id?: string;
++    type: "pi_gui_queue_read_item_v1";
++    expectedRevision: number;
++    queueItemId: string;
++} | {
++    id?: string;
++    type: "pi_gui_queue_take_all_v1";
++    expectedRevision: number;
++} | {
++    id?: string;
++    type: "pi_gui_queue_mutate_v1";
++    expectedRevision: number;
++    operation: PiGuiQueueOperationV1;
+ } | {
+     id?: string;
+     type: "new_session";
+@@ -169,11 +186,13 @@ export type RpcResponse = {
+     type: "response";
+     command: "steer";
+     success: true;
++    data: { queueItemId?: string };
+ } | {
+     id?: string;
+     type: "response";
+     command: "follow_up";
+     success: true;
++    data: { queueItemId?: string };
+ } | {
+     id?: string;
+     type: "response";
+@@ -188,6 +207,36 @@ export type RpcResponse = {
+         steering: string[];
+         followUp: string[];
+     };
++} | {
++    id?: string;
++    type: "response";
++    command: "pi_gui_queue_capabilities_v1";
++    success: true;
++    data: { protocol: "pi-gui-queue/1"; codingAgent: "0.87.0"; agentCore: "0.87.1"; stableItemIds: true; atomicRevision: true; images: true };
++} | {
++    id?: string;
++    type: "response";
++    command: "pi_gui_queue_catalog_v1";
++    success: true;
++    data: PiGuiQueueCatalogV1;
++} | {
++    id?: string;
++    type: "response";
++    command: "pi_gui_queue_read_item_v1";
++    success: true;
++    data: PiGuiQueueItemV1;
++} | {
++    id?: string;
++    type: "response";
++    command: "pi_gui_queue_take_all_v1";
++    success: true;
++    data: { catalog: PiGuiQueueCatalogV1; takenIds: string[] };
++} | {
++    id?: string;
++    type: "response";
++    command: "pi_gui_queue_mutate_v1";
++    success: true;
++    data: { catalog: PiGuiQueueCatalogV1; takenId?: string };
+ } | {
+     id?: string;
+     type: "response";
+diff --git a/package.json b/package.json
+index eae863020d53a464421d9d5540cf9890e8a64935..e94d6d304503be19c2e94d2d1268eb8ed2c6e416 100644
+--- a/package.json
++++ b/package.json
+@@ -17,7 +17,7 @@
+ 			"import": "./dist/index.js"
+ 		},
+ 		"./rpc-entry": {
+-			"import": "./dist/bundle/rpc-entry.js"
++			"import": "./dist/rpc-entry.js"
+ 		},
+ 		"./client": {
+ 			"source": "./src/client/index.ts"

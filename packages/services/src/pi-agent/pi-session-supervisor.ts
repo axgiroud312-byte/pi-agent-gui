@@ -12,6 +12,9 @@ import type { PiControlAction, PiControlSnapshot } from "./pi-control-protocol.j
 import { canonicalSessionLeaf, reserveNewSessionPath, sessionFileExists } from "./pi-session-path.js";
 import type { PiSessionSupervisorOptions, PiSessionView, SessionRuntime, SupervisorEvents } from "./pi-session-types.js";
 import type { PiPromptImage } from "./pi-prompt-images.js";
+import { parsePiQueueCatalog, parsePiQueueItem, parsePiQueueMutation, parsePiQueueTakeAll,
+  type PiQueueCatalogV1, type PiQueueItemV1, type PiQueueMutationV1,
+  type PiQueueOperationV1 } from "./pi-queue-compat.js";
 export type { PiSessionPhase, PiSessionView, PiSessionSupervisorOptions } from "./pi-session-types.js";
 
 function object(value: unknown): Record<string, unknown> {
@@ -408,6 +411,39 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
     return response.data;
   }
 
+  /** Refuse queue editing unless the exact pinned Pi compatibility protocol is live. */
+  async requireQueueCompatibility(sessionId: string): Promise<void> {
+    const capabilities = object(await this.command(sessionId, { type: "pi_gui_queue_capabilities_v1" }));
+    if (capabilities.protocol !== "pi-gui-queue/1" || capabilities.codingAgent !== "0.87.0" ||
+      capabilities.agentCore !== "0.87.1" || capabilities.stableItemIds !== true ||
+      capabilities.atomicRevision !== true || capabilities.images !== true) {
+      throw new Error("Pinned Pi queue compatibility version is unavailable");
+    }
+  }
+
+  async getQueueCatalog(sessionId: string): Promise<PiQueueCatalogV1> {
+    await this.requireQueueCompatibility(sessionId);
+    return parsePiQueueCatalog(await this.command(sessionId, { type: "pi_gui_queue_catalog_v1" }));
+  }
+
+  async readQueueItem(sessionId: string, expectedRevision: number, queueItemId: string): Promise<PiQueueItemV1> {
+    await this.requireQueueCompatibility(sessionId);
+    return parsePiQueueItem(await this.command(sessionId,
+      { type: "pi_gui_queue_read_item_v1", expectedRevision, queueItemId }));
+  }
+
+  async mutateQueue(sessionId: string, expectedRevision: number,
+    operation: PiQueueOperationV1): Promise<PiQueueMutationV1> {
+    await this.requireQueueCompatibility(sessionId);
+    return parsePiQueueMutation(await this.command(sessionId,
+      { type: "pi_gui_queue_mutate_v1", expectedRevision, operation }));
+  }
+
+  async takeAllQueue(sessionId: string, expectedRevision: number): Promise<{ catalog: PiQueueCatalogV1; takenIds: string[] }> {
+    await this.requireQueueCompatibility(sessionId);
+    return parsePiQueueTakeAll(await this.command(sessionId, { type: "pi_gui_queue_take_all_v1", expectedRevision }));
+  }
+
   async refreshState(sessionId: string): Promise<Record<string, unknown>> {
     return this.getState(sessionId);
   }
@@ -425,15 +461,17 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
   }
 
   async enqueueText(sessionId: string, text: string, behavior: "steer" | "followUp",
-    images: readonly PiPromptImage[] = []): Promise<void> {
+    images: readonly PiPromptImage[] = []): Promise<string | undefined> {
     if (!text.trim() && images.length === 0) throw new Error("Pi input is empty");
     if (this.requireSession(sessionId).controlBridge.blocksPrompt) {
       throw new Error("Pi tree control is active or requires reconciliation");
     }
-    await this.command(sessionId, {
+    if (images.length) await this.requireQueueCompatibility(sessionId);
+    const result = object(await this.command(sessionId, {
       type: behavior === "steer" ? "steer" : "follow_up", message: text,
       ...(images.length ? { images: [...images] } : {}),
-    });
+    }));
+    return typeof result.queueItemId === "string" ? result.queueItemId : undefined;
   }
 
   async sendText(sessionId: string, text: string, images: readonly PiPromptImage[] = []): Promise<"run" | "noRun" | "reconcile"> {
