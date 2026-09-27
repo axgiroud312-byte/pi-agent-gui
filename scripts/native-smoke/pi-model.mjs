@@ -21,9 +21,13 @@ export async function startPiModel() {
     const body = JSON.parse(raw);
     const text = value => typeof value === 'string' ? value : JSON.stringify(value);
     const prompt = body.messages?.filter(message => message.role === 'user').map(message => text(message.content)).at(-1) ?? '';
-    const scenario = /PI_(?:TEXT|READ|HELLO|STOP|SCROLL)/.exec(prompt)?.[0] ?? 'other';
+    const scenario = /PI_(?:TEXT|IMAGE|READ|HELLO|STOP|SCROLL)/.exec(prompt)?.[0] ?? 'other';
     const toolResults = body.messages?.filter(message => message.role === 'tool') ?? [];
+    const imageUrls = body.messages?.filter(message => message.role === 'user')
+      .flatMap(message => Array.isArray(message.content) ? message.content : [])
+      .filter(part => part.type === 'image_url').map(part => part.image_url?.url) ?? [];
     const request = { scenario, tools: body.tools?.map(tool => tool.function?.name),
+      imageMimeTypes: imageUrls.map(url => /^data:([^;]+);base64,/u.exec(url)?.[1] ?? 'unknown'),
       toolResults: toolResults.map(message => text(message.content)), stream: body.stream, closed: false };
     requests.push(request);
     res.on('close', () => { request.closed = true; });
@@ -41,7 +45,7 @@ export async function startPiModel() {
       } }] });
       send({}, 'tool_calls'); res.end('data: [DONE]\n\n'); return;
     }
-    const response = scenario === 'PI_READ' ? 'PI_READ_COMPLETE' : scenario === 'PI_HELLO'
+    const response = scenario === 'PI_IMAGE' ? 'PI_IMAGE_COMPLETE' : scenario === 'PI_READ' ? 'PI_READ_COMPLETE' : scenario === 'PI_HELLO'
       ? 'PI_HELLO_COMPLETE' : scenario === 'PI_STOP'
       ? 'PI_STOP_PARTIAL' : 'PI_TEXT_COMPLETE';
     if (scenario === 'PI_TEXT') {

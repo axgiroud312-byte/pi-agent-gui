@@ -1132,7 +1132,8 @@ function ConversationComposerImpl({
     routingAllowsSend &&
     attachmentsReady &&
     submissionReady;
-  // 旧 UI 状态机：streaming + 空草稿 → Stop；有草稿 → 发送键（入队）。
+  // Busy + empty draft shows Stop; busy + draft shows both Stop and Send.
+  // A refused queue admission must not hide Stop or require discarding the draft.
   const showStopControl = canStop && !hasDraftToSubmit;
 
   useEffect(() => {
@@ -1149,6 +1150,10 @@ function ConversationComposerImpl({
       const trimmed = textRef.current.trim();
       const submittedQueueItemIds =
         snapshotRef.current?.queue.items.map((item) => item.queueItemId) ?? [];
+      // Capture the Pi-backed routing decision at click time, not later in the
+      // Host after another foreground command changes the runtime phase.
+      const routedDelivery = requestedDelivery ?? (snapshotRef.current?.inputRouting.mode === "enqueue"
+        ? "queue" : snapshotRef.current?.inputRouting.mode === "guide" ? "guide" : "startNow");
       const hasPendingAttachments = attachmentsApi.attachments.length > 0;
       const currentCodeCommentContexts = getCodeCommentContexts();
       const hasPendingCodeCommentContexts = currentCodeCommentContexts.length > 0;
@@ -1333,7 +1338,7 @@ function ConversationComposerImpl({
           }
         }
         claimSubmittedDraft();
-        if (requestedDelivery === "startNow") {
+        if (routedDelivery === "startNow") {
           // 原子抢占需要等旧 turn 退出并提交新 TurnStarted ACK；
           // 若编辑器也等整条链路才清空，用户会误以为快捷键未生效。
           // 先清空可见正文；命令拒绝时用冻结 editor state 原样恢复。
@@ -1345,7 +1350,7 @@ function ConversationComposerImpl({
         const sendResult = await onSendText(promptText, {
           submission,
           telemetrySeed,
-          ...(requestedDelivery ? { requestedDelivery } : {}),
+          requestedDelivery: routedDelivery,
           ...(heldQueueDisposition ? { heldQueueDisposition } : {}),
           ...(expectedHeldQueueItemIds ? { expectedHeldQueueItemIds } : {}),
           ...(readyAttachmentRefs.length > 0 ? { attachments: readyAttachmentRefs } : {}),
@@ -1388,7 +1393,7 @@ function ConversationComposerImpl({
           setHeldQueueConfirmation({
             // 标记 queueConfirmed：确认后复用该 seed 落定，send_cost_ms 含用户在弹窗上的停留。
             telemetrySeed: { ...telemetrySeed, queueConfirmed: true },
-            ...(requestedDelivery ? { requestedDelivery } : {}),
+            requestedDelivery: routedDelivery,
             queueItemIds:
               latestQueueItemIds.length > 0 ? latestQueueItemIds : submittedQueueItemIds,
           });
@@ -2061,6 +2066,21 @@ function ConversationComposerImpl({
             onSendCompressionCommand={onSendCompressionCommand}
           />
         </span>
+        {canStop && !showStopControl ? (
+          <ControlHintTooltip title={stopTooltipTitle} shortcut="Esc">
+            <Button
+              type="button"
+              variant="secondary"
+              size="icon-md"
+              onClick={handleStopClick}
+              data-testid={TID_V4_STOP}
+              aria-label={stopTooltipTitle}
+            >
+              <SquareIcon className="size-4 fill-current" />
+              <span className="sr-only">{stopTooltipTitle}</span>
+            </Button>
+          </ControlHintTooltip>
+        ) : null}
         {showStopControl ? (
           <ControlHintTooltip title={stopTooltipTitle} shortcut="Esc">
             <Button
@@ -2100,6 +2120,7 @@ function ConversationComposerImpl({
     ),
     [
       canSend,
+      canStop,
       activeConfigPicker,
       composerPhase,
       composerUsage,

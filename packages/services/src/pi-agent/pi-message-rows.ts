@@ -141,6 +141,17 @@ export class PiMessageRows {
     return [...this.rows];
   }
 
+  /** Resolve an opaque row reference against current Pi messages, never a renderer-supplied file path. */
+  image(ref: string): { data: string; mimeType: string } | undefined {
+    const match = /^pi-image:(0|[1-9]\d*):(0|[1-9]\d*)$/u.exec(ref);
+    if (!match) return undefined;
+    const message = this.messages[Number(match[1])];
+    if (message?.role !== "user" || !Array.isArray(message.content)) return undefined;
+    const part = object(message.content[Number(match[2])]);
+    if (part.type !== "image" || typeof part.data !== "string" || typeof part.mimeType !== "string") return undefined;
+    return { data: part.data, mimeType: part.mimeType };
+  }
+
   getRowIds(): Record<string, number> {
     return Object.fromEntries(this.rowIds);
   }
@@ -291,9 +302,17 @@ export class PiMessageRows {
           ...(sourceCommandId ? { sourceCommandId } : {}),
         });
         const inputId = this.rowId(`${messageIndex}:user`);
+        const images = Array.isArray(message.content) ? message.content.flatMap((part, partIndex) => {
+          const image = object(part);
+          if (image.type !== "image" || typeof image.mimeType !== "string" || typeof image.data !== "string") return [];
+          const extension = image.mimeType === "image/jpeg" ? "jpg" : image.mimeType.split("/")[1] ?? "image";
+          return [{ ref: `pi-image:${messageIndex}:${partIndex}`, fileName: `image-${partIndex + 1}.${extension}`,
+            mime: image.mimeType, bytes: Math.floor(image.data.length * 3 / 4) - (image.data.endsWith("==") ? 2 : image.data.endsWith("=") ? 1 : 0) }];
+        }) : [];
         rows.push({
           kind: "userInput", rowId: inputId, turnId, createdAt: at, createdAtSeq: inputId,
           origin: "realUser", text: text(message.content),
+          ...(images.length ? { attachments: images } : {}),
           ...(sourceCommandId ? { sourceCommandId, rootSourceCommandId: sourceCommandId } : {}),
         });
       } else if (message.role === "assistant") {

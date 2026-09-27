@@ -4528,14 +4528,18 @@ export function SessionPane({
         <ConversationQueuePanel
           key="conversation-queue"
           queue={pendingGuideProjection?.visibleQueue ?? snapshot.queue}
-          onDeleteItem={handleDeleteQueueItem}
-          onEditItem={handleEditQueueItem}
+          onDeleteItem={snapshot.availability.queueEdit.allowed ? handleDeleteQueueItem : undefined}
+          onEditItem={snapshot.availability.queueEdit.allowed ? handleEditQueueItem : undefined}
           pendingEditQueueItemId={
             queueEditActiveForCurrentComposer ? queueEditOperation.queueItemId : null
           }
-          onSendNow={handleSendQueuedNow}
-          onMoveItem={handleReorderQueueItem}
-          onResume={handleResumeQueue}
+          onSendNow={snapshot.availability.sendQueuedNow.allowed ? handleSendQueuedNow : undefined}
+          onMoveItem={snapshot.availability.queueEdit.allowed ? handleReorderQueueItem : undefined}
+          onResume={snapshot.availability.queueEdit.allowed ? handleResumeQueue : undefined}
+          readOnlyNotice={!snapshot.availability.queueEdit.allowed &&
+            snapshot.availability.queueEdit.reasonCode === "pi.queueEditRequiresLosslessAttachmentRecovery"
+            ? intl.formatMessage({ id: snapshot.queue.autoDrain
+              ? "chat.queue.piReadOnlyActive" : "chat.queue.piReadOnlyStopped" }) : undefined}
         />
       ) : null}
       {/* v4 权限/问答等待态只是 runtime 的阻塞交互，必须和 composer

@@ -42,6 +42,8 @@ interface ConversationQueuePanelProps {
   onMoveItem?: (queueItemId: string, beforeQueueItemId: string | null) => void;
   /** 暂停队列恢复：CLI setAutoDrain(true)，idle 立即消费、busy 仅武装。 */
   onResume?: () => Promise<void> | void;
+  /** Explain a read-only projection when the runtime cannot safely mutate individual items. */
+  readOnlyNotice?: string;
 }
 
 type QueueItem = QueueState["items"][number];
@@ -180,7 +182,7 @@ const QueueRow = memo(function QueueRow({
       )}
       style={style}
     >
-      <ControlHintTooltip title={intl.formatMessage({ id: "chat.queue.drag" })}>
+      {sortable ? <ControlHintTooltip title={intl.formatMessage({ id: "chat.queue.drag" })}>
         <Button
           ref={setActivatorNodeRef}
           type="button"
@@ -196,7 +198,7 @@ const QueueRow = memo(function QueueRow({
         >
           <GripVertical className="size-4" />
         </Button>
-      </ControlHintTooltip>
+      </ControlHintTooltip> : null}
       <span
         className={cn(
           "flex min-w-0 flex-1 items-center gap-2 truncate text-ui-base text-foreground",
@@ -280,6 +282,7 @@ function ConversationQueuePanelImpl({
   onSendNow,
   onMoveItem,
   onResume,
+  readOnlyNotice,
 }: ConversationQueuePanelProps) {
   const { intl } = useZCodeIntl();
   const [resumePending, setResumePending] = useState(false);
@@ -325,12 +328,18 @@ function ConversationQueuePanelImpl({
       data-testid={TID_V4_QUEUE}
       data-queue-count={queue.items.length}
       data-queue-auto-drain={queue.autoDrain ? "true" : "false"}
+      data-queue-read-only={readOnlyNotice ? "true" : "false"}
       className={cn(
         "relative z-0 w-full overflow-hidden rounded-t-2xl border border-border bg-surface p-1 backdrop-blur-md",
         "-mb-7 pb-7",
       )}
     >
-      {!queue.autoDrain ? (
+      {readOnlyNotice ? (
+        <p role="status" className="px-3 py-2 text-ui-sm text-foreground-subtle">
+          {readOnlyNotice}
+        </p>
+      ) : null}
+      {!queue.autoDrain && !readOnlyNotice ? (
         <div
           data-testid={TID_V4_QUEUE_PAUSED_BANNER}
           className="mb-1 flex min-h-10 items-center gap-3 rounded-xl border border-border/70 bg-surface-raised px-3 py-2 text-ui-base text-foreground"

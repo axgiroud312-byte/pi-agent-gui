@@ -4330,6 +4330,8 @@ const enUS: Record<string, string> = {
   "chat.queue.paused.generic": "The queue is paused",
   "chat.queue.resume": "Continue",
   "chat.queue.resume.description": "Continue sending queued items in order",
+  "chat.queue.piReadOnlyActive": "Pi owns these queued messages. This Pi version cannot safely edit, reorder or remove individual items.",
+  "chat.queue.piReadOnlyStopped": "Pi returned these messages when you stopped. They will not run automatically; copy any text you want to resend into the composer.",
   "chat.queue.sendConfirm.title": "Send message?",
   "chat.queue.sendConfirm.description":
     "You're about to send a message. Clear the {count} previously queued messages?",

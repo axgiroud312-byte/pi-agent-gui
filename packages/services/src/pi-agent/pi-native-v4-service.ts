@@ -6,6 +6,7 @@ import { resolveWorkspaceKey } from "@zcode/shared";
 import {
   V4_WIRE_PROTOCOL_VERSION,
   applyConversationDeltas,
+  v4AttachmentReadParamsSchema,
   clientHelloSchema,
   commandAckSchema,
   conversationSnapshotSchema,
@@ -37,6 +38,10 @@ import type {
   ZCodeAgentWorkspaceConfigSubscribeParams,
   ZCodeAgentWorkspaceTarget,
   ZCodeAgentCommandsQueryParams,
+  ZCodeAgentAttachmentBeginParams,
+  ZCodeAgentAttachmentChunkParams,
+  ZCodeAgentAttachmentTerminalParams,
+  ZCodeAgentAttachmentReadParams,
   ZCodeAgentRuntimeLifecycleEvent,
   ZCodeAgentWorkspaceRuntimeIdentity,
 } from "../zcode-agent/zcodeAgent.js";
@@ -49,6 +54,7 @@ import { sessionFileExists } from "./pi-session-path.js";
 import { createPiV4Snapshot } from "./pi-v4-snapshot.js";
 import { piWireFrames } from "./pi-v4-frames.js";
 import { readPiPromptImages } from "./pi-prompt-images.js";
+import { PiImageUploads } from "./pi-image-upload.js";
 
 interface SessionRecord {
   workspaceKey: string;
@@ -83,6 +89,11 @@ type V4Methods = Pick<IZCodeAgentService,
   | "unsubscribeConversationV4"
   | "conversationRowsRangeV4"
   | "sendConversationCommandV4"
+  | "attachmentBeginV4"
+  | "attachmentChunkV4"
+  | "attachmentCommitV4"
+  | "attachmentAbortV4"
+  | "attachmentReadV4"
   | "queryConversationCommandsV4"
   | "onDynamicConversationFrame"
   | "subscribeSessionsIndexV4"
@@ -128,8 +139,10 @@ function piQueueItems(queue: ReturnedQueue, source: "pi-rpc" | "pi-returned", of
 function matchesCompletedIntent(messages: unknown[], pending: PendingIntent): boolean {
   const users = messages.filter(message => typeof message === "object" && message !== null &&
     (message as Record<string, unknown>).role === "user") as Record<string, unknown>[];
-  if (users.length !== pending.priorUserCount + 1) return false;
-  const last = users.at(-1)!;
+  if (users.length < pending.priorUserCount + 1) return false;
+  // Pi can deliver queued follow-ups before agent_settled. The admitted
+  // foreground input is at its original history position, not necessarily last.
+  const last = users[pending.priorUserCount]!;
   const content = typeof last.content === "string" ? last.content :
     Array.isArray(last.content) ? last.content.map(part => {
       const value = part as Record<string, unknown>;
@@ -140,8 +153,8 @@ function matchesCompletedIntent(messages: unknown[], pending: PendingIntent): bo
 
 function projectedIntentComplete(record: SessionRecord, pending: PendingIntent): boolean {
   const users = record.projection.getRows().filter(row => row.kind === "userInput");
-  const last = users.at(-1);
-  return users.length === pending.priorUserCount + 1 && last?.kind === "userInput" &&
+  const last = users[pending.priorUserCount];
+  return users.length >= pending.priorUserCount + 1 && last?.kind === "userInput" &&
     createHash("sha256").update(last.text).digest("hex") === pending.textHash &&
     !record.projection.hasIncompleteTurn();
 }
@@ -158,6 +171,7 @@ export class PiNativeV4Service implements V4Methods {
   private readonly reportedRecordTypes = new Set<string>();
   private readonly catalog: PiSessionCatalog;
   private readonly ledger: PiCommandLedger;
+  private readonly imageUploads = new PiImageUploads();
   private readonly catalogWrites = new Map<string, Promise<boolean>>();
   private readonly workspaceLoads = new Map<string, Promise<void>>();
   private readonly bookmarks = new Map<string, PiSessionBookmark>();
@@ -706,6 +720,52 @@ export class PiNativeV4Service implements V4Methods {
     return record;
   }
 
+  async attachmentBeginV4(params: ZCodeAgentAttachmentBeginParams): Promise<ReturnType<PiImageUploads["begin"]>> {
+    this.assertWorkspaceOpen(params);
+    this.recordFor(params, params.sessionId);
+    return Promise.resolve(this.imageUploads.begin(resolveWorkspaceKey(params), params));
+  }
+
+  async attachmentChunkV4(params: ZCodeAgentAttachmentChunkParams): Promise<ReturnType<PiImageUploads["chunk"]>> {
+    this.assertWorkspaceOpen(params);
+    this.recordFor(params, params.sessionId);
+    return Promise.resolve(this.imageUploads.chunk(resolveWorkspaceKey(params), params));
+  }
+
+  attachmentCommitV4(params: ZCodeAgentAttachmentTerminalParams): ReturnType<PiImageUploads["commit"]> {
+    this.assertWorkspaceOpen(params);
+    this.recordFor(params, params.sessionId);
+    return this.imageUploads.commit(resolveWorkspaceKey(params), params);
+  }
+
+  async attachmentAbortV4(params: ZCodeAgentAttachmentTerminalParams): Promise<void> {
+    this.assertWorkspaceOpen(params);
+    this.recordFor(params, params.sessionId);
+    this.imageUploads.abort(resolveWorkspaceKey(params), params);
+  }
+
+  async attachmentReadV4(params: ZCodeAgentAttachmentReadParams): ReturnType<V4Methods["attachmentReadV4"]> {
+    const { ref, offset, limit, target, attachmentIndex } = v4AttachmentReadParamsSchema.parse({
+      sessionId: params.sessionId, ref: params.ref, offset: params.offset, limit: params.limit,
+      ...(params.target ? { target: params.target } : {}),
+      ...(params.attachmentIndex !== undefined ? { attachmentIndex: params.attachmentIndex } : {}),
+    });
+    const record = this.recordFor(params, params.sessionId);
+    const row = record.projection.getRows().find(item => item.kind === "userInput" &&
+      item.attachments?.some(attachment => attachment.ref === ref));
+    if (!row || row.kind !== "userInput" || (target && (row.rowId !== target.rowId || row.entityId !== target.entityId ||
+      row.attachments?.[attachmentIndex!]?.ref !== ref))) throw new Error("Pi image is not in this session row");
+    const image = record.projection.image(ref);
+    if (!image || !["image/png", "image/jpeg", "image/gif", "image/webp"].includes(image.mimeType)) {
+      throw new Error("Pi image is not available in this session");
+    }
+    const bytes = Buffer.from(image.data, "base64");
+    if (bytes.length > 20 * 1024 * 1024 || offset > bytes.length) throw new Error("Pi image read is out of bounds");
+    const end = Math.min(offset + limit, bytes.length);
+    return { dataBase64: bytes.subarray(offset, end).toString("base64"), mediaType: image.mimeType,
+      totalBytes: bytes.length, nextOffset: end < bytes.length ? end : null };
+  }
+
   async sendConversationCommandV4(params: ZCodeAgentConversationCommandParams): Promise<CommandAck> {
     const parsed = parseCommandEnvelope(params.envelope);
     if (!parsed.ok) return failure(params.envelope.commandId, "pi.invalidCommand", parsed.error.message);
@@ -856,11 +916,25 @@ export class PiNativeV4Service implements V4Methods {
           payload.context_refs?.length || payload.heldQueueDisposition || payload.expectedHeldQueueItemIds?.length ||
           payload.modelExecution || payload.automationId || payload.offPeakTaskId || payload.offPeakRunType ||
           payload.toolDisallowlist?.length) return unsupported(commandId, "sendText execution constraints", record.snapshot.revision);
-        if (record.state.piPendingIntent || record.view.uncertainDelivery || record.view.reconciliationRequired) {
+        // The composer freezes its routing intent at click time. Never infer it
+        // from a later snapshot here: a second idle foreground admission could
+        // otherwise become an unintended queued side effect behind the winner.
+        const requested = payload.requestedDelivery ?? "startNow";
+        const busyDelivery = requested === "queue" || requested === "guide";
+        if (busyDelivery && payload.attachments?.length) {
+          // Pi 0.87 queue_update/clear_queue expose only text. Accepting an image
+          // here would show a text-only queue item and irreversibly discard its
+          // image on Stop/edit. Do not acknowledge a lossy admission as success.
+          return failure(commandId, "pi.queueImagesRequireLosslessRecovery",
+            "This Pi version cannot recover queued images after Stop; the image remains in the composer",
+            record.snapshot.revision);
+        }
+        if ((record.state.piPendingIntent && !(busyDelivery &&
+          ["accepted", "running", "retrying", "compacting"].includes(record.view.phase))) ||
+          record.view.uncertainDelivery || record.view.reconciliationRequired) {
           return failure(commandId, "pi.deliveryUnknown", "Pi input requires history reconciliation", record.snapshot.revision);
         }
         const images = await readPiPromptImages(payload.attachments);
-        const requested = payload.requestedDelivery ?? "startNow";
         if (requested === "queue" || requested === "guide") {
           await this.supervisor.enqueueText(record.view.sessionId, payload.text,
             requested === "guide" ? "steer" : "followUp", images);
@@ -1256,6 +1330,7 @@ export class PiNativeV4Service implements V4Methods {
       ...[...this.commandResults].filter(([commandKey]) => commandKey.startsWith(`${key}:`)).map(([, result]) => result),
     ]));
     await closeOwned();
+    collect(await Promise.allSettled([this.imageUploads.releaseWorkspace(key)]));
     for (const [id, sub] of this.subscriptions) if (sub.workspaceKey === key) this.subscriptions.delete(id);
     this.workspaceLoads.delete(key);
     for (const [id, entry] of this.bookmarks) if (entry.workspaceKey === key) this.bookmarks.delete(id);
@@ -1293,6 +1368,7 @@ export class PiNativeV4Service implements V4Methods {
     ]));
     collect(await Promise.allSettled(this.reconciliations.values()));
     collect(await Promise.allSettled(this.catalogWrites.values()));
+    collect(await Promise.allSettled([this.imageUploads.dispose()]));
     for (const [workspaceKey, target] of this.availableWorkspaces) {
       this.lifecycleEmitter.fire({ ...target, workspaceKey,
         runtimeIdentity: this.getWorkspaceRuntimeIdentity(target), state: "unavailable" });

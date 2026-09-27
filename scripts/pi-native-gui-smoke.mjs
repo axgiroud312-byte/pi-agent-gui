@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { fixture } from './native-smoke/fixture.mjs';
 import { assertCleanExit, closeOwned } from './native-smoke/cleanup.mjs';
 import { startPiModel } from './native-smoke/pi-model.mjs';
+import { sendPiImage, verifyRestoredPiImage } from './native-smoke/pi-image.mjs';
+import { probeBusyImageAndQueue, verifyStoppedQueue } from './native-smoke/pi-queue.mjs';
 import { drag } from './native-smoke/panels.mjs';
 import { resizeNativeWindow } from './native-smoke/evidence.mjs';
 import { selectNativeLocale } from './native-smoke/locale.mjs';
@@ -48,7 +50,6 @@ try {
   await selectNativeLocale(page, 'en-US');
   await selectNativeLocale(page, 'zh-CN');
   report.localeRoundTrip = ['en-US', 'zh-CN'];
-  report.visibleButtons = await page.getByRole('button').allTextContents();
   if (!packagedExecutable) {
     await page.getByRole('button', { name: '添加项目', exact: true }).click();
     await page.getByRole('menuitem', { name: '打开文件夹', exact: true }).click();
@@ -103,6 +104,7 @@ try {
   await page.getByText('PI_TEXT_COMPLETE', { exact: true }).waitFor({ timeout: 30_000 });
   report.afterSend = (await page.locator('body').innerText()).slice(-4500);
   await page.screenshot({ path: join(f.output, 'pi-native-text.png') });
+  report.imageModelRequest = await sendPiImage(page, model, f.output);
   const send = async text => {
     const composer = page.getByTestId('v4-composer-input').filter({ visible: true }).first();
     await composer.click();
@@ -173,11 +175,12 @@ try {
   await send('PI_STOP: keep streaming until I stop you');
   for (let i = 0; i < 100 && model.held === 0; i++) await page.waitForTimeout(100);
   assert(model.held > 0, 'Pi request must still be active before GUI Stop');
-  await page.screenshot({ path: join(f.output, 'pi-native-before-stop.png') });
+  Object.assign(report, await probeBusyImageAndQueue(page, model, f.output));
   await page.getByRole('button', { name: '停止生成', exact: true }).click();
   await page.getByRole('button', { name: '停止生成', exact: true }).waitFor({ state: 'hidden', timeout: 30_000 });
   for (let i = 0; i < 100 && model.held > 0; i++) await page.waitForTimeout(100);
   report.piStop = model.held === 0;
+  report.returnedQueueVisible = await verifyStoppedQueue(page, report.queuedText, f.output);
   report.modelRequests = model.requests;
   report.afterStop = (await page.locator('body').innerText()).slice(-4500);
   await page.screenshot({ path: join(f.output, 'pi-native-stopped.png') });
@@ -210,6 +213,8 @@ try {
   }
   await reopenedPage.getByText('PI_TEXT_COMPLETE', { exact: true }).waitFor({ timeout: 30_000 });
   await reopenedPage.getByText('PI_READ_COMPLETE', { exact: true }).waitFor();
+  report.imageRestored = await verifyRestoredPiImage(reopenedPage);
+  report.returnedQueueRestored = await verifyStoppedQueue(reopenedPage, report.queuedText, f.output, 'restored');
   report.afterRestart = (await reopenedPage.locator('body').innerText()).slice(-4500);
   const restoredReadTurn = reopenedPage.locator('section[data-turn-id]').filter({ hasText: 'PI_READ: read the workspace README.md' }).first();
   const restoredToolCard = restoredReadTurn.locator('[data-testid^="chat-tool-call-block"]').filter({ visible: true }).first();

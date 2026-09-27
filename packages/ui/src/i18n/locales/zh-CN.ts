@@ -4058,6 +4058,8 @@ const zhCN: Record<string, string> = {
   "chat.queue.paused.generic": "队列已暂停",
   "chat.queue.resume": "继续",
   "chat.queue.resume.description": "继续按顺序自动发送队列中的内容",
+  "chat.queue.piReadOnlyActive": "这些消息由 Pi 排队。当前 Pi 版本无法安全地逐条编辑、重排或移除。",
+  "chat.queue.piReadOnlyStopped": "停止时 Pi 已取回这些消息，不会自动续发；如需重发，请将文本复制到输入框。",
   "chat.queue.sendConfirm.title": "发送消息？",
   "chat.queue.sendConfirm.description": "你即将发送一条消息。要清除之前已排队的 {count} 条消息吗？",
   "chat.queue.sendConfirm.clear": "清空队列",

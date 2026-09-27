@@ -16,6 +16,9 @@ export async function readPiPromptImages(attachments: readonly AttachmentRef[] =
     if (!attachment.mime.startsWith("image/")) {
       throw new Error(`Pi prompt attachment is not an image: ${attachment.fileName}`);
     }
+    if (!["image/png", "image/jpeg", "image/gif", "image/webp"].includes(attachment.mime)) {
+      throw new Error(`Pi prompt image format is unsupported: ${attachment.fileName}`);
+    }
     if (!isAbsolute(attachment.ref)) {
       throw new Error(`Pi cannot read staged attachment ref: ${attachment.fileName}`);
     }

@@ -26,7 +26,7 @@ export async function configurePiProfile(f, { url, modelId, apiKey }) {
   await writeFile(join(profile, 'models.json'), JSON.stringify({ providers: {
     'new-provider': { baseUrl: url, api: 'openai-completions', apiKey,
       models: [{ id: modelId, name: modelId, reasoning: false,
-        input: ['text'], contextWindow: 32000, maxTokens: 1024,
+        input: ['text', 'image'], contextWindow: 32000, maxTokens: 1024,
         cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } }] },
   } }));
   await writeFile(join(profile, 'settings.json'), JSON.stringify({
