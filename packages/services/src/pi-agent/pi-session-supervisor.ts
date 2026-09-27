@@ -444,6 +444,18 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
     return messages;
   }
 
+  /** Read-only Pi history remains inspectable during command reconciliation. */
+  async getEntries(sessionId: string): Promise<{ entries: unknown[]; leafId: string | null }> {
+    const response = await this.requireSession(sessionId).client.request({ type: "get_entries" });
+    if (!response.success) throw new Error(response.error ?? "Pi get_entries failed");
+    const data = object(response.data);
+    if (!Array.isArray(data.entries) ||
+      !(typeof data.leafId === "string" || data.leafId === null)) {
+      throw new Error("Pi get_entries returned invalid history");
+    }
+    return { entries: data.entries, leafId: data.leafId };
+  }
+
   async getHistoryMessages(sessionId: string): Promise<unknown[]> {
     return getPiHistoryMessages(this.requireSession(sessionId).client, () => this.getMessages(sessionId));
   }

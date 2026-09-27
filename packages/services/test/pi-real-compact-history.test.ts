@@ -97,6 +97,16 @@ test('real Pi compaction success reports Pi facts and history remains projectabl
       await service.subscribeConversationV4({ workspacePath: root, sessionId });
       const native = await service.conversationRowsRangeV4({ workspacePath: root, sessionId, limit: 100 });
       assert.deepEqual(native.rows, rows, 'native Pi history must retain pre-compaction user turns');
+      const historyPage = await service.readPiContextInspection({ workspacePath: root, sessionId,
+        section: 'history', offset: 0, limit: 40 });
+      const currentPage = await service.readPiContextInspection({ workspacePath: root, sessionId,
+        section: 'effective', offset: 0, limit: 40 });
+      const summariesPage = await service.readPiContextInspection({ workspacePath: root, sessionId,
+        section: 'summaries', offset: 0, limit: 40 });
+      assert.equal(historyPage.total, entries.length);
+      assert.equal(currentPage.total, messages.length);
+      assert.ok(summariesPage.items.some(item => item.kind === 'compaction' &&
+        item.blocks.some(block => block.kind === 'text' && block.text.includes('PI_SUMMARY_OR_REPLY'))));
     } finally {
       await service?.dispose();
       await client?.dispose();

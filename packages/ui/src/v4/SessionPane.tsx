@@ -126,6 +126,7 @@ import { ConversationDraftEmptyState } from "@/v4/ConversationDraftEmptyState.js
 import { ConversationDraftSuggestedPromptsContainer } from "@/v4/ConversationDraftSuggestedPromptsContainer.js";
 import { ConversationHeader, type PaneWorkspaceBadge } from "@/v4/ConversationHeader.js";
 import { PiTreeDialog } from "@/v4/PiTreeDialog.js";
+import { PiContextDialog } from "@/v4/PiContextDialog.js";
 import { PiSessionTransferDialog } from "@/v4/PiSessionTransferDialog.js";
 import { PiExtensionUiPanel } from "@/v4/PiExtensionUiPanel.js";
 import { PiLlamaRouterDialog } from "@/v4/PiLlamaRouterDialog.js";
@@ -4957,6 +4958,8 @@ export function SessionPane({
             workspaceIdentity={workspaceIdentity} remoteSessionId={remoteSessionId}
             beforeNavigate={beforePiTreeNavigate} onRestoredText={restorePiTreeEditor}
             onBranch={handlePiBranch} onRetry={handlePiRetryEntry} />
+          <PiContextDialog sessionId={sessionId} workspacePath={workspacePath}
+            workspaceIdentity={workspaceIdentity} />
           </> : null}
         </> : undefined}
       />

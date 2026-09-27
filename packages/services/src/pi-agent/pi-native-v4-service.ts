@@ -70,6 +70,8 @@ import { PiFileReferenceError, piFilePromptTitle, snapshotPiFileMentions } from 
 import { PiImageUploads } from "./pi-image-upload.js";
 import { isPiForkImageRef, piForkImageFromEntries, piForkImageRef } from "./pi-fork-image.js";
 import { piControlView, type PiControlAction, type PiControlView } from "./pi-control-protocol.js";
+import { assertPiContextPagination, projectPiContextPage,
+  type PiContextPage, type PiContextSection } from "./pi-context-inspection.js";
 import { PiQueueMediaStore } from "./pi-queue-media-store.js";
 import { readPiSettingsDocuments, savePiSettingsDocument,
   type PiSettingsScope, type PiSettingsSnapshot } from "./pi-settings-documents.js";
@@ -1450,6 +1452,33 @@ export class PiNativeV4Service implements V4Methods {
     this.recordFor(params, params.sessionId);
     return piControlView(await this.supervisor.readControlBridge(params.sessionId),
       params.includeResourceContent === true);
+  }
+
+  async readPiContextInspection(params: ZCodeAgentWorkspaceTarget & { sessionId: string;
+    section: PiContextSection; offset: number; limit: number }): Promise<PiContextPage> {
+    assertPiContextPagination(params.section, params.offset, params.limit);
+    this.assertWorkspaceOpen(params);
+    await this.loadSession(params, params.sessionId);
+    this.recordFor(params, params.sessionId);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const before = await this.supervisor.getState(params.sessionId);
+      if (before.isStreaming || before.isCompacting) {
+        throw new Error("Pi is running; inspect context after this turn settles");
+      }
+      const start = await this.supervisor.getEntries(params.sessionId);
+      const messages = await this.supervisor.getMessages(params.sessionId);
+      const end = await this.supervisor.getEntries(params.sessionId);
+      const after = await this.supervisor.getState(params.sessionId);
+      const ids = (entries: unknown[]) => entries.map(entry => entry && typeof entry === "object" &&
+        "id" in entry ? entry.id : undefined);
+      if (!after.isStreaming && !after.isCompacting &&
+        before.sessionId === after.sessionId && before.messageCount === after.messageCount &&
+        start.leafId === end.leafId && JSON.stringify(ids(start.entries)) === JSON.stringify(ids(end.entries))) {
+        return projectPiContextPage({ section: params.section, entries: end.entries,
+          currentMessages: messages, offset: params.offset, limit: params.limit });
+      }
+    }
+    throw new Error("Pi context changed during inspection; refresh after this turn settles");
   }
 
   private async reconcilePiTreeHistory(record: SessionRecord): Promise<void> {

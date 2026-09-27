@@ -595,6 +595,12 @@ export interface IZCodeAgentService {
     operationId: string }): Promise<void>;
   /** Fixed Pi public extension control, scoped to an active leased session. */
   readPiControlTree(params: ZCodeAgentSessionTarget & { includeResourceContent?: boolean }): Promise<import("../pi-agent/pi-control-protocol.js").PiControlView>;
+  /** Read one bounded page of Pi's raw entries or current message projection. */
+  readPiContextInspection(params: ZCodeAgentSessionTarget & {
+    section: import("../pi-agent/pi-context-inspection.js").PiContextSection;
+    offset: number;
+    limit: number;
+  }): Promise<import("../pi-agent/pi-context-inspection.js").PiContextPage>;
   runPiControlTree(params: ZCodeAgentSessionTarget & {
     action: import("../pi-agent/pi-control-protocol.js").PiControlAction;
     includeResourceContent?: boolean;

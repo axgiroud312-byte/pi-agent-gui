@@ -190,6 +190,12 @@ router 协议依据是固定 Pi 0.87.0 上游 MIT `src/extensions/llama/client.t
 
 Pi 0.87.0 的公开 `update(source)` 没有作用域参数，会按包身份同时扫描用户和项目配置。资源面板的单行更新仅在该身份对应唯一配置时可用；重复身份或无法核实身份时显示影响范围并禁用，Host 仍以当前 Pi 设置复核并在更新前拒绝歧义。此警示是 Pi 包更新语义产生的原生 UI 差异。隔离原生 GUI `D:/Temp/pi-package-scope-gui-20260928-c/pi-package-update-scope-gui-report.json` 验证双作用域两行警示、禁用、代际不变及完整进程退出；固定 Pi 离线合同验证直接调用 Host 也会拒绝且不改设置。本轮未运行真实 npm 或 Git 更新；原版同状态成对截图仍待统一验收。
 
+## #3/#9 当前上下文检查入口（P14，开发增量）
+
+| ID | 原生入口/行为 | Pi 产品行为 | 必要性 / 状态 |
+| --- | --- | --- | --- |
+| PI03-09-C1 | 保留原生会话 pane 悬浮操作区、Dialog/Button 与原有会话树 | 在会话树旁增加只读“Pi 上下文检查”；四个分页视图分别展示固定 Pi 0.87.0 `get_entries` 原始历史、`get_messages` 当前消息投影、真实 `context_edit` 和压缩/分支摘要。每页最多 20 条；主进程截断文本，仅把图片 MIME/大小和工具名送到界面，隐藏图片数据、工具参数与任意 details。运行期间暂停读取，历史读前读后核对 Pi 状态与 entry ID。 | #3/#9/P14 需要把可回溯历史与当前投影分开；`get_messages` 不是最终 provider 请求原文，Pi 的 bash 排除标志和扩展钩子仍需提示。固定 Pi context edit/compaction 合同、服务投影测试、UI 静态渲染及隔离生产源码原生 GUI `D:/Temp/pi-context-inspector-gui-20260928-c/pi-context-gui-report.json` 已通过，后者验证原文/替换投影/context edit、无页面错误及进程清理。GUI 未实际压缩或输入图片；压缩和图片边界由固定 Pi/投影合同验证。原版成对截图、包内运行及用户验收待单独记录。 |
+
 ## #25 Pi 扩展原始消息行（开发增量，视觉待验）
 
 | ID | 原生入口/行为 | Pi 产品行为 | 必要性 / 状态 |
