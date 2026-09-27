@@ -99,3 +99,17 @@ test("queue media GC cancels deletion if Pi changes while history is checked", a
     assert.deepEqual([...await readFile(ref!.ref)], [51]);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
+
+test("queue media GC rechecks Pi authority immediately before each file unlink", async () => {
+  const root = await mkdtemp(join(tmpdir(), "pi-queue-media-gc-"));
+  try {
+    const store = new PiQueueMediaStore(join(root, "queue-media"));
+    const [ref] = await store.materialize(sessionId, imageItem("race-after-scan", Uint8Array.from([61])));
+    const historyFile = join(root, "session.jsonl");
+    await writeFile(historyFile, "");
+    let checks = 0;
+    assert.equal(await store.pruneUnreferenced(sessionId, [], historyFile, async () => ++checks === 1), 0);
+    assert.equal(checks, 2);
+    assert.deepEqual([...await readFile(ref!.ref)], [61]);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});

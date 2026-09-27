@@ -93,6 +93,7 @@ export class PiQueueMediaStore {
     let removed = 0;
     for (const entry of candidates) {
       if (mentioned.has(entry.name)) continue;
+      if (stillUnreferenced && !await stillUnreferenced()) return removed;
       // A concurrent writer or an unexpected replacement must not turn a
       // proven regular file into a deletion through a reparse point.
       if (!(await lstat(sessionDirectory)).isDirectory() ||
