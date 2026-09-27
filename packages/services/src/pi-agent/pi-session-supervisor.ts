@@ -9,7 +9,7 @@ import { settlePiSessionBeforeClose } from "./pi-session-teardown.js";
 import { getPiHistoryMessages } from "./pi-session-history.js";
 import { PiControlBridge } from "./pi-control-bridge.js";
 import type { PiControlAction, PiControlSnapshot } from "./pi-control-protocol.js";
-import { canonicalSessionLeaf, reserveNewSessionPath, sessionFileExists } from "./pi-session-path.js";
+import { canonicalSessionLeaf, piSessionDirectory, reserveNewSessionPath, sessionFileExists } from "./pi-session-path.js";
 import type { PiSessionSupervisorOptions, PiSessionView, SessionRuntime, SupervisorEvents } from "./pi-session-types.js";
 import type { PiPromptImage } from "./pi-prompt-images.js";
 import { parsePiQueueCatalog, parsePiQueueItem, parsePiQueueMutation, parsePiQueueTakeAll,
@@ -300,14 +300,19 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
     return start;
   }
 
+  /** Resolve the same Pi session directory used for new RPC sessions and CLI history discovery. */
+  sessionDirectory(workspacePath: string): Promise<string> {
+    return piSessionDirectory(workspacePath, { ...process.env, ...this.options.env }, this.options.rpcArgs ?? []);
+  }
+
   createSession(workspacePath: string): Promise<PiSessionView> {
     if (this.disposed) return Promise.reject(new Error("Pi session supervisor is disposed"));
     return this.trackStart((async () => {
       if (!isAbsolute(workspacePath) || !(await stat(workspacePath)).isDirectory()) {
         throw new Error("Pi workspace path must be an existing absolute directory");
       }
-      const env = { ...process.env, ...this.options.env };
-      const file = await reserveNewSessionPath(workspacePath, env, this.options.rpcArgs ?? []);
+      const file = await reserveNewSessionPath(workspacePath,
+        { ...process.env, ...this.options.env }, this.options.rpcArgs ?? []);
       if (this.disposed) throw new Error("Pi session supervisor is disposed");
       const lease = await PiSessionLease.acquire(file);
       return this.start(workspacePath, ["--session", file], undefined, file, lease);

@@ -1,6 +1,7 @@
 /* eslint-disable max-lines -- The v4 subscription registry and command admission share one Pi session ownership map. */
 import { createHash, randomUUID } from "node:crypto";
 import { join } from "node:path";
+import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { Emitter } from "@zcode/rpc";
 import { resolveWorkspaceKey } from "@zcode/shared";
 import {
@@ -400,9 +401,32 @@ export class PiNativeV4Service implements V4Methods {
     if (pending) return pending;
     pending = (async () => {
       const bookmarks = await this.catalog.list(workspaceKey);
+      // Pi's fixed-version SessionManager owns JSONL discovery and workspace
+      // filtering. App bookmarks only preserve display/control metadata. Older
+      // lifecycle test doubles only implement admission, not discovery.
+      const cliSessions = typeof this.supervisor.sessionDirectory === "function"
+        ? await SessionManager.list(params.workspacePath,
+          await this.supervisor.sessionDirectory(params.workspacePath)) : [];
       this.assertWorkspaceOpen(params);
       for (const entry of bookmarks) {
         if (entry.workspacePath === params.workspacePath) this.bookmarks.set(entry.sessionId, entry);
+      }
+      for (const session of cliSessions) {
+        if (!/^[a-f0-9-]{36}$/iu.test(session.id) || !Number.isFinite(session.created.getTime()) ||
+          !Number.isFinite(session.modified.getTime())) continue;
+        const previous = this.bookmarks.get(session.id);
+        if (previous && previous.workspaceKey !== workspaceKey) continue;
+        const title = session.name?.trim() ||
+          (session.firstMessage === "(no messages)" ? "" : session.firstMessage.trim().slice(0, 100));
+        this.bookmarks.set(session.id, {
+          ...previous,
+          sessionId: session.id, sessionFile: previous?.sessionFile ?? session.path,
+          workspacePath: params.workspacePath, workspaceKey,
+          workspaceId: previous?.workspaceId ?? workspaceKey,
+          createdAt: session.created.getTime(), lastActivityAt: session.modified.getTime(),
+          title: title || undefined, titleSource: title
+            ? session.name ? "custom" : "generated" : "default",
+        });
       }
     })();
     this.workspaceLoads.set(workspaceKey, pending);
