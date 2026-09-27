@@ -738,17 +738,25 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
   }
 
   async enqueueText(sessionId: string, text: string, behavior: "steer" | "followUp",
-    images: readonly PiPromptImage[] = []): Promise<string | undefined> {
+    images: readonly PiPromptImage[] = []): Promise<
+    { kind: "queued"; itemId: string } | { kind: "handled" }> {
     if (!text.trim() && images.length === 0) throw new Error("Pi input is empty");
     if (this.requireSession(sessionId).controlBridge.blocksPrompt) {
       throw new Error("Pi tree control is active or requires reconciliation");
     }
-    if (images.length) await this.requireQueueCompatibility(sessionId);
+    // The pinned queue contract guarantees an item ID for every actual queue
+    // admission. An extension input handler can instead consume the input in
+    // Pi immediately, in which case the RPC success body has no item ID.
+    await this.requireQueueCompatibility(sessionId);
     const result = object(await this.command(sessionId, {
       type: behavior === "steer" ? "steer" : "follow_up", message: text,
       ...(images.length ? { images: [...images] } : {}),
     }));
-    return typeof result.queueItemId === "string" ? result.queueItemId : undefined;
+    if (typeof result.queueItemId === "string" && result.queueItemId.length > 0) {
+      return { kind: "queued", itemId: result.queueItemId };
+    }
+    if (Object.keys(result).length === 0) return { kind: "handled" };
+    throw new Error("Pinned Pi returned an invalid queue admission");
   }
 
   async sendText(sessionId: string, text: string, images: readonly PiPromptImage[] = [],

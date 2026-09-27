@@ -2193,16 +2193,21 @@ export class PiNativeV4Service implements V4Methods {
         const images = [...await readPiPromptImages(payload.attachments), ...prompt.images];
         assertPiPromptRecordFits(prompt.text, images);
         if (requested === "queue" || requested === "guide") {
-          const queueItemId = await this.supervisor.enqueueText(record.view.sessionId, prompt.text,
+          const admission = await this.supervisor.enqueueText(record.view.sessionId, prompt.text,
             requested === "guide" ? "steer" : "followUp", images);
-          if (!queueItemId) throw new Error("Pinned Pi omitted queue item identity after admission");
           try { await this.refreshQueueFacts(record); }
           catch (error) {
             record.state.piQueueCompatible = false;
             console.warn("[pi-agent] accepted queue readback pending", error instanceof Error ? error.name : "unknown");
           }
+          if (admission.kind === "handled") {
+            return { commandId, status: "accepted", reasonCode: "pi.inputHandledByExtension",
+              message: "Pi extension handled this input immediately; no queue item was created",
+              revisionAtDecision: record.snapshot.revision,
+              result: { type: "inputAccepted", delivery: "startNow", inputId: randomUUID() } };
+          }
           return { commandId, status: "accepted", revisionAtDecision: record.snapshot.revision,
-            result: { type: "inputAccepted", delivery: requested, inputId: queueItemId } };
+            result: { type: "inputAccepted", delivery: requested, inputId: admission.itemId } };
         }
         record.admissionGeneration++;
         this.recordVersions.set(record.view.sessionId, (this.recordVersions.get(record.view.sessionId) ?? 0) + 1);

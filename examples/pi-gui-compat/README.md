@@ -10,6 +10,9 @@
 - `gui_rich_probe` 是实际 Pi 自定义工具，不是 slash 命令。模型调用后返回按顺序排列的文字、PNG 和原始 details；GUI 从同一 Pi JSONL 生成工具行，用有作用域的引用读取图像，不能依赖扩展的 TUI renderer。
 - `PI_GUI_INPUT_TRANSFORM`：作为普通输入发送，可附一张 PNG。Pi 的 `input` 事件把文字变成 `PI_IMAGE transformed by Pi GUI compatibility extension`，图片沿同一次 Pi 输入进入模型与 JSONL。
 - `PI_GUI_INPUT_HANDLED`：作为普通输入发送。Pi 扩展显示 `PI_GUI_INPUT_HANDLED_BY_EXTENSION` 通知并返回 `handled`；不请求模型、不创建用户消息，输入区在 Pi 确认处理后可继续使用。
+- `PI_GUI_INPUT_HANDLED_IMAGE`：附一张 PNG 发送；扩展通知包含它收到的 MIME 与原始字节 SHA256，供检查 Pi input handler 的图片传递。
+
+运行中选择“排队”或“引导”时，Pi input handler 仍可立即处理输入。GUI 会按 Pi 的成功回执显示“扩展已立即处理、没有入队”，并用 `delivery=startNow` 结束这次提交；没有凭空创建队列项或用户 JSONL 行。图片样例只证明扩展收到相同字节，扩展自行决定是否保存处理结果。
 
 `tool-override.ts` 是单独的同名工具代表样例，只有显式加载才覆盖 Pi 内建 `read`。
 它按 Pi 公开 `registerTool()` 注册 `read`，执行时返回 `EXTENSION_READ_OVERRIDE_MARKER`，
@@ -24,6 +27,7 @@ node node_modules/tsx/dist/cli.mjs --test packages/services/test/pi-extension-co
 node node_modules/tsx/dist/cli.mjs --test packages/services/test/pi-extension-rich-tool.test.ts
 node node_modules/tsx/dist/cli.mjs --test packages/services/test/pi-extension-input-transform.test.ts
 node node_modules/tsx/dist/cli.mjs --test packages/services/test/pi-extension-tool-override.test.ts
+node node_modules/tsx/dist/cli.mjs --test packages/services/test/pi-native-queue-handled.test.ts
 node scripts/pi-extension-input-transform-gui-smoke.mjs --output D:/Temp/pi-input-transform-gui-20260928-b
 node scripts/pi-extension-tool-override-gui-smoke.mjs --output D:/Temp/pi-read-override-gui-20260928-c
 ```

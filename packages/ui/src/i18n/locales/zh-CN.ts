@@ -4070,6 +4070,7 @@ const zhCN: Record<string, string> = {
   "chat.queue.lane.followUp": "队列",
   "chat.queue.drag": "拖拽排序",
   "chat.queue.sendNow": "立即",
+  "chat.queue.handledImmediately": "Pi 扩展已立即处理这条输入，没有加入队列。",
   // compact 队列项曾单独显示“立即执行”，与同一队列中的即时动作文案不一致。
   "chat.queue.runNow": "立即",
   "chat.queue.edit": "编辑",

@@ -5,6 +5,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "@earendil-works/pi-ai";
 import { Text } from "@earendil-works/pi-tui";
+import { createHash } from "node:crypto";
 
 const statusKey = "gui-compat";
 const customType = "pi-gui-compat.result";
@@ -16,6 +17,12 @@ export default function (pi: ExtensionAPI): void {
   pi.on("input", (event, ctx) => {
     if (event.text === "PI_GUI_INPUT_HANDLED") {
       ctx.ui.notify("PI_GUI_INPUT_HANDLED_BY_EXTENSION", "info");
+      return { action: "handled" };
+    }
+    if (event.text === "PI_GUI_INPUT_HANDLED_IMAGE") {
+      const image = event.images?.[0];
+      const digest = createHash("sha256").update(Buffer.from(image?.data ?? "", "base64")).digest("hex");
+      ctx.ui.notify(`PI_GUI_INPUT_HANDLED_IMAGE:${image?.mimeType ?? "missing"}:${digest}`, "info");
       return { action: "handled" };
     }
     if (event.text.startsWith("PI_GUI_INPUT_TRANSFORM")) {

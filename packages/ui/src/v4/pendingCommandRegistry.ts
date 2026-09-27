@@ -87,6 +87,12 @@ function isRuntimeLocalDiscard(ack: CommandAck): boolean {
   );
 }
 
+function isPiHandledInput(ack: CommandAck): boolean {
+  return (ack.status === "accepted" || ack.status === "duplicate") &&
+    ack.reasonCode === "pi.inputHandledByExtension" &&
+    ack.result?.type === "inputAccepted" && ack.result.delivery === "startNow";
+}
+
 /**
  * ACK、queue 与 transcript 曾分别维护临时状态；renderer 刷新或 ACK 丢失后，
  * UI 已清空但无法证明 CLI 是否 admission。这里把“待对账线索”先于上行持久化，并用
@@ -171,6 +177,12 @@ class PendingCommandRegistry {
       return;
     }
     entry = this.remapCreatedSession(entry, ack);
+    if (isPiHandledInput(ack)) {
+      // Pi's input handler finished without a queued item or user JSONL row.
+      // Its durable ACK is the only terminal admission fact for this command.
+      this.settle(entry.sessionId, entry.commandId);
+      return;
+    }
     if (ack.status === "accepted" || ack.status === "duplicate") {
       this.clearRecovery(entry);
       return;
@@ -214,6 +226,10 @@ class PendingCommandRegistry {
         continue;
       }
       entry = this.remapCreatedSession(entry, item.result);
+      if (isPiHandledInput(item.result)) {
+        this.settle(entry.sessionId, entry.commandId);
+        continue;
+      }
       if (entry.replay.kind === "sensitiveDigest") {
         this.settle(entry.sessionId, entry.commandId);
         continue;

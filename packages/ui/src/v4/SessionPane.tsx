@@ -3012,6 +3012,9 @@ export function SessionPane({
       if (ack.status !== "accepted") {
         throw new Error(ack.reasonCode ?? "sendText 被拒绝");
       }
+      if (ack.reasonCode === "pi.inputHandledByExtension") {
+        toast(intl.formatMessage({ id: "chat.queue.handledImmediately" }));
+      }
       if (heldQueueDisposition === "clearQueueAndSend") {
         settleCurrentQueueInputs(sessionId);
       }

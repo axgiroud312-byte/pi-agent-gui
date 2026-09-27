@@ -70,6 +70,13 @@ Pi 的该值关联待完成输入，并在同次 ACK 后、下一次状态读取
 `pageErrors=[]`，退出 `graceful=true`、`forced=[]`、`survivors=[]`。该报告使用受控
 loopback 模型，不代表在线 provider 或包内 GUI。
 
+队列/引导提交同样先进入固定 Pi 的公开 input handler：若它返回 `handled`，Pi RPC
+成功回执没有 queue item ID。Host 仅在固定 `pi-gui-queue/1` 已证明实际排队必有稳定 ID、
+且此回执确实没有其他字段时，返回明确的 `inputAccepted.delivery=startNow` 与
+`pi.inputHandledByExtension`，由原生 GUI 提示“立即处理、没有入队”；该 ACK 在持久
+admission 与 renderer 恢复账本中收口，不等待不会出现的队列项或用户 JSONL 行。
+代表样例的图片处理通知记录 Pi input handler 收到的 MIME 和字节 SHA256。
+
 可运行样例为 [`examples/pi-gui-compat/extension.ts`](../../examples/pi-gui-compat/extension.ts)，
 使用方法见 [样例 README](../../examples/pi-gui-compat/README.md)。它在同一固定 Pi RPC 会话中
 依次触发四种问答、status、字符串 widget、title 与 notify；结束时清除自身 status/widget，

@@ -4342,6 +4342,7 @@ const enUS: Record<string, string> = {
   "chat.queue.lane.followUp": "Follow-up",
   "chat.queue.drag": "Drag to reorder",
   "chat.queue.sendNow": "Steer",
+  "chat.queue.handledImmediately": "A Pi extension handled this input immediately; no queue item was created.",
   "chat.queue.runNow": "Run now",
   "chat.queue.edit": "Edit",
   "chat.queue.editDraftConflict":
