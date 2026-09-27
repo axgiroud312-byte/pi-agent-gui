@@ -180,6 +180,11 @@ interface CreateZCodeTaskServiceAdapterOptions {
   /** Pi JSONL owns session names; an app-only title must never mask a rejected Pi rename. */
   piHistoryAuthoritative?: boolean;
   piSessionSummary?: (params: ZCodeAgentWorkspaceTarget & { sessionId: string }) => Promise<SessionSummary>;
+  piSessionDeletionPreview?: (params: ZCodeAgentWorkspaceTarget & { sessionId: string }) => Promise<{
+    sessionFile: string; revision: string; title: string;
+  }>;
+  piSessionDelete?: (params: ZCodeAgentWorkspaceTarget & { sessionId: string;
+    expectedSessionFile: string; expectedRevision: string }) => Promise<void>;
   taskIndexRepo?: TaskIndexRepo;
   // syncer 现在持有 workspace emitter 和 broadcast 入口，adapter 必须共用同一实例，
   // 否则 desktop-continuous 路径和 task adapter 路径的事件订阅会分裂成两份，UI 收不全。
@@ -2808,6 +2813,12 @@ export function createZCodeTaskServiceAdapter(
     },
 
     async getTaskSessionFilePath(params) {
+      if (options.piHistoryAuthoritative) {
+        if (!options.piSessionDeletionPreview) throw new Error("Pi deletion preview is unavailable");
+        const preview = await options.piSessionDeletionPreview({ ...params, sessionId: params.taskId });
+        return { path: preview.sessionFile, exists: true, revision: preview.revision,
+          title: preview.title };
+      }
       return {
         path: `${params.workspacePath}/${params.taskId}.zcode-session`,
         exists: false,
@@ -2819,6 +2830,17 @@ export function createZCodeTaskServiceAdapter(
     },
 
     async deleteTask(params): Promise<void> {
+      if (options.piHistoryAuthoritative) {
+        if (!options.piSessionDelete || !params.expectedSessionFile || !params.expectedRevision) {
+          throw new Error("Pi session deletion requires a confirmed file and revision");
+        }
+        await options.piSessionDelete({
+          workspacePath: params.workspacePath, workspaceIdentity: params.workspaceIdentity,
+          sessionId: params.taskId, expectedSessionFile: params.expectedSessionFile,
+          expectedRevision: params.expectedRevision,
+        });
+        return;
+      }
       setOverlay(params, { deleted: true });
       const meta = await updateIndexedTaskState(params, { deleted: true });
       // task_meta_changed 只会重拉普通 membership，不能表达持久删除语义；

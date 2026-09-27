@@ -2344,6 +2344,12 @@ export function createLocalServices(options: {
     piSessionSummary: options?.piAgentRpcEntry
       ? params => (zcodeAgentService as unknown as PiNativeV4Service).getPiSessionSummary(params)
       : undefined,
+    piSessionDeletionPreview: options?.piAgentRpcEntry
+      ? params => (zcodeAgentService as unknown as PiNativeV4Service).inspectSessionDeletion(params)
+      : undefined,
+    piSessionDelete: options?.piAgentRpcEntry
+      ? params => (zcodeAgentService as unknown as PiNativeV4Service).deletePersistedSession(params)
+      : undefined,
     taskIndexRepo,
     taskIndexSyncer: zcodeTaskIndexSyncer,
     settingService,

@@ -133,4 +133,21 @@ export class PiSessionCatalog {
     }
     return entries.sort((a, b) => a.createdAt - b.createdAt);
   }
+
+  /** Remove only the app pointer after the authoritative Pi JSONL is gone. */
+  async remove(sessionId: string, workspaceKey: string, sessionFile: string): Promise<void> {
+    const path = this.file(sessionId);
+    let contents: string;
+    try { contents = await readFile(path, "utf8"); }
+    catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      return;
+    }
+    let value: unknown;
+    try { value = JSON.parse(contents); }
+    catch { return; }
+    if (!bookmark(value) || value.workspaceKey !== workspaceKey || value.sessionFile !== sessionFile) return;
+    try { await unlink(path); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+  }
 }

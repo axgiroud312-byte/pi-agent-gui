@@ -267,7 +267,8 @@ export function createWindowHostControllerRuntime(options: {
     // A Pi-only row is projected from the native sessions index; legacy task
     // mutations must never silently route that session into the ZCode engine.
     if (!projection.hasTaskMembership(scope, address.taskId) &&
-      mutation.kind !== "open" && mutation.kind !== "resume") {
+      mutation.kind !== "open" && mutation.kind !== "resume" &&
+      !(mutation.kind === "delete" && mutation.expectedSessionFile && mutation.expectedRevision)) {
       throw new Error(`Unsupported Pi session task mutation: ${mutation.kind}`);
     }
     const service = current.taskService;
@@ -284,7 +285,8 @@ export function createWindowHostControllerRuntime(options: {
         }
         break;
       case "delete":
-        await service.deleteTask(base);
+        await service.deleteTask({ ...base, expectedSessionFile: mutation.expectedSessionFile,
+          expectedRevision: mutation.expectedRevision });
         break;
       case "delete-archived":
         return service.deleteArchivedTask(base);

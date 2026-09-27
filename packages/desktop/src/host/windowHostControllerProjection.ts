@@ -53,7 +53,7 @@ export interface WindowHostControllerSessionOverlay {
 export type WindowHostControllerMutation =
   | { kind: "pin"; pinned: boolean }
   | { kind: "archive"; archived: boolean }
-  | { kind: "delete" }
+  | { kind: "delete"; expectedSessionFile?: string; expectedRevision?: string }
   | { kind: "delete-archived" }
   | { kind: "delete-archived-batch"; taskIds: string[] }
   | { kind: "mark-read"; expectedUnreadAt?: number }

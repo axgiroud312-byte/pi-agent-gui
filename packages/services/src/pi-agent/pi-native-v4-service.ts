@@ -1,6 +1,8 @@
 /* eslint-disable max-lines -- The v4 subscription registry and command admission share one Pi session ownership map. */
 import { createHash, randomUUID } from "node:crypto";
-import { join } from "node:path";
+import { createReadStream } from "node:fs";
+import { lstat, realpath, unlink } from "node:fs/promises";
+import { basename, dirname, join, resolve } from "node:path";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { Emitter } from "@zcode/rpc";
 import { resolveWorkspaceKey, type ZCodeConfigOption } from "@zcode/shared";
@@ -51,6 +53,7 @@ import { getAppConfigDir } from "../paths.js";
 import { PiCommandLedger } from "./pi-command-ledger.js";
 import { PiMessageRows } from "./pi-message-rows.js";
 import { PiSessionCatalog, type PiQueueRecoveryEntry, type PiSessionBookmark } from "./pi-session-catalog.js";
+import { PiSessionLease } from "./pi-session-lease.js";
 import { PiSessionSupervisor, type PiSessionView } from "./pi-session-supervisor.js";
 import { sessionFileExists } from "./pi-session-path.js";
 import { createPiV4Snapshot } from "./pi-v4-snapshot.js";
@@ -90,6 +93,33 @@ interface Subscription {
 interface IndexLog {
   epoch: string;
   seq: number;
+}
+
+export interface PiSessionDeletionPreview {
+  sessionId: string;
+  sessionFile: string;
+  workspacePath: string;
+  title: string;
+  revision: string;
+}
+
+/** A confirmation is bound to the exact file bytes and filesystem identity. */
+async function deletionRevision(file: string): Promise<string> {
+  const before = await lstat(file);
+  if (!before.isFile() || before.isSymbolicLink() || before.nlink !== 1) {
+    throw new Error("Pi session history must be a regular, single-link file");
+  }
+  const hash = createHash("sha256");
+  for await (const chunk of createReadStream(file)) hash.update(chunk);
+  const after = await lstat(file);
+  if (before.dev !== after.dev || before.ino !== after.ino || before.size !== after.size ||
+    before.mtimeMs !== after.mtimeMs || before.ctimeMs !== after.ctimeMs) {
+    throw new Error("Pi session history changed during inspection");
+  }
+  return createHash("sha256").update(JSON.stringify({
+    dev: before.dev, ino: before.ino, size: before.size,
+    mtimeMs: before.mtimeMs, ctimeMs: before.ctimeMs, hash: hash.digest("hex"),
+  })).digest("hex");
 }
 
 type V4Methods = Pick<IZCodeAgentService,
@@ -191,6 +221,66 @@ export class PiNativeV4Service implements V4Methods {
   async getPiSessionSummary(params: ZCodeAgentWorkspaceTarget & { sessionId: string }): Promise<SessionSummary> {
     await this.loadSession(params, params.sessionId);
     return this.summary(this.recordFor(params, params.sessionId));
+  }
+
+  /** Cold Pi history readback; never resumes or writes the selected JSONL. */
+  async inspectSessionDeletion(params: ZCodeAgentWorkspaceTarget & { sessionId: string }): Promise<PiSessionDeletionPreview> {
+    this.assertWorkspaceOpen(params);
+    const directory = await realpath(await this.supervisor.sessionDirectory(params.workspacePath));
+    const workspacePath = await realpath(params.workspacePath);
+    const candidates = (await SessionManager.list(params.workspacePath, directory))
+      .filter(session => session.id === params.sessionId &&
+        resolve(session.cwd).toLowerCase() === resolve(workspacePath).toLowerCase());
+    if (candidates.length !== 1) throw new Error("Pi session not found in this workspace or identity is ambiguous");
+    const session = candidates[0]!;
+    const sessionFile = await realpath(session.path);
+    if (resolve(dirname(sessionFile)).toLowerCase() !== resolve(directory).toLowerCase() ||
+      basename(sessionFile) !== basename(session.path) ||
+      (await lstat(session.path)).isSymbolicLink()) {
+      throw new Error("Pi session history path changed or escaped its session directory");
+    }
+    return { sessionId: session.id, sessionFile, workspacePath,
+      title: session.name?.trim() || session.firstMessage.trim().slice(0, 100) || "New Pi session",
+      revision: await deletionRevision(sessionFile) };
+  }
+
+  /** Delete only a cold, confirmed Pi JSONL. Product leases do not bind external CLI writers. */
+  async deletePersistedSession(params: ZCodeAgentWorkspaceTarget & { sessionId: string;
+    expectedSessionFile: string; expectedRevision: string }): Promise<void> {
+    const workspaceKey = resolveWorkspaceKey(params);
+    const admissionKey = `${workspaceKey}:${params.sessionId}`;
+    const assertCold = () => {
+      if (this.sessions.has(params.sessionId) || this.supervisor.getSession(params.sessionId) ||
+        this.sessionLoads.has(params.sessionId) || this.sessionAdmissions.has(admissionKey)) {
+        throw new Error("Pi session is active; close it before deleting its history");
+      }
+      const bookmark = this.bookmarks.get(params.sessionId);
+      if (bookmark && (bookmark.pendingIntent || bookmark.uncertainDelivery || bookmark.returnedQueue ||
+        bookmark.queueRecovery?.length || bookmark.interruptedQueueRecovery?.length)) {
+        throw new Error("Pi session has unresolved delivery or queued recovery; reconcile it before deletion");
+      }
+    };
+    assertCold();
+    await this.loadWorkspace(params);
+    assertCold();
+    const preview = await this.inspectSessionDeletion(params);
+    if (preview.sessionFile !== params.expectedSessionFile || preview.revision !== params.expectedRevision) {
+      throw new Error("Pi session history changed since deletion confirmation");
+    }
+    const lease = await PiSessionLease.acquire(preview.sessionFile);
+    try {
+      assertCold();
+      const current = await this.inspectSessionDeletion(params);
+      if (current.sessionFile !== preview.sessionFile || current.revision !== params.expectedRevision) {
+        throw new Error("Pi session history changed since deletion confirmation");
+      }
+      await unlink(current.sessionFile);
+      if (this.bookmarks.get(params.sessionId)?.workspaceKey === workspaceKey) {
+        this.bookmarks.delete(params.sessionId);
+      }
+      this.emitIndexRemoval(workspaceKey, params.sessionId);
+      await this.catalog.remove(params.sessionId, workspaceKey, current.sessionFile);
+    } finally { await lease.release(); }
   }
 
   async readPiSettings(params: ZCodeAgentWorkspaceTarget): Promise<PiSettingsSnapshot> {
@@ -641,18 +731,18 @@ export class PiNativeV4Service implements V4Methods {
     }
   }
 
-  private emitIndexRemoval(record: SessionRecord): void {
-    const log = this.indexLog(record.workspaceKey);
+  private emitIndexRemoval(workspaceKey: string, sessionId: string): void {
+    const log = this.indexLog(workspaceKey);
     const fromSeq = log.seq++;
-    const topic = sessionsIndexTopic(record.workspaceKey);
+    const topic = sessionsIndexTopic(workspaceKey);
     for (const sub of this.subscriptions.values()) {
-      if (sub.topic !== topic || sub.workspaceKey !== record.workspaceKey) continue;
+      if (sub.topic !== topic || sub.workspaceKey !== workspaceKey) continue;
       const frame = sessionsIndexTopicFrameSchema.parse({
         topic, subscriptionId: sub.id, fromSeq, toSeq: log.seq, sentAt: Date.now(),
-        payload: { kind: "deltas", deltas: [{ op: "session.removed", sessionId: record.view.sessionId }] },
+        payload: { kind: "deltas", deltas: [{ op: "session.removed", sessionId }] },
       });
       for (const wire of piWireFrames(frame, "online", ++sub.ordinal)) {
-        getEmitter(this.indexEmitters, record.workspaceKey).fire(wire);
+        getEmitter(this.indexEmitters, workspaceKey).fire(wire);
       }
     }
   }
@@ -1564,7 +1654,7 @@ export class PiNativeV4Service implements V4Methods {
         if (record.snapshot.rows.totalCount > 0) return unsupported(commandId, "delete persisted Pi history", record.snapshot.revision);
         await this.supervisor.closeSession(record.view.sessionId);
         this.sessions.delete(record.view.sessionId);
-        this.emitIndexRemoval(record);
+        this.emitIndexRemoval(record.workspaceKey, record.view.sessionId);
         return { commandId, status: "accepted", revisionAtDecision: record.snapshot.revision };
       }
       return unsupported(commandId, envelope.type, record.snapshot.revision);
@@ -1573,7 +1663,7 @@ export class PiNativeV4Service implements V4Methods {
         await this.supervisor.closeSession(createdSessionId);
         if (record) {
           this.sessions.delete(createdSessionId);
-          this.emitIndexRemoval(record);
+          this.emitIndexRemoval(record.workspaceKey, record.view.sessionId);
           record = undefined;
         }
       }

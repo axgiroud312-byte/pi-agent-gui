@@ -1873,7 +1873,7 @@ function createControllerRoutedTaskService(
     mutation:
       | { kind: "pin"; pinned: boolean }
       | { kind: "archive"; archived: boolean }
-      | { kind: "delete" }
+      | { kind: "delete"; expectedSessionFile?: string; expectedRevision?: string }
       | { kind: "mark-read"; expectedUnreadAt?: number }
       | { kind: "mark-unread" },
   ) =>
@@ -1912,7 +1912,8 @@ function createControllerRoutedTaskService(
       }
       if (property === "deleteTask") {
         return async (params: Parameters<IZCodeTaskService["deleteTask"]>[0]) => {
-          await route(params, { kind: "delete" });
+          await route(params, { kind: "delete", expectedSessionFile: params.expectedSessionFile,
+            expectedRevision: params.expectedRevision });
         };
       }
       if (property === "deleteArchivedTasks") {

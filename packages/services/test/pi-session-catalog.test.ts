@@ -27,3 +27,21 @@ test('app bookmarks index only existing Pi JSONL histories and never copy their 
     assert.deepEqual(await catalog.list(root), [], 'missing Pi JSONL cannot masquerade as restored history');
   } finally { await rm(root, { recursive: true, force: true }); }
 });
+
+test('Pi deletion removes only the matching workspace bookmark pointer', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'pi-catalog-delete-scope-'));
+  const catalog = new PiSessionCatalog(join(root, 'catalog'));
+  const sessionId = '96951d0a-977b-409b-8e67-cb38396ccce4';
+  const otherFile = join(root, 'other.jsonl');
+  const otherWorkspace = join(root, 'other-workspace');
+  const bookmark = { sessionId, sessionFile: otherFile, workspacePath: otherWorkspace,
+    workspaceKey: otherWorkspace, workspaceId: otherWorkspace, createdAt: 100, lastActivityAt: 200 };
+  try {
+    await writeFile(otherFile, '{"type":"session"}\n');
+    assert.equal(await catalog.save(bookmark), true);
+    await catalog.remove(sessionId, join(root, 'first-workspace'), join(root, 'first.jsonl'));
+    assert.deepEqual(await catalog.list(otherWorkspace), [bookmark]);
+    await catalog.remove(sessionId, otherWorkspace, otherFile);
+    assert.deepEqual(await catalog.list(otherWorkspace), []);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});

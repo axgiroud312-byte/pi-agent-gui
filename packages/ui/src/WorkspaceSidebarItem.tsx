@@ -89,6 +89,7 @@ import {
 } from "@/lib/workspaceRemovalSafety.js";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
 import { toast } from "@/components/ui/toast.js";
+import { removeTaskFromTaskCaches } from "@/lib/taskListMetaSync.js";
 
 export type SortableBindings = Pick<ReturnType<typeof useSortable>, "attributes" | "listeners">;
 
@@ -625,6 +626,47 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
     ],
   );
 
+  const handleDeletePiSession = useCallback(async (taskId: string): Promise<void> => {
+    if (readOnlyReason) return;
+    if (workspaceZCodeStateRef.current.activeTaskId === taskId) {
+      toast(intl.formatMessage({ id: "taskList.deletePiActive" }));
+      return;
+    }
+    const task = findCurrentTaskItem(taskId);
+    if (!task) return;
+    const target = { taskId, workspacePath: tab.workspacePath,
+      ...(tab.workspaceIdentity ? { workspaceIdentity: tab.workspaceIdentity } : {}) };
+    try {
+      const preview = await zcodeTaskService.getTaskSessionFilePath(target);
+      if (!preview.exists || !preview.path || !preview.revision) {
+        throw new Error("Pi session deletion preview is unavailable");
+      }
+      const confirmed = await confirmDialog({
+        title: intl.formatMessage({ id: "taskList.deletePiTitle" }),
+        description: intl.formatMessage({ id: "taskList.deletePiDescription" }, {
+          title: preview.title ?? task.title, sessionId: taskId, workspacePath: tab.workspacePath,
+          sessionFile: preview.path,
+        }),
+        confirmLabel: intl.formatMessage({ id: "taskList.deletePiSession" }),
+        cancelLabel: intl.formatMessage({ id: "common.cancel" }),
+        confirmVariant: "destructive",
+      });
+      if (!confirmed) return;
+      await zcodeTaskService.deleteTask({ ...target, expectedSessionFile: preview.path,
+        expectedRevision: preview.revision });
+      removeTaskFromTaskCaches({ workspacePath: tab.workspacePath,
+        workspaceIdentity: tab.workspaceIdentity, taskId });
+      removeOptimisticTaskListItem(tab.workspacePath, taskId, tab.workspaceIdentity);
+      removeTaskState(tab.workspacePath, taskId, tab.workspaceIdentity);
+    } catch (error) {
+      logger.error("[WorkspaceSidebarItem] Pi session deletion failed", {
+        taskId, message: error instanceof Error ? error.message : String(error),
+      });
+      toast(intl.formatMessage({ id: "taskList.deletePiFailed" }));
+    }
+  }, [confirmDialog, findCurrentTaskItem, intl, readOnlyReason, removeOptimisticTaskListItem,
+    removeTaskState, tab.workspaceIdentity, tab.workspacePath, zcodeTaskService]);
+
   const handleArchiveTask = useCallback(
     async (taskId: string) => {
       if (readOnlyReason) {
@@ -1132,6 +1174,7 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
             onSetTaskPinned={handleSetTaskPinned}
             onArchiveTask={handleArchiveTask}
             onSetTaskUnread={handleSetTaskUnread}
+            onDeletePiSession={handleDeletePiSession}
             readOnlyReason={readOnlyReason}
           />
         </CollapsibleContent>

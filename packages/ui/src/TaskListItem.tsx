@@ -794,6 +794,7 @@ export function TaskListItemContextMenuContent({
   onStartRenameTask,
   onArchiveTask,
   onMarkTaskAsUnread,
+  onDeletePiSession,
   disableTaskActions = false,
   disabledReason,
 }: {
@@ -806,6 +807,7 @@ export function TaskListItemContextMenuContent({
   onStartRenameTask: (taskId: string, currentTitle: string) => void;
   onArchiveTask: (taskId: string) => void;
   onMarkTaskAsUnread: (taskId: string) => void;
+  onDeletePiSession?: (taskId: string) => void;
   disableTaskActions?: boolean;
   disabledReason?: string;
 }) {
@@ -913,6 +915,7 @@ export function TaskListItemContextMenuContent({
       onMarkTaskAsUnread={() => {
         onMarkTaskAsUnread(task.taskId);
       }}
+      onDeletePiSession={onDeletePiSession ? () => onDeletePiSession(task.taskId) : undefined}
       onOpenInSplitPane={
         splitPaneEntryEnabled
           ? () => {
