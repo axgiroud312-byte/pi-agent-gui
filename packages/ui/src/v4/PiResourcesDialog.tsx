@@ -216,14 +216,24 @@ export function PiResourcesDialog({ sessionId, workspacePath, workspaceIdentity 
                 <Button type="button" variant="outline" size="sm" disabled={busy}
                   onClick={() => { setFilterSource(`${pkg.scope}:${pkg.source}`); setFilterDraft(filtersText(pkg.configuration)); }}>过滤</Button>
                 <Button type="button" variant="outline" size="sm" disabled={busy ||
-                  pkg.updateState === "pinned-npm" || pkg.updateState === "offline" || pkg.updateState === "local"}
+                  pkg.updateState === "pinned-npm" || pkg.updateState === "offline" || pkg.updateState === "local" ||
+                  pkg.updateAdmission.state !== "single"}
                   title={pkg.updateState === "pinned-npm" ? "Pi 固定 npm 版本不会自动更新；要升级请安装明确的新版本" :
                     pkg.updateState === "offline" ? "Pi 当前为离线模式；包未更新" :
+                    pkg.updateAdmission.state !== "single" ? "Pi 更新会按包身份匹配配置，无法安全地只更新这一行" :
                     pkg.updateState === "git-ref" ? "Pi 只同步已配置的 Git ref；更换 ref 请重新安装" : undefined}
                   onClick={() => void act({ operation: "package_update", source: pkg.source, scope: pkg.scope })}>
                   {packageUpdateLabel(pkg.updateState)}</Button>
                 <Button type="button" variant="outline" size="sm" disabled={busy}
                   onClick={() => void act({ operation: "package_remove", source: pkg.source, scope: pkg.scope })}>卸载</Button></div>
+              {pkg.updateState !== "local" && pkg.updateState !== "pinned-npm" &&
+                pkg.updateAdmission.state === "multiple" ? <p data-testid="pi-package-update-scope-warning"
+                className="text-xs text-foreground-subtle">Pi 更新会同时处理这个包身份在
+                  {pkg.updateAdmission.scopes.map(item => item === "user" ? "用户" : "项目").join("、")}
+                  作用域中的配置；单行更新已禁用。请先移除重复配置。</p> :
+                pkg.updateState !== "local" && pkg.updateState !== "pinned-npm" &&
+                pkg.updateAdmission.state === "unknown" ? <p data-testid="pi-package-update-scope-warning"
+                  className="text-xs text-foreground-subtle">无法核实 Pi 更新只影响这一项配置；单行更新已禁用。</p> : null}
               {filterSource === `${pkg.scope}:${pkg.source}` ? <div className="space-y-2">
                 <p className="text-xs text-foreground-subtle">按 Pi 包过滤规则编辑 JSON；空数组关闭一类资源，空对象恢复默认。</p>
                 <textarea aria-label="Pi 包过滤规则" value={filterDraft} onChange={event => setFilterDraft(event.target.value)}

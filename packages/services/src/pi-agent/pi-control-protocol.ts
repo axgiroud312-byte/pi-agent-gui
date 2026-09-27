@@ -16,6 +16,8 @@ export type PiControlOperation = typeof PI_CONTROL_OPERATIONS[number];
 export type PiPackageScope = "user" | "project";
 export type PiPackageFilters = Omit<Extract<PackageSource, object>, "source">;
 export type PiPackageUpdateState = "update" | "pinned-npm" | "offline" | "git-ref" | "local";
+export interface PiPackageUpdateAdmission { state: "single" | "multiple" | "unknown";
+  scopes: PiPackageScope[] }
 /** Mirrors Pi 0.87.0 package update admission; Pi still owns the operation itself. */
 export function piPackageUpdateState(source: string, offline: boolean): PiPackageUpdateState {
   if (source.startsWith("npm:")) {
@@ -47,7 +49,8 @@ export function piPackageUpdateFailure(source: string, offline: boolean):
   }
 }
 export interface PiResourcePackage { source: string; scope: PiPackageScope; filtered: boolean;
-  installedPath?: string; configuration: PackageSource; updateState: PiPackageUpdateState }
+  installedPath?: string; configuration: PackageSource; updateState: PiPackageUpdateState;
+  updateAdmission: PiPackageUpdateAdmission }
 export interface PiAvailableResource { kind: "extension" | "skill" | "prompt" | "theme";
   path: string; enabled: boolean; sourceInfo: SourceInfo }
 export interface PiResourceCatalog {

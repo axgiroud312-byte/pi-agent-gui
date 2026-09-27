@@ -172,6 +172,8 @@ router 协议依据是固定 Pi 0.87.0 上游 MIT `src/extensions/llama/client.t
 资源列表以当前 Pi 进程公开 `get_commands`、`getSystemPromptOptions` 和 Pi 包管理器解析为准。修改后调用同一 Pi 的 `ctx.reload()`，旧 session 历史上下文不会重写。复杂扩展 TUI 交互仍按 #8/#25 单独核对。
 固定 Pi 的 `DefaultPackageManager.update` 会跳过固定 npm 版本，并在 `PI_OFFLINE=1` 时直接返回；新的版本化 bridge 在执行前拒绝这两种无操作更新。固定 Git ref 的“同步”只重取已配置 ref，不自动升到新 ref；本轮按用户保护要求没有实际执行 Git update，因为上游在自管 clone 发生 ref 变化时会运行 `git reset --hard` 与 `git clean -fdx`。更换 ref 应明确安装新 source；真实 npm 在线更新、Git ref 变更、资源加载错误全类及 theme/provider 目录刷新还需独立验证。
 
+Pi 0.87.0 的公开 `update(source)` 没有作用域参数，会按包身份同时扫描用户和项目配置。资源面板的单行更新仅在该身份对应唯一配置时可用；重复身份或无法核实身份时显示影响范围并禁用，Host 仍以当前 Pi 设置复核并在更新前拒绝歧义。此警示是 Pi 包更新语义产生的原生 UI 差异。隔离原生 GUI `D:/Temp/pi-package-scope-gui-20260928-c/pi-package-update-scope-gui-report.json` 验证双作用域两行警示、禁用、代际不变及完整进程退出；固定 Pi 离线合同验证直接调用 Host 也会拒绝且不改设置。本轮未运行真实 npm 或 Git 更新；原版同状态成对截图仍待统一验收。
+
 ## #25 Pi 扩展原始消息行（开发增量，视觉待验）
 
 | ID | 原生入口/行为 | Pi 产品行为 | 必要性 / 状态 |

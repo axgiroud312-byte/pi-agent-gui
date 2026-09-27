@@ -12,6 +12,7 @@ import {
   type PiAvailableResource, type PiResourcePackage,
 } from "./pi-control-protocol.js";
 import { editablePiHistoryText } from "./pi-history-entry.js";
+import { piPackageUpdateAdmission } from "./pi-package-update-scope.js";
 
 interface Binding { info: PiControlInfo; emit(reply: PiControlReply): void }
 interface ReloadOperation { request: PiControlRequest; fresh?: Binding }
@@ -26,19 +27,15 @@ class ControlError extends Error {
   constructor(readonly code: string, message: string) { super(message); }
 }
 
-async function resourceSettingsFor(ctx: ExtensionCommandContext): Promise<{
-  packages: PiResourcePackage[]; availableResources: PiAvailableResource[];
-  diagnostics: string[]; skillCommandsEnabled: boolean;
-}> {
+async function resourceSettingsFor(ctx: ExtensionCommandContext): Promise<{ packages: PiResourcePackage[]; availableResources: PiAvailableResource[]; diagnostics: string[]; skillCommandsEnabled: boolean }> {
   const settings = SettingsManager.create(ctx.cwd, getAgentDir(), { projectTrusted: ctx.isProjectTrusted() });
   const manager = new DefaultPackageManager({ cwd: ctx.cwd, agentDir: getAgentDir(), settingsManager: settings });
   const global = settings.getGlobalSettings().packages ?? [], project = settings.getProjectSettings().packages ?? [];
   const diagnostics = settings.drainErrors().map(item => `${item.scope}: ${item.error.message}`);
-  const packages = manager.listConfiguredPackages().map(pkg => {
+  const configured = manager.listConfiguredPackages(), packages = configured.map(pkg => {
     const list = pkg.scope === "project" ? project : global;
     const configuration = list.find(entry => (typeof entry === "string" ? entry : entry.source) === pkg.source);
-    return { ...pkg, configuration: configuration ?? pkg.source,
-      updateState: piPackageUpdateState(pkg.source, piPackageOffline()) };
+    return { ...pkg, configuration: configuration ?? pkg.source, updateState: piPackageUpdateState(pkg.source, piPackageOffline()), updateAdmission: piPackageUpdateAdmission(configured, pkg) };
   });
   const availableResources: PiAvailableResource[] = [];
   try {
@@ -160,6 +157,9 @@ async function managePackage(ctx: ExtensionCommandContext,
       break;
     }
     case "package_update": {
+      if (piPackageUpdateAdmission(manager.listConfiguredPackages(), configured!).state !== "single")
+        throw new ControlError("PACKAGE_SCOPE_CONFLICT",
+          "Pi cannot update only this package row; remove duplicate settings or refresh an unclear source");
       const failure = piPackageUpdateFailure(intent.source, piPackageOffline());
       if (failure) throw new ControlError(failure.code, failure.message);
       await manager.update(intent.source); break;

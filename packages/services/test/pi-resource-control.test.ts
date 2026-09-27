@@ -310,3 +310,42 @@ test("offline Pi package update reports that nothing changed", { timeout: 45_000
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("Pi Host rejects a row update shared by user and project before package IO", { timeout: 45_000 }, async () => {
+  const root = await mkdtemp(join(tmpdir(), "pi-package-scope-conflict-"));
+  const workspace = join(root, "workspace");
+  const profile = join(root, "profile");
+  let client: PiRpcClient | undefined;
+  let bridge: PiControlBridge | undefined;
+  try {
+    await mkdir(join(workspace, ".pi"), { recursive: true });
+    await mkdir(profile);
+    await writeFile(join(profile, "settings.json"), JSON.stringify({
+      defaultProjectTrust: "always", packages: ["npm:pi-shared-scope-fixture@^1.0.0"],
+    }));
+    await writeFile(join(workspace, ".pi", "settings.json"), JSON.stringify({
+      packages: ["npm:pi-shared-scope-fixture@^2.0.0"],
+    }));
+    client = new PiRpcClient({ executable: process.execPath,
+      args: [fileURLToPath(import.meta.resolve("@earendil-works/pi-coding-agent/rpc-entry")), "--offline",
+        "--extension", fileURLToPath(new URL("../src/pi-agent/pi-control-bridge-extension.ts", import.meta.url))],
+      cwd: workspace, env: { PI_CODING_AGENT_DIR: profile, PI_TELEMETRY: "0", PI_OFFLINE: "1" } });
+    await client.start();
+    bridge = new PiControlBridge(client);
+    const before = fullPiControlView(await bridge.refresh());
+    const rows = before.resources.packages.filter(pkg => pkg.source.includes("pi-shared-scope-fixture"));
+    assert.deepEqual(rows.map(row => row.scope).sort(), ["project", "user"]);
+    assert(rows.every(row => row.updateAdmission.state === "multiple"));
+    await assert.rejects(bridge.act({ operation: "package_update", source: rows[0]!.source,
+      scope: rows[0]!.scope, sessionId: before.info.sessionId, generation: before.info.generation }),
+    (error: unknown) => error instanceof Error && "code" in error && error.code === "PACKAGE_SCOPE_CONFLICT");
+    const after = fullPiControlView(await bridge.refresh());
+    assert.equal(after.info.generation, before.info.generation);
+    assert.deepEqual(after.resources.packages.map(row => [row.source, row.scope]),
+      before.resources.packages.map(row => [row.source, row.scope]));
+  } finally {
+    bridge?.dispose();
+    await client?.dispose();
+    await rm(root, { recursive: true, force: true });
+  }
+});
