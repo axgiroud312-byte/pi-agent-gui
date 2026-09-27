@@ -104,6 +104,37 @@ export async function probeImageAdmissionRace(page, model) {
   return true;
 }
 
+export async function probeImagePasteAndDrop(page, output) {
+  const encoded = unsentImage.toString('base64');
+  const input = page.getByTestId('v4-composer-input').filter({ visible: true }).first();
+  await input.click();
+  await page.evaluate(base64 => {
+    const bytes = Uint8Array.from(atob(base64), character => character.charCodeAt(0));
+    const transfer = new DataTransfer();
+    transfer.items.add(new File([bytes], 'pasted-image.png', { type: 'image/png' }));
+    document.querySelector('[data-testid="v4-composer-input"]')?.dispatchEvent(
+      new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: transfer }));
+  }, encoded);
+  const pasted = page.locator('[data-composer-attachment-kind="image"][title="pasted-image.png"]');
+  await pasted.and(page.locator('[data-upload-status="ready"]')).waitFor({ timeout: 15_000 });
+  await page.screenshot({ path: join(output, 'pi-native-image-pasted.png') });
+  await pasted.locator('[data-composer-attachment-remove]').click();
+
+  await page.evaluate(base64 => {
+    const bytes = Uint8Array.from(atob(base64), character => character.charCodeAt(0));
+    const transfer = new DataTransfer();
+    transfer.items.add(new File([bytes], 'dropped-image.png', { type: 'image/png' }));
+    const target = document.querySelector('[data-v4-conversation-drop-target="true"]');
+    target?.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: transfer }));
+    target?.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: transfer }));
+  }, encoded);
+  const dropped = page.locator('[data-composer-attachment-kind="image"][title="dropped-image.png"]');
+  await dropped.and(page.locator('[data-upload-status="ready"]')).waitFor({ timeout: 15_000 });
+  await page.screenshot({ path: join(output, 'pi-native-image-dropped.png') });
+  await dropped.locator('[data-composer-attachment-remove]').click();
+  return { paste: true, drop: true };
+}
+
 export async function verifyRestoredPiImage(page) {
   await page.getByText('PI_IMAGE_COMPLETE', { exact: true }).waitFor();
   assert(await assertImageVisible(page), 'Pi JSONL must restore the native image preview after restart');

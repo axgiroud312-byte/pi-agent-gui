@@ -7,7 +7,8 @@ import { fileURLToPath } from 'node:url';
 import { fixture } from './native-smoke/fixture.mjs';
 import { assertCleanExit, closeOwned } from './native-smoke/cleanup.mjs';
 import { startPiModel } from './native-smoke/pi-model.mjs';
-import { image, unsentImage, probeImageAdmissionRace, sendPiImage, stageRootUnsentPiImage,
+import { image, unsentImage, probeImageAdmissionRace, probeImagePasteAndDrop,
+  sendPiImage, stageRootUnsentPiImage,
   stageUnsentPiImage, verifyRestoredPiImage,
   verifyRestoredRootUnsentPiImage, verifyRestoredUnsentPiImage } from './native-smoke/pi-image.mjs';
 import { probeBusyImageAndQueue, verifyStoppedQueue } from './native-smoke/pi-queue.mjs';
@@ -190,6 +191,7 @@ try {
   report.piStop = model.held === 0;
   report.returnedQueueVisible = await verifyStoppedQueue(page, report.queuedText, f.output);
   report.imageAdmissionRaceBlocked = await probeImageAdmissionRace(page, model);
+  report.imagePasteAndDrop = await probeImagePasteAndDrop(page, f.output);
   report.modelRequests = model.requests;
   report.afterStop = (await page.locator('body').innerText()).slice(-4500);
   await page.screenshot({ path: join(f.output, 'pi-native-stopped.png') });
