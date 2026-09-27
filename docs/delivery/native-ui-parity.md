@@ -107,6 +107,12 @@ router 协议依据是固定 Pi 0.87.0 上游 MIT `src/extensions/llama/client.t
 
 资源列表以当前 Pi 进程公开 `get_commands`、`getSystemPromptOptions` 和 Pi 包管理器解析为准。修改后调用同一 Pi 的 `ctx.reload()`，旧 session 历史上下文不会重写。复杂扩展 TUI 交互仍按 #8/#25 单独核对。
 
+## #25 Pi 扩展原始消息行（开发增量，视觉待验）
+
+| ID | 原生入口/行为 | Pi 产品行为 | 必要性 / 状态 |
+| --- | --- | --- | --- |
+| PI25-E1 | 原生时间线的消息行、附件预览和可折叠详情 | 保留原生行与图片按需预览；新增 `Pi 扩展消息` 行，展示固定 Pi `display:true` custom message 的有序文字、图片和折叠 details。Pi TUI renderer 不经 RPC，不能直接移植为组件。 | #25 / P27 要求 renderer 不兼容时保留原始消息。固定 Pi 合同和服务图片读取已测；真实原生 GUI、原版同状态截图及包内运行待验。 |
+
 ## 用户关卡记录
 
 - 关卡 Issue：[#33](https://github.com/axgiroud312-byte/pi-agent-gui/issues/33)，前置导入 [#32](https://github.com/axgiroud312-byte/pi-agent-gui/issues/32)。

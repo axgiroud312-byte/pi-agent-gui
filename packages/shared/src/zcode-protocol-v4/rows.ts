@@ -165,6 +165,38 @@ export const assistantTextRowSchema = z.object({
 });
 export type AssistantTextRow = z.infer<typeof assistantTextRowSchema>;
 
+// Pi custom messages remain usable when their registered renderer only runs in the TUI.
+// Images are opaque refs into the owned Pi JSONL; details and unknown blocks are retained.
+export const extensionMessageRowSchema = z.object({
+  ...rowBaseFields,
+  kind: z.literal("extensionMessage"),
+  customType: z.string(),
+  parts: z.array(z.discriminatedUnion("type", [
+    z.object({ type: z.literal("text"), text: z.string() }),
+    z.object({ type: z.literal("image"), ref: z.string(), mimeType: z.string(),
+      bytes: z.number().int().nonnegative(), attachmentIndex: z.number().int().nonnegative() }),
+    z.object({ type: z.literal("unknown"), value: z.unknown() }),
+  ])),
+  attachments: userInputRowSchema.shape.attachments,
+  details: z.unknown().optional(),
+});
+export type ExtensionMessageRow = z.infer<typeof extensionMessageRowSchema>;
+
+// Direct Pi RPC `bash` is a session message, not an assistant tool call.
+// Keep Pi's recorded output and context choice together on one native row.
+export const bashExecutionRowSchema = z.object({
+  ...rowBaseFields,
+  kind: z.literal("bashExecution"),
+  command: z.string(),
+  output: z.string(),
+  exitCode: z.number().int().nullable().optional(),
+  cancelled: z.boolean(),
+  truncated: z.boolean(),
+  fullOutputPath: z.string().optional(),
+  excludeFromContext: z.boolean(),
+});
+export type BashExecutionRow = z.infer<typeof bashExecutionRowSchema>;
+
 export const reasoningRowSchema = z.object({
   ...rowBaseFields,
   kind: z.literal("reasoning"),
@@ -419,6 +451,8 @@ export const conversationRowSchema = z.discriminatedUnion("kind", [
   turnHeaderRowSchema,
   userInputRowSchema,
   assistantTextRowSchema,
+  extensionMessageRowSchema,
+  bashExecutionRowSchema,
   reasoningRowSchema,
   toolCallRowSchema,
   artifactRowSchema,

@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { conversationDeltaSchema, conversationRowSchema } from "@zcode/shared/zcode-protocol-v4";
 import { PiMessageRows } from "../src/pi-agent/pi-message-rows.js";
+import { buildConversationSharePublicProjection } from "../src/conversation-share/conversationSharePublicProjection.js";
 
 test("Pi stream and final history produce native text/tool rows with cumulative output replacement", () => {
   const projection = new PiMessageRows();
@@ -112,4 +113,89 @@ test("Pi read card opens the same workspace file that Pi read from its cwd", () 
       join(workspacePath, "README.md"));
     assert.equal(row?.kind === "toolCall" ? row.inputText : null, '{"path":"README.md"}');
   }
+});
+
+test("visible Pi custom message keeps ordered text, image bytes by ref, and renderer-independent details", () => {
+  const imageData = Buffer.from("original custom image bytes").toString("base64");
+  const custom = { role: "custom", customType: "fixture.card", display: true, timestamp: 1234,
+    content: [{ type: "text", text: "before" }, { type: "image", mimeType: "image/png", data: imageData },
+      { type: "text", text: "after" }], details: { nested: { count: 2 }, marker: "original" } };
+  const projection = new PiMessageRows();
+  projection.apply({ type: "message_start", message: custom });
+  projection.apply({ type: "message_end", message: custom });
+  const row = projection.getRows().find(item => String(item.kind) === "extensionMessage") as unknown as {
+    customType: string; parts: unknown[]; details: unknown; attachments: Array<{ ref: string; bytes: number }> } | undefined;
+  assert(row, "custom message must be visible even without its TUI renderer");
+  conversationRowSchema.parse(row);
+  assert.equal(row.customType, "fixture.card");
+  assert.deepEqual(row.parts, [{ type: "text", text: "before" },
+    { type: "image", ref: "pi-image:0:1", mimeType: "image/png", bytes: 27, attachmentIndex: 0 },
+    { type: "text", text: "after" }]);
+  assert.deepEqual(row.details, custom.details);
+  assert.deepEqual(projection.image(row.attachments[0]!.ref), { data: imageData, mimeType: "image/png" });
+  const restored = new PiMessageRows().restore([custom]);
+  assert.deepEqual(restored, projection.getRows());
+  const hidden = new PiMessageRows().restore([{ ...custom, display: false }]);
+  assert.equal(hidden.some(item => String(item.kind) === "extensionMessage"), false);
+});
+
+test("Pi extension details and local image refs cannot leak through public sharing", () => {
+  const row = conversationRowSchema.parse({ kind: "extensionMessage", rowId: 1, turnId: "pi-turn-1",
+    productTurnId: "product-1", createdAt: 1000, createdAtSeq: 1, customType: "private.fixture",
+    parts: [{ type: "text", text: "visible" }, { type: "image", ref: "pi-image:0:1",
+      mimeType: "image/png", bytes: 10, attachmentIndex: 0 }],
+    attachments: [{ ref: "pi-image:0:1", fileName: "image.png", mime: "image/png", bytes: 10 }],
+    details: { secret: "private extension data" } });
+  assert.throws(() => buildConversationSharePublicProjection({ rows: [row],
+    selectedProductTurnIds: ["product-1"] }), /Pi extension messages cannot be shared yet/);
+});
+
+test("Pi direct bash history preserves command, output, exit and context choice across reconciliation", () => {
+  const withContext = { role: "bashExecution", command: "printf first", output: "first",
+    exitCode: 7, cancelled: false, truncated: false, timestamp: 1000,
+    excludeFromContext: false };
+  const withoutContext = { role: "bashExecution", command: "printf second", output: "second",
+    exitCode: 0, cancelled: false, truncated: true, fullOutputPath: "C:/tmp/pi-output.log",
+    timestamp: 2000, excludeFromContext: true };
+  const projection = new PiMessageRows();
+  const deltas = projection.reconcile([withContext, withoutContext]);
+  assert.equal(deltas.filter(delta => delta.op === "row.appended").length, 2);
+  const live = projection.getRows().filter(row => String(row.kind) === "bashExecution");
+  assert.equal(live.length, 2, "standalone Pi bash messages must stay visible without a user turn");
+  for (const row of live) conversationRowSchema.parse(row);
+  assert.deepEqual(live.map(row => ({
+    command: (row as { command?: string }).command,
+    output: (row as { output?: string }).output,
+    exitCode: (row as { exitCode?: number }).exitCode,
+    excludeFromContext: (row as { excludeFromContext?: boolean }).excludeFromContext,
+  })), [
+    { command: "printf first", output: "first", exitCode: 7, excludeFromContext: false },
+    { command: "printf second", output: "second", exitCode: 0, excludeFromContext: true },
+  ]);
+  assert.equal((live[1] as { fullOutputPath?: string }).fullOutputPath, "C:/tmp/pi-output.log");
+  assert.equal((live[1] as { truncated?: boolean }).truncated, true);
+  assert.deepEqual(new PiMessageRows().restore([withContext, withoutContext]), projection.getRows());
+  const stopped = new PiMessageRows().restore([{ ...withContext, cancelled: true, exitCode: undefined }]);
+  const bash = stopped.find(row => String(row.kind) === "bashExecution") as { cancelled?: boolean,
+    exitCode?: number } | undefined;
+  assert.equal(bash?.cancelled, true);
+  assert.equal(bash?.exitCode, undefined);
+});
+
+test("public Pi bash projection omits the local full-output path", () => {
+  const rows = [
+    conversationRowSchema.parse({ kind: "turnHeader", rowId: 1, turnId: "pi-turn-0",
+      productTurnId: "pi-product-0", createdAt: 1, createdAtSeq: 1,
+      origin: "userInput", executionKind: "agent", state: "completedSuccess", startedAt: 1 }),
+    conversationRowSchema.parse({ kind: "bashExecution", rowId: 2, turnId: "pi-turn-0",
+      productTurnId: "pi-product-0", createdAt: 2, createdAtSeq: 2,
+      command: "echo secret", output: "visible", exitCode: 0, cancelled: false,
+      truncated: true, fullOutputPath: "C:/private/pi-output.log", excludeFromContext: true }),
+  ];
+  const shared = buildConversationSharePublicProjection({ rows, selectedProductTurnIds: ["pi-product-0"] });
+  const bash = shared.rows.find(row => row.kind === "bashExecution");
+  assert(bash && bash.kind === "bashExecution");
+  assert.equal(bash.fullOutputPath, undefined);
+  assert.equal(bash.command, "echo secret");
+  assert.equal(bash.excludeFromContext, true);
 });

@@ -335,6 +335,22 @@ function projectRow(row: ConversationRow, index: number, ids: PublicIdMaps): Con
         state: row.state,
         ...(row.model ? { model: row.model } : {}),
       };
+    case "extensionMessage":
+      // Custom details and Pi-local image refs need an explicit public-redaction
+      // contract before a share can leave the local profile.
+      throwProjectionError("invalid_conversation", "Pi extension messages cannot be shared yet");
+    case "bashExecution":
+      return {
+        ...base,
+        kind: "bashExecution",
+        command: row.command,
+        output: row.output,
+        ...(row.exitCode === undefined ? {} : { exitCode: row.exitCode }),
+        cancelled: row.cancelled,
+        truncated: row.truncated,
+        excludeFromContext: row.excludeFromContext,
+        // fullOutputPath is Pi-local and must not leave the owner's profile.
+      };
     case "reasoning":
       return {
         ...base,

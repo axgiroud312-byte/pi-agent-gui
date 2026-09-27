@@ -1173,9 +1173,11 @@ export class PiNativeV4Service implements V4Methods {
       ...(params.attachmentIndex !== undefined ? { attachmentIndex: params.attachmentIndex } : {}),
     });
     const record = this.recordFor(params, params.sessionId);
-    const row = record.projection.getRows().find(item => item.kind === "userInput" &&
+    const row = record.projection.getRows().find(item =>
+      (item.kind === "userInput" || item.kind === "extensionMessage") &&
       item.attachments?.some(attachment => attachment.ref === ref));
-    if (!row || row.kind !== "userInput" || (target && (row.rowId !== target.rowId || row.entityId !== target.entityId ||
+    if (!row || (row.kind !== "userInput" && row.kind !== "extensionMessage") ||
+      (target && (row.rowId !== target.rowId || row.entityId !== target.entityId ||
       row.attachments?.[attachmentIndex!]?.ref !== ref))) throw new Error("Pi image is not in this session row");
     const image = record.projection.image(ref);
     if (!image || !["image/png", "image/jpeg", "image/gif", "image/webp"].includes(image.mimeType)) {

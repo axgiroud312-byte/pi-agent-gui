@@ -21,9 +21,7 @@ function text(value: unknown): string {
   }).join("");
 }
 
-function timestamp(value: unknown): number {
-  return typeof value === "number" && Number.isFinite(value) ? value : Date.now();
-}
+function timestamp(value: unknown): number { return typeof value === "number" && Number.isFinite(value) ? value : Date.now(); }
 
 function resultText(value: unknown): string {
   const result = object(value);
@@ -72,7 +70,7 @@ export class PiMessageRows {
     this.tools.clear();
     this.rowIds.clear();
     for (const [key, id] of Object.entries(rowIds)) {
-      if (/^\d+:(turn|user|text:\d+|thinking:\d+|tool:\d+)$/u.test(key) &&
+      if (/^\d+:(turn|user|custom|bash|text:\d+|thinking:\d+|tool:\d+)$/u.test(key) &&
         Number.isSafeInteger(id) && id > 0) this.rowIds.set(key, id);
     }
     this.sourceByMessageIndex.clear();
@@ -146,7 +144,7 @@ export class PiMessageRows {
     const match = /^pi-image:(0|[1-9]\d*):(0|[1-9]\d*)$/u.exec(ref);
     if (!match) return undefined;
     const message = this.messages[Number(match[1])];
-    if (message?.role !== "user" || !Array.isArray(message.content)) return undefined;
+    if (!message || !["user", "custom"].includes(String(message.role)) || !Array.isArray(message.content)) return undefined;
     const part = object(message.content[Number(match[2])]);
     if (part.type !== "image" || typeof part.data !== "string" || typeof part.mimeType !== "string") return undefined;
     return { data: part.data, mimeType: part.mimeType };
@@ -315,6 +313,39 @@ export class PiMessageRows {
           ...(images.length ? { attachments: images } : {}),
           ...(sourceCommandId ? { sourceCommandId, rootSourceCommandId: sourceCommandId } : {}),
         });
+      } else if (message.role === "custom") {
+        if (message.display === false) continue;
+        const attachments: NonNullable<Extract<ConversationRow, { kind: "userInput" }>["attachments"]> = [];
+        const source = typeof message.content === "string" ? [{ type: "text", text: message.content }]
+          : Array.isArray(message.content) ? message.content : [message.content];
+        const parts = source.map((rawPart, partIndex) => {
+          const part = object(rawPart);
+          if (part.type === "text" && typeof part.text === "string") {
+            return { type: "text" as const, text: part.text };
+          }
+          if (part.type === "image" && typeof part.mimeType === "string" && typeof part.data === "string") {
+            const ref = `pi-image:${messageIndex}:${partIndex}`;
+            const bytes = Buffer.from(part.data, "base64").length;
+            const attachmentIndex = attachments.length;
+            const extension = part.mimeType === "image/jpeg" ? "jpg" : part.mimeType.split("/")[1] ?? "image";
+            attachments.push({ ref, fileName: `extension-image-${attachmentIndex + 1}.${extension}`,
+              mime: part.mimeType, bytes });
+            return { type: "image" as const, ref, mimeType: part.mimeType, bytes, attachmentIndex };
+          }
+          return { type: "unknown" as const, value: rawPart };
+        });
+        const rowId = this.rowId(`${messageIndex}:custom`);
+        rows.push({ kind: "extensionMessage", rowId, turnId, createdAt: at, createdAtSeq: rowId,
+          customType: typeof message.customType === "string" ? message.customType : "unknown",
+          parts, ...(attachments.length ? { attachments } : {}),
+          ...(message.details !== undefined ? { details: message.details } : {}) });
+      } else if (message.role === "bashExecution") {
+        const rowId = this.rowId(`${messageIndex}:bash`);
+        rows.push({ kind: "bashExecution", rowId, turnId, createdAt: at, createdAtSeq: rowId,
+          command: typeof message.command === "string" ? message.command : "", output: typeof message.output === "string" ? message.output : "",
+          ...(Number.isInteger(message.exitCode) ? { exitCode: message.exitCode as number } : {}),
+          cancelled: message.cancelled === true, truncated: message.truncated === true, excludeFromContext: message.excludeFromContext === true,
+          ...(typeof message.fullOutputPath === "string" ? { fullOutputPath: message.fullOutputPath } : {}) });
       } else if (message.role === "assistant") {
         const content = Array.isArray(message.content) ? message.content : [];
         for (const [partIndex, rawPart] of content.entries()) {

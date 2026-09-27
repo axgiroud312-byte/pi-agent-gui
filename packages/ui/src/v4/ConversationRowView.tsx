@@ -34,9 +34,11 @@ import type {
   AttachmentRef,
   ArtifactRow,
   AssistantTextRow,
+  BashExecutionRow,
   CommandAck,
   ConversationRow,
   ConversationRowTarget,
+  ExtensionMessageRow,
   HookInvocationRow,
   ReasoningRow,
   SubagentRow,
@@ -2026,6 +2028,59 @@ const ToolCallRowView = memo(function ToolCallRowView({
   );
 });
 
+const ExtensionMessageRowView = memo(function ExtensionMessageRowView({
+  row,
+  context,
+}: {
+  row: ExtensionMessageRow;
+  context: ConversationRowRenderContext;
+}) {
+  return (
+    <RowShell rowId={row.rowId}>
+      <div data-pi-extension-message={row.customType}
+        className="max-w-xl space-y-2 rounded-lg border border-border bg-surface p-3 text-ui-sm">
+        <div className="font-medium text-foreground-subtle">Pi 扩展消息 · {row.customType}</div>
+        {row.parts.map((part, index) => {
+          if (part.type === "image") {
+            const attachment = row.attachments?.[part.attachmentIndex];
+            return attachment ? <UserInputAttachmentList key={`${part.ref}:${index}`}
+              attachments={[attachment]} attachmentIndices={[part.attachmentIndex]}
+              attachmentKind="media" directItems rowId={row.rowId} entityId={row.entityId}
+              sessionId={context.sessionId ?? undefined} readAttachment={context.readAttachment}
+              readAttachmentRange={context.readAttachmentRange} /> : null;
+          }
+          const content = part.type === "text" ? part.text : JSON.stringify(part.value);
+          return <pre key={index} className="max-h-64 overflow-auto whitespace-pre-wrap break-words">{content}</pre>;
+        })}
+        {row.details !== undefined ? <details>
+          <summary className="cursor-pointer">原始扩展详情</summary>
+          <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words">
+            {JSON.stringify(row.details, null, 2)}
+          </pre>
+        </details> : null}
+      </div>
+    </RowShell>
+  );
+});
+
+const BashExecutionRowView = memo(function BashExecutionRowView({ row }: { row: BashExecutionRow }) {
+  const result = row.cancelled ? "已停止" : row.exitCode === undefined || row.exitCode === null
+    ? "退出码未知" : `退出码 ${row.exitCode}`;
+  return (
+    <RowShell rowId={row.rowId}>
+      <div data-pi-bash-execution className="max-w-xl space-y-2 rounded-lg border border-border bg-surface p-3 text-ui-sm">
+        <div className="font-medium text-foreground-subtle">Pi Shell · {row.excludeFromContext ? "不带上下文" : "带上下文"}</div>
+        <pre className="overflow-auto whitespace-pre-wrap break-words text-foreground">{row.command}</pre>
+        <div className="text-foreground-subtle">{result}{row.truncated ? " · 输出已截断" : ""}</div>
+        <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words">{row.output || "（无输出）"}</pre>
+        {row.fullOutputPath ? <div className="break-all text-foreground-subtle">
+          Pi 完整输出路径：{row.fullOutputPath}
+        </div> : null}
+      </div>
+    </RowShell>
+  );
+});
+
 const SubagentRowView = memo(function SubagentRowView({ row }: { row: SubagentRow }) {
   // subagent 行已经和 Agent/Task 工具行配对渲染；裸行只保留异常兜底摘要，
   // 避免再生成一个“子会话”卡片或第二套下钻入口。
@@ -2093,6 +2148,10 @@ function ConversationRowViewImpl({
           codeCommentProjectionEnabled={assistantCodeCommentProjectionEnabled}
         />
       );
+    case "extensionMessage":
+      return <ExtensionMessageRowView row={row} context={context} />;
+    case "bashExecution":
+      return <BashExecutionRowView row={row} />;
     case "reasoning":
       // 关闭“显示思考过程”只隐藏每轮后续 reasoning；首条 reasoning
       // 是该轮最小必要思考提示，必须由 turn 全序派生的 rowId 保留下来。
