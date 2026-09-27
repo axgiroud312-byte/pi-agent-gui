@@ -1,6 +1,7 @@
 /* oxlint-disable eslint(max-lines) -- One isolated GUI lifecycle keeps its restart and process evidence together. */
 // Isolated production-entry GUI probe for Issue #34. No renderer state injection.
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -11,7 +12,7 @@ import { image, unsentImage, probeImageAdmissionRace, probeImagePasteAndDrop,
   sendPiImage, stageRootUnsentPiImage,
   stageUnsentPiImage, verifyRestoredPiImage,
   verifyRestoredRootUnsentPiImage, verifyRestoredUnsentPiImage } from './native-smoke/pi-image.mjs';
-import { probeBusyImageAndQueue, verifyStoppedQueue } from './native-smoke/pi-queue.mjs';
+import { enqueueTextBeforeStop, verifyInterruptedQueueRecovery, verifyStoppedQueue } from './native-smoke/pi-queue.mjs';
 import { drag } from './native-smoke/panels.mjs';
 import { resizeNativeWindow } from './native-smoke/evidence.mjs';
 import { selectNativeLocale } from './native-smoke/locale.mjs';
@@ -184,12 +185,12 @@ try {
   await send('PI_STOP: keep streaming until I stop you');
   for (let i = 0; i < 100 && model.held === 0; i++) await page.waitForTimeout(100);
   assert(model.held > 0, 'Pi request must still be active before GUI Stop');
-  Object.assign(report, await probeBusyImageAndQueue(page, model, f.output));
+  report.queuedText = await enqueueTextBeforeStop(page, model, f.output);
   await page.getByRole('button', { name: '停止生成', exact: true }).click();
   await page.getByRole('button', { name: '停止生成', exact: true }).waitFor({ state: 'hidden', timeout: 30_000 });
   for (let i = 0; i < 100 && model.held > 0; i++) await page.waitForTimeout(100);
   report.piStop = model.held === 0;
-  report.returnedQueueVisible = await verifyStoppedQueue(page, report.queuedText, f.output);
+  report.pausedPiQueueVisible = await verifyStoppedQueue(page, report.queuedText, f.output);
   report.imageAdmissionRaceBlocked = await probeImageAdmissionRace(page, model);
   report.imagePasteAndDrop = await probeImagePasteAndDrop(page, f.output);
   report.modelRequests = model.requests;
@@ -226,7 +227,7 @@ try {
   await reopenedPage.getByText('PI_TEXT_COMPLETE', { exact: true }).waitFor({ timeout: 30_000 });
   await reopenedPage.getByText('PI_READ_COMPLETE', { exact: true }).waitFor();
   report.imageRestored = await verifyRestoredPiImage(reopenedPage);
-  report.returnedQueueRestored = await verifyStoppedQueue(reopenedPage, report.queuedText, f.output, 'restored');
+  report.interruptedQueueRecoveryVisible = await verifyInterruptedQueueRecovery(reopenedPage, f.output);
   report.afterRestart = (await reopenedPage.locator('body').innerText()).slice(-4500);
   const restoredReadTurn = reopenedPage.locator('section[data-turn-id]').filter({ hasText: 'PI_READ: read the workspace README.md' }).first();
   const restoredToolCard = restoredReadTurn.locator('[data-testid^="chat-tool-call-block"]').filter({ visible: true }).first();
@@ -304,6 +305,7 @@ try {
   await reopenedPage.screenshot({ path: join(f.output, 'pi-native-file-save-conflict.png') });
   await readmePane.getByRole('button', { name: '已比较，继续用草稿编辑' }).click();
   await readmePane.getByRole('button', { name: '保存', exact: true }).click();
+  await readmePane.getByText('未保存；草稿会在重启后恢复').waitFor({ state: 'hidden' });
   assert.equal(await readFile(readmePath, 'utf8'), editedReadme);
   report.fileEditor = { draftRecoveredOnReopen: true, externalSaveConflict: true,
     explicitRebaseSaved: true, finalContent: editedReadme };
@@ -419,14 +421,8 @@ try {
   }
   await reopenedPage.locator('[data-testid^="task-item-"]')
     .filter({ hasText: 'PI_TEXT: give me a short response' }).first().click();
-  const draftReadTurn = reopenedPage.locator('section[data-turn-id]')
-    .filter({ hasText: 'PI_READ: read the workspace README.md' }).first();
-  const draftReadCard = draftReadTurn.locator('[data-testid^="chat-tool-call-block"]').filter({ visible: true }).first();
-  if (!await draftReadCard.isVisible()) {
-    await draftReadTurn.locator('[data-testid^="chat-assistant-history-trigger"]').first().click();
-  }
-  await draftReadCard.getByRole('button', { name: 'README.md', exact: true }).click();
   const draftPane = reopenedPage.getByTestId('preview-pane').filter({ visible: true }).first();
+  await draftPane.getByText('README.md', { exact: true }).first().waitFor();
   await draftPane.getByRole('button', { name: '编辑文件' }).click();
   const restartDraft = `${editedReadme}\nPI_EDITOR_RESTART_DRAFT\n`;
   await draftPane.getByRole('textbox', { name: '文件内容' }).fill(restartDraft);
@@ -437,6 +433,15 @@ try {
   await reopenedPage.locator('[data-testid^="v4-session-pane"]').filter({ visible: true }).first()
     .and(reopenedPage.locator('[data-session-id="draft"]')).waitFor();
   await stageRootUnsentPiImage(reopenedPage, f.output, !packagedExecutable);
+  const inspectDraftStorage = page => page.evaluate(() => Object.fromEntries(
+    Object.keys(localStorage).filter(key => key.includes('zcode-v4-composer'))
+      .map(key => [key, localStorage.getItem(key)])));
+  report.rootDraftStorageBeforeRestart = await inspectDraftStorage(reopenedPage);
+  const rootDraftKey = Object.keys(report.rootDraftStorageBeforeRestart)
+    .find(key => key.includes('zcode-v4-composer-drafts') && key.includes('parity-workspace'));
+  assert(rootDraftKey && JSON.parse(report.rootDraftStorageBeforeRestart[rootDraftKey])
+    .scopes.__draft__?.text?.includes('PI_IMAGE_ROOT: retain this unsent image'),
+  'The visible root text must already be persisted before a quick app close');
   if (!packagedExecutable) await writeFile(pickedImagePath, image);
   const requestsBeforeRootRestart = model.requests.length;
   report.secondCleanup = await closeOwned(app, f);
@@ -459,23 +464,119 @@ try {
     await rootReopenedPage.getByRole('menuitem', { name: '打开文件夹', exact: true }).click();
   }
   assert.equal(model.requests.length, requestsBeforeRootRestart, 'Restored root draft must not auto-send');
+  report.rootDraftStorageAfterRestart = await inspectDraftStorage(rootReopenedPage);
   report.rootUnsentImageRestored = await verifyRestoredRootUnsentPiImage(rootReopenedPage, model, f.output);
+  assert.equal(model.requests.length, modelRequestsBeforeEditorRestart + 1,
+    'Only the explicitly sent root image may reach Pi during editor draft restoration');
+  const requestsAfterRootImage = model.requests.length;
   await rootReopenedPage.locator('[data-testid^="task-item-"]')
     .filter({ hasText: 'PI_TEXT: give me a short response' }).first().click();
+  await rootReopenedPage.getByTestId('v4-timeline').evaluate(node => { node.scrollTop = 0; });
   const restoredDraftTurn = rootReopenedPage.locator('section[data-turn-id]')
     .filter({ hasText: 'PI_READ: read the workspace README.md' }).first();
   const restoredDraftCard = restoredDraftTurn.locator('[data-testid^="chat-tool-call-block"]').filter({ visible: true }).first();
   if (!await restoredDraftCard.isVisible()) {
     await restoredDraftTurn.locator('[data-testid^="chat-assistant-history-trigger"]').first().click();
   }
-  await restoredDraftCard.getByRole('button', { name: 'README.md', exact: true }).click();
   const restoredDraftPane = rootReopenedPage.getByTestId('preview-pane').filter({ visible: true }).first();
+  if (!await restoredDraftPane.isVisible() ||
+    !await restoredDraftPane.getByText('README.md', { exact: true }).first().isVisible()) {
+    await restoredDraftCard.getByRole('button', { name: 'README.md', exact: true }).click();
+  }
   await restoredDraftPane.getByRole('button', { name: '编辑文件' }).click();
   assert.equal(await restoredDraftPane.getByRole('textbox', { name: '文件内容' }).inputValue(), restartDraft);
   assert.equal(await readFile(readmePath, 'utf8'), editedReadme);
-  assert.equal(model.requests.length, modelRequestsBeforeEditorRestart);
+  assert.equal(model.requests.length, requestsAfterRootImage);
   report.fileEditor.draftRecoveredAfterRestart = true;
   await rootReopenedPage.screenshot({ path: join(f.output, 'pi-native-file-draft-after-restart.png') });
+  if (!packagedExecutable) {
+    const secondWorkspace = join(f.sandbox, 'second-workspace');
+    await mkdir(secondWorkspace, { recursive: true });
+    await writeFile(join(secondWorkspace, 'README.md'), '# Second isolated project\n');
+    const sameName = 'same-name.png';
+    const stageProjectImage = async (text, buffer) => {
+      const composer = rootReopenedPage.getByTestId('v4-composer-input').filter({ visible: true }).first();
+      await composer.fill(text);
+      assert((await composer.innerText()).includes(text), 'The active project composer must accept text before its image');
+      await rootReopenedPage.locator('.chat-composer-region input[type="file"]').first()
+        .setInputFiles({ name: sameName, mimeType: 'image/png', buffer });
+      await rootReopenedPage.locator(`[data-composer-attachment-kind="image"][title="${sameName}"][data-upload-status="ready"]`)
+        .filter({ visible: true }).first().waitFor();
+      assert((await composer.innerText()).includes(text), 'The project draft text must remain visible after image admission');
+    };
+    const openProjectDraft = async workspacePath => {
+      const row = rootReopenedPage.getByTestId(`workspace-item-${workspacePath}`);
+      await row.hover();
+      await row.getByRole('button', { name: '新建任务', exact: true }).click();
+      await rootReopenedPage.getByTestId('v4-composer-input').filter({ visible: true }).first().waitFor();
+    };
+    await openProjectDraft(f.workspace);
+    await stageProjectImage('PI_IMAGE: project A isolated draft', unsentImage);
+    await app.evaluate((_electron, workspacePath) => { process.env.NATIVE_SMOKE_WORKSPACE = workspacePath; }, secondWorkspace);
+    await rootReopenedPage.getByRole('button', { name: '添加项目', exact: true }).click();
+    await rootReopenedPage.getByRole('menuitem', { name: '打开文件夹', exact: true }).click();
+    await rootReopenedPage.getByTestId('composer-workspace-trigger').filter({ hasText: 'second-workspace' }).waitFor();
+    assert(!(await rootReopenedPage.getByTestId('v4-composer-input').filter({ visible: true }).first().innerText())
+      .includes('project A isolated draft'), 'Second project must not inherit the first project draft');
+    await stageProjectImage('PI_IMAGE: project B isolated draft', image);
+    report.projectDraftStorageBeforeRestart = await inspectDraftStorage(rootReopenedPage);
+    const secondDraftKey = Object.keys(report.projectDraftStorageBeforeRestart)
+      .find(key => key.includes('zcode-v4-composer-drafts') && key.includes('second-workspace'));
+    assert(secondDraftKey && JSON.parse(report.projectDraftStorageBeforeRestart[secondDraftKey])
+      .scopes.__draft__?.text === 'PI_IMAGE: project B isolated draft',
+    'The second project text must be persisted before restart alongside its image');
+    await rootReopenedPage.screenshot({ path: join(f.output, 'pi-native-project-b-draft-before-restart.png') });
+    report.projectDraftIsolation = { first: f.workspace, second: secondWorkspace, sameName,
+      noCrossProjectTextBeforeRestart: true };
+    const requestsBeforeProjectRestart = model.requests.length;
+    report.thirdCleanup = await closeOwned(app, f);
+    assertCleanExit(report.thirdCleanup, logs, 'Third');
+    app = await f.playwright._electron.launch({ executablePath: f.electronPath,
+      args: launchArgs, cwd: f.root, env: f.env, timeout: 60_000 });
+    app.process().stdout?.on('data', chunk => logs.push(String(chunk)));
+    app.process().stderr?.on('data', chunk => logs.push(String(chunk)));
+    const projectPage = await app.firstWindow();
+    projectPage.setDefaultTimeout(15_000);
+    projectPage.on('pageerror', error => report.pageErrors.push(error.stack || error.message));
+    await projectPage.waitForTimeout(5000);
+    for (const name of [/^(使用 API key|Use API key)$/, /^(暂时跳过|Skip for now)$/, /^(退出引导|Exit onboarding)$/]) {
+      const button = projectPage.getByRole('button', { name, exact: true });
+      if (await button.isVisible()) { await button.click(); await projectPage.waitForTimeout(1200); }
+    }
+    assert.equal(model.requests.length, requestsBeforeProjectRestart,
+      'Restoring two project drafts must not send either image to Pi');
+    report.projectDraftStorageAfterRestart = await inspectDraftStorage(projectPage);
+    const verifyProjectDraft = async (workspacePath, expectedText) => {
+      const row = projectPage.getByTestId(`workspace-item-${workspacePath}`);
+      await row.hover();
+      await row.getByRole('button', { name: '新建任务', exact: true }).click();
+      const composer = projectPage.getByTestId('v4-composer-input').filter({ visible: true }).first();
+      await projectPage.waitForFunction(text => document.querySelector('[data-testid="v4-composer-input"]')
+        ?.textContent?.includes(text), expectedText);
+      assert((await composer.innerText()).includes(expectedText));
+      const chip = projectPage.locator(`[data-composer-attachment-kind="image"][title="${sameName}"][data-upload-status="ready"]`)
+        .filter({ visible: true }).first();
+      await chip.waitFor();
+      assert(await chip.locator('img').evaluate(node => node.complete && node.naturalWidth > 0));
+    };
+    await verifyProjectDraft(f.workspace, 'project A isolated draft');
+    await projectPage.screenshot({ path: join(f.output, 'pi-native-project-a-draft-restored.png') });
+    const beforeA = model.requests.length;
+    await projectPage.getByTestId('v4-composer-send').filter({ visible: true }).first().click();
+    await projectPage.getByText('PI_IMAGE_COMPLETE', { exact: true }).last().waitFor({ timeout: 30_000 });
+    assert(model.requests.slice(beforeA).some(request => request.scenario === 'PI_IMAGE'
+      && request.imageDigests.includes(createHash('sha256').update(unsentImage).digest('hex'))),
+    'First project must send its own same-named image bytes through Pi');
+    await verifyProjectDraft(secondWorkspace, 'project B isolated draft');
+    await projectPage.screenshot({ path: join(f.output, 'pi-native-project-b-draft-restored.png') });
+    const beforeB = model.requests.length;
+    await projectPage.getByTestId('v4-composer-send').filter({ visible: true }).first().click();
+    await projectPage.getByText('PI_IMAGE_COMPLETE', { exact: true }).last().waitFor({ timeout: 30_000 });
+    assert(model.requests.slice(beforeB).some(request => request.scenario === 'PI_IMAGE'
+      && request.imageDigests.includes(createHash('sha256').update(image).digest('hex'))),
+    'Second project must send its own same-named image bytes through Pi');
+    report.projectDraftIsolation.restoredAndSentDistinctBytes = true;
+  }
   await verifyPiPackageCleanup(f);
   report.piPrivatePackageCleanupVerified = true;
   const boundaries = (await readFile(f.env.NATIVE_SMOKE_BOUNDARY_LOG, 'utf8'))

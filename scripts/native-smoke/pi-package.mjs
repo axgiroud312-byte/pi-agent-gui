@@ -7,8 +7,8 @@ import { fileURLToPath } from 'node:url';
 // Keep that real operation inside the fixture instead of allowing writes to the
 // shared installation. PI_PACKAGE_DIR is a documented, upstream-supported path.
 export async function isolatePiPackage(f) {
-  const installed = dirname(dirname(dirname(fileURLToPath(
-    import.meta.resolve('@earendil-works/pi-coding-agent/rpc-entry')))));
+  const installed = dirname(dirname(fileURLToPath(
+    import.meta.resolve('@earendil-works/pi-coding-agent/rpc-entry'))));
   const modules = join(f.sandbox, 'pi-runtime', 'node_modules');
   const staged = join(modules, '@earendil-works', 'pi-coding-agent');
   await cp(installed, staged, { recursive: true });

@@ -766,7 +766,15 @@ function ConversationComposerImpl({
     text: string;
     editorStateJson?: string;
   } => {
-    const currentText = textRef.current;
+    // Lexical may display the last keystroke before its onChange callback updates
+    // textRef. Read the visible editor during blur/pagehide so a quick close cannot
+    // replace an unsent draft with the older empty value.
+    let currentText = textRef.current;
+    try {
+      currentText = inputApiRef.current?.getMarkdown() ?? currentText;
+    } catch (error) {
+      logger.warn(`[v4-composer] 草稿 Markdown 读取失败，退最新回调文本: ${String(error)}`);
+    }
     let editorStateJson: string | undefined;
     try {
       const editorState = inputApiRef.current?.getEditorState();
