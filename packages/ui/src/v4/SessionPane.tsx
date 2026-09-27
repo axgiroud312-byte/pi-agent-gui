@@ -130,6 +130,7 @@ import { PiSessionTransferDialog } from "@/v4/PiSessionTransferDialog.js";
 import { PiExtensionUiPanel } from "@/v4/PiExtensionUiPanel.js";
 import { PiLlamaRouterDialog } from "@/v4/PiLlamaRouterDialog.js";
 import { extractPiModelCatalog } from "@/v4/composer/piModelCatalog.js";
+import { PI_AUTH_CATALOG_CHANGED_EVENT } from "@/lib/piAuthCatalogEvent.js";
 import { PiResourcesDialog } from "@/v4/PiResourcesDialog.js";
 import { PiShellDialog } from "@/v4/PiShellDialog.js";
 import { ConversationQueuePanel } from "@/v4/ConversationQueuePanel.js";
@@ -1172,13 +1173,14 @@ export function SessionPane({
   const workspaceConfigOptions = useZCodeSessionStore(
     (store) => store.getWorkspaceState(workspacePath, workspaceIdentity).configOptions,
   );
-  const piCatalogKey = sessionId ? JSON.stringify([workspaceKey, sessionId]) : null;
+  const piCatalogKey = isDesktop && !remoteSessionId && workspacePath
+    ? JSON.stringify([workspaceKey, sessionId ?? "draft"]) : null;
   const [piCatalogRead, setPiCatalogRead] = useState<{ key: string; catalog: ReturnType<typeof extractPiModelCatalog> } | null>(null);
   const piCatalogRequestRef = useRef(0);
   const refreshPiModelCatalog = useCallback(async () => {
-    if (!isDesktop || remoteSessionId || !sessionId || !piCatalogKey) return;
+    if (!isDesktop || remoteSessionId || !piCatalogKey) return;
     const request = ++piCatalogRequestRef.current;
-    const option = await zcodeAgentService.readPiModelCatalog({ sessionId, workspacePath,
+    const option = await zcodeAgentService.readPiModelCatalog({ ...(sessionId ? { sessionId } : {}), workspacePath,
       ...(workspaceIdentity ? { workspaceIdentity } : {}) });
     if (request === piCatalogRequestRef.current) {
       setPiCatalogRead({ key: piCatalogKey, catalog: extractPiModelCatalog([option]) });
@@ -1196,6 +1198,20 @@ export function SessionPane({
   // read that model's levels from the same session instead of retaining the
   // previous model's picker options.
   }, [piCatalogKey, refreshPiModelCatalog, snapshot?.config.provider, snapshot?.config.model]);
+  useEffect(() => {
+    if (!piCatalogKey) return;
+    const refresh = () => { void refreshPiModelCatalog().catch(error => {
+      logger.warn("[pi-model-catalog] Pi auth refresh failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }); };
+    window.addEventListener(PI_AUTH_CATALOG_CHANGED_EVENT, refresh);
+    window.addEventListener("focus", refresh);
+    return () => {
+      window.removeEventListener(PI_AUTH_CATALOG_CHANGED_EVENT, refresh);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [piCatalogKey, refreshPiModelCatalog]);
   const piModelCatalog = useMemo(() => !isDesktop || remoteSessionId ? [] :
     piCatalogKey ? piCatalogRead?.key === piCatalogKey ? piCatalogRead.catalog : [] :
       extractPiModelCatalog(workspaceConfigOptions ?? []),

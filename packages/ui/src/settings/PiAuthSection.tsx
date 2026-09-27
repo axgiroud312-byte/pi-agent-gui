@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { IZCodeAgentService } from "@zcode/services";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
+import { PI_AUTH_CATALOG_CHANGED_EVENT } from "@/lib/piAuthCatalogEvent.js";
 
 type AuthView = Awaited<ReturnType<IZCodeAgentService["readPiAuth"]>>;
 type AuthAction = Parameters<IZCodeAgentService["startPiAuth"]>[0]["action"];
@@ -18,6 +19,7 @@ export function PiAuthSection({ service, workspacePath }: { service: IZCodeAgent
   const [answer, setAnswer] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const lastCatalogSignature = useRef<string | null>(null);
 
   useEffect(() => {
     if (!workspacePath) return;
@@ -26,6 +28,14 @@ export function PiAuthSection({ service, workspacePath }: { service: IZCodeAgent
       try {
         const next = await service.readPiAuth({ workspacePath });
         if (live) {
+          const signature = JSON.stringify({ generation: next.generation, catalogError: next.catalogError,
+            providers: next.providers.map(provider => [provider.id, provider.configured,
+              provider.modelCount, provider.source, provider.storedType]),
+            operations: next.operations.map(operation => [operation.id, operation.outcome]) });
+          if (lastCatalogSignature.current !== null && signature !== lastCatalogSignature.current) {
+            window.dispatchEvent(new Event(PI_AUTH_CATALOG_CHANGED_EVENT));
+          }
+          lastCatalogSignature.current = signature;
           setView(next);
           setError(current => current === READ_ERROR ? "" : current);
         }

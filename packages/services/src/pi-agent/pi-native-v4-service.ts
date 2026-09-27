@@ -1399,8 +1399,9 @@ export class PiNativeV4Service implements V4Methods {
       }) };
   }
 
-  async readPiModelCatalog(params: ZCodeAgentWorkspaceTarget & { sessionId: string }): Promise<ZCodeConfigOption> {
+  async readPiModelCatalog(params: ZCodeAgentWorkspaceTarget & { sessionId?: string }): Promise<ZCodeConfigOption> {
     this.assertWorkspaceOpen(params);
+    if (!params.sessionId) return this.authFor(params).modelCatalog();
     await this.loadSession(params, params.sessionId);
     return this.piModelOption(this.recordFor(params, params.sessionId));
   }

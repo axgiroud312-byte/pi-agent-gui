@@ -43,6 +43,9 @@ test("native Pi service manages the exact RPC child's auth directory without a c
   const channel = ProxyChannel.fromService<string>(service);
   const target = { workspacePath: root };
   try {
+    const beforeSession = await service.readPiModelCatalog(target);
+    assert(beforeSession.options?.some(model => model.value === "test-local-provider/test-local-model"),
+      "a configured Pi model must be selectable before the first GUI session");
     const created = await service.sendConversationCommandV4({ workspacePath: root, envelope: {
       commandId: randomUUID(), clientId: "auth-test", sessionId: null, issuedAt: Date.now(),
       type: "createSession", payload: { workspaceId: root },

@@ -600,8 +600,9 @@ export interface IZCodeAgentService {
     includeResourceContent?: boolean;
   }): Promise<import("../pi-agent/pi-control-protocol.js").PiControlView>;
   cancelPiTreeNavigation(params: ZCodeAgentSessionTarget): Promise<void>;
-  /** Candidate models read from the owned fixed Pi session, including router refreshes. */
-  readPiModelCatalog(params: ZCodeAgentSessionTarget): Promise<import("@zcode/shared").ZCodeConfigOption>;
+  /** Candidate models from Pi ModelRuntime before a session, or exact RPC session afterwards. */
+  readPiModelCatalog(params: ZCodeAgentWorkspaceTarget & { sessionId?: string }):
+    Promise<import("@zcode/shared").ZCodeConfigOption>;
   /** User shell executes in the owned fixed Pi RPC session and Pi records its history. */
   runPiShell(params: ZCodeAgentSessionTarget & { command: string; excludeFromContext: boolean }):
     Promise<import("../pi-agent/pi-session-supervisor.js").PiShellResult>;

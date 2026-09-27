@@ -7,6 +7,24 @@ import type { Provider } from "@earendil-works/pi-ai";
 import { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { PiAuthManager } from "../src/pi-agent/pi-auth-manager.js";
 
+test("Pi exposes configured model choices before the first GUI session without exposing credentials", async () => {
+  const root = await mkdtemp(join(tmpdir(), "pi-auth-before-session-"));
+  const agentDir = join(root, "agent");
+  await mkdir(agentDir);
+  const secret = "fixture-only-pre-session-key";
+  await writeFile(join(agentDir, "models.json"), JSON.stringify({ providers: {
+    "test-before-session": { baseUrl: "http://127.0.0.1:1/v1", api: "openai-completions",
+      apiKey: secret, models: [{ id: "first-model", name: "First model", input: ["text"],
+        contextWindow: 4096, maxTokens: 256 }] },
+  } }));
+  const manager = new PiAuthManager(agentDir);
+  try {
+    const option = await manager.modelCatalog();
+    assert(option.options?.some(model => model.value === "test-before-session/first-model"));
+    assert.equal(JSON.stringify(option).includes(secret), false);
+  } finally { manager.dispose(); await rm(root, { recursive: true, force: true }); }
+});
+
 async function awaitOperation(manager: PiAuthManager, id: string, waiting = false) {
   for (let count = 0; count < 150; count++) {
     const operation = (await manager.snapshot()).operations.find(item => item.id === id);

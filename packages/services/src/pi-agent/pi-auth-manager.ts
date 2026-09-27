@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import type { AuthEvent, AuthPrompt } from "@earendil-works/pi-ai";
 import { CredentialSynchronizationError, ModelRuntime } from "@earendil-works/pi-coding-agent";
+import type { ZCodeConfigOption } from "@zcode/shared";
 
 export type PiAuthAction = "login" | "resolve" | "logout" | "catalog";
 export type PiAuthMethod = "api_key" | "oauth";
@@ -91,6 +92,24 @@ export class PiAuthManager {
   private sanitize(value: string): string {
     for (const secret of this.sensitive) value = value.split(secret).join("[redacted]");
     return display(value);
+  }
+
+  /** Pi's public model catalog is available before the first RPC session exists. */
+  async modelCatalog(): Promise<ZCodeConfigOption> {
+    if (this.disposed) throw new Error("Pi authentication manager is closed");
+    const runtime = await this.runtime();
+    if (runtime.getError()) throw new Error("Pi model catalog is damaged");
+    const seen = new Set<string>();
+    return { id: "model", name: "Pi model", category: "pi-model", type: "select",
+      currentValue: "", options: runtime.getAvailableSnapshot().flatMap(model => {
+        const value = `${model.provider}/${model.id}`;
+        if (!model.provider || !model.id || seen.has(value)) return [];
+        seen.add(value);
+        return [{ value, name: this.sanitize(model.name || model.id),
+          description: `${model.provider} · ${Array.isArray(model.input) ? model.input.join(", ") : "text"}`,
+          origin: "native" as const, modelProviderId: model.provider,
+          modelProviderName: model.provider, modelThoughtLevels: ["off"] }];
+      }) };
   }
 
   async snapshot(): Promise<PiAuthView> {
