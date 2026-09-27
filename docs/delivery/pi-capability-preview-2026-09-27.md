@@ -11,6 +11,7 @@ This note records work performed after the #34 technical closeout. It does not c
 - `06c0f88` — native Pi image prompt blocks, live model/thinking/usage facts, manual compaction, running steer/follow-up, complete stop commands, and blocking extension UI responses.
 - `0b71ff0` — removes the inherited ZCode provider-registry admission gate. The pinned Pi RPC process owns model readiness and session defaults.
 - `f9b24c4` — refreshes Pi model and resource-command catalogs after lazy session load and session creation.
+- `2856e28`, `8d42fb9` — keep the composer resource surface Pi-scoped, avoid the retired ZCode Skill-catalog error, and remove subagent suggestions from the Pi composer.
 
 ## Local verification
 
@@ -24,6 +25,7 @@ This note records work performed after the #34 technical closeout. It does not c
 | Full workspace build | BLOCKED | unrelated nested CLI debug package has esbuild host `0.28.2` / binary `0.25.12` mismatch |
 | Windows bundle | PASS | electron-builder, runtime dependency audit, and 170.6 MiB size audit |
 | Packaged startup | PASS | unpacked executable opened from `packages/desktop/dist/win-unpacked`; renderer title `Pi Agent IDE`, composer present, no inherited “no model” admission error |
+| Packaged composer scope | PASS | `/` opened the Pi command/skill panel without Skill-catalog errors or subagent section |
 | Packaged Host/Pi | PASS (startup/resume) | packaged log registered native Host channels, restored `New Pi session`, and emitted a real Pi runtime diagnostic |
 | Installer install/upgrade/uninstall | NOT RUN | installer generated but not installed over the user's machine |
 | Online provider | NOT RUN | no account or credential was inspected or changed |
