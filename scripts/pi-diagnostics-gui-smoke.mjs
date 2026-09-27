@@ -95,7 +95,11 @@ try {
   await page.getByTestId('pi-diagnostics-copy').click();
   await page.getByRole('button', { name: '已复制', exact: true }).waitFor();
   const copied = await app.evaluate(({ clipboard }) => clipboard.readText());
-  assert.equal(copied, preview, 'Actual OS clipboard text must equal the rendered preview exactly');
+  // Windows converts LF to CRLF at its text clipboard boundary. Every other
+  // character, line and ordering must still match the rendered preview.
+  assert.equal(copied.replaceAll('\r\n', '\n'), preview,
+    'Actual OS clipboard text must equal the rendered preview after Windows newline conversion');
+  report.clipboardWindowsCrLf = copied.includes('\r\n');
   report.copiedEqualsRenderedPreview = true;
   assert.equal((await boundaries()).filter(entry => entry.type === 'open-external-intercepted').length, 0,
     'Copy must not open GitHub or send the report');
