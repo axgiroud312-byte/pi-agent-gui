@@ -2814,6 +2814,7 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
           establishOwner: () => {
             const initializedServices = createLocalServices({
               piAgentRpcEntry: fileURLToPath(import.meta.resolve("@earendil-works/pi-coding-agent/rpc-entry")),
+              piControlExtensionPath: fileURLToPath(new URL("../pi-control-bridge.mjs", import.meta.url)),
               parentPort,
               settingService,
               prepareLegacyAccountConnections,

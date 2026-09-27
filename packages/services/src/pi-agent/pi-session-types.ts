@@ -1,5 +1,6 @@
 import type { PiRpcClient, RpcDiagnostic, RpcExit } from "./pi-rpc-client.js";
 import type { PiSessionLease } from "./pi-session-lease.js";
+import type { PiControlBridge } from "./pi-control-bridge.js";
 
 export type PiSessionPhase =
   | "starting"
@@ -38,6 +39,7 @@ export interface PiSessionSupervisorOptions {
 export interface SessionRuntime {
   view: PiSessionView;
   client: PiRpcClient;
+  controlBridge: PiControlBridge;
   generation: string;
   stopping: boolean;
   acceptRunEvents: boolean;

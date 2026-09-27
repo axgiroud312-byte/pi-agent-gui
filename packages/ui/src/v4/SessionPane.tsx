@@ -124,6 +124,7 @@ import { shouldIgnoreEscapeForStopGeneration } from "@/v4/composer/escapeStop.js
 import { ConversationDraftEmptyState } from "@/v4/ConversationDraftEmptyState.js";
 import { ConversationDraftSuggestedPromptsContainer } from "@/v4/ConversationDraftSuggestedPromptsContainer.js";
 import { ConversationHeader, type PaneWorkspaceBadge } from "@/v4/ConversationHeader.js";
+import { PiTreeDialog } from "@/v4/PiTreeDialog.js";
 import { ConversationQueuePanel } from "@/v4/ConversationQueuePanel.js";
 import { projectPendingGuideQueue } from "@/v4/pendingGuideProjection.js";
 import { ConversationQuotaBanner } from "@/v4/ConversationQuotaBanner.js";
@@ -3020,6 +3021,18 @@ export function SessionPane({
     [clearQueueEditOperation],
   );
 
+  const beforePiTreeNavigate = useCallback(() => {
+    if (composerDraftStateRef.current.hasContent || composerDraftStateRef.current.busy) {
+      throw new Error("先发送或清空当前草稿，再跳转 Pi 历史节点");
+    }
+  }, []);
+  const restorePiTreeEditor = useCallback((text: string) => {
+    beforePiTreeNavigate();
+    if (!sessionId) throw new Error("当前会话已关闭；请复制恢复文本");
+    setComposerRestoreRequest({ requestId: nextComposerRestoreRequestIdRef.current++,
+      sessionId, workspaceKey, inputKind: "sendText", text, attachments: [] });
+  }, [beforePiTreeNavigate, sessionId, workspaceKey]);
+
   const handleFork = useCallback(
     (target: ConversationRowTarget) => {
       const current = snapshotRef.current;
@@ -4621,6 +4634,11 @@ export function SessionPane({
         onSplitDown={onSplitDown}
         onClosePane={onClosePane}
         workspaceBadge={workspaceBadge}
+        piTreeTrigger={isDesktop && !remoteSessionId && sessionId && !readOnly ? <PiTreeDialog
+          sessionId={sessionId} workspacePath={workspacePath} workspaceIdentity={workspaceIdentity}
+          remoteSessionId={remoteSessionId} beforeNavigate={beforePiTreeNavigate}
+          onRestoredText={restorePiTreeEditor}
+        /> : undefined}
       />
 
       <div

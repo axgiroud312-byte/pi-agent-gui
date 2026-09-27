@@ -564,6 +564,12 @@ export interface ZCodeAgentStorageStartupSnapshot {
 }
 
 export interface IZCodeAgentService {
+  /** Fixed Pi public extension control, scoped to an active leased session. */
+  readPiControlTree(params: ZCodeAgentSessionTarget): Promise<import("../pi-agent/pi-control-protocol.js").PiControlView>;
+  runPiControlTree(params: ZCodeAgentSessionTarget & {
+    action: import("../pi-agent/pi-control-protocol.js").PiControlAction;
+  }): Promise<import("../pi-agent/pi-control-protocol.js").PiControlView>;
+  cancelPiTreeNavigation(params: ZCodeAgentSessionTarget): Promise<void>;
   /** 控制面不需要账号或模型，且不发送普通协议请求。 */
   prepareStorage(params: ZCodeAgentWorkspaceTarget): Promise<void>;
   getStorageStartupState(

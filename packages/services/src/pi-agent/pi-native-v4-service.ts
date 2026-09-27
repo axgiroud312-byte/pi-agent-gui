@@ -55,6 +55,7 @@ import { createPiV4Snapshot } from "./pi-v4-snapshot.js";
 import { piWireFrames } from "./pi-v4-frames.js";
 import { readPiPromptImages } from "./pi-prompt-images.js";
 import { PiImageUploads } from "./pi-image-upload.js";
+import { piControlView, type PiControlAction, type PiControlView } from "./pi-control-protocol.js";
 
 interface SessionRecord {
   workspaceKey: string;
@@ -167,6 +168,7 @@ export class PiNativeV4Service implements V4Methods {
   private readonly indexLogs = new Map<string, IndexLog>();
   private readonly commandResults = new Map<string, Promise<CommandAck>>();
   private readonly sessionAdmissions = new Map<string, Promise<CommandAck>>();
+  private readonly treeOperations = new Set<string>();
   private readonly reportedCommandFailures = new Set<string>();
   private readonly reportedRecordTypes = new Set<string>();
   private readonly catalog: PiSessionCatalog;
@@ -566,7 +568,7 @@ export class PiNativeV4Service implements V4Methods {
       "tool_execution_start", "tool_execution_update", "tool_execution_end", "queue_update",
       "auto_retry_start", "auto_retry_end", "summarization_retry_scheduled",
       "summarization_retry_finished", "compaction_start", "compaction_end", "extension_error",
-      "extension_ui_request", "extension_ui_response", "session_start", "session_shutdown",
+      "extension_ui_request", "extension_ui_response", "session_start", "session_shutdown", "entry_appended",
     ].includes(event.type) && this.reportedRecordTypes.size < 32 && !this.reportedRecordTypes.has(event.type)) {
       this.reportedRecordTypes.add(event.type);
       // Only the record type is logged. Unknown payloads may contain secrets.
@@ -718,6 +720,57 @@ export class PiNativeV4Service implements V4Methods {
     const record = this.sessions.get(sessionId);
     if (!record || record.workspaceKey !== resolveWorkspaceKey(params)) throw new Error("Pi session is not owned by this workspace");
     return record;
+  }
+
+  async readPiControlTree(params: ZCodeAgentWorkspaceTarget & { sessionId: string }): Promise<PiControlView> {
+    this.assertWorkspaceOpen(params);
+    await this.loadSession(params, params.sessionId);
+    this.recordFor(params, params.sessionId);
+    return piControlView(await this.supervisor.readControlBridge(params.sessionId));
+  }
+
+  private async reconcilePiTreeHistory(record: SessionRecord): Promise<void> {
+    const messages = await this.supervisor.getHistoryMessages(record.view.sessionId);
+    const deltas = record.projection.reconcile(messages);
+    record.state.messageCount = messages.length;
+    record.state.piIncompleteTurn = record.projection.hasIncompleteTurn();
+    if (deltas.length) {
+      this.emitConversation(record, deltas);
+      this.emitIndex(record.workspaceKey, record);
+    }
+    await this.safelyPersist(record);
+  }
+
+  async runPiControlTree(params: ZCodeAgentWorkspaceTarget & { sessionId: string; action: PiControlAction }): Promise<PiControlView> {
+    this.assertWorkspaceOpen(params);
+    await this.loadSession(params, params.sessionId);
+    const record = this.recordFor(params, params.sessionId);
+    const key = `${record.workspaceKey}:${params.sessionId}`;
+    if (this.treeOperations.has(key) || this.sessionAdmissions.has(key) || record.state.piPendingIntent ||
+      !["idle", "settled", "stopped"].includes(record.view.phase)) {
+      throw new Error("Pi session is busy or requires history reconciliation before tree control");
+    }
+    this.treeOperations.add(key);
+    try {
+      const result = await this.supervisor.runControlBridge(params.sessionId, params.action);
+      if (params.action.operation === "navigate") await this.reconcilePiTreeHistory(record);
+      if (params.action.operation === "reload") await this.refreshRuntimeFacts(record);
+      return piControlView(result);
+    } catch (error) {
+      if (params.action.operation === "navigate") {
+        try { await this.reconcilePiTreeHistory(record); }
+        catch { /* Preserve the original control error; next read reports native facts. */ }
+      }
+      throw error;
+    } finally {
+      this.treeOperations.delete(key);
+    }
+  }
+
+  async cancelPiTreeNavigation(params: ZCodeAgentWorkspaceTarget & { sessionId: string }): Promise<void> {
+    this.assertWorkspaceOpen(params);
+    this.recordFor(params, params.sessionId);
+    await this.supervisor.cancelTreeNavigation(params.sessionId);
   }
 
   async attachmentBeginV4(params: ZCodeAgentAttachmentBeginParams): Promise<ReturnType<PiImageUploads["begin"]>> {
@@ -907,6 +960,9 @@ export class PiNativeV4Service implements V4Methods {
       await this.loadSession(params, envelope.sessionId);
       record = this.recordFor(params, envelope.sessionId);
       if (envelope.type === "sendText") {
+        if (this.treeOperations.has(`${record.workspaceKey}:${record.view.sessionId}`)) {
+          return failure(commandId, "pi.treeControlBusy", "Pi tree control is active", record.snapshot.revision);
+        }
         const payload = envelope.payload as { text: string; attachments?: AttachmentRef[]; requestedDelivery?: string;
           mode?: string; planEnabled?: boolean; modelSelection?: { providerId: string; modelId: string; options?: { reasoningLevel?: string } };
           browserAmbientContext?: unknown; context_refs?: unknown[]; heldQueueDisposition?: string;

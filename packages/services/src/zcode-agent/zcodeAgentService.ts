@@ -3320,6 +3320,9 @@ export function createZCodeAgentService(
   }
 
   return {
+    async readPiControlTree() { throw new Error("Pi public control bridge is unavailable in this runtime"); },
+    async runPiControlTree() { throw new Error("Pi public control bridge is unavailable in this runtime"); },
+    async cancelPiTreeNavigation() { throw new Error("Pi public control bridge is unavailable in this runtime"); },
     async prepareStorage(params) {
       const client = await processManager.getClient(params);
       wireClient(client, params, "chat");

@@ -7,6 +7,8 @@ import { PiRpcClient, PiRpcError } from "./pi-rpc-client.js";
 import { PiSessionLease } from "./pi-session-lease.js";
 import { settlePiSessionBeforeClose } from "./pi-session-teardown.js";
 import { getPiHistoryMessages } from "./pi-session-history.js";
+import { PiControlBridge } from "./pi-control-bridge.js";
+import type { PiControlAction, PiControlSnapshot } from "./pi-control-protocol.js";
 import { canonicalSessionLeaf, reserveNewSessionPath, sessionFileExists } from "./pi-session-path.js";
 import type { PiSessionSupervisorOptions, PiSessionView, SessionRuntime, SupervisorEvents } from "./pi-session-types.js";
 import type { PiPromptImage } from "./pi-prompt-images.js";
@@ -160,6 +162,7 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
         if (this.exitCleanups.get(view.sessionFile) === cleanup) this.exitCleanups.delete(view.sessionFile);
       });
       this.exitCleanups.set(view.sessionFile, cleanup);
+      runtime.controlBridge.dispose();
       void cleanup.catch(() => {}); // Resume/dispose still observe the rejected owner barrier.
     });
   }
@@ -258,6 +261,7 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
       const runtime: SessionRuntime = {
         view,
         client,
+        controlBridge: new PiControlBridge(client),
         generation: randomUUID(),
         stopping: false,
         acceptRunEvents: state.isStreaming === true || state.isCompacting === true,
@@ -331,6 +335,26 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
     return runtime;
   }
 
+  async readControlBridge(sessionId: string): Promise<PiControlSnapshot> {
+    const runtime = this.requireSession(sessionId);
+    if (runtime.view.uncertainDelivery || runtime.view.reconciliationRequired) {
+      throw new Error("Pi session requires reconciliation before tree control");
+    }
+    return runtime.controlBridge.refresh();
+  }
+
+  async runControlBridge(sessionId: string, action: PiControlAction): Promise<PiControlSnapshot> {
+    const runtime = this.requireSession(sessionId);
+    if (runtime.view.uncertainDelivery || runtime.view.reconciliationRequired) {
+      throw new Error("Pi session requires reconciliation before tree control");
+    }
+    return runtime.controlBridge.act(action);
+  }
+
+  cancelTreeNavigation(sessionId: string): Promise<void> {
+    return this.requireSession(sessionId).controlBridge.cancelNavigation();
+  }
+
   requireReconciliation(sessionId: string, uncertainDelivery: boolean): PiSessionView {
     const runtime = this.requireSession(sessionId);
     runtime.view.uncertainDelivery ||= uncertainDelivery;
@@ -364,6 +388,7 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
 
   async setModel(sessionId: string, provider: string, modelId: string, thinkingLevel?: string): Promise<void> {
     const runtime = this.requireSession(sessionId);
+    if (runtime.controlBridge.blocksPrompt) throw new Error("Pi tree control is active or requires reconciliation");
     if (runtime.view.uncertainDelivery || runtime.view.reconciliationRequired) throw new Error("Pi session requires reconciliation before model change");
     const model = await runtime.client.request({ type: "set_model", provider, modelId });
     if (!model.success) throw new Error(model.error ?? "Pi rejected the model");
@@ -402,6 +427,9 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
   async enqueueText(sessionId: string, text: string, behavior: "steer" | "followUp",
     images: readonly PiPromptImage[] = []): Promise<void> {
     if (!text.trim() && images.length === 0) throw new Error("Pi input is empty");
+    if (this.requireSession(sessionId).controlBridge.blocksPrompt) {
+      throw new Error("Pi tree control is active or requires reconciliation");
+    }
     await this.command(sessionId, {
       type: behavior === "steer" ? "steer" : "follow_up", message: text,
       ...(images.length ? { images: [...images] } : {}),
@@ -410,6 +438,7 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
 
   async sendText(sessionId: string, text: string, images: readonly PiPromptImage[] = []): Promise<"run" | "noRun" | "reconcile"> {
     const runtime = this.requireSession(sessionId);
+    if (runtime.controlBridge.blocksPrompt) throw new Error("Pi tree control is active or requires reconciliation");
     if (runtime.view.uncertainDelivery || runtime.view.reconciliationRequired) {
       throw new Error("Pi session requires reconciliation before another input");
     }
@@ -522,6 +551,7 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
     const runtime = this.sessions.get(sessionId) ?? this.closingSessions.get(sessionId);
     if (!runtime) return Promise.resolve();
     if (this.sessions.has(sessionId)) {
+      runtime.controlBridge.dispose();
       runtime.generation = randomUUID();
       this.sessions.delete(sessionId);
       this.sessionFiles.delete(runtime.view.sessionFile);

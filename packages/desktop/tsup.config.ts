@@ -135,6 +135,18 @@ function createDevReadyMarkerHook(target: "bootstrap" | "main" | "host" | "prelo
 
 export default defineConfig([
   {
+    name: "pi-control-bridge",
+    entry: { "pi-control-bridge": "../services/src/pi-agent/pi-control-bridge-extension.ts" },
+    outDir: "out",
+    format: "esm",
+    outExtension: () => ({ js: ".mjs" }),
+    platform: "node",
+    target: "node22",
+    splitting: false,
+    external: ["@earendil-works/pi-coding-agent"],
+    ...desktopTsupBundleSecurityOptions,
+  },
+  {
     name: "bootstrap",
     entry: { bootstrap: "src/bootstrap.ts" },
     outDir: "out",

@@ -953,6 +953,9 @@ importers:
 
   packages/services:
     dependencies:
+      '@earendil-works/pi-coding-agent':
+        specifier: 0.87.0
+        version: 0.87.0(@modelcontextprotocol/sdk@1.29.0(zod@4.6.5))(ws@8.20.0)(zod@4.6.5)
       '@zcode/provider':
         specifier: workspace:*
         version: link:../provider

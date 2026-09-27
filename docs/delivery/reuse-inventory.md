@@ -25,6 +25,12 @@ worktree 父目录：`C:\Users\niilo\AppData\Local\Temp\opencode`。以下提交
 
 证据分别在各 worktree 的 `docs/delivery/issue-*-evidence.md`（认证为 `issue-7-auth-evidence.md`）。旧测试计数/截图属于这些提交，迁入后必须复验。旧 #32 之前的本地“完成”评论保留作历史，当前正文和重建评论覆盖其路线。
 
+### #6 原生服务移植记录（2026-09-27，隔离分支待整合）
+
+对照旧 `43289a0` 的 `pi-bridge-extension.ts`、`bridge-controller.ts` 和真 Pi 测试，保留了版本化 slash command、`get_commands` 发现、notify 关联结果、会话代次和 `reload` 后新绑定确认这些公共 API 用法。本次在原生 `PiSessionSupervisor` 的一会话一 Pi 进程及 JSONL 租约下重写为 `packages/services/src/pi-agent/pi-control-{protocol,bridge,bridge-extension}.ts`；旧 App、preload、session switch/newSession 和自建 UI 没有移植。树与 entries 由 Pi RPC 读取，跳转用 `ExtensionCommandContext.navigateTree`，标签用 `pi.setLabel`，重载用 `ctx.reload`。`PiTreeDialog` 接入原生 `SessionPane`，并以原生 `ComposerRestoreRequest` 恢复用户输入文本。
+
+跳转后若不产生新消息，Pi 0.87.0 的内存叶子在进程重启时会回到 JSONL 最末条。因此成功跳转后使用公开 `pi.appendEntry` 在当前分支写入不参与模型上下文的自定义导航节点；重启回归验证书签和当前分支都由 Pi JSONL 恢复。固定 Pi 0.87.0 来源为仓库已声明的 `@earendil-works/pi-coding-agent`，版权与许可证沿用 `THIRD_PARTY_NOTICES.md` 的 Pi 声明。受控本地 provider 的测试结果不计在线 provider 或 GUI 视觉验收。
+
 另有 #2 的 `issue-2-rpc-transport`、`issue-2-renderer`、`issue-2-e2e` 工作树，内容已进入 #31，不重复领取。`integration/first-release` 停在 `46c34f1`，不继续旧批次整合。
 
 ## 已知外部验收差额
