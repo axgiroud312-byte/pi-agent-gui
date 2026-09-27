@@ -587,6 +587,8 @@ export interface IZCodeAgentService {
     action: import("../pi-agent/pi-control-protocol.js").PiControlAction;
   }): Promise<import("../pi-agent/pi-control-protocol.js").PiControlView>;
   cancelPiTreeNavigation(params: ZCodeAgentSessionTarget): Promise<void>;
+  /** Candidate models read from the owned fixed Pi session, including router refreshes. */
+  readPiModelCatalog(params: ZCodeAgentSessionTarget): Promise<import("@zcode/shared").ZCodeConfigOption>;
   readPiLlamaRouter(params: ZCodeAgentSessionTarget): Promise<import("../pi-agent/pi-llama-router-service.js").PiLlamaRouterView>;
   runPiLlamaRouter(params: ZCodeAgentSessionTarget & {
     action: import("../pi-agent/pi-llama-router-service.js").PiLlamaRouterAction;

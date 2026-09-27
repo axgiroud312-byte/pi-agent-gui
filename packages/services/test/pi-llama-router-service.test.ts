@@ -76,6 +76,10 @@ test("native GUI service loads router model, refreshes Pi provider, invokes Pi i
         action: { kind: "load", modelId: "test.gguf" } });
       assert.equal(loaded.models[0]?.status.value, "loaded");
       assert.equal(loaded.models[0]?.selectableInPi, true);
+      const guiCatalog = await service.readPiModelCatalog({ workspacePath, sessionId });
+      assert.equal(guiCatalog.category, "pi-model");
+      assert(guiCatalog.options?.some(option => option.value === "llama.cpp/test.gguf"),
+        "the GUI picker must receive the refreshed Pi candidate from the same session");
       const catalog = await supervisor.command(sessionId, { type: "get_available_models" }) as { models: Array<{ provider: string; id: string }> };
       assert(catalog.models.some(model => model.provider === "llama.cpp" && model.id === "test.gguf"));
       await supervisor.setModel(sessionId, "llama.cpp", "test.gguf");

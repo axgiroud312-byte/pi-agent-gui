@@ -3,7 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { Emitter } from "@zcode/rpc";
-import { resolveWorkspaceKey } from "@zcode/shared";
+import { resolveWorkspaceKey, type ZCodeConfigOption } from "@zcode/shared";
 import {
   V4_WIRE_PROTOCOL_VERSION,
   applyConversationDeltas,
@@ -999,6 +999,37 @@ export class PiNativeV4Service implements V4Methods {
     return new PiLlamaRouterClient(auth.serverUrl, auth.apiKey);
   }
 
+  private async piModelOption(record: SessionRecord): Promise<ZCodeConfigOption> {
+    const catalog = await this.supervisor.command(record.view.sessionId, { type: "get_available_models" });
+    const catalogObject = catalog && typeof catalog === "object" ? catalog as Record<string, unknown> : {};
+    const models = Array.isArray(catalogObject.models) ? catalogObject.models : [];
+    const currentModel = record.state.model && typeof record.state.model === "object"
+      ? record.state.model as Record<string, unknown> : {};
+    return { id: "model", name: "Pi model", category: "pi-model", type: "select",
+      currentValue: typeof currentModel.provider === "string" && typeof currentModel.id === "string"
+        ? `${currentModel.provider}/${currentModel.id}` : "",
+      options: models.flatMap(raw => {
+        const model = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
+        if (typeof model.provider !== "string" || typeof model.id !== "string") return [];
+        const selected = currentModel.provider === model.provider && currentModel.id === model.id;
+        const levels = selected && Array.isArray(record.state.piThinkingLevels)
+          ? record.state.piThinkingLevels.filter((level): level is string => typeof level === "string") : undefined;
+        return [{ value: `${model.provider}/${model.id}`,
+          name: typeof model.name === "string" ? model.name : model.id,
+          description: `${model.provider} · ${Array.isArray(model.input) ? model.input.join(", ") : "text"}`,
+          origin: "native" as const, modelProviderId: model.provider, modelProviderName: model.provider,
+          modelThoughtLevels: levels ?? ["off"],
+          ...(levels ? { modelDefaultThoughtLevel: typeof record.state.thinkingLevel === "string"
+            ? record.state.thinkingLevel : levels[0] } : {}) }];
+      }) };
+  }
+
+  async readPiModelCatalog(params: ZCodeAgentWorkspaceTarget & { sessionId: string }): Promise<ZCodeConfigOption> {
+    this.assertWorkspaceOpen(params);
+    await this.loadSession(params, params.sessionId);
+    return this.piModelOption(this.recordFor(params, params.sessionId));
+  }
+
   async readPiLlamaRouter(params: ZCodeAgentWorkspaceTarget & { sessionId: string }): Promise<PiLlamaRouterView> {
     this.assertWorkspaceOpen(params);
     await this.loadSession(params, params.sessionId);
@@ -1037,7 +1068,7 @@ export class PiNativeV4Service implements V4Methods {
         else await client.download(modelId, onProgress);
       }
       await this.supervisor.refreshLlamaModels(params.sessionId);
-      this.refreshWorkspaceConfig(record.workspaceKey);
+      this.refreshWorkspaceConfig(record.workspaceKey, record.view.sessionId);
       return await this.readPiLlamaRouter(params);
     } finally { this.llamaOperations.delete(params.sessionId); this.llamaReservations.delete(params.sessionId); }
   }
@@ -1052,7 +1083,7 @@ export class PiNativeV4Service implements V4Methods {
     const client = active?.client ?? await this.llamaClient(record);
     await client.cancel(params.modelId);
     await this.supervisor.refreshLlamaModels(params.sessionId);
-    this.refreshWorkspaceConfig(record.workspaceKey);
+    this.refreshWorkspaceConfig(record.workspaceKey, record.view.sessionId);
     return await this.readPiLlamaRouter(params);
   }
 
@@ -1438,6 +1469,7 @@ export class PiNativeV4Service implements V4Methods {
         const payload = envelope.payload as { provider: string; model: string; thought: string };
         await this.supervisor.setModel(record.view.sessionId, payload.provider, payload.model, payload.thought);
         await this.refreshRuntimeFacts(record);
+        this.refreshWorkspaceConfig(record.workspaceKey, record.view.sessionId);
         return { commandId, status: "accepted", revisionAtDecision: record.snapshot.revision };
       }
       if (envelope.type === "setFollowupMode") {
@@ -1642,45 +1674,28 @@ export class PiNativeV4Service implements V4Methods {
     return { ack: { subscriptionId: sub.id, mode: "snapshot", logEpoch: key } };
   }
 
-  private refreshWorkspaceConfig(workspaceKey: string): void {
+  private refreshWorkspaceConfig(workspaceKey: string, preferredSessionId?: string): void {
     for (const sub of this.subscriptions.values()) {
       if (sub.workspaceKey === workspaceKey && sub.topic === workspaceConfigTopic(workspaceKey)) {
-        void this.sendConfigSnapshot(sub, "recovery");
+        void this.sendConfigSnapshot(sub, "recovery", preferredSessionId);
       }
     }
   }
 
-  private async sendConfigSnapshot(sub: Subscription, deliveryKind: "initial" | "recovery"): Promise<void> {
+  private async sendConfigSnapshot(sub: Subscription, deliveryKind: "initial" | "recovery",
+    preferredSessionId?: string): Promise<void> {
     if (this.subscriptions.get(sub.id) !== sub) return;
-    const record = [...this.sessions.values()].find(candidate => candidate.workspaceKey === sub.workspaceKey);
-    let configOptions: Array<Record<string, unknown>> = [];
+    const preferred = preferredSessionId ? this.sessions.get(preferredSessionId) : undefined;
+    const record = preferred?.workspaceKey === sub.workspaceKey ? preferred :
+      [...this.sessions.values()].find(candidate => candidate.workspaceKey === sub.workspaceKey);
+    let configOptions: ZCodeConfigOption[] = [];
     let slashCommands: Array<Record<string, unknown>> = [];
     if (record && typeof this.supervisor.command === "function") {
-      const [catalog, commands] = await Promise.all([
-        this.supervisor.command(record.view.sessionId, { type: "get_available_models" }).catch(() => undefined),
+      const [modelOption, commands] = await Promise.all([
+        this.piModelOption(record).catch(() => undefined),
         this.supervisor.command(record.view.sessionId, { type: "get_commands" }).catch(() => undefined),
       ]);
-      const catalogObject = catalog && typeof catalog === "object" ? catalog as Record<string, unknown> : {};
-      const models = Array.isArray(catalogObject.models) ? catalogObject.models : [];
-      const currentModel = record.state.model && typeof record.state.model === "object"
-        ? record.state.model as Record<string, unknown> : {};
-      configOptions = [{ id: "model", name: "Pi model", type: "select",
-        currentValue: typeof currentModel.provider === "string" && typeof currentModel.id === "string"
-          ? `${currentModel.provider}/${currentModel.id}` : "",
-        options: models.flatMap(raw => {
-          const model = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
-          if (typeof model.provider !== "string" || typeof model.id !== "string") return [];
-          const selected = currentModel.provider === model.provider && currentModel.id === model.id;
-          const levels = selected && Array.isArray(record.state.piThinkingLevels)
-            ? record.state.piThinkingLevels.filter((level): level is string => typeof level === "string") : undefined;
-          return [{ value: `${model.provider}/${model.id}`,
-            name: typeof model.name === "string" ? model.name : model.id,
-            description: `${model.provider} · ${Array.isArray(model.input) ? model.input.join(", ") : "text"}`,
-            origin: "native" as const, modelProviderId: model.provider, modelProviderName: model.provider,
-            ...(levels ? { modelThoughtLevels: levels,
-              modelDefaultThoughtLevel: typeof record.state.thinkingLevel === "string"
-                ? record.state.thinkingLevel : levels[0] } : {}) }];
-        }) }];
+      if (modelOption) configOptions = [modelOption];
       const commandObject = commands && typeof commands === "object" ? commands as Record<string, unknown> : {};
       slashCommands = (Array.isArray(commandObject.commands) ? commandObject.commands : []).flatMap(raw => {
         const command = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};

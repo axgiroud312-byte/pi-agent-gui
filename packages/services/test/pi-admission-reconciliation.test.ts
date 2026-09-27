@@ -231,6 +231,7 @@ test('workspace config projects Pi model and resource command catalogs', async (
     const wire = workspaceConfigTopicWireFrameSchema.parse(frames.at(-1));
     assert.equal(wire.kind, 'complete');
     if (wire.kind !== 'complete' || wire.frame.payload.kind !== 'snapshot') throw Error('missing config snapshot');
+    assert.equal(wire.frame.payload.snapshot.config.configOptions[0]?.category, 'pi-model');
     assert.equal(wire.frame.payload.snapshot.config.configOptions[0]?.options?.[0]?.value, 'test/model');
     assert.equal(wire.frame.payload.snapshot.config.slashCommands[0]?.name, 'skill-command');
     await f.service.unsubscribeWorkspaceConfigV4({ ...f.target, subscriptionId: subscription.ack.subscriptionId });

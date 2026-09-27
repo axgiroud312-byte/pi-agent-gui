@@ -91,6 +91,7 @@ import { usePromptEditorDragState } from "@/prompt-editor/usePromptEditorDragSta
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { advanceComposerDraftRevision } from "@/v4/composer/composerDraftRevision.js";
 import type { AppSlashCommand } from "@/slashCommandHelpers.js";
+import type { PiModelCandidate } from "@/v4/composer/piModelCatalog.js";
 import { useOptionalServices } from "@/hooks/useServices.js";
 import { logger } from "@/logger.js";
 import { runUserAction, startUserAction } from "@/lib/userActionTelemetry.js";
@@ -397,6 +398,7 @@ interface ConversationComposerProps {
   remoteSessionId?: string;
   /** SessionPane 从目标 Host 原子读取的选择事实；Composer 不自行解析 Host。 */
   modelSelectionView?: ModelSelectionView | null;
+  piModelCatalog?: readonly PiModelCandidate[];
   modelSelectionState?: ModelSelectionState;
   /** Model Selection 首次读取失败后的显式重试入口。 */
   modelSelectionReload?: () => void;
@@ -502,6 +504,7 @@ function ConversationComposerImpl({
   workspaceIdentity,
   remoteSessionId,
   modelSelectionView = null,
+  piModelCatalog = [],
   modelSelectionState = MODEL_SELECTION_LOADING_STATE,
   modelSelectionReload,
   attachmentSessionId = null,
@@ -2057,6 +2060,7 @@ function ConversationComposerImpl({
             workspacePath={workspacePath}
             workspaceIdentity={workspaceIdentity}
             modelSelectionView={modelSelectionView}
+            piModelCatalog={piModelCatalog}
             modelSelectionState={modelSelectionState}
             modelSelectionReload={modelSelectionReload}
             sessionId={sessionId ?? null}
@@ -2144,6 +2148,7 @@ function ConversationComposerImpl({
       modelSelectionReload,
       modelSelectionState,
       modelSelectionView,
+      piModelCatalog,
       onSelectThought,
       onRecoverCustomModelSelection,
       onSendCompressionCommand,

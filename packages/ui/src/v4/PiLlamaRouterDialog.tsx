@@ -12,11 +12,13 @@ const statusName: Record<string, string> = {
   loaded: "已加载", loading: "加载中", unloaded: "未加载", downloading: "下载中", sleeping: "休眠中",
 };
 
-export function PiLlamaRouterDialog({ sessionId, workspacePath, workspaceIdentity, remoteSessionId }: {
+export function PiLlamaRouterDialog({ sessionId, workspacePath, workspaceIdentity, remoteSessionId,
+  onModelsChanged }: {
   sessionId: string;
   workspacePath: string;
   workspaceIdentity?: string;
   remoteSessionId?: string | null;
+  onModelsChanged?: () => Promise<void> | void;
 }) {
   const { zcodeAgentService } = useServices();
   const [open, setOpen] = useState(false);
@@ -53,6 +55,7 @@ export function PiLlamaRouterDialog({ sessionId, workspacePath, workspaceIdentit
     cancelled.current = false; setError(null); setProgress(null); setBusy(action);
     try {
       setView(await zcodeAgentService.runPiLlamaRouter({ ...target, action }));
+      await onModelsChanged?.();
       if (action.kind === "download") setDownloadId("");
     } catch (cause) {
       if (!cancelled.current) setError(cause instanceof Error ? cause.message : String(cause));
@@ -63,7 +66,8 @@ export function PiLlamaRouterDialog({ sessionId, workspacePath, workspaceIdentit
   const cancel = async () => {
     if (!busy || busy.kind === "refresh") return;
     cancelled.current = true;
-    try { setView(await zcodeAgentService.cancelPiLlamaRouter({ ...target, modelId: busy.modelId })); }
+    try { setView(await zcodeAgentService.cancelPiLlamaRouter({ ...target, modelId: busy.modelId }));
+      await onModelsChanged?.(); }
     catch (cause) { cancelled.current = false; setError(cause instanceof Error ? cause.message : String(cause)); }
   };
 

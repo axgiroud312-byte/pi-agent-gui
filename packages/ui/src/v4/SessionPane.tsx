@@ -126,6 +126,7 @@ import { ConversationDraftSuggestedPromptsContainer } from "@/v4/ConversationDra
 import { ConversationHeader, type PaneWorkspaceBadge } from "@/v4/ConversationHeader.js";
 import { PiTreeDialog } from "@/v4/PiTreeDialog.js";
 import { PiLlamaRouterDialog } from "@/v4/PiLlamaRouterDialog.js";
+import { extractPiModelCatalog } from "@/v4/composer/piModelCatalog.js";
 import { ConversationQueuePanel } from "@/v4/ConversationQueuePanel.js";
 import { projectPendingGuideQueue } from "@/v4/pendingGuideProjection.js";
 import { ConversationQuotaBanner } from "@/v4/ConversationQuotaBanner.js";
@@ -555,7 +556,7 @@ export function SessionPane({
     fileRewindPreview,
   } = useV4Conversation();
   const platform = useOptionalPlatform();
-  const { conversationShareService, modelSelectionService, zcodeSessionService, zcodeTaskService } =
+  const { conversationShareService, modelSelectionService, zcodeAgentService, zcodeSessionService, zcodeTaskService } =
     useServices();
   const { intl, locale } = useZCodeIntl();
   const slashCommands = useSlashCommands(workspacePath, workspaceIdentity);
@@ -1118,6 +1119,34 @@ export function SessionPane({
   const workspaceConfigOptions = useZCodeSessionStore(
     (store) => store.getWorkspaceState(workspacePath, workspaceIdentity).configOptions,
   );
+  const piCatalogKey = sessionId ? JSON.stringify([workspaceKey, sessionId]) : null;
+  const [piCatalogRead, setPiCatalogRead] = useState<{ key: string; catalog: ReturnType<typeof extractPiModelCatalog> } | null>(null);
+  const piCatalogRequestRef = useRef(0);
+  const refreshPiModelCatalog = useCallback(async () => {
+    if (!isDesktop || remoteSessionId || !sessionId || !piCatalogKey) return;
+    const request = ++piCatalogRequestRef.current;
+    const option = await zcodeAgentService.readPiModelCatalog({ sessionId, workspacePath,
+      ...(workspaceIdentity ? { workspaceIdentity } : {}) });
+    if (request === piCatalogRequestRef.current) {
+      setPiCatalogRead({ key: piCatalogKey, catalog: extractPiModelCatalog([option]) });
+    }
+  }, [isDesktop, piCatalogKey, remoteSessionId, sessionId, workspaceIdentity, workspacePath, zcodeAgentService]);
+  useEffect(() => {
+    let active = true;
+    if (piCatalogKey) void refreshPiModelCatalog().catch(error => {
+      if (active) logger.warn("[pi-model-catalog] Pi candidate read failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
+    return () => { active = false; };
+  // Pi exposes thinking levels for the currently selected model. After set_model,
+  // read that model's levels from the same session instead of retaining the
+  // previous model's picker options.
+  }, [piCatalogKey, refreshPiModelCatalog, snapshot?.config.provider, snapshot?.config.model]);
+  const piModelCatalog = useMemo(() => !isDesktop || remoteSessionId ? [] :
+    piCatalogKey ? piCatalogRead?.key === piCatalogKey ? piCatalogRead.catalog : [] :
+      extractPiModelCatalog(workspaceConfigOptions ?? []),
+  [isDesktop, piCatalogKey, piCatalogRead, remoteSessionId, workspaceConfigOptions]);
   useEffect(() => {
     if (
       !sessionId ||
@@ -1259,6 +1288,7 @@ export function SessionPane({
     sessionConfig: snapshot?.sessionId === sessionId ? snapshot.config : null,
     agentStartupAllowed: draftAgentStartupAllowed,
     modelSelectionService,
+    piModelCatalog,
   });
   const modelSelectionView =
     modelSelectionRead.state.status === "ready" ? modelSelectionRead.state.view : null;
@@ -1287,12 +1317,12 @@ export function SessionPane({
   }, [draftConfigRef, modelSelectionView?.revision, sessionId, workspaceIdentity, workspacePath]);
   const recommendStartPlan = useStartPlanRecommendation(modelSelectionView);
   const createSubmissionFromComposer = useCallback(
-    () => createComposerSubmissionConfig(draftConfigRef.current, modelSelectionView),
-    [draftConfigRef, modelSelectionView],
+    () => createComposerSubmissionConfig(draftConfigRef.current, modelSelectionView, piModelCatalog),
+    [draftConfigRef, modelSelectionView, piModelCatalog],
   );
   const composerSubmissionReady = useMemo(
-    () => createComposerSubmissionConfig(draftConfig, modelSelectionView) !== null,
-    [draftConfig, modelSelectionView],
+    () => createComposerSubmissionConfig(draftConfig, modelSelectionView, piModelCatalog) !== null,
+    [draftConfig, modelSelectionView, piModelCatalog],
   );
   const codingPlanUpgradeDialog = useOptionalCodingPlanUpgradeDialog();
   const openSettingsTab = useOptionalTabStore((state) => state.openSettingsTab);
@@ -4410,6 +4440,7 @@ export function SessionPane({
       workspaceIdentity={workspaceIdentity}
       remoteSessionId={remoteSessionId ?? undefined}
       modelSelectionView={modelSelectionView}
+      piModelCatalog={piModelCatalog}
       modelSelectionState={modelSelectionRead.state}
       modelSelectionReload={modelSelectionRead.reload}
       attachmentSessionId={effectiveSessionId}
@@ -4637,7 +4668,7 @@ export function SessionPane({
         workspaceBadge={workspaceBadge}
         piTreeTrigger={isDesktop && !remoteSessionId && sessionId && !readOnly ? <><PiLlamaRouterDialog
           sessionId={sessionId} workspacePath={workspacePath} workspaceIdentity={workspaceIdentity}
-          remoteSessionId={remoteSessionId} /><PiTreeDialog
+          remoteSessionId={remoteSessionId} onModelsChanged={refreshPiModelCatalog} /><PiTreeDialog
           sessionId={sessionId} workspacePath={workspacePath} workspaceIdentity={workspaceIdentity}
           remoteSessionId={remoteSessionId} beforeNavigate={beforePiTreeNavigate}
           onRestoredText={restorePiTreeEditor}

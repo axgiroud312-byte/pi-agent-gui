@@ -37,6 +37,7 @@ import {
 import { resolveAppFollowupMode } from "@/v4/composer/followupModeSettings.js";
 import { logger } from "@/logger.js";
 import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
+import { findPiModel, type PiModelCandidate } from "@/v4/composer/piModelCatalog.js";
 
 /** 目录水合单飞（per workspaceKey）：draft、已有 session 和严格模式双挂载共享一次 RPC。 */
 const workspaceCatalogHydrationFlights = new Map<string, Promise<void>>();
@@ -110,6 +111,7 @@ export function useDraftConfigControl(params: {
   /** provider registry 已通过 renderer readiness 门禁后才允许拉起 Agent。 */
   agentStartupAllowed?: boolean;
   modelSelectionService: IModelSelectionService | null;
+  piModelCatalog?: readonly PiModelCandidate[];
 }): DraftConfigControl {
   const {
     workspacePath,
@@ -119,6 +121,7 @@ export function useDraftConfigControl(params: {
     sessionConfig,
     agentStartupAllowed = true,
     modelSelectionService,
+    piModelCatalog = [],
   } = params;
   const workspaceKey = workspaceIdentity?.trim() || workspacePath;
   const displayProvider = provider ?? ZCODE_AGENT_PROVIDER;
@@ -176,9 +179,11 @@ export function useDraftConfigControl(params: {
   stateRef.current = currentState;
   // 原因：按 revision 清草稿会把短暂不可用永久写成空选择。这里只派生当前结果，
   // 正文/模式自动保存继续保存 draft 中的原意图；读取未就绪时保留展示，提交由 View 门禁阻断。
-  const effectiveSelection = modelSelectionView
-    ? (modelSelectionView.effectiveSelection ?? undefined)
-    : draft.modelSelection;
+  const piSelection = draft.modelSelection && findPiModel(piModelCatalog,
+    draft.modelSelection.providerId, draft.modelSelection.modelId);
+  const effectiveSelection = piSelection
+    ? draft.modelSelection
+    : modelSelectionView ? (modelSelectionView.effectiveSelection ?? undefined) : draft.modelSelection;
   const draftConfig = useMemo<Partial<SessionConfigState>>(
     () => ({
       mode: draft.mode,
@@ -415,6 +420,10 @@ export function useDraftConfigControl(params: {
       const modelSelection = modelSelectionView
         ? (completeNewModelSelection(modelSelectionView, parsedSelection) ?? parsedSelection)
         : parsedSelection;
+      const piCandidate = findPiModel(piModelCatalog, parsedSelection.providerId, parsedSelection.modelId);
+      const resolvedSelection = piCandidate
+        ? { ...parsedSelection, options: { reasoningLevel: piCandidate.thoughtLevels.at(-1) ?? "off" } }
+        : modelSelection;
       logger.debug("[v4-draft-config] select model", {
         modelProvider,
         model,
@@ -424,9 +433,9 @@ export function useDraftConfigControl(params: {
         workspacePath,
         workspaceIdentity: workspaceIdentity ?? null,
       });
-      updateDraftConfig((current) => applyDraftModelSelection(current, modelSelection));
+      updateDraftConfig((current) => applyDraftModelSelection(current, resolvedSelection));
     },
-    [modelSelectionView, updateDraftConfig, workspaceIdentity, workspacePath],
+    [modelSelectionView, piModelCatalog, updateDraftConfig, workspaceIdentity, workspacePath],
   );
 
   const handleDraftSelectThought = useCallback(
