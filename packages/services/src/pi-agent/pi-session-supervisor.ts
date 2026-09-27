@@ -9,7 +9,7 @@ import { PiSessionLease } from "./pi-session-lease.js";
 import { settlePiSessionBeforeClose } from "./pi-session-teardown.js";
 import { getPiHistoryMessages } from "./pi-session-history.js";
 import { PiControlBridge } from "./pi-control-bridge.js";
-import type { PiControlAction, PiControlSnapshot } from "./pi-control-protocol.js";
+import { piControlRecord, type PiControlAction, type PiControlSnapshot } from "./pi-control-protocol.js";
 import { canonicalSessionLeaf, piSessionDirectory, reserveNewSessionPath, sessionFileExists } from "./pi-session-path.js";
 import type { PiSessionSupervisorOptions, PiSessionView, SessionRuntime, SupervisorEvents } from "./pi-session-types.js";
 import type { PiPromptImage } from "./pi-prompt-images.js";
@@ -197,6 +197,7 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
     let client: PiRpcClient | undefined;
     let lease = reservedLease;
     let bootstrapDialog: ((record: Record<string, unknown>) => void) | undefined;
+    const bootstrapUiRecords: Record<string, unknown>[] = [];
     let bootstrapDiagnostic: ((diagnostic: { kind: "stderr" | "protocol" | "process"; message: string }) => void) | undefined;
     let startupExtensionError = false;
     const startupDiagnostics: { kind: "stderr" | "protocol" | "process"; message: string }[] = [];
@@ -229,6 +230,10 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
       const bootClient = client;
       bootstrapDialog = record => {
         if (record.type === "extension_error") startupExtensionError = true;
+        if (record.type === "extension_ui_request" &&
+          ["notify", "setStatus", "setWidget", "setTitle", "set_editor_text"].includes(String(record.method)) &&
+          !piControlRecord(record) &&
+          bootstrapUiRecords.length < 128) bootstrapUiRecords.push(record);
         if (record.type === "extension_ui_request" && typeof record.id === "string" &&
           ["select", "confirm", "input", "editor"].includes(String(record.method))) {
           void bootClient.notify({ type: "extension_ui_response", id: record.id, cancelled: true })
@@ -300,6 +305,9 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
       this.attach(runtime);
       client.off("record", bootstrapDialog);
       bootstrapDialog = undefined;
+      // Pi can emit public extension UI during session_start, before a native
+      // session record exists. Replay into the Host's per-session projection.
+      for (const record of bootstrapUiRecords) this.emit("record", view.sessionId, record);
       client.off("diagnostic", bootstrapDiagnostic);
       bootstrapDiagnostic = undefined;
       for (const diagnostic of startupDiagnostics) this.emit("diagnostic", view.sessionId, diagnostic);

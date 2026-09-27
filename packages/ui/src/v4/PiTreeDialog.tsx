@@ -39,9 +39,10 @@ export function PiTreeDialog({ sessionId, workspacePath, workspaceIdentity, remo
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [label, setLabel] = useState("");
   const [summarize, setSummarize] = useState(false);
-  const [busy, setBusy] = useState<"load" | "navigate" | "label" | "reload" | null>(null);
+  const [busy, setBusy] = useState<"load" | "navigate" | "label" | "reload" | "set_tools" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pendingText, setPendingText] = useState<string | null>(null);
+  const [selectedTools, setSelectedTools] = useState<string[]>([]);
   const target = useMemo(() => ({ sessionId, workspacePath,
     ...(workspaceIdentity ? { workspaceIdentity } : {}),
     ...(remoteSessionId ? { remoteSessionId } : {}) }),
@@ -51,25 +52,30 @@ export function PiTreeDialog({ sessionId, workspacePath, workspaceIdentity, remo
 
   const refresh = useCallback(async () => {
     setBusy("load"); setError(null);
-    try { setView(await zcodeAgentService.readPiControlTree(target)); }
+    try {
+      const next = await zcodeAgentService.readPiControlTree(target);
+      setView(next); setSelectedTools(next.activeTools);
+    }
     catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
     finally { setBusy(null); }
   }, [zcodeAgentService, target]);
 
   useEffect(() => { if (open) void refresh(); }, [open, refresh]);
 
-  const action = async (operation: "navigate" | "label" | "reload") => {
+  const action = async (operation: "navigate" | "label" | "reload" | "set_tools") => {
     if (!view || busy) return;
-    if (operation !== "reload" && !selectedId) return;
+    if (operation !== "reload" && operation !== "set_tools" && !selectedId) return;
     try {
       if (operation === "navigate") beforeNavigate();
       setBusy(operation); setError(null);
       const intent = operation === "reload" ? { operation } as const
+        : operation === "set_tools" ? { operation, names: selectedTools } as const
         : operation === "label" ? { operation, targetId: selectedId!, label: label.trim() || null } as const
           : { operation, targetId: selectedId!, summarize } as const;
       const next = await zcodeAgentService.runPiControlTree({ ...target,
         action: { ...intent, sessionId, generation: view.info.generation } });
       setView(next);
+      setSelectedTools(next.activeTools);
       if (operation === "navigate" && next.result?.editorText !== undefined && !next.result.cancelled) {
         setPendingText(next.result.editorText);
         onRestoredText(next.result.editorText);
@@ -78,7 +84,10 @@ export function PiTreeDialog({ sessionId, workspacePath, workspaceIdentity, remo
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
-      try { setView(await zcodeAgentService.readPiControlTree(target)); } catch { /* Keep the first error. */ }
+      try {
+        const current = await zcodeAgentService.readPiControlTree(target);
+        setView(current); setSelectedTools(current.activeTools);
+      } catch { /* Keep the first error. */ }
     } finally { setBusy(null); }
   };
 
@@ -127,6 +136,21 @@ export function PiTreeDialog({ sessionId, workspacePath, workspaceIdentity, remo
             value={label} onChange={event => setLabel(event.target.value)} maxLength={500} disabled={busy !== null} />
           <Button type="button" variant="outline" size="sm" disabled={busy !== null} onClick={() => void action("label")}>保存标签</Button>
         </div> : null}
+        <details className="rounded-md border border-border px-3 py-2 text-sm" data-testid="pi-tools-section">
+          <summary className="cursor-pointer">Pi 工具（当前启用 {view?.activeTools.length ?? 0} 项）</summary>
+          <p className="mt-2 text-xs text-foreground-subtle">工具目录与启用状态直接读取当前 Pi 会话；保存后再从 Pi 读回。</p>
+          <div className="mt-2 max-h-36 space-y-1 overflow-auto">
+            {view?.tools.map(tool => <label key={tool.name} className="flex items-start gap-2 rounded px-1 py-1 hover:bg-surface-hover">
+              <input type="checkbox" className="mt-0.5" checked={selectedTools.includes(tool.name)}
+                disabled={busy !== null} onChange={event => setSelectedTools(current => event.target.checked
+                  ? [...current, tool.name] : current.filter(name => name !== tool.name))} />
+              <span className="min-w-0"><strong>{tool.name}</strong><span className="ml-2 text-xs text-foreground-subtle">{tool.description}</span></span>
+            </label>)}
+          </div>
+          <Button type="button" variant="outline" size="sm" className="mt-2" disabled={busy !== null || !view ||
+            selectedTools.length === view.activeTools.length && selectedTools.every(name => view.activeTools.includes(name))}
+          onClick={() => void action("set_tools")}>保存启用工具</Button>
+        </details>
         <div className="flex items-center justify-end gap-2">
           <label className="mr-auto flex items-center gap-1 text-xs"><input type="checkbox" checked={summarize}
             onChange={event => setSummarize(event.target.checked)} disabled={busy !== null} />跳转时总结上下文</label>

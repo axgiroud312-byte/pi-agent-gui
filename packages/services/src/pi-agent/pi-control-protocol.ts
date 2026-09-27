@@ -2,10 +2,11 @@ import type { ExtensionAPI, ExtensionCommandContext, PackageSource, SessionEntry
   SourceInfo } from "@earendil-works/pi-coding-agent";
 
 export const PI_CONTROL_PROTOCOL = 1;
-export const PI_CONTROL_VERSION = "1.1.0";
+export const PI_CONTROL_VERSION = "1.2.0";
 export const PI_CONTROL_COMMAND = "pi-ide-control-v1";
 export const PI_CONTROL_DESCRIPTION = "Pi Agent IDE public control bridge v1";
 export const PI_CONTROL_PREFIX = "pi-ide-control:";
+export const PI_CONTROL_LIFECYCLE_PREFIX = "pi-ide-lifecycle:";
 export const PI_CONTROL_OPERATIONS = ["handshake", "inspect", "navigate", "label", "set_tools", "reload",
   "refresh_models", "router_auth", "router_refresh",
   "package_install", "package_remove", "package_update", "package_filter", "resource_read", "resource_write",
@@ -99,9 +100,12 @@ export interface PiControlSnapshot {
   result?: PiControlResult;
 }
 
-/** Renderer gets resource contents only for an explicit resource-panel request. */
-export type PiControlView = Pick<PiControlSnapshot, "info" | "tree" | "entries" | "leafId" | "result"> &
-  { resources: PiResourceCatalog };
+/** Renderer receives public tool metadata; resource contents need an explicit request. */
+export type PiControlView = Pick<PiControlSnapshot, "info" | "tree" | "entries" | "leafId" | "result"> & {
+  resources: PiResourceCatalog;
+  tools: Array<{ name: string; description: string }>;
+  activeTools: string[];
+};
 function visibleEntry(entry: SessionEntry): SessionEntry {
   if (entry.type !== "message") return entry;
   const message = { ...entry.message } as Record<string, unknown>;
@@ -116,6 +120,8 @@ export function piControlView(snapshot: PiControlSnapshot, includeResourceConten
     (({ resource: _resource, ...visible }) => visible)(snapshot.result));
   return { info: snapshot.info, tree: visibleTree(snapshot.tree), entries: snapshot.entries.map(visibleEntry),
     leafId: snapshot.leafId, ...(result ? { result } : {}),
+    tools: snapshot.inspection.tools.map(tool => ({ name: tool.name, description: tool.description })),
+    activeTools: [...snapshot.inspection.activeTools],
     resources: { commands: snapshot.inspection.commands,
       skills: (snapshot.inspection.promptOptions.skills ?? []).map(skill => ({
         name: skill.name, description: skill.description, filePath: skill.filePath, sourceInfo: skill.sourceInfo })),

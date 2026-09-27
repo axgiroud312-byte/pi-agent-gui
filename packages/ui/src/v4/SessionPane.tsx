@@ -125,6 +125,7 @@ import { ConversationDraftEmptyState } from "@/v4/ConversationDraftEmptyState.js
 import { ConversationDraftSuggestedPromptsContainer } from "@/v4/ConversationDraftSuggestedPromptsContainer.js";
 import { ConversationHeader, type PaneWorkspaceBadge } from "@/v4/ConversationHeader.js";
 import { PiTreeDialog } from "@/v4/PiTreeDialog.js";
+import { PiExtensionUiPanel } from "@/v4/PiExtensionUiPanel.js";
 import { PiLlamaRouterDialog } from "@/v4/PiLlamaRouterDialog.js";
 import { extractPiModelCatalog } from "@/v4/composer/piModelCatalog.js";
 import { PiResourcesDialog } from "@/v4/PiResourcesDialog.js";
@@ -4606,7 +4607,10 @@ export function SessionPane({
           snapshot={snapshot}
         />
       ) : null}
+      {sessionId && snapshot ? <PiExtensionUiPanel state={snapshot.piExtensionUi} placement="aboveEditor"
+        onApplyEditorText={!readOnly ? restorePiTreeEditor : undefined} /> : null}
       {composerNode}
+      {sessionId && snapshot ? <PiExtensionUiPanel state={snapshot.piExtensionUi} placement="belowEditor" /> : null}
       {/* 办公模式显示主动任务推荐；编程模式保留原有小型场景入口。 */}
       {isDraft && (!isOfficeMode || sharedSettings?.proactiveSuggestionsEnabled === true) ? (
         <ConversationDraftSuggestedPromptsContainer

@@ -147,6 +147,8 @@ export function createPiV4Snapshot(
       ...(state.piStoppedQueue === true ? { pauseReason: "stopped" as const } : {}) },
 
     pendingInteractions: (state.piExtensionInteractions as ConversationSnapshot["pendingInteractions"] | undefined) ?? [],
+    piExtensionUi: (state.piExtensionUi as ConversationSnapshot["piExtensionUi"] | undefined)
+      ?? { statuses: [], widgets: [], notices: [] },
     pendingCommands: [],
     backgroundWorks: [],
     subagents: { revision: 0, childSessionIds: [], running: [], endedTotal: 0 },

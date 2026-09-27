@@ -43,6 +43,16 @@ worktree 父目录：`C:\Users\niilo\AppData\Local\Temp\opencode`。以下提交
 
 对照旧 #8 `7d9e407` 的 TUI 兼容研究，本次只移植 RPC 可序列化的 `select`、`confirm`、`input`、`editor` 交互合同和真 Pi 顺序测试；旧 headless TUI 宿主、CLI 补丁、组件渲染器和第二会话没有移植。原生 `V4InteractionDialogs` / `V4UserInputDialog` 复用已有弹窗路径，具体类别边界见 [扩展 UI 兼容表](pi-extension-ui-compatibility.md)。这些增量代码使用固定 Pi 的公开接口；版权与许可证沿用 `THIRD_PARTY_NOTICES.md` 的 Pi 声明。
 
+### #13 扩展状态和工具原生移植记录（2026-09-27，隔离分支待整合）
+
+对照旧 #8 `7d9e407` 的 TUI 兼容研究，只取固定 Pi 0.87.0 RPC 可序列化的
+`notify`、`setStatus`、`setWidget(string[])`、`setTitle`、`setEditorText`；
+没有移入旧 headless TUI 宿主或组件 factory。原生 `SessionPane` 底部 dock 复用现有
+`Button`、弹窗、空草稿恢复门禁；公开桥在同一 Pi 会话读回动态工具目录与启用状态。
+`setEditorText` 采用显式应用，避免覆盖未发送草稿；这与 TUI 自动写编辑器有差异。
+Pi 的 MIT 来源及固定版本见 `THIRD_PARTY_NOTICES.md` 与
+[上游参考](../references/upstream-and-ui.md)，原生组件来自当前 ZCode 底座。
+
 ## 已知外部验收差额
 
 - 旧主线真实 `openai-codex/gpt-5.5` 文本成功（449 tokens）；`aio-codex/gpt-5.4-mini` 为 Connection error，未通过。

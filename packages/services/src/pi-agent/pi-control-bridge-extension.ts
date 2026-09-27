@@ -4,7 +4,8 @@ import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { DefaultPackageManager, getAgentDir, SettingsManager, VERSION,
   type ExtensionAPI, type ExtensionCommandContext, type ExtensionContext, type PackageSource } from "@earendil-works/pi-coding-agent";
 import {
-  PI_CONTROL_COMMAND, PI_CONTROL_DESCRIPTION, PI_CONTROL_OPERATIONS, PI_CONTROL_PREFIX,
+  PI_CONTROL_COMMAND, PI_CONTROL_DESCRIPTION, PI_CONTROL_LIFECYCLE_PREFIX,
+  PI_CONTROL_OPERATIONS, PI_CONTROL_PREFIX,
   PI_CONTROL_PROTOCOL, PI_CONTROL_VERSION, piControlIntent, piControlObject,
   type PiControlInfo, type PiControlIntent, type PiControlReply, type PiControlRequest,
   type PiAvailableResource, type PiResourcePackage,
@@ -255,8 +256,12 @@ export default function piControlExtension(pi: ExtensionAPI): void {
     binding = bind(ctx);
     state.binding = binding;
     if (state.reload) state.reload.fresh = binding;
+    ctx.ui.notify(PI_CONTROL_LIFECYCLE_PREFIX + JSON.stringify({ protocol: 1,
+      kind: "start", generation: binding.info.generation }), "info");
   });
-  pi.on("session_shutdown", () => {
+  pi.on("session_shutdown", (_event, ctx) => {
+    if (binding) ctx.ui.notify(PI_CONTROL_LIFECYCLE_PREFIX + JSON.stringify({ protocol: 1,
+      kind: "shutdown", generation: binding.info.generation }), "info");
     if (state.binding === binding) state.binding = undefined;
     binding = undefined;
   });

@@ -54,6 +54,7 @@ import { PiSessionCatalog, type PiQueueRecoveryEntry, type PiSessionBookmark } f
 import { PiSessionSupervisor, type PiSessionView } from "./pi-session-supervisor.js";
 import { sessionFileExists } from "./pi-session-path.js";
 import { createPiV4Snapshot } from "./pi-v4-snapshot.js";
+import { emptyPiExtensionUiState, reducePiExtensionUiState } from "./pi-extension-ui-state.js";
 import { piWireFrames } from "./pi-v4-frames.js";
 import { readPiPromptImages } from "./pi-prompt-images.js";
 import { PiImageUploads } from "./pi-image-upload.js";
@@ -225,6 +226,7 @@ export class PiNativeV4Service implements V4Methods {
   private readonly workspaceClosures = new Map<string, Promise<void>>();
   private readonly workspaceGenerations = new Map<string, number>();
   private readonly extensionInteractionTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private readonly pendingExtensionUi = new Map<string, SessionRecord["snapshot"]["piExtensionUi"]>();
   private readonly authManagers = new Map<string, PiAuthManager>();
   private disposePromise?: Promise<void>;
   private readonly conversationEmitters = new Map<string, Emitter<ConversationTopicWireCandidate>>();
@@ -504,6 +506,8 @@ export class PiNativeV4Service implements V4Methods {
         const [state, messages] = await Promise.all([
           this.supervisor.getState(sessionId), this.supervisor.getHistoryMessages(sessionId),
         ]);
+        state.piExtensionUi = this.pendingExtensionUi.get(sessionId) ?? emptyPiExtensionUiState();
+        this.pendingExtensionUi.delete(sessionId);
         this.assertWorkspaceOpen(params);
         const projection = new PiMessageRows(entry.workspacePath);
         let rows = projection.restore(messages, entry.commandAnchors, entry.rowIds);
@@ -655,7 +659,23 @@ export class PiNativeV4Service implements V4Methods {
 
   private onPiRecord(sessionId: string, event: Record<string, unknown>): void {
     const record = this.sessions.get(sessionId);
-    if (!record) return;
+    if (!record) {
+      if (event.type === "extension_ui_request" && this.supervisor.getSession(sessionId)) {
+        const prior = this.pendingExtensionUi.get(sessionId) ?? emptyPiExtensionUiState();
+        const next = reducePiExtensionUiState(prior, event);
+        if (next !== prior) this.pendingExtensionUi.set(sessionId, next);
+      }
+      return;
+    }
+    if (event.type === "extension_ui_request") {
+      const prior = (record.state.piExtensionUi as SessionRecord["snapshot"]["piExtensionUi"] | undefined)
+        ?? emptyPiExtensionUiState();
+      const next = reducePiExtensionUiState(prior, event);
+      if (next !== prior) {
+        record.state.piExtensionUi = next;
+        this.emitConversation(record, [{ op: "state.updated", patch: { piExtensionUi: next } }]);
+      }
+    }
     if (event.type === "extension_ui_request" && typeof event.id === "string" &&
       ["select", "confirm", "input", "editor"].includes(String(event.method))) {
       const options = event.method === "select" && Array.isArray(event.options)
@@ -813,7 +833,10 @@ export class PiNativeV4Service implements V4Methods {
 
   private onPiChange(view: PiSessionView): void {
     const record = this.sessions.get(view.sessionId);
-    if (!record) return;
+    if (!record) {
+      if (view.phase === "exited") this.pendingExtensionUi.delete(view.sessionId);
+      return;
+    }
     const oldPhase = record.view.phase;
     record.view = view;
     if (view.phase === "settled") {
@@ -840,6 +863,11 @@ export class PiNativeV4Service implements V4Methods {
     if (oldPhase !== view.phase && view.phase === "error") record.state.piErrorAt = Date.now();
     const projected = createPiV4Snapshot(view, record.state, record.snapshot.logEpoch);
     const patch: StatePatch = {};
+    if (view.phase === "exited" &&
+      (record.state.piExtensionUi as SessionRecord["snapshot"]["piExtensionUi"] | undefined)) {
+      record.state.piExtensionUi = emptyPiExtensionUiState();
+      patch.piExtensionUi = record.state.piExtensionUi as SessionRecord["snapshot"]["piExtensionUi"];
+    }
     if (JSON.stringify(projected.control) !== JSON.stringify(record.snapshot.control)) patch.control = projected.control;
     if (JSON.stringify(projected.inputRouting) !== JSON.stringify(record.snapshot.inputRouting)) patch.inputRouting = projected.inputRouting;
     if (JSON.stringify(projected.queue) !== JSON.stringify(record.snapshot.queue)) patch.queue = projected.queue;
@@ -1263,6 +1291,8 @@ export class PiNativeV4Service implements V4Methods {
         this.assertWorkspaceOpen(params);
         await this.applyModelSelection(view.sessionId, payload.firstInput?.modelSelection ?? selection);
         const state = await this.supervisor.getState(view.sessionId);
+        state.piExtensionUi = this.pendingExtensionUi.get(view.sessionId) ?? emptyPiExtensionUiState();
+        this.pendingExtensionUi.delete(view.sessionId);
         this.assertWorkspaceOpen(params);
         const projection = new PiMessageRows(params.workspacePath);
         const now = Date.now();
