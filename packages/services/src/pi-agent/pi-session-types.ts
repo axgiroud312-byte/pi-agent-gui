@@ -17,6 +17,9 @@ export type PiSessionPhase =
 
 export interface PiSessionView {
   sessionId: string;
+  /** Pi --no-session has no JSONL to lease or resume. */
+  temporary?: boolean;
+  /** Empty only when temporary=true; never treat it as a filesystem path. */
   sessionFile: string;
   workspacePath: string;
   pid: number;
@@ -52,7 +55,7 @@ export interface SessionRuntime {
   persistentRunError: boolean;
   modelRetryError?: string;
   pendingExtensionRequests: Set<string>;
-  lease: PiSessionLease;
+  lease?: PiSessionLease;
 }
 
 export type SupervisorEvents = {

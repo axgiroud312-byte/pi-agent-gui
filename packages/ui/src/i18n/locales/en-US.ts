@@ -5629,6 +5629,9 @@ const enUS: Record<string, string> = {
   // Modes
   "pi.mode.directTools": "Pi tools run directly",
   "pi.mode.noApproval": "Pi may edit files and run commands without asking before each change. Per-action approval is not available.",
+  "pi.session.temporaryAction": "Temporary session",
+  "pi.session.temporarySelected": "Temporary · history unsaved",
+  "pi.session.temporaryHint": "Pi conversation history stays in this process and cannot be resumed or exported after restart. Unsent input drafts still follow normal draft saving rules.",
   "mode.plan": "Plan",
   "mode.label.glm.build": "Ask before changes",
   "mode.label.glm.edit": "Edit automatically",

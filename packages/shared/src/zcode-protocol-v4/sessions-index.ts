@@ -28,6 +28,7 @@ export type PendingInteractionSummary = z.infer<typeof pendingInteractionSummary
 
 export const sessionSummarySchema = z.object({
   sessionId: z.string(),
+  temporary: z.boolean().optional(),
   workspaceId: z.string(),
   // fork 树。
   parentSessionId: z.string().optional(),

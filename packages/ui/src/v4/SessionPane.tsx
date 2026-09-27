@@ -1152,6 +1152,16 @@ export function SessionPane({
   );
 
   const workspaceKey = workspaceIdentity?.trim() || workspacePath;
+  const draftSessionId = useZCodeSessionStore(
+    (store) => store.getWorkspaceState(workspacePath, workspaceIdentity).draftSessionId,
+  );
+  const temporaryDraftKey = JSON.stringify([workspaceKey, paneId, draftSessionId ?? "draft"]);
+  const [temporaryDraftChoice, setTemporaryDraftChoice] = useState({ key: "", selected: false });
+  const temporaryDraftSelected = sessionId === null && temporaryDraftChoice.key === temporaryDraftKey &&
+    temporaryDraftChoice.selected;
+  useEffect(() => {
+    if (sessionId) setTemporaryDraftChoice((current) => current.selected ? { key: "", selected: false } : current);
+  }, [sessionId]);
   const [queueRecoveryVersion, setQueueRecoveryVersion] = useState(0);
   const [queueEditRecoveries, setQueueEditRecoveries] = useState<PiQueueEditRecovery[]>([]);
   const [queueRecoveryStorageError, setQueueRecoveryStorageError] = useState(false);
@@ -2386,6 +2396,7 @@ export function SessionPane({
     enabled: sessionId === null && draftAgentStartupAllowed,
     workspaceKey,
     paneId,
+    storageMode: temporaryDraftSelected ? "temporary" : "persistent",
     invalidationVersion: draftRuntimeInvalidationVersion,
     // SessionDataLayer 来自 workspace connection registry：同 transport generation 的 pane/remount
     // 共享 identity；provider wrapper 重建产生的新 sendCommand 函数不能误判为 transport 换代。
@@ -2814,7 +2825,8 @@ export function SessionPane({
         );
         const createAck = await dispatchSubmissionCommand(
           "createSession",
-          { workspaceId: workspaceKey, ...draftConfigPayload },
+          { workspaceId: workspaceKey, ...draftConfigPayload,
+            ...(temporaryDraftSelected ? { storageMode: "temporary" } : {}) },
           null,
         );
         if (createAck.status !== "accepted") {
@@ -2898,6 +2910,7 @@ export function SessionPane({
             "createSession",
             {
               workspaceId: workspaceKey,
+              ...(temporaryDraftSelected ? { storageMode: "temporary" } : {}),
               firstInput: { text: effectiveText, ...submission },
               ...draftConfigPayload,
             },
@@ -2928,7 +2941,8 @@ export function SessionPane({
         // 不做任何附件上传，也不会让非 ready 附件绕过 composer 门禁。
         const createAck = await dispatchSubmissionCommand(
           "createSession",
-          { workspaceId: workspaceKey, ...draftConfigPayload },
+          { workspaceId: workspaceKey, ...draftConfigPayload,
+            ...(temporaryDraftSelected ? { storageMode: "temporary" } : {}) },
           null,
         );
         if (createAck.status !== "accepted") {
@@ -3015,6 +3029,7 @@ export function SessionPane({
       resolveInitialDraftConfig,
       createSubmissionFromComposer,
       sessionId,
+      temporaryDraftSelected,
       settleCurrentQueueInputs,
       workspaceIdentity,
       workspaceKey,
@@ -4908,7 +4923,26 @@ export function SessionPane({
         onSplitDown={onSplitDown}
         onClosePane={onClosePane}
         workspaceBadge={workspaceBadge}
-        piTreeTrigger={isDesktop && !remoteSessionId && sessionId && !readOnly ? <>
+        piTreeTrigger={isDesktop && !remoteSessionId && !readOnly ? <>
+          {!sessionId ? (
+            <button type="button" data-testid="pi-temporary-session-toggle"
+              aria-pressed={temporaryDraftSelected}
+              title={intl.formatMessage({ id: "pi.session.temporaryHint" })}
+              className="pointer-events-auto rounded-md border border-border bg-popover px-2 py-1 text-ui-xs text-foreground hover:bg-surface-hover"
+              onClick={() => setTemporaryDraftChoice({ key: temporaryDraftKey,
+                selected: !temporaryDraftSelected })}>
+              {temporaryDraftSelected ? intl.formatMessage({ id: "pi.session.temporarySelected" })
+                : intl.formatMessage({ id: "pi.session.temporaryAction" })}
+            </button>
+          ) : null}
+          {sessionId && snapshot?.meta.temporary ? (
+            <span data-testid="pi-temporary-session-indicator" role="status"
+              title={intl.formatMessage({ id: "pi.session.temporaryHint" })}
+              className="rounded-md border border-border px-2 py-1 text-ui-xs text-foreground-subtle">
+              {intl.formatMessage({ id: "pi.session.temporarySelected" })}
+            </span>
+          ) : null}
+          {sessionId ? <>
           <PiShellDialog sessionId={sessionId} workspacePath={workspacePath}
             workspaceIdentity={workspaceIdentity} onStop={handleStopFromButton} />
           <PiLlamaRouterDialog sessionId={sessionId} workspacePath={workspacePath}
@@ -4916,13 +4950,14 @@ export function SessionPane({
             onModelsChanged={refreshPiModelCatalog} />
           <PiResourcesDialog sessionId={sessionId} workspacePath={workspacePath}
             workspaceIdentity={workspaceIdentity} />
-          <PiSessionTransferDialog sessionId={sessionId} workspacePath={workspacePath}
+          {!snapshot?.meta.temporary ? <PiSessionTransferDialog sessionId={sessionId} workspacePath={workspacePath}
             workspaceIdentity={workspaceIdentity} beforeSwitch={beforePiTreeNavigate}
-            onImported={onSessionCreated} />
+            onImported={onSessionCreated} /> : null}
           <PiTreeDialog sessionId={sessionId} workspacePath={workspacePath}
             workspaceIdentity={workspaceIdentity} remoteSessionId={remoteSessionId}
             beforeNavigate={beforePiTreeNavigate} onRestoredText={restorePiTreeEditor}
             onBranch={handlePiBranch} onRetry={handlePiRetryEntry} />
+          </> : null}
         </> : undefined}
       />
 

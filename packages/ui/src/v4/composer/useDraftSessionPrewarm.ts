@@ -38,6 +38,7 @@ interface DraftPrewarmController {
 /** 预热生命周期纯控制器：创建 → onReady 上抛 → dispose 决策清理。 */
 function startDraftSessionPrewarm(params: {
   workspaceKey: string;
+  storageMode: "persistent" | "temporary";
   dispatchCommand: DispatchCommand;
   onReady: (sessionId: string) => void;
   /** single-flight owner 用于等待不可取消的 createSession 收口；无论成功失败都只调用一次。 */
@@ -45,7 +46,7 @@ function startDraftSessionPrewarm(params: {
   /** 预热会话初始 config（全局「上次选择」，同步解析）；让投影首帧即全局、不闪。 */
   resolveInitialConfig?: () => Partial<SessionConfigState> | undefined;
 }): DraftPrewarmController {
-  const { workspaceKey, dispatchCommand, onReady, onSettled, resolveInitialConfig } = params;
+  const { workspaceKey, storageMode, dispatchCommand, onReady, onSettled, resolveInitialConfig } = params;
   let disposed = false;
   let promotionState: "draft" | "pending" | "promoted" | "discarded" = "draft";
   let createdSessionId: string | null = null;
@@ -67,7 +68,7 @@ function startDraftSessionPrewarm(params: {
   };
 
   const createPayload = () => {
-    const createPayload: Record<string, unknown> = { workspaceId: workspaceKey };
+    const createPayload: Record<string, unknown> = { workspaceId: workspaceKey, storageMode };
     const initialConfig = resolveInitialConfig?.();
     if (initialConfig && Object.keys(initialConfig).length > 0) {
       // 预热会话首帧即用全局模型（CLI 归并 createSession.config），不闪 workspace 缺省。
@@ -204,6 +205,7 @@ class DraftSessionPrewarmCoordinator {
 
   constructor(
     private readonly workspaceKey: string,
+    private readonly storageMode: "persistent" | "temporary",
     dispatchCommand: DispatchCommand,
     resolveInitialConfig: (() => Partial<SessionConfigState> | undefined) | undefined,
     private readonly onEmpty: () => void,
@@ -320,6 +322,7 @@ class DraftSessionPrewarmCoordinator {
     let current!: DraftPrewarmCurrent;
     const controller = startDraftSessionPrewarm({
       workspaceKey: this.workspaceKey,
+      storageMode: this.storageMode,
       dispatchCommand: (type, payload, targetSessionId) =>
         this.dispatchCommand(type, payload, targetSessionId),
       resolveInitialConfig: () => this.resolveInitialConfig?.(),
@@ -421,13 +424,14 @@ const draftPrewarmCoordinatorsByTransport = new Map<
   Map<string, DraftSessionPrewarmCoordinator>
 >();
 
-function logicalDraftOwnerKey(workspaceKey: string, paneId: string): string {
-  return JSON.stringify([workspaceKey, paneId]);
+function logicalDraftOwnerKey(workspaceKey: string, paneId: string, storageMode: string): string {
+  return JSON.stringify([workspaceKey, paneId, storageMode]);
 }
 
 function getDraftSessionPrewarmCoordinator(params: {
   workspaceKey: string;
   paneId: string;
+  storageMode: "persistent" | "temporary";
   transportIdentity: unknown;
   dispatchCommand: DispatchCommand;
   resolveInitialConfig: (() => Partial<SessionConfigState> | undefined) | undefined;
@@ -437,11 +441,12 @@ function getDraftSessionPrewarmCoordinator(params: {
     transportCoordinators = new Map();
     draftPrewarmCoordinatorsByTransport.set(params.transportIdentity, transportCoordinators);
   }
-  const ownerKey = logicalDraftOwnerKey(params.workspaceKey, params.paneId);
+  const ownerKey = logicalDraftOwnerKey(params.workspaceKey, params.paneId, params.storageMode);
   let coordinator = transportCoordinators.get(ownerKey);
   if (!coordinator) {
     coordinator = new DraftSessionPrewarmCoordinator(
       params.workspaceKey,
+      params.storageMode,
       params.dispatchCommand,
       params.resolveInitialConfig,
       () => {
@@ -465,6 +470,7 @@ export function useDraftSessionPrewarm(params: {
   workspaceKey: string;
   /** 同一 workspace 内的逻辑 pane 身份；同步重挂必须保持稳定。 */
   paneId: string;
+  storageMode?: "persistent" | "temporary";
   /** 外部能力变化时递增；仅用于回收并重建尚未提升的草稿预热会话。 */
   invalidationVersion?: number;
   /** conversation provider 的 transport identity；同 workspace lease 变化时保持不变。 */
@@ -477,6 +483,7 @@ export function useDraftSessionPrewarm(params: {
     enabled,
     workspaceKey,
     paneId,
+    storageMode = "persistent",
     transportIdentity,
     invalidationVersion = 0,
     dispatchCommand,
@@ -485,14 +492,15 @@ export function useDraftSessionPrewarm(params: {
   // workspace/pane/transport 共同定义逻辑 owner：同 owner 重挂复用 single-flight，transport
   // 换代仍生成新 coordinator，确保旧 session 的清理不会误走新 transport。
   const owner = useMemo(
-    () => ({ workspaceKey, paneId, transportIdentity }),
-    [paneId, transportIdentity, workspaceKey],
+    () => ({ workspaceKey, paneId, storageMode, transportIdentity }),
+    [paneId, storageMode, transportIdentity, workspaceKey],
   );
   const coordinator = useMemo(
     () =>
       getDraftSessionPrewarmCoordinator({
         workspaceKey,
         paneId,
+        storageMode,
         transportIdentity,
         dispatchCommand,
         resolveInitialConfig,

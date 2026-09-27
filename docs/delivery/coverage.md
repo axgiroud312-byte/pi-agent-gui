@@ -191,6 +191,12 @@
 | --- | --- | --- |
 | #9：P11、P17 / V04 | `ad02452` 整合固定 Pi 0.87.0 合同：真实旧图片 entry 的 base64 原字节被同一 Pi 新回合接收，旧 JSONL 原字节前缀不变；纯文字编辑只回填原生 composer，显式发送后才有新模型请求；扩展取消不产生回合。主分支固定 Pi 与纯合同合计 5/5、typecheck、定向 lint 0/0、完整桌面 build 与 delivery plan 本地校验通过。整合后的原生 GUI `D:/Temp/pi-history-edit-retry-main-20260928-a/pi-history-edit-retry-gui-report.json` 验证 Pi 同一 JSONL 历史重试、编辑预填和显式发送，`pageErrors=[]`、`graceful=true`、`forced=[]`、`survivors=[]`。隔离源码 GUI 另见 `D:/Temp/pi-history-edit-retry-gui-20260928-a/pi-history-edit-retry-gui-report.json`。 | Pi 固定版本 `fork` 仅返回文字，图片 fork 仍入 Pi 前拒绝；图片与未知 content 不进入纯文字编辑器。树跳转与 prompt 两个公开调用之间的失败需要检查当前 leaf；包内 GUI、原版成对截图、在线 provider 和统一人工验收仍待做。 |
 
+## 2026-09-28 #9 临时 Pi 会话增量（隔离分支，非最终验收）
+
+| 能力 / 场景 | 已观察结果 | 仍待完成 |
+| --- | --- | --- |
+| P17 / V04 | 固定 Pi 0.87.0 以 `--no-session` 运行，`get_state` 有会话 ID、无 `sessionFile`；原生新任务可选择临时模式，同一 Pi RPC 会话完成受控模型回合。真实服务顺序合同 12/12、typecheck、定向 lint 0/0、完整桌面源码 build 与 delivery plan 本地/7 项测试通过。隔离生产入口 GUI `D:/Temp/pi-temporary-session-gui-20260928-c/pi-temporary-session-gui-report.json` 验证请求 1 次、显示回答与临时标识、无 Pi JSONL、重启不恢复、无页面错误，两次退出均 `graceful=true`、`forced=[]`、`survivors=[]`。意外 Pi 退出合同还验证会话变为不可续发、从索引移除、私有队列图片缓存删除。 | 临时模式只约束 Pi 历史；未发送的原生 composer 草稿仍按普通规则保存。固定 Pi 的临时会话不支持依赖 JSONL 的续接、fork/clone、导出及主动分享；自定义存储、原版同状态成对截图、在线 provider、包内 GUI 与最终人工验收仍待做。 |
+
 ## 2026-09-28 #7 本地认证目录错误与设备码期限（隔离分支，非最终验收）
 
 | 能力 / 场景 | 已观察结果 | 仍待完成 |

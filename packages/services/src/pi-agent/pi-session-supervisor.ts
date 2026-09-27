@@ -179,21 +179,22 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
       this.sessionFiles.delete(view.sessionFile);
       // Root exit is not proof that an Agent bash descendant exited. Keep the
       // lease until the client's identity-checked tree cleanup has finished.
-      const cleanup = client.dispose().then(() => runtime.lease.release()).catch(error => {
+      const cleanupKey = view.temporary ? view.sessionId : view.sessionFile;
+      const cleanup = client.dispose().then(() => runtime.lease?.release()).catch(error => {
         this.emit("diagnostic", view.sessionId,
           { kind: "process", message: `Could not finish Pi exit cleanup: ${message(error)}` });
         throw error;
       }).then(() => {
-        if (this.exitCleanups.get(view.sessionFile) === cleanup) this.exitCleanups.delete(view.sessionFile);
+        if (this.exitCleanups.get(cleanupKey) === cleanup) this.exitCleanups.delete(cleanupKey);
       });
-      this.exitCleanups.set(view.sessionFile, cleanup);
+      this.exitCleanups.set(cleanupKey, cleanup);
       runtime.controlBridge.dispose();
       void cleanup.catch(() => {}); // Resume/dispose still observe the rejected owner barrier.
     });
   }
 
   private async start(workspacePath: string, args: string[], expectedId?: string, knownSessionFile?: string,
-    reservedLease?: PiSessionLease): Promise<PiSessionView> {
+    reservedLease?: PiSessionLease, temporary = false): Promise<PiSessionView> {
     let client: PiRpcClient | undefined;
     let lease = reservedLease;
     let bootstrapDialog: ((record: Record<string, unknown>) => void) | undefined;
@@ -249,11 +250,13 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
       const response = await client.request({ type: "get_state" });
       if (!response.success) throw new Error(response.error ?? "Pi get_state failed");
       const state = object(response.data);
-      if (typeof state.sessionId !== "string" || typeof state.sessionFile !== "string") {
+      if (typeof state.sessionId !== "string" ||
+        (temporary ? state.sessionFile !== undefined : typeof state.sessionFile !== "string")) {
         throw new Error("Pi get_state omitted session identity");
       }
       if (this.disposed) throw new Error("Pi session supervisor is disposed");
       if (knownSessionFile) {
+        if (typeof state.sessionFile !== "string") throw new Error("Pi did not return a leased history file");
         const actualFile = await canonicalSessionLeaf(state.sessionFile);
         if (actualFile !== knownSessionFile ||
           (await sessionFileExists(state.sessionFile) && await realpath(state.sessionFile) !== knownSessionFile)) {
@@ -263,16 +266,18 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
       if (expectedId && state.sessionId !== expectedId) {
         throw new Error(`Pi restored a different session (${state.sessionId}) than requested (${expectedId})`);
       }
-      if (this.sessions.has(state.sessionId) || this.sessionFiles.has(state.sessionFile)) {
+      if (this.sessions.has(state.sessionId) ||
+        (typeof state.sessionFile === "string" && this.sessionFiles.has(state.sessionFile))) {
         throw new Error("Pi session is already owned by an active process");
       }
       if (!client.pid) throw new Error("Pi process has no PID");
-      if (!lease) throw new Error("Pi runtime started without a protected session file");
+      if (!lease && !temporary) throw new Error("Pi runtime started without a protected session file");
       // Disposal may have begun while the pre-acquired lease was being marked.
       if (this.disposed) throw new Error("Pi session supervisor is disposed");
       const view: PiSessionView = {
         sessionId: state.sessionId,
-        sessionFile: state.sessionFile,
+        sessionFile: temporary ? "" : state.sessionFile as string,
+        ...(temporary ? { temporary: true } : {}),
         workspacePath,
         pid: client.pid,
         phase: state.isCompacting ? "compacting" : state.isStreaming ? "running" : "idle",
@@ -301,7 +306,7 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
         lease,
       };
       this.sessions.set(view.sessionId, runtime);
-      this.sessionFiles.set(view.sessionFile, view.sessionId);
+      if (!temporary) this.sessionFiles.set(view.sessionFile, view.sessionId);
       this.attach(runtime);
       client.off("record", bootstrapDialog);
       bootstrapDialog = undefined;
@@ -335,11 +340,14 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
     return piSessionDirectory(workspacePath, { ...process.env, ...this.options.env }, this.options.rpcArgs ?? []);
   }
 
-  createSession(workspacePath: string): Promise<PiSessionView> {
+  createSession(workspacePath: string, storageMode: "persistent" | "temporary" = "persistent"): Promise<PiSessionView> {
     if (this.disposed) return Promise.reject(new Error("Pi session supervisor is disposed"));
     return this.trackStart((async () => {
       if (!isAbsolute(workspacePath) || !(await stat(workspacePath)).isDirectory()) {
         throw new Error("Pi workspace path must be an existing absolute directory");
+      }
+      if (storageMode === "temporary") {
+        return this.start(workspacePath, ["--no-session"], undefined, undefined, undefined, true);
       }
       const file = await reserveNewSessionPath(workspacePath,
         { ...process.env, ...this.options.env }, this.options.rpcArgs ?? []);
@@ -565,6 +573,7 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
     cancelled: boolean; view?: PiSessionView; restoredText?: string;
   }> {
     const runtime = this.requireSession(sessionId);
+    if (runtime.view.temporary) throw new Error("Temporary Pi sessions cannot fork or clone into a saved history");
     if (operation === "fork" && (!entryId || entryId.length > 256)) throw new Error("Invalid Pi fork entry ID");
     if (runtime.view.uncertainDelivery || runtime.view.reconciliationRequired ||
       runtime.pendingExtensionRequests.size > 0 || !["idle", "settled", "stopped"].includes(runtime.view.phase)) {
@@ -897,7 +906,7 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
       // A rejected tree cleanup must retain the lock and runtime quarantine.
       // A later owner call can retry verification before releasing it.
       await runtime.client.dispose();
-      await runtime.lease.release();
+      await runtime.lease?.release();
       this.closingSessions.delete(sessionId);
       if (settlingFailure) throw settlingFailure;
     })();

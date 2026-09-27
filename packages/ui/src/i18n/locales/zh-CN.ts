@@ -5404,6 +5404,9 @@ const zhCN: Record<string, string> = {
   // 模式
   "pi.mode.directTools": "Pi 工具直接执行",
   "pi.mode.noApproval": "Pi 可直接修改文件和运行命令，不会在每次变更前征求批准；当前不支持逐项审批。",
+  "pi.session.temporaryAction": "临时会话",
+  "pi.session.temporarySelected": "临时 · 历史不落盘",
+  "pi.session.temporaryHint": "Pi 对话历史只在当前进程内，重启后不能续接或导出。未发送的输入草稿仍按普通草稿规则保存。",
   "mode.plan": "计划",
   "mode.label.glm.build": "变更前确认",
   "mode.label.glm.edit": "自动编辑",

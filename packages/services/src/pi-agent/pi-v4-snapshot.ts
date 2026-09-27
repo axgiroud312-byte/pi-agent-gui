@@ -124,7 +124,8 @@ export function createPiV4Snapshot(
       : incompleteTurn || Boolean(state.piPendingIntent) || view.uncertainDelivery || view.reconciliationRequired || view.phase === "exited"
         ? { mode: "reject", reasonCode: "pi.sessionUnavailable" }
         : { mode: "startNow" },
-    meta: { title: typeof state.sessionName === "string" ? state.sessionName : "", titleSource: "default" },
+    meta: { title: typeof state.sessionName === "string" ? state.sessionName : "", titleSource: "default",
+      ...(view.temporary ? { temporary: true } : {}) },
     config: {
       provider,
       model: modelId,

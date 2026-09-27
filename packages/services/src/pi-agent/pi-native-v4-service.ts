@@ -252,6 +252,7 @@ export class PiNativeV4Service implements V4Methods {
     this.assertWorkspaceOpen(params);
     await this.loadSession(params, params.sessionId);
     const record = this.recordFor(params, params.sessionId);
+    if (record.view.temporary) throw new Error("Temporary Pi session has no JSONL to export or share");
     if (!await sessionFileExists(record.view.sessionFile)) {
       throw new Error("Pi session has no persisted JSONL yet; send a message or import a file");
     }
@@ -272,6 +273,7 @@ export class PiNativeV4Service implements V4Methods {
     await this.loadSession(params, params.sessionId);
     const record = this.recordFor(params, params.sessionId);
     const operationKey = `${record.workspaceKey}:${params.sessionId}`;
+    if (record.view.temporary) throw new Error("Temporary Pi session has no JSONL to export");
     if (this.treeOperations.has(operationKey) || record.state.piPendingIntent ||
       !["idle", "settled", "stopped"].includes(record.view.phase)) throw new Error("Pi session is busy");
     this.treeOperations.add(operationKey);
@@ -312,6 +314,7 @@ export class PiNativeV4Service implements V4Methods {
     await this.loadSession(params, params.sessionId);
     const record = this.recordFor(params, params.sessionId);
     const operationKey = `${record.workspaceKey}:${params.sessionId}`;
+    if (record.view.temporary) throw new Error("Temporary Pi session has no JSONL to share");
     if (this.treeOperations.has(operationKey) || record.state.piPendingIntent ||
       !["idle", "settled", "stopped"].includes(record.view.phase)) throw new Error("Pi session is busy");
     this.treeOperations.add(operationKey);
@@ -549,6 +552,7 @@ export class PiNativeV4Service implements V4Methods {
   private readonly imageUploads = new PiImageUploads();
   private readonly queueMedia: PiQueueMediaStore;
   private readonly queueRefreshes = new Map<string, Promise<void>>();
+  private readonly temporaryMediaCleanups = new Map<string, Promise<void>>();
   private readonly catalogWrites = new Map<string, Promise<boolean>>();
   private readonly workspaceLoads = new Map<string, Promise<void>>();
   private readonly workspaceScans = new Map<string, Promise<void>>();
@@ -640,6 +644,7 @@ export class PiNativeV4Service implements V4Methods {
   }
 
   private persist(record: SessionRecord): Promise<boolean> {
+    if (record.view.temporary) return Promise.resolve(true);
     const id = record.view.sessionId;
     const previous = this.catalogWrites.get(id) ?? Promise.resolve(false);
     const pending = previous.catch(() => false).then(async () => {
@@ -738,7 +743,26 @@ export class PiNativeV4Service implements V4Methods {
     return pending;
   }
 
+  private cleanupTemporaryMedia(sessionId: string): Promise<void> {
+    const existing = this.temporaryMediaCleanups.get(sessionId);
+    if (existing) return existing;
+    const pending = (async () => {
+      // A Pi exit may arrive while queued images are being copied for readback.
+      // Wait for those writers before removing this session's private cache.
+      await Promise.allSettled([
+        this.queueRefreshes.get(sessionId), this.reconciliations.get(sessionId),
+      ].filter((work): work is Promise<void> => Boolean(work)));
+      await this.queueMedia.removeSession(sessionId);
+    })();
+    this.temporaryMediaCleanups.set(sessionId, pending);
+    void pending.finally(() => {
+      if (this.temporaryMediaCleanups.get(sessionId) === pending) this.temporaryMediaCleanups.delete(sessionId);
+    }).catch(() => {});
+    return pending;
+  }
+
   private async pruneQueueMedia(record: SessionRecord, queueRevision: number): Promise<void> {
+    if (record.view.temporary) return;
     const id = record.view.sessionId;
     const bookmark = this.bookmarks.get(record.view.sessionId);
     if (!bookmark || bookmark.sessionFile !== record.view.sessionFile) return;
@@ -999,6 +1023,7 @@ export class PiNativeV4Service implements V4Methods {
     const promptTitle = firstUser?.kind === "userInput" ? piFilePromptTitle(firstUser.text) : "";
     return {
       sessionId: record.view.sessionId,
+      ...(record.view.temporary ? { temporary: true } : {}),
       workspaceId: record.workspaceId,
       title: record.snapshot.meta.title || promptTitle || "New Pi session",
       titleSource: record.snapshot.meta.title ? record.snapshot.meta.titleSource
@@ -1238,7 +1263,7 @@ export class PiNativeV4Service implements V4Methods {
           this.supervisor.requireReconciliation(id, false);
         }
         const saved = await this.safelyPersist(record, true);
-        if (saved && record.state.piQueueCompatible === true &&
+        if (saved && !record.view.temporary && record.state.piQueueCompatible === true &&
           typeof this.supervisor.getQueueCatalog === "function") {
           void this.refreshQueueFacts(record).catch(error => {
             console.warn("[pi-agent] settled queue readback failed", error instanceof Error ? error.name : "unknown");
@@ -1267,6 +1292,7 @@ export class PiNativeV4Service implements V4Methods {
       if (view.phase === "exited") this.pendingExtensionUi.delete(view.sessionId);
       return;
     }
+    const temporaryExit = view.temporary && view.phase === "exited";
     const oldPhase = record.view.phase;
     record.view = view;
     if (view.phase === "settled") {
@@ -1308,6 +1334,16 @@ export class PiNativeV4Service implements V4Methods {
     }
     if (oldPhase !== view.phase && ["settled", "stopped", "error", "exited"].includes(view.phase)) {
       void this.safelyPersist(record);
+    }
+    if (temporaryExit) {
+      // Keep the open pane informed that the in-memory Pi history is gone,
+      // then remove this session from the navigable index.
+      this.pendingExtensionUi.delete(view.sessionId);
+      this.sessions.delete(view.sessionId);
+      this.emitIndexRemoval(record.workspaceKey, view.sessionId);
+      void this.cleanupTemporaryMedia(view.sessionId).catch(() => {
+        console.warn("[pi-agent] temporary queue media cleanup failed");
+      });
     }
   }
 
@@ -1666,8 +1702,17 @@ export class PiNativeV4Service implements V4Methods {
     const envelope = parsed.envelope;
     const workspaceKey = resolveWorkspaceKey(params);
     const key = `${workspaceKey}:${envelope.sessionId ?? "create"}:${envelope.commandId}`;
+    const checkedDuplicate = (ack: CommandAck): CommandAck => {
+      if (envelope.type === "createSession" &&
+        (envelope.payload as { storageMode?: string }).storageMode === "temporary" &&
+        ack.result?.type === "createSession" && !this.supervisor.getSession(ack.result.sessionId)) {
+        return failure(envelope.commandId, "pi.temporarySessionExpired",
+          "Temporary Pi session ended; its in-memory history cannot be resumed");
+      }
+      return { ...ack, status: ack.status === "accepted" ? "duplicate" : ack.status };
+    };
     const previous = this.commandResults.get(key);
-    if (previous) { const ack = await previous; return { ...ack, status: ack.status === "accepted" ? "duplicate" : ack.status }; }
+    if (previous) return checkedDuplicate(await previous);
     if (this.disposePromise || this.workspaceClosures.has(workspaceKey)) return failure(envelope.commandId, "pi.workspaceClosing");
     const pending = (async () => {
       // Reserve before ANY Pi side effect, including a new-session spawn. A crash
@@ -1681,7 +1726,7 @@ export class PiNativeV4Service implements V4Methods {
       }
       if (prior) return prior === "pending"
         ? failure(envelope.commandId, "pi.deliveryUnknown", "Command may have reached Pi; inspect history before retrying")
-        : { ...prior, status: prior.status === "accepted" ? "duplicate" as const : prior.status };
+        : checkedDuplicate(prior);
       const ack = await this.dispatchSerialized(params, envelope);
       try { await this.ledger.settle(key, ack); }
       catch {
@@ -1732,6 +1777,7 @@ export class PiNativeV4Service implements V4Methods {
       this.assertWorkspaceOpen(params);
       if (envelope.type === "createSession") {
         const payload = envelope.payload as { workspaceId: string;
+          storageMode?: "persistent" | "temporary";
           firstInput?: { text: string; attachments?: AttachmentRef[]; mode?: string; planEnabled?: boolean;
             modelSelection?: { providerId: string; modelId: string; options?: { reasoningLevel?: string } } };
           config?: { mode?: string; planEnabled?: boolean; followupMode?: string;
@@ -1763,7 +1809,7 @@ export class PiNativeV4Service implements V4Methods {
         const firstImages = payload.firstInput
           ? [...await readPiPromptImages(payload.firstInput.attachments), ...(firstPrompt?.images ?? [])] : [];
         if (firstPrompt) assertPiPromptRecordFits(firstPrompt.text, firstImages);
-        const view = await this.supervisor.createSession(params.workspacePath);
+        const view = await this.supervisor.createSession(params.workspacePath, payload.storageMode);
         createdSessionId = view.sessionId;
         this.assertWorkspaceOpen(params);
         await this.applyModelSelection(view.sessionId, payload.firstInput?.modelSelection ?? selection);
@@ -2229,9 +2275,12 @@ export class PiNativeV4Service implements V4Methods {
         return { commandId, status: "accepted", revisionAtDecision: record.snapshot.revision };
       }
       if (envelope.type === "deleteSession") {
-        if (record.snapshot.rows.totalCount > 0) return unsupported(commandId, "delete persisted Pi history", record.snapshot.revision);
+        if (record.snapshot.rows.totalCount > 0 && !record.view.temporary) {
+          return unsupported(commandId, "delete persisted Pi history", record.snapshot.revision);
+        }
         await this.supervisor.closeSession(record.view.sessionId);
         this.sessions.delete(record.view.sessionId);
+        if (record.view.temporary) await this.cleanupTemporaryMedia(record.view.sessionId);
         this.emitIndexRemoval(record.workspaceKey, record.view.sessionId);
         return { commandId, status: "accepted", revisionAtDecision: record.snapshot.revision };
       }
@@ -2495,6 +2544,10 @@ export class PiNativeV4Service implements V4Methods {
           const closed = await Promise.allSettled([
             this.supervisor.closeSession(sessionId), this.catalogWrites.get(sessionId),
           ]);
+          if (record.view.temporary && closed[0]?.status === "fulfilled") {
+            try { await this.cleanupTemporaryMedia(sessionId); }
+            catch (error) { failures.push(error); }
+          }
           this.sessions.delete(sessionId);
           collect(closed);
         }));
@@ -2537,6 +2590,8 @@ export class PiNativeV4Service implements V4Methods {
   }
 
   private async disposeOwned(): Promise<void> {
+    const temporarySessionIds = [...this.sessions.values()].filter(record => record.view.temporary)
+      .map(record => record.view.sessionId);
     this.preparedShares.clear();
     for (const manager of this.authManagers.values()) manager.dispose();
     this.authManagers.clear();
@@ -2555,8 +2610,11 @@ export class PiNativeV4Service implements V4Methods {
       ...this.sessionLoads.values(), ...this.commandResults.values(),
     ]));
     collect(await Promise.allSettled(this.reconciliations.values()));
+    collect(await Promise.allSettled(this.queueRefreshes.values()));
     collect(await Promise.allSettled(this.catalogWrites.values()));
     collect(await Promise.allSettled([this.imageUploads.dispose()]));
+    collect(await Promise.allSettled(temporarySessionIds.map(id => this.cleanupTemporaryMedia(id))));
+    collect(await Promise.allSettled(this.temporaryMediaCleanups.values()));
     for (const [workspaceKey, target] of this.availableWorkspaces) {
       this.lifecycleEmitter.fire({ ...target, workspaceKey,
         runtimeIdentity: this.getWorkspaceRuntimeIdentity(target), state: "unavailable" });

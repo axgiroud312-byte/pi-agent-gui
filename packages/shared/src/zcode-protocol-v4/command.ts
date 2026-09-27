@@ -44,6 +44,8 @@ export const commandPayloadSchemas = {
   // firstInput 缺省 → phase=draft 空会话；携带 → 直接 turnHeader+userInput rows。
   createSession: z.object({
     workspaceId: z.string(),
+    /** Pi desktop only: --no-session keeps history in the live Pi process. */
+    storageMode: z.enum(["persistent", "temporary"]).optional(),
     firstInput: z
       .object({
         text: z.string(),
