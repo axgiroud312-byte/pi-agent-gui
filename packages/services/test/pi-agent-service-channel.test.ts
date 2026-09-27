@@ -35,6 +35,7 @@ test("Host channel subscribes to real Pi lifecycle events without a legacy Agent
   await assert.rejects(channel.call("host", "sendPrompt", []),
     /Pi Agent service does not implement sendPrompt/);
   const target = { workspacePath };
+  assert.deepEqual(await service.getSkillReferenceCatalog(target), { authority: "workspace", skills: [] });
   const create = async () => {
     const result = await service.sendConversationCommandV4({ ...target, envelope: {
       commandId: randomUUID(), clientId: "channel-test", sessionId: null, type: "createSession",

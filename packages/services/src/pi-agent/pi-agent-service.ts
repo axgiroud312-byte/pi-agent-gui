@@ -34,6 +34,13 @@ export function createPiAgentService(
         workspaceKey: resolveWorkspaceKey(params) },
       mode: "build" as const, slashCommands: [],
     }),
+    // Pi resource commands (including Skills and prompt templates) are exposed
+    // through workspace-config slashCommands. Do not query the retired ZCode
+    // Skill catalog or render its failures in the Pi composer.
+    getSkillReferenceCatalog: async (params: ZCodeAgentWorkspaceTarget & { sessionId?: string }) => ({
+      authority: params.sessionId ? "session" as const : "workspace" as const,
+      skills: [],
+    }),
     initialize: async (params: ZCodeAgentWorkspaceTarget) => ({
       available: true,
       workspaceKey: resolveWorkspaceKey(params),

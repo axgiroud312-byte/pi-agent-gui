@@ -5389,7 +5389,7 @@ const enUS: Record<string, string> = {
   "chat.mention.sessions.empty": "No recent sessions match",
   "chat.mention.sessions.searchHint": "Type to search recent sessions",
   "chat.slash.title": "Commands and capabilities",
-  "chat.slash.searchHint": "Type to search commands, skills, or agents",
+  "chat.slash.searchHint": "Type to search Pi commands or skills",
   "chat.slash.app.side.description": "Open a new side conversation",
   "chat.slash.commands.title": "Commands",
   "chat.slash.skills.title": "Skills",

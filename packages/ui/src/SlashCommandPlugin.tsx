@@ -22,7 +22,6 @@ import {
   KEY_ESCAPE_COMMAND,
   KEY_TAB_COMMAND,
 } from "lexical";
-import { useSubagents } from "@/hooks/useSubagents.js";
 import { useSkills } from "@/hooks/useSkills.js";
 import { buildSlashApplyMentionPayload } from "@/lib/slashApplyMentionPayload.js";
 import { filterSkillsForProvider } from "@/lib/skillSourceFilter.js";
@@ -74,11 +73,11 @@ export function SlashCommandPlugin({
   // 远程 workspace 的 slashCommands 写在 workspaceIdentity 桶。
   // 这里只按 workspacePath 读取会落到 path 桶，表现为 ZCode Agent 已收到 available_commands_update 但 / 面板为空。
   const commands = useSlashCommands(workspacePath, workspaceIdentity);
-  const {
-    agents,
-    loading: subagentsLoading,
-    error: subagentsError,
-  } = useSubagents(workspacePath, provider, workspaceIdentity);
+  // Pi resource commands are the only runnable slash entries in this product.
+  // The inherited ZCode subagent catalog is outside the Pi-first scope.
+  const agents: Parameters<typeof buildSubagentSuggestions>[0] = [];
+  const subagentsLoading = false;
+  const subagentsError = null;
   const {
     skills,
     loading: skillsLoading,
