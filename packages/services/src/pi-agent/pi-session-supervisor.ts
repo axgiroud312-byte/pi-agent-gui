@@ -25,6 +25,13 @@ export interface PiShellResult {
   truncated: boolean;
 }
 
+export interface PiCycledModel {
+  provider: string;
+  model: string;
+  thinkingLevel: string;
+  isScoped: boolean;
+}
+
 function object(value: unknown): Record<string, unknown> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new Error("Pi RPC returned an invalid object");
@@ -577,6 +584,28 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
       const thinking = await runtime.client.request({ type: "set_thinking_level", level: thinkingLevel });
       if (!thinking.success) throw new Error(thinking.error ?? "Pi rejected the thinking level");
     }
+  }
+
+  /** Let pinned Pi choose the next effective model, including its scoped-model rules. */
+  async cycleModel(sessionId: string): Promise<PiCycledModel | null> {
+    const runtime = this.requireSession(sessionId);
+    if (runtime.controlBridge.blocksPrompt) throw new Error("Pi tree control is active or requires reconciliation");
+    if (runtime.view.uncertainDelivery || runtime.view.reconciliationRequired) {
+      throw new Error("Pi session requires reconciliation before model change");
+    }
+    const response = await runtime.client.request({ type: "cycle_model" });
+    if (!response.success) throw new Error(response.error ?? "Pi rejected model cycling");
+    if (response.data === null) return null;
+    const result = object(response.data);
+    const model = object(result.model);
+    if (typeof model.provider !== "string" || !model.provider ||
+      typeof model.id !== "string" || !model.id ||
+      typeof result.thinkingLevel !== "string" || !result.thinkingLevel ||
+      typeof result.isScoped !== "boolean") {
+      throw new Error("Pi returned an invalid cycle_model result");
+    }
+    return { provider: model.provider, model: model.id,
+      thinkingLevel: result.thinkingLevel, isScoped: result.isScoped };
   }
 
   async command(sessionId: string, command: { type: string; [key: string]: unknown }): Promise<unknown> {

@@ -353,6 +353,8 @@ export interface V4ComposerToolbarProps {
     model: string,
     sourceModel: ModelSelectionSource | null,
   ) => void;
+  /** Ask the active Pi RPC session to choose its next effective model. */
+  onCycleModel?: () => void;
   /** 选中思考深度；modelContext 固定本次用户操作的目标模型。 */
   onSelectThought: (thought: string, modelContext: { provider: string; model: string }) => void;
   onSwitchMode: (mode: string) => void;
@@ -381,6 +383,7 @@ function V4ComposerModelControlsImpl({
   activeConfigPicker,
   onConfigPickerOpenChange,
   onSelectModel,
+  onCycleModel,
   onSelectThought,
   onSendCompressionCommand,
   onRecoverCustomModelSelection,
@@ -1068,6 +1071,11 @@ function V4ComposerModelControlsImpl({
       ) : modelMenuVisible ? (
         <ModelConfigSelect
           modelGroups={modelSelectGroups}
+          footerActions={piModelCatalog.length > 0 && onCycleModel ? [{
+            key: "pi-cycle-model",
+            label: intl.formatMessage({ id: "chat.toolbar.model.cyclePi" }),
+            onSelect: onCycleModel,
+          }] : undefined}
           normalizedValue={normalizedModelValue}
           triggerLabel={modelTriggerDisplay.fullLabel}
           triggerLabelPrefix={modelTriggerDisplay.providerPrefix}

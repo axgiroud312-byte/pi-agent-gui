@@ -431,6 +431,7 @@ interface ConversationComposerProps {
     model: string,
     sourceModel: ModelSelectionSource | null,
   ) => void;
+  onCycleModel?: () => void;
   /** 选中思考深度；同时带上用户操作时看到的模型，避免异步回流后把 thought 归到另一模型。 */
   onSelectThought: (thought: string, modelContext: { provider: string; model: string }) => void;
   onSwitchMode: (mode: string) => void;
@@ -523,6 +524,7 @@ function ConversationComposerImpl({
   onDraftStateChange,
   onStop,
   onSelectModel,
+  onCycleModel,
   onSelectThought,
   onSwitchMode,
   onOpenRunningBackgroundWorks,
@@ -2090,6 +2092,7 @@ function ConversationComposerImpl({
             activeConfigPicker={activeConfigPicker}
             onConfigPickerOpenChange={handleConfigPickerOpenChange}
             onSelectModel={handleSelectModelTrace}
+            onCycleModel={onCycleModel}
             onSelectThought={onSelectThought}
             onSwitchMode={onSwitchMode}
             onRecoverCustomModelSelection={onRecoverCustomModelSelection}
@@ -2167,6 +2170,7 @@ function ConversationComposerImpl({
       modelSelectionView,
       piModelCatalog,
       onSelectThought,
+      onCycleModel,
       onRecoverCustomModelSelection,
       onSendCompressionCommand,
       onSwitchMode,

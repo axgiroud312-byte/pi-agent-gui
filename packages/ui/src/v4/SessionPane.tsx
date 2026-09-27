@@ -2430,6 +2430,8 @@ export function SessionPane({
     async () => undefined,
   );
   const effectiveSessionId = sessionId ?? pendingFirstInputSessionId ?? prewarmSessionId;
+  const activeSessionIdRef = useRef(effectiveSessionId);
+  activeSessionIdRef.current = effectiveSessionId;
   const showModelChangeNotice = useCallback(
     (sourceModel: ModelSelectionSource | null, targetModel: ModelSelectionSource) => {
       // Bug 原因：草稿尚未形成实际会话，模型选择本身已经在 composer 中可见；
@@ -3695,6 +3697,33 @@ export function SessionPane({
     [draftConfigRef, handleDraftSelectModel],
   );
 
+  const handleCycleModel = useCallback(() => {
+    const targetSessionId = sessionId ?? pendingFirstInputSessionId ?? prewarmBindingRef.current?.sessionId;
+    if (!targetSessionId) {
+      toast(intl.formatMessage({ id: "chat.toolbar.model.cycleUnavailable" }));
+      return;
+    }
+    void configCommandBarrier.enqueue(async () => {
+      const ack = await dispatchConfigCas("cycleModelConfig", {}, { targetSessionId });
+      if (ack?.status === "accepted" && ack.result?.type === "cycleModelConfig") {
+        // Pi's cycle_model response is authoritative for both the next model and
+        // its effective thinking level; keep the next submission in sync.
+        if (activeSessionIdRef.current === targetSessionId) {
+          handleDraftSelectModel(ack.result.provider, ack.result.model);
+          handleDraftSelectThought(ack.result.thinkingLevel);
+        }
+      } else if (ack?.status === "noop" && ack.reasonCode === "pi.singleCycleModel") {
+        toast(intl.formatMessage({ id: "chat.toolbar.model.cycleSingle" }));
+      } else {
+        toast(intl.formatMessage({ id: "chat.toolbar.model.cycleFailed" }));
+      }
+    }).catch((error) => {
+      logger.warn("[v4-pane] Pi model cycle failed", error);
+      toast(intl.formatMessage({ id: "chat.toolbar.model.cycleFailed" }));
+    });
+  }, [configCommandBarrier, dispatchConfigCas, handleDraftSelectModel,
+    handleDraftSelectThought, intl, pendingFirstInputSessionId, sessionId]);
+
   const handleSelectThought = useCallback(
     (thought: string, _modelContext: { provider: string; model: string }) => {
       handleDraftSelectThought(thought);
@@ -4694,6 +4723,7 @@ export function SessionPane({
       onComposerRestoreDeferred={handleComposerRestoreDeferred}
       onStop={handleStopFromButton}
       onSelectModel={handleSelectModel}
+      onCycleModel={handleCycleModel}
       onSelectThought={handleSelectThought}
       onSwitchMode={handleSwitchMode}
       onOpenRunningBackgroundWorks={

@@ -61,7 +61,8 @@
 
 | ID | 原生入口/行为 | Pi 产品行为 | 必要性 / 状态 |
 | --- | --- | --- | --- |
-| PI03-M1 | 保留原生 ZCode `ModelConfigSelect` 的触发器、供应商分组、快捷键和关闭后焦点路径 | Pi 目录非空时在同一菜单顶部增设搜索框；按供应商、显示名和真实 model ID 过滤，不另存模型目录。模型目录仍取同一 Pi RPC `get_available_models`，选中模型与 thinking 等级仍取 Pi 当前会话；Pi 在压缩后报告有效上下文 token 为 `null` 时显示“未知”，不伪装为 0。相邻原生 Popover 显示 Pi 历史累计 token/cache 与估计 USD，费用不冒充供应商账单 | #3/P05/P06/P14/P15；复用仓库原生控件，未移植旧 `issue-3-rich-conversation` 界面。`D:/Temp/pi-model-thinking-gui-20260928-e/pi-model-thinking-gui-report.json` 已以固定 Pi 原生 GUI 验证搜索、选模、真实请求和 thinking 档位；Pi 权威 `cycle_model` 入口仍在开发中。原版同状态成对截图、在线 provider、包内运行及用户验收未完成。 |
+| PI03-M1 | 保留原生 ZCode `ModelConfigSelect` 的触发器、供应商分组、快捷键和关闭后焦点路径 | Pi 目录非空时在同一菜单顶部增设搜索框；按供应商、显示名和真实 model ID 过滤，不另存模型目录。模型目录仍取同一 Pi RPC `get_available_models`，选中模型与 thinking 等级仍取 Pi 当前会话；Pi 在压缩后报告有效上下文 token 为 `null` 时显示“未知”，不伪装为 0。相邻原生 Popover 显示 Pi 历史累计 token/cache 与估计 USD，费用不冒充供应商账单 | #3/P05/P06/P14/P15；复用仓库原生控件，未移植旧 `issue-3-rich-conversation` 界面。`D:/Temp/pi-model-thinking-gui-20260928-e/pi-model-thinking-gui-report.json` 与 `D:/Temp/pi-model-cycle-gui-green-20260928/pi-model-cycle-gui-report.json` 的固定 Pi 原生 GUI 已验证搜索、选模、真实请求、thinking 快捷键和用量观察。原版同状态成对截图、在线 provider、包内运行及用户验收未完成。 |
+| PI03-M2 | 继续使用同一原生 `ModelConfigSelect` 菜单与 footer 操作区域 | Pi 模型目录可用时在菜单底部增加“切换到下一个 Pi 模型”；当前会话的固定 Pi RPC `cycle_model` 决定下一个模型、thinking 与 scoped 状态。仅在 Pi accepted 回包后同步 composer 下一次提交选择；单模型返回 `noop` 并明确提示 | #3/P05；固定 Pi 0.87.0 双模型推理与单模型 `noop` 合同先红后绿。隔离原生 GUI `D:/Temp/pi-model-cycle-gui-red-20260928/pi-model-cycle-gui-report.json` 先因缺入口失败；`D:/Temp/pi-model-cycle-gui-green-20260928/pi-model-cycle-gui-report.json` 证实同一 Host/Pi 会话循环后下一次真实模型请求由 first 改为 second、thinking 档位有效，页面错误和残留进程均为零。原版同状态成对截图、在线 provider、包内运行与最终人工验收待做。 |
 
 2026-09-28 费用未知回归：Pi 未提供 `costUSD` 时，原实现连同已知 token/cache 一起隐藏整个用量入口；现在仍显示同一 Popover，费用明确标为未知。隔离 React 渲染测试先红后绿，原版同状态对照、固定 Pi GUI 和包内运行仍由最终统一版本复验。
 

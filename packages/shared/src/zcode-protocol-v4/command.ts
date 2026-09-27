@@ -212,6 +212,8 @@ export const commandPayloadSchemas = {
     model: z.string(),
     thought: z.string(),
   }),
+  // Pi alone chooses the next model from its effective scoped/available list.
+  cycleModelConfig: z.object({}).strict(),
   // additive（冻结面按黄金测试背书演进）：agent 协作模式切换。
   // 值域 = core CollaborationMode 的可切换子集（auto 非用户可切，不进 UI 命令面）。
   switchCollaborationMode: z.object({
@@ -310,6 +312,7 @@ export const COMMANDS_REQUIRING_BASE_REVISION: ReadonlySet<CommandType> = new Se
   "deleteQueueItem",
   "setAutoDrain",
   "switchModelConfig",
+  "cycleModelConfig",
   "switchCollaborationMode",
   "setFollowupMode",
   "pauseGoal",
@@ -376,6 +379,13 @@ export function parseCommandEnvelope(
 
 // ── ACK ──
 export const commandResultSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("cycleModelConfig"),
+    provider: z.string().min(1),
+    model: z.string().min(1),
+    thinkingLevel: z.string().min(1),
+    isScoped: z.boolean(),
+  }),
   z.object({
     type: z.enum(["createSession", "createSelectionSideSession", "forkAssistant"]),
     sessionId: z.string(),

@@ -1882,7 +1882,7 @@ export class PiNativeV4Service implements V4Methods {
     envelope: ZCodeAgentConversationCommandParams["envelope"]): Promise<CommandAck> {
     // Stop must overtake an in-flight sendText whose Pi extension is waiting
     // for UI input. Its execution-id guard is checked by PiSessionSupervisor.
-    if (!envelope.sessionId || !["sendText", "deleteSession", "forkPiEntry", "clonePiSession", "retryPiEntry", "sendQueuedNow",
+    if (!envelope.sessionId || !["sendText", "deleteSession", "forkPiEntry", "clonePiSession", "retryPiEntry", "sendQueuedNow", "cycleModelConfig",
       "editQueueItem", "reorderQueueItem", "deleteQueueItem", "setAutoDrain"].includes(envelope.type)) {
       return this.dispatch(params, envelope);
     }
@@ -2404,6 +2404,19 @@ export class PiNativeV4Service implements V4Methods {
         await this.refreshRuntimeFacts(record);
         this.refreshWorkspaceConfig(record.workspaceKey, record.view.sessionId);
         return { commandId, status: "accepted", revisionAtDecision: record.snapshot.revision };
+      }
+      if (envelope.type === "cycleModelConfig") {
+        if (envelope.baseRevision !== record.snapshot.revision) return {
+          commandId, status: "stale", reasonCode: "pi.modelSnapshotChanged",
+          revisionAtDecision: record.snapshot.revision,
+        };
+        const cycled = await this.supervisor.cycleModel(record.view.sessionId);
+        if (!cycled) return { commandId, status: "noop", reasonCode: "pi.singleCycleModel",
+          revisionAtDecision: record.snapshot.revision };
+        await this.refreshRuntimeFacts(record);
+        this.refreshWorkspaceConfig(record.workspaceKey, record.view.sessionId);
+        return { commandId, status: "accepted", revisionAtDecision: record.snapshot.revision,
+          result: { type: "cycleModelConfig", ...cycled } };
       }
       if (envelope.type === "setFollowupMode") {
         const payload = envelope.payload as { mode: "queue" | "guide" };
