@@ -1,363 +1,811 @@
 [
   {
     "key": "runtime",
+    "number": 2,
     "title": "feat: 启动桌面工作区并通过独立 Pi RPC 进程完成文本会话",
-    "capabilities": ["P01", "P04", "P33", "I01", "I18"],
-    "stories": [1, 3, 10, 11, 22, 23, 81, 83, 84],
-    "scenarios": ["T01", "T02", "T03", "T07"],
+    "status": "historical",
+    "capabilities": [],
+    "scenarios": [],
     "blockedBy": [],
-    "outcome": "用户选择普通目录或 Git 工作区，查看实际 Pi 版本、进程状态，发送文本并看到真实流式回复及完成或失败。交付可运行 Electron 应用和后续任务可执行的检查脚本。",
-    "decisions": ["Electron + React + TypeScript + Vite + Tailwind；受限 preload IPC，renderer 无 Node 权限。", "Pi 固定 0.87.0；每活动会话独立进程及 generation，stdin/stdout JSONL，stderr 分离；不建立第二套模型循环。", "启动设置允许选择 Pi/Node 可执行文件和工作目录，缺失或不兼容有可操作诊断；控制操作不自动重放。"],
-    "acceptance": ["GUI → 宿主 → 子进程能发送文本、接收增量、按 agent_settled 完成；prompt 响应与 agent_end 均不误记完成。", "增量 UTF-8、LF/CRLF、U+2028/U+2029、尾部记录、半行、多行、异常 stdout 和 stderr 按协议处理。", "请求 ID 唯一，响应匹配 command，退出/超时结算在途请求，旧 generation 输出不污染当前运行。", "提供 typecheck、静态检查、合同/集成、Electron E2E、build 和 Windows package 脚本及 CI；依赖锁定并记录许可证。", "缺失 Pi、无效版本/目录和进程失败能在 UI 查看并修正配置后重试。"],
-    "tests": ["真实子进程边界 fixture 验证 framing、关联、背压和退出；Electron E2E 实际输入并检查状态。", "固定真实 Pi 运行版本/状态/消息合同；真实模型与安装包全量验收另由 release-acceptance 追踪，不能把离线替身记成真实模型。"]
+    "outcome": "历史完成状态保留；不以旧原型或原生底座完成代替新的 Pi 能力验收。"
   },
   {
     "key": "zcode-design",
+    "number": 32,
     "title": "feat: 导入并运行 ZCode 原生桌面底座，建立界面与交互对照",
-    "capabilities": ["P28", "I01", "I02", "I17", "I18"],
-    "stories": [1, 5, 6, 12, 56, 79, 80, 83, 84],
-    "scenarios": ["T01", "T19", "T20"],
+    "status": "historical",
+    "capabilities": [],
+    "scenarios": [],
     "blockedBy": [],
-    "outcome": "用户可启动保留原生布局/输入框/面板/时间线/菜单操作的 ZCode 桌面底座，并看到固定原版与产品副本的成对截图和操作记录；该结果交到用户关卡后暂停。",
-    "decisions": ["以 ZCode 872ad960de7ec172591f7e1952f7849229f94521 完整公开工程为底座，保留必要 packages、资源、锁文件、Electron壳、UI状态及本地服务。原样式复用分支仅作来源研究，不作为原生工程导入。", "用户允许替换当前自建工程结构；先保存旧主线/分支/许可和复用清单，不整批合并旧 App/布局。固定上游构建版本优先于旧原型版本。", "品牌/厂商专属商业入口按主规格移除或替换；通用 Pi 认证/资源/分享目标保留。原 ZCode Agent 仅用于隔离对照，不宣称已经接通 Pi。"],
-    "acceptance": ["固定来源完整导入并可在 Windows 实际启动，提供源码/版本/许可证/NOTICE和必要修改记录；保留本仓库历史与开发文档。", "原版与产品均真实运行，工作区/会话导航、原生 Lexical 输入、标签/分栏/拖拽、Side Pane/终端、时间线/工具展开、菜单/设置/快捷键/焦点按原生路径可操作。", "完成品牌和确认允许的厂商入口处理；逐入口记录理由、行为及位置，通用功能不得因 Pi 基础 RPC 未提供而删除。", "1280×800 和1920×1080、明暗主题、关键空/运行/等待/错误状态有成对截图及操作步骤；只比较 CSS 或产品自身截图不算验收。", "建立原生工程实际检查脚本/CI，构建或功能故障保留未完成；提交可启动产物及对照供用户确认后暂停，不继续 Pi 替换。"],
-    "tests": ["原生 Electron 工作台真实操作/截图对照、构建与启动 smoke；记录原版数据、主题、缩放和平台，确保可复现。", "Agent交互状态可在隔离原版 Agent 中取证；不把旧模型或测试替身当作 Pi 产品通过。下一阶段由用户关卡控制。"]
+    "outcome": "历史完成状态保留；不以旧原型或原生底座完成代替新的 Pi 能力验收。"
   },
   {
     "key": "native-ui-gate",
+    "number": 33,
     "title": "decision: 用户确认原生 ZCode 界面与交互保留正确",
-    "label": "ready-for-human",
-    "capabilities": ["I02", "I17"],
-    "stories": [5, 6, 79, 80, 83],
-    "scenarios": ["T19"],
-    "blockedBy": ["zcode-design"],
-    "outcome": "用户查看可运行原生底座、成对截图和操作记录，明确确认是否允许进入 Pi 后端替换。",
-    "decisions": ["这是用户明确选择的一次人工界面关卡；必须记录用户对实际运行版本的明确确认，完成记录以#33正文与评论为准。", "若不通过，回到原生导入票修复并重新呈现；旧样式分支截图和自动检查不能替代用户确认。"],
-    "acceptance": ["原版提交、产品提交、可启动版本、成对截图/操作记录及必要差异清单可访问。", "用户明确确认原生布局和交互保留正确，保存原话/链接/日期及所确认的产品提交。", "仅在明确确认后关闭本票；没有确认时暂停全部 Pi 新适配与旧功能分支整合。"],
-    "tests": ["用户按原生交互对照材料检查并运行核心操作；验收记录真实反馈。", "自动检查仅为输入证据，不能将本票自动标记为通过。"]
+    "status": "historical",
+    "capabilities": [],
+    "scenarios": [],
+    "blockedBy": [
+      "zcode-design"
+    ],
+    "outcome": "历史完成状态保留；不以旧原型或原生底座完成代替新的 Pi 能力验收。"
   },
   {
     "key": "native-agent",
     "title": "feat: 在 ZCode 原生 Agent 服务边界接入 Pi RPC 的真实闭环",
-    "capabilities": ["P01", "P03", "P04", "P10", "P17", "I01", "I02", "I18"],
-    "stories": [1, 3, 4, 10, 11, 13, 21, 22, 23, 25, 26, 81, 84],
-    "scenarios": ["T01", "T02", "T03", "T06", "T07", "T09"],
-    "blockedBy": ["native-ui-gate"],
+    "capabilities": [
+      "P01",
+      "P03",
+      "P04",
+      "P10",
+      "P17",
+      "D01",
+      "D02",
+      "D06"
+    ],
+    "scenarios": [
+      "V01",
+      "V02",
+      "V04"
+    ],
+    "blockedBy": [
+      "native-ui-gate"
+    ],
     "outcome": "在用户已确认的原生 ZCode 界面中创建会话、发送文本、看到真实 Pi 流式消息和工具、停止并恢复原生历史；不改造成第二套聊天工作台。",
-    "decisions": ["保留原生 service accessor、session/Agent服务接口及前端状态/命令/订阅结构；在该边界映射 Pi，不把更换 model provider 当作换 Agent。", "将原生命令确认、snapshot/delta、session index、epoch/cursor映射到 Pi真实状态；Pi 每活动会话进程隔离、JSONL/单写者/取消及不重放副作用。", "旧 RPC/桥/测试模块按复用清单选择迁入；最终产品的 Agent调用无原 ZCode Agent fallback，前端不运行第二套队列/模型循环。"],
-    "acceptance": ["原生GUI→服务适配→固定真实Pi链路通过创建/文本流/一次真实工具/停止/历史恢复，截图和操作路径相对已确认底座无未登记改变。", "区分命令接收与运行完成，保留agent_settled/retry/compaction/扩展无Run语义、响应关联、异常输出、背压和进程退出结果。", "至少两个实际会话进程互不串台，单写者、generation/取消/重连不重放有合同证据。", "可启动产品中的Agent动作仅由Pi执行；原引擎对照路径隔离，产品无暗中fallback或mock-only成功。", "服务合同、测试seam、构建/包路径与后续迁入接口明确，审查和必要的 Windows 本地验证通过。"],
-    "tests": ["最高边界为原生GUI用户操作→真实宿主/服务适配→Pi RPC外部进程；复用可控JSONL边界测试并增加原生订阅/命令确认合同。", "固定真实Pi的文本/工具/停止/原生历史验收；独立原版对照与Pi结果区分。后续图片/双队列/完整认证等全量能力仍由原实施票完成。"]
+    "decisions": [
+      "保留原生 UI 布局、组件、交互和必要显示状态，在 Agent 服务边界映射 Pi；内部接口可按 Pi 真实语义精简，不能制造虚假成功。",
+      "Pi 0.87.0 为消息、工具、历史、队列与运行事实的唯一来源；RPC 为主会话架构，无旧引擎 fallback。",
+      "本票当前本地修复与试用版本尚未提交；保持 Issue OPEN / PR #39 Draft，停在用户验收，不自动领取后续功能。"
+    ],
+    "acceptance": [
+      "原生GUI→服务适配→固定真实Pi链路通过创建/文本流/一次真实工具/停止/历史恢复，截图和操作路径相对已确认底座无未登记改变。",
+      "区分命令接收与运行完成，保留agent_settled/retry/compaction/扩展无Run语义、响应关联、异常输出、背压和进程退出结果。",
+      "至少两个实际会话进程互不串台，单写者、generation/取消/重连不重放有合同证据。",
+      "可启动产品中的Agent动作仅由Pi执行；原引擎对照路径隔离，产品无暗中fallback或mock-only成功。",
+      "服务合同、测试seam、构建/包路径与后续迁入接口明确，审查和必要的 Windows 本地验证通过。"
+    ],
+    "tests": [
+      "最高边界为原生GUI用户操作→真实宿主/服务适配→Pi RPC外部进程；复用可控JSONL边界测试并增加原生订阅/命令确认合同。",
+      "固定真实Pi的文本/工具/停止/原生历史验收；独立原版对照与Pi结果区分。后续图片/双队列/完整认证等全量能力仍由原实施票完成。"
+    ],
+    "number": 34,
+    "status": "active"
   },
   {
     "key": "conversation",
     "title": "feat: 完整消息、工具、图片、模型 thinking 与重试压缩体验",
-    "capabilities": ["P01", "P04", "P05", "P06", "P07", "P08", "P14", "P15"],
-    "stories": [11, 12, 13, 14, 15, 22, 23, 32, 33, 34, 38, 39],
-    "scenarios": ["T03", "T04", "T06", "T10", "T18"],
-    "blockedBy": ["native-agent"],
+    "capabilities": [
+      "P01",
+      "P04",
+      "P05",
+      "P06",
+      "P07",
+      "P08",
+      "P14",
+      "P15",
+      "D03"
+    ],
+    "scenarios": [
+      "V02",
+      "V03"
+    ],
+    "blockedBy": [
+      "native-agent"
+    ],
     "outcome": "用户发送图片、阅读 Markdown/thinking/工具及未知消息，切换真实模型与 thinking，观察重试、压缩、有效上下文和准确用量。",
-    "decisions": ["保留原生ZCode输入框/消息时间线/工具组件与状态，通过服务适配投影Pi；旧assistant-ui不是新产品强制底座。前端不运行自己的Agent队列。", "按 contentIndex 合并增量，message_end 权威校正；tool partialResult 替换；未知内容保留结构化视图。", "模型及 thinking 来自 Pi 实时枚举；session 设置和新会话默认值分开。"],
-    "acceptance": ["图片选择/粘贴/拖入及预览可用，发送后的 MIME 和内容真实进入 Pi。", "text/thinking/toolcall 增量、图片/details/未知工具最终与 get_messages 一致；长工具输出可展开。", "模型搜索/选择/循环及 thinking 等级/循环与会话一致，不展示不支持的等级。", "手动/自动压缩、重试取消与失败状态可观察；agent_end 后重试或续接仍为运行。", "历史与有效上下文分开，token/cache/费用包含摘要且不重复；缺失数值明确未知。"],
-    "tests": ["GUI 主链路覆盖 T03/T04，错误/重试/overflow/compaction/最终校正 fixtures。", "真实 Pi 文本+图片、工具、压缩和模型切换冒烟；无账号的部分保持待验收。"]
+    "decisions": [
+      "保留原生ZCode输入框/消息时间线/工具组件与状态，通过服务适配投影Pi；旧assistant-ui不是新产品强制底座。前端不运行自己的Agent队列。",
+      "按 contentIndex 合并增量，message_end 权威校正；tool partialResult 替换；未知内容保留结构化视图。",
+      "模型及 thinking 来自 Pi 实时枚举；session 设置和新会话默认值分开。"
+    ],
+    "acceptance": [
+      "图片选择/粘贴/拖入及预览可用，发送后的 MIME 和内容真实进入 Pi。",
+      "text/thinking/toolcall 增量、图片/details/未知工具最终与 get_messages 一致；长工具输出可展开。",
+      "模型搜索/选择/循环及 thinking 等级/循环与会话一致，不展示不支持的等级。",
+      "手动/自动压缩、重试取消与失败状态可观察；agent_end 后重试或续接仍为运行。",
+      "历史与有效上下文分开，token/cache/费用包含摘要且不重复；缺失数值明确未知。"
+    ],
+    "tests": [
+      "原生 GUI 文本/图片/模型/thinking/工具路径，固定 Pi 加可控 provider 核对增量、最终校正、重试、压缩及错误保存。",
+      "在线账号的图片、工具、模型切换与压缩分别记录真实结果；受控 loopback 不记为在线 provider 验收。"
+    ],
+    "number": 3,
+    "status": "active"
   },
   {
     "key": "queue-stop",
     "title": "feat: Pi 双队列、完整停止和带上下文 shell 控制",
-    "capabilities": ["P02", "P03", "P09"],
-    "stories": [18, 19, 20, 21, 24],
-    "scenarios": ["T03", "T05", "T06", "T07"],
-    "blockedBy": ["native-agent"],
+    "capabilities": [
+      "P02",
+      "P03",
+      "P09"
+    ],
+    "scenarios": [
+      "V03"
+    ],
+    "blockedBy": [
+      "native-agent"
+    ],
     "outcome": "运行中可转向、排队、取回编辑和调整投递模式，完整停止后保留未处理输入；可执行带或不带模型上下文的 shell。",
-    "decisions": ["Pi 是队列权威；宿主只保存已接受输入的附件和关联，清空/重建在会话控制序列内进行。", "停止阻止新入队、取消交互、clear_queue 后 abort/abort_bash/abort_retry；不因待决长命令阻塞停止。"],
-    "acceptance": ["双队列 all/one-at-a-time 顺序真实且无第二调度器。", "消费竞态和双击不重复投递；取回/编辑/重排保留文本、图片和原顺序；无法确认消费的输入显示待核实。", "停止执行、shell、重试、压缩和扩展等待后不自动续接，其他会话继续。", "shell 输出/退出码真实，excludeFromContext 的后续上下文差异可验证。"],
-    "tests": ["可控 RPC 进程注入消费/清队列竞态与延迟响应，四会话停止隔离。", "真实 Pi shell/队列/停止集成与 GUI E2E。"]
+    "decisions": [
+      "Pi 是队列权威；宿主只保存已接受输入的附件和关联，清空/重建在会话控制序列内进行。",
+      "停止阻止新入队、取消交互、clear_queue 后 abort/abort_bash/abort_retry；不因待决长命令阻塞停止。"
+    ],
+    "acceptance": [
+      "双队列 all/one-at-a-time 顺序真实且无第二调度器。",
+      "消费竞态和双击不重复投递；取回/编辑/重排保留文本、图片和原顺序；无法确认消费的输入显示待核实。",
+      "停止执行、shell、重试、压缩和扩展等待后不自动续接，其他会话继续。",
+      "shell 输出/退出码真实，excludeFromContext 的后续上下文差异可验证。"
+    ],
+    "tests": [
+      "两个本地真实 Pi 会话验证消费/取回/清队列竞态、停止隔离、延迟响应和待核实输入。",
+      "GUI 完整停止覆盖 shell、retry、compaction、扩展等待；实际验证 excludeFromContext 的差异。"
+    ],
+    "number": 4,
+    "status": "active"
   },
   {
     "key": "workbench",
-    "title": "feat: 多工作区四会话并行、分栏与重启恢复",
-    "capabilities": ["I01", "I02", "P10", "P17"],
-    "stories": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-    "scenarios": ["T07", "T09", "T18", "T19"],
-    "blockedBy": ["native-agent"],
-    "outcome": "用户管理最近项目、并排四个独立会话，切换焦点不影响后台运行，重启恢复布局、草稿和文件引用。",
-    "decisions": ["保留ZCode原生pane tree、标签/拖拽/焦点和会话绑定，复用原有布局持久化；Pi原生历史独立管理，不以自建slots代替原生交互。", "执行环境显式建模；本票先交付本地适配，WSL/SSH 由 remote 实现。"],
-    "acceptance": ["普通目录及多个 Git 项目设置/草稿/会话隔离，显示 cwd/环境/分支。", "至少四个独立 Pi 进程交错输出无串台；崩溃/停止仅影响所属会话。", "标签、可拖动分栏、调整大小和布局恢复真实可操作。", "后台完成、错误、待输入可发现；搜索名称/项目/时间/状态；重启不重放 prompt。", "窗口恢复保留未发送草稿、附件和打开文件；会话所有权避免多个 GUI 同写历史。"],
-    "tests": ["四独立子进程 Electron E2E，重启/单进程退出/延迟旧 generation 事件。", "两个真实工作区与 Pi 会话的恢复截图。"]
+    "title": "feat: 本地项目、会话切换、原生布局与保存恢复",
+    "capabilities": [
+      "P10",
+      "P17",
+      "D01",
+      "D02",
+      "D03",
+      "D06"
+    ],
+    "scenarios": [
+      "V01",
+      "V04"
+    ],
+    "blockedBy": [
+      "native-agent"
+    ],
+    "outcome": "用户选择本地目录，在原生工作台创建和切换 Pi 会话；重启后恢复会话、草稿、附件和必要界面状态。",
+    "decisions": [
+      "复用原生 pane tree、标签、焦点和布局持久化；已确认的原生交互不改为自建聊天页。",
+      "仅本地工作区；用两个实际会话验证隔离，不设置四会话强制指标，不以本票引入 WSL/SSH。"
+    ],
+    "acceptance": [
+      "普通目录和 Git 项目均可选择；cwd、会话和配置归属正确。",
+      "两个 Pi 会话交错输出、停止或退出互不污染；会话切换不重复启动原有 prompt。",
+      "原生已有标签、拖拽、侧栏及可用分栏操作按确认基线保留；原版不可用的入口不伪造支持。",
+      "重启恢复已保存历史和未发送草稿/附件/打开文件；同一 Pi 历史保持单写者。",
+      "后台会话的完成、错误、待输入可发现，项目和会话切换不丢工作。"
+    ],
+    "tests": [
+      "两个本地项目/会话的 GUI 创建、切换、停止、退出/重启及外部文件变更验证。",
+      "记录与确认原版同状态的布局、焦点、滚动和恢复证据。"
+    ],
+    "number": 5,
+    "status": "active"
   },
   {
     "key": "tree-bridge",
     "title": "feat: 验证版本化能力桥、原生树跳转与资源重载",
-    "capabilities": ["P12", "P13", "P21", "P23", "P24", "P30"],
-    "stories": [27, 28, 29, 31, 49, 52, 54, 84],
-    "scenarios": ["T08", "T09", "T11", "T12"],
-    "blockedBy": ["native-agent"],
+    "capabilities": [
+      "P12",
+      "P13",
+      "P21",
+      "P23",
+      "P24",
+      "P30"
+    ],
+    "scenarios": [
+      "V05",
+      "V08"
+    ],
+    "blockedBy": [
+      "native-agent"
+    ],
     "outcome": "用户在同一 RPC 会话真实跳转历史节点、设置书签、查看工具/上下文来源并热重载，能力握手明确兼容版本。",
-    "decisions": ["优先 pi.registerCommand + ExtensionCommandContext.navigateTree/reload/setLabel，控制消息版本化且带关联 ID。", "缺失桥不能把控制请求当模型 prompt；控制失败不能被 prompt accepted 掩盖。", "会话替换或 reload 后重新绑定上下文，保留真实 rpc 模式；兼容补丁固定来源并最小化。"],
-    "acceptance": ["握手列出真实支持操作、Pi/bridge 版本与 generation；不支持时失败可诊断。", "树跳转改变 Pi active leaf/下一条原生 entry 的父节点；用户节点回填文本和可选分支摘要与上游一致。", "书签增删后 get_tree/get_entries 返回真实记录；原分支保留。", "重载刷新命令/工具/资源并拒绝旧 context；会话生命周期不重复触发。", "无凭据可用固定真实 Pi + 确定性 provider 验证核心机制，不用前端数组切换代替。"],
-    "tests": ["真实 Pi 进程执行 navigate/label/reload/取消/替换合同，断言 sessionId/entryId 和上下文。", "GUI 树点击→桥→Pi→后续消息的 E2E。"]
+    "decisions": [
+      "优先 pi.registerCommand + ExtensionCommandContext.navigateTree/reload/setLabel，控制消息版本化且带关联 ID。",
+      "缺失桥不能把控制请求当模型 prompt；控制失败不能被 prompt accepted 掩盖。",
+      "会话替换或 reload 后重新绑定上下文，保留真实 rpc 模式；兼容补丁固定来源并最小化。"
+    ],
+    "acceptance": [
+      "握手列出真实支持操作、Pi/bridge 版本与 generation；不支持时失败可诊断。",
+      "树跳转改变 Pi active leaf/下一条原生 entry 的父节点；用户节点回填文本和可选分支摘要与上游一致。",
+      "书签增删后 get_tree/get_entries 返回真实记录；原分支保留。",
+      "重载刷新命令/工具/资源并拒绝旧 context；会话生命周期不重复触发。",
+      "无凭据可用固定真实 Pi + 确定性 provider 验证核心机制，不用前端数组切换代替。"
+    ],
+    "tests": [
+      "真实固定 Pi 进程执行树导航、label、reload、取消、会话替换，核对 sessionId/entryId/active leaf。",
+      "原生 GUI 树操作→公开扩展桥→Pi→后续消息；失败不转为模型 prompt，重载后旧 context 不复活。"
+    ],
+    "number": 6,
+    "status": "active"
   },
   {
     "key": "auth",
-    "title": "feat: 执行环境内的 Pi API key 与 OAuth 认证管理",
-    "capabilities": ["P18", "P19", "P33"],
-    "stories": [37, 40, 41, 43, 81],
-    "scenarios": ["T01", "T10", "T17"],
-    "blockedBy": ["native-agent"],
-    "outcome": "用户通过 Pi 支持的动态 provider 目录登录、取消、刷新及登出；认证保存在实际执行环境，并可恢复认证失败。",
-    "decisions": ["固定版公开 ModelRuntime.login/getAuth/logout，GUI 管理通道不进入模型聊天。", "provider-driven text/secret/select/manual_code/auth_url/device_code 回调，操作和 prompt 各自取消。", "凭据不进入普通日志/消息；一个 provider 多账户用显式 profile，不能虚构项目 auth.json 自动继承。"],
-    "acceptance": ["API key 和 OAuth browser/device/manual 回调、取消、过期和失败均可观察。", "原生刷新串行化；已保存但本地同步失败准确报告，不泄露 CredentialSynchronizationError 中的 credential。", "登出后反映 ambient/env fallback 的真实来源；保存与实际验证状态分开。", "动态注册 provider 能使用相同认证 UI；本票验收本地执行环境和可注入目标的接口合同，SSH/WSL 实机认证由依赖本票的 remote 任务验收。"],
-    "tests": ["真实 ModelRuntime + 本地可控 OAuth HTTP 端点覆盖取消/刷新并发/过期/登出。", "至少一个真实 API key 和订阅 OAuth 账号验收，未提供账号时保持待完成，不记录假成功。"]
+    "title": "feat: 本地 Pi provider 的 API key 与 OAuth 认证",
+    "capabilities": [
+      "P18",
+      "P19",
+      "P33"
+    ],
+    "scenarios": [
+      "V06"
+    ],
+    "blockedBy": [
+      "native-agent"
+    ],
+    "outcome": "用户在本地 Pi 配置中完成 API key/OAuth 登录、取消、刷新和登出；GUI 显示实际认证状态。",
+    "decisions": [
+      "使用固定 Pi 公开认证接口及动态 provider 目录；模型调用继续由 Pi RPC 执行。",
+      "认证管理不进入聊天；保留 provider 回调/取消语义，不读取或输出用户密钥。",
+      "仅管理本地 Pi 实际使用的认证位置；没有 Pi 原生语义时不自建远端账户或多账户管理平台。"
+    ],
+    "acceptance": [
+      "API key、OAuth browser/device/manual 回调及取消、过期、失败可观察；目录不硬编码厂商。",
+      "刷新并发受控；凭据已保存但同步失败准确报告，错误不泄露凭据。",
+      "登出后显示实际环境变量或 ambient fallback；保存与验证成功分开。",
+      "自定义 provider 与本地用户配置使用同一认证路径，不要求 SSH/WSL 认证。"
+    ],
+    "tests": [
+      "固定 Pi 公开认证接口与可控 OAuth 端点的取消/刷新/过期/登出合同。",
+      "真实 API key 和用户完成的 OAuth 登录→推理→登出分别验收；缺账号的路径保留待验收。"
+    ],
+    "number": 7,
+    "status": "active"
   },
   {
     "key": "tui-proof",
-    "title": "feat: 同一 RPC 会话的真实 TUI 组件兼容纵向验证",
-    "capabilities": ["P27"],
-    "stories": [53, 54, 55, 84],
-    "scenarios": ["T09", "T12"],
-    "blockedBy": ["native-agent"],
-    "outcome": "用户在 GUI 终端兼容面板交互真实 Pi custom 组件与自定义 editor，其结果回到原 RPC 所有的同一会话。",
-    "decisions": ["固定版最小 RPC UI composition seam + Pi TUI Terminal 适配，ANSI 包装在版本化 JSONL 中。", "不得启动无关 Pi TUI 会话、伪造 mode=tui 或替换 Agent loop；严格 TUI guard 的样例使用显式适配。", "组件工厂和 custom<T> 任意结果留在 Pi 进程，UI epoch 管理 reload/会话替换生命周期。"],
-    "acceptance": ["custom modal/overlay 可键盘输入、resize、返回值；PID/sessionId 保持一致并影响真实工具结果。", "自定义 editor 保留文本、paste/submit/focus，native composer 同步且不双重投递。", "session_start 中等待 UI 不死锁；停止/替换/reload 清理旧组件与等待。", "提供补丁来源、版本、许可证及可重建实际 CLI artifact，测试不是只改未被启动的 dist 文件。"],
-    "tests": ["真实 Pi 进程 + xterm/headless 驱动交互；Electron custom UI 场景截图。", "重载后再次交互、晚到 factory、同步 done 和错误处理；其余公开 UI 类别由 tui-complete 补齐。"]
+    "title": "test: 核对 Pi 扩展 UI 的 GUI 兼容边界",
+    "capabilities": [
+      "P27"
+    ],
+    "scenarios": [
+      "V09"
+    ],
+    "blockedBy": [
+      "native-agent"
+    ],
+    "outcome": "形成固定 Pi 公开 UI API 的兼容表和可运行代表样例，确定必要 GUI 交互的真实实现路径。",
+    "decisions": [
+      "区分 RPC 原生支持、公开扩展桥/GUI 等价交互和复杂 TUI 专属能力。",
+      "不默认建设通用终端渲染器或修改 Pi 引擎；既有兼容代码仅作为可选复用资产。",
+      "任何支持声明都要求同一 Pi 会话的真实交互结果；不启动无关 TUI 会话冒充主会话。"
+    ],
+    "acceptance": [
+      "逐类列出 select/confirm/input/editor、notify/status/widget、custom、header/footer/editor factory、主题和 renderer 的实际能力与限制。",
+      "至少一个需要输入的真实扩展在 GUI 收到回答并继续原 Pi 会话；停止、取消、重载后不会死锁或投递到旧会话。",
+      "为 #25 明确必需的 GUI 等价交互和代表样例；复杂 TUI/直接 stdio/严格 tui guard 的限制逐项说明，不用未验证状态记成支持。",
+      "若实现某类别需要额外兼容引擎，记录成本/来源/版本，作为后续范围决定；不能以本票自动恢复全部旧 TUI 实施合同。"
+    ],
+    "tests": [
+      "核对固定 Pi 类型/实现与实际 RPC 行为，运行代表扩展验证已声明支持和不支持的路径。",
+      "记录 session/PID、请求关联、取消/reload 结果与原生 GUI 截图。"
+    ],
+    "number": 8,
+    "status": "active"
   },
   {
     "key": "history",
     "title": "feat: 会话目录、原生分支与导入导出分享",
-    "capabilities": ["P10", "P11", "P12", "P13", "P14", "P15", "P16", "P17"],
-    "stories": [7, 25, 26, 27, 28, 29, 30, 31, 33, 34, 35, 36],
-    "scenarios": ["T08", "T09"],
-    "blockedBy": ["tree-bridge", "workbench"],
-    "outcome": "用户发现 CLI 历史、创建/命名/归档/删除/恢复会话、导航树、fork/clone/编辑历史、导入导出及主动分享。",
-    "decisions": ["只读索引原生 JSONL，归档是 IDE 元数据；原生 session/entry ID 不混用。", "new/switch/fork/clone cancelled 保持原状态；成功后重取身份和目录。"],
-    "acceptance": ["CLI 与 GUI 在同一存储可互续，临时和自定义目录启动真实有效。", "fork/clone/历史编辑/重新生成保留原历史；树过滤、书签、摘要和当前分支可用。", "归档/删除/恢复不误删其他会话；活动会话所有权受到检查。", "HTML/JSONL 导出可打开，导入后可继续；复制最近回复和 gist 分享返回真实链接。", "原始 history、有效 context/edits、摘要/工具用量准确区分。"],
-    "tests": ["临时会话目录+真实 Pi 的 CLI→GUI→CLI、取消与替换回归；GUI 分支/导出 E2E。", "用户主动触发的真实 gh gist 分享和导入验证。"]
+    "capabilities": [
+      "P10",
+      "P11",
+      "P12",
+      "P13",
+      "P14",
+      "P15",
+      "P16",
+      "P17"
+    ],
+    "scenarios": [
+      "V04",
+      "V05",
+      "V10"
+    ],
+    "blockedBy": [
+      "tree-bridge",
+      "workbench"
+    ],
+    "outcome": "用户查看并续接 Pi CLI 历史，命名会话、使用原生树/分支/fork/clone，并导入导出或主动分享。",
+    "decisions": [
+      "索引固定 Pi 原生 JSONL，session/entry ID 保持真实；不另建归档回收站系统。",
+      "new/switch/fork/clone cancelled 保持原状态；成功后重取会话身份。",
+      "外部分享必须由用户主动触发并预览内容；在线分享不等于建设 GitHub 开发工作流。"
+    ],
+    "acceptance": [
+      "CLI→GUI→CLI 续接、临时会话和自定义存储有效，单写者控制不破坏历史。",
+      "fork/clone/历史输入编辑/分支重试使用真实 entry，树跳转、书签、摘要保留原分支。",
+      "会话目录查询、排序、筛选、重命名与确认删除可用；删除显示真实对象，保护活动和其他会话，不增加自有归档回收站。",
+      "HTML/JSONL 导出可打开，导入可续接，复制最近回复正确；Pi 分享由用户主动操作并返回真实链接。",
+      "原始历史、有效上下文、摘要和用量清晰区分。"
+    ],
+    "tests": [
+      "真实 Pi 临时目录及 CLI/GUI 互续、分支/取消/恢复/导入导出；校验原历史不被覆盖。 验证目录排序/筛选和确认删除，取消不改历史，活动会话与其他文件受保护。",
+      "分享在用户显式操作下单独验证；离线导出不冒充已分享。"
+    ],
+    "number": 9,
+    "status": "active"
   },
   {
     "key": "settings",
-    "title": "feat: 完整分层设置、provider 配置与启动 profiles",
-    "capabilities": ["P05", "P06", "P07", "P08", "P19", "P28", "P31", "P32", "P34"],
-    "stories": [38, 39, 40, 41, 43, 44, 45, 46, 56],
-    "scenarios": ["T01", "T10", "T11"],
-    "blockedBy": ["auth", "tree-bridge"],
-    "outcome": "用户管理当前/全局/工作区设置、完整未知字段、模型 scopes/defaults、自定义 provider 和 CLI 启动 profile。",
-    "decisions": ["Pi SettingsManager 为生效权威；缺少 setter 时锁定+重读+字段 patch，保留 JSONC 和未知 sibling。", "显示实际 trust 决策；不静默信任或禁用资源；网络刷新显式遵守 offline 配置。"],
-    "acceptance": ["全部固定版 Pi 设置都有表单或高级编辑入口，显示来源和即时/重载/重启时机。", "重试/压缩/cache/transport/proxy/images/shell/resources/thinking budget/scoped models 可保存且真实生效。", "自定义 base URL/headers/API/model 参数及扩展 provider 刷新可使用，不固定厂商清单。", "项目不可信时资源加载结果与 Pi 一致；未知字段和并发无关编辑不会丢失，坏 JSON 不被覆盖。", "交互/print/JSON CLI 和临时扩展/精确资源 flags 可从 IDE profile 发起，主会话仍 RPC。"],
-    "tests": ["真实 settings/models 配置的范围、未知字段、外部变更、语法错误、trust fixtures。", "真实 Pi 自定义 provider/profile 启动与当前/默认模型差异验收。"]
+    "title": "feat: Pi 设置、模型配置和本地启动选项",
+    "capabilities": [
+      "P05",
+      "P06",
+      "P07",
+      "P08",
+      "P19",
+      "P28",
+      "P31",
+      "P32",
+      "P34",
+      "D05"
+    ],
+    "scenarios": [
+      "V06",
+      "V08"
+    ],
+    "blockedBy": [
+      "auth",
+      "tree-bridge"
+    ],
+    "outcome": "用户从原生设置修改 Pi 模型/provider、作用域和必要启动选项，并看到实际生效值。",
+    "decisions": [
+      "以 Pi 设置解析为准；表单或高级编辑保留未知字段和无关修改，不为每个配置另造管理系统。",
+      "遵守 Pi 项目信任、离线、遥测和更新选项；显示来源及重载/重启生效时机。",
+      "映射影响 GUI 会话的本地 CLI/环境/存储/资源参数；CLI interactive/print/JSON 本身继续用 Pi CLI，不建设独立 CLI profiles 产品。"
+    ],
+    "acceptance": [
+      "固定 Pi 设置均可通过必要表单或高级配置查看/编辑，区分当前会话、用户和项目来源。",
+      "模型 scopes/defaults、thinking、重试/压缩/cache/transport/proxy/images/shell/resources 生效并可恢复。",
+      "自定义 provider 的 base URL/headers/API/models 与动态目录由 Pi 实际使用。",
+      "trust、离线/遥测/更新设置保持用户选择；坏配置、并发修改和未知字段不被静默覆盖。",
+      "本地 cwd/Pi路径/存储/资源 flags 与真实启动一致；TUI 专属或其他 CLI 模式选项明确适用范围，GUI 主会话保持 RPC。"
+    ],
+    "tests": [
+      "真实设置/模型文件的覆盖、未知字段、并发外部修改、坏 JSON 和 trust 用例。",
+      "固定 Pi 启动和自定义 provider/模型切换 GUI 冒烟，区分当前值与默认值。"
+    ],
+    "number": 10,
+    "status": "active"
   },
   {
     "key": "llama",
     "title": "feat: llama.cpp router 模型管理与实际会话接入",
-    "capabilities": ["P20"],
-    "stories": [42],
-    "scenarios": ["T10"],
-    "blockedBy": ["auth"],
+    "capabilities": [
+      "P20"
+    ],
+    "scenarios": [
+      "V07"
+    ],
+    "blockedBy": [
+      "auth"
+    ],
     "outcome": "用户连接 router，查看实时模型，下载、加载、卸载、取消并选作 Pi 会话模型。",
-    "decisions": ["适配固定版 MIT router client/controller，通过公开 Pi provider API 推理；内部非公开导出不假装公开。", "取消需发送 router 真实终止操作并复查状态，不能只取消本地观察。"],
-    "acceptance": ["列表反映 loaded/loading/unloaded/downloading/sleeping、autoload/preset 规则。", "SSE/轮询进度、加载/卸载/下载及取消真实，断线后先查询不重放。", "认证与 router base URL 在正确环境，刷新后可由 Pi 调用模型。"],
-    "tests": ["本地 HTTP/SSE 合同端点覆盖进度/失败/取消/重连。", "真实 llama.cpp+GGUF 完成一次加载推理和卸载；无服务时保持真实验收待完成。"]
+    "decisions": [
+      "适配固定版 MIT router client/controller，通过公开 Pi provider API 推理；内部非公开导出不假装公开。",
+      "取消需发送 router 真实终止操作并复查状态，不能只取消本地观察。"
+    ],
+    "acceptance": [
+      "列表反映 loaded/loading/unloaded/downloading/sleeping、autoload/preset 规则。",
+      "SSE/轮询进度、加载/卸载/下载及取消真实，断线后先查询不重放。",
+      "认证与 router base URL 在正确环境，刷新后可由 Pi 调用模型。"
+    ],
+    "tests": [
+      "本地 HTTP/SSE 合同端点覆盖进度/失败/取消/重连。",
+      "真实 llama.cpp+GGUF 完成一次加载推理和卸载；无服务时保持真实验收待完成。"
+    ],
+    "number": 11,
+    "status": "active"
   },
   {
     "key": "resources",
-    "title": "feat: Skills、模板、上下文、包与资源热重载中心",
-    "capabilities": ["P21", "P22", "P24", "P29", "P30", "P32"],
-    "stories": [17, 46, 47, 48, 49, 50, 51, 52, 54],
-    "scenarios": ["T11"],
-    "blockedBy": ["tree-bridge", "settings"],
-    "outcome": "用户发现、编辑、创建和调用 Skills/模板/上下文，按作用域安装、固定、过滤和更新真实 Pi 包并重载。",
-    "decisions": ["get_commands sourceInfo 来自固定版；内建 TUI slash 命令不假设 RPC 可调用。", "包使用 Pi 管理命令，资源和 trust 解析沿用 Pi，不另建不兼容加载器。"],
-    "acceptance": ["全局/项目/包来源、加载错误、system prompt 替换追加及优先级可查看编辑。", "带参数模板/Skill 调用真实展开；启停与修改的生效时机清晰。", "npm/Git/local 安装卸载更新固定版本与过滤真实影响加载结果。", "重载后命令/工具/provider/theme 目录刷新且旧 session context 失效可诊断。"],
-    "tests": ["本地测试包与临时 Git/npm fixture 的全生命周期；真实 Pi 资源调用。", "至少一个真实 npm/Git 包安装与卸载结果和 UI 截图。"]
+    "title": "feat: Pi Skills、模板、上下文、扩展包与重载",
+    "capabilities": [
+      "P21",
+      "P22",
+      "P24",
+      "P29",
+      "P30",
+      "P32"
+    ],
+    "scenarios": [
+      "V08"
+    ],
+    "blockedBy": [
+      "tree-bridge",
+      "settings"
+    ],
+    "outcome": "用户发现、调用和按需编辑 Pi Skills/模板/上下文，管理实际 Pi 包与资源，重载后看到真实结果。",
+    "decisions": [
+      "get_commands sourceInfo 来自固定版；内建 TUI slash 命令不假设 RPC 可调用。",
+      "包使用 Pi 管理命令，资源和 trust 解析沿用 Pi，不另建不兼容加载器。"
+    ],
+    "acceptance": [
+      "全局/项目/包来源、加载错误、system prompt 替换追加及优先级可查看编辑。",
+      "带参数模板/Skill 调用真实展开；启停与修改的生效时机清晰。",
+      "npm/Git/local 安装卸载更新固定版本与过滤真实影响加载结果。",
+      "重载后命令/工具/provider/theme 目录刷新且旧 session context 失效可诊断。"
+    ],
+    "tests": [
+      "本地测试包与临时 Git/npm fixture 的全生命周期；真实 Pi 资源调用。",
+      "至少一个真实 npm/Git 包安装与卸载结果和 UI 截图。"
+    ],
+    "number": 12,
+    "status": "active"
   },
   {
     "key": "extension-ui",
-    "title": "feat: 全原生扩展交互、工具目录及生命周期展示",
-    "capabilities": ["P23", "P24", "P25", "P26"],
-    "stories": [13, 14, 52, 53, 54],
-    "scenarios": ["T04", "T06", "T09", "T12"],
-    "blockedBy": ["tree-bridge", "conversation", "queue-stop"],
+    "title": "feat: Pi 扩展对话、状态、工具和生命周期映射",
+    "capabilities": [
+      "P23",
+      "P24",
+      "P25",
+      "P26"
+    ],
+    "scenarios": [
+      "V02",
+      "V03",
+      "V09"
+    ],
+    "blockedBy": [
+      "tree-bridge",
+      "conversation",
+      "queue-stop"
+    ],
     "outcome": "用户交互全部 RPC 扩展对话与状态/widget，并检查动态工具/生命周期/错误。",
-    "decisions": ["交互归属 session+generation+request ID，fire-and-forget 不发送伪响应。", "read/write/edit/bash/powershell/grep/find/ls 与自定义/覆盖工具使用通用结果表示。"],
-    "acceptance": ["select/confirm/input/editor 的回答、取消、超时、并行会话与停止正确。", "notify/status/widget/title/editor text 的更新和清除均生效。", "工具目录及 active tools 控制改变实际 Pi 工具集；输入变换/扩展消息/provider 和 errors 保留。", "加载/卸载/reload/会话替换生命周期可观察，无旧 UI 复活。"],
-    "tests": ["真实 Pi 扩展样例触发每类 UI 和工具，四会话并行 E2E。", "未知工具 text/image/details 及异常扩展合同。"]
+    "decisions": [
+      "交互归属 session+generation+request ID，fire-and-forget 不发送伪响应。",
+      "read/write/edit/bash/powershell/grep/find/ls 与自定义/覆盖工具使用通用结果表示。"
+    ],
+    "acceptance": [
+      "select/confirm/input/editor 的回答、取消、超时、并行会话与停止正确。",
+      "notify/status/widget/title/editor text 的更新和清除均生效。",
+      "工具目录及 active tools 控制改变实际 Pi 工具集；输入变换/扩展消息/provider 和 errors 保留。",
+      "加载/卸载/reload/会话替换生命周期可观察，无旧 UI 复活。"
+    ],
+    "tests": [
+      "真实固定 Pi 扩展触发 RPC UI 类别、动态工具与错误；两个会话的响应/取消/重载互不干扰。",
+      "未知工具 text/image/details 保留、会话替换生命周期及停止等待合同。"
+    ],
+    "number": 13,
+    "status": "active"
   },
   {
     "key": "editor",
-    "title": "feat: 真实文件树、多标签编辑与磁盘冲突恢复",
-    "capabilities": ["I03", "I04", "I10"],
-    "stories": [16, 57, 58, 63],
-    "scenarios": ["T13", "T19"],
-    "blockedBy": ["native-agent"],
-    "outcome": "用户创建/重命名/移动/删除真实文件，多标签编辑保存，并在 Agent 或外部程序修改文件时比较/合并/重载。",
-    "decisions": ["优先复用ZCode原生文件/编辑/预览组件与宿主服务；检查主规格能力差额，必要的编辑器增补沿用原生操作路径并登记差异。内容摘要或版本检查避免静默覆盖草稿。", "执行环境接口隔离本地路径；引用文件/目录/选区均显式预览，目录不隐式全量注入。"],
-    "acceptance": ["中文、空格、长路径 CRUD 和 watcher 更新可用；普通目录工作。", "多标签/草稿恢复/保存，外部改动与未保存草稿有 compare/merge/reload；保存检查最新版本。", "快速打开、定位行列、Markdown/图片/文本预览真实。", "文件和选区引用保留路径/版本/文本快照，可发送并回到源位置。"],
-    "tests": ["临时真实文件系统+Electron 编辑、外部改动和冲突测试。", "关键状态、中文路径及多标签截图。"]
+    "title": "feat: 本地文件引用、预览与必要编辑保存",
+    "capabilities": [
+      "D03",
+      "D04"
+    ],
+    "scenarios": [
+      "V11"
+    ],
+    "blockedBy": [
+      "native-agent"
+    ],
+    "outcome": "用户从原生文件树和输入框引用本地文件，在 Side Pane 查看文本、图片、Markdown 和工具产物，必要编辑可可靠保存。",
+    "decisions": [
+      "复用 ZCode 文件树、标签/Side Pane、引用和可用编辑组件；不建设完整 IDE/LSP。",
+      "明确文件引用的路径/内容及发送语义；磁盘事实与 Pi 工具结果分开，不把所有工作区 diff 归给本会话。"
+    ],
+    "acceptance": [
+      "本地文件选择/引用、工具文件链接和必要预览指向正确项目；中文、空格、缺失和大文件有清晰反馈。",
+      "引用进入实际 Pi 输入，图片附件内容与 MIME 正确；发送后不能悄悄变为另一份文件。",
+      "文本/图片/Markdown 预览与原生标签操作可用，未知格式有明确打开或不支持路径。",
+      "已提供编辑入口时，未保存状态、外部改动冲突和重启恢复不会静默丢文件；复用原生保存行为。",
+      "不要求多语言诊断、全局替换、开发服务/端口管理、完整 Git 操作或独立浏览器平台。"
+    ],
+    "tests": [
+      "临时真实文件系统→原生 GUI 引用/预览→Pi 输入合同，工具输出路径回链。",
+      "实际文件编辑/保存冲突和未发送引用重启恢复；截图与确认原生布局对照。"
+    ],
+    "number": 14,
+    "status": "active"
   },
   {
     "key": "language",
+    "number": 15,
     "title": "feat: 可取消搜索替换与 TS/JS、JSON、Python 语言服务",
-    "capabilities": ["I05", "I10"],
-    "stories": [59, 60, 62],
-    "scenarios": ["T13", "T18"],
-    "blockedBy": ["editor"],
-    "outcome": "用户搜索替换大项目，并使用补全、定义/引用、重命名、格式化与诊断，发送诊断给 Agent。",
-    "decisions": ["可配置 LSP 适配；随附固定 TS/JS、JSON、Python 服务并验证各声明能力。", "搜索流式可取消，替换前基准校验，语言服务按执行环境/cwd 隔离。"],
-    "acceptance": ["全局搜索/替换/取消真实且不阻塞输入，结果能定位行列。", "三类随附语言有补全/导航/引用/重命名/格式化/诊断的可运行例子。", "用户可配置其他 LSP；崩溃/重启/版本信息可查看。", "诊断可作为带来源上下文交给会话。"],
-    "tests": ["真实语言服务器与临时项目的端到端合同，不以静态 fixture 代替语言行为。", "大目录搜索中止及草稿与替换冲突 E2E。"]
+    "status": "retired",
+    "capabilities": [],
+    "scenarios": [],
+    "blockedBy": [],
+    "reason": "完整语言服务、全局搜索替换和诊断超出使用 Pi 所必需的桌面范围；文件引用与预览由 #14 承接。"
   },
   {
     "key": "terminal",
+    "number": 16,
     "title": "feat: ConPTY 多终端、后台命令与 CLI profiles",
-    "capabilities": ["I06", "I10", "P34"],
-    "stories": [24, 61, 62],
-    "scenarios": ["T14", "T20"],
-    "blockedBy": ["native-agent"],
-    "outcome": "用户在工作区打开多个真实交互终端，resize/停止命令、查看后台日志/退出码并引用输出。",
-    "decisions": ["保留ZCode原生终端面板及xterm/PTY服务；Windows ConPTY与所采用Electron的native ABI和安装包实际验证，旧分支版本不能强制覆盖上游。", "终端所属执行环境显式，停止清理对应进程树且不影响其他会话。"],
-    "acceptance": ["真实 shell 双向输入/resize/Unicode/复制粘贴可用，多终端输出不串台。", "后台命令日志、启动时间、退出码和取消结果真实，输出可引用到 Agent。", "Pi interactive/print/JSON CLI profile 真实启动，主对话仍 RPC。", "打包后 native PTY 正常加载并执行命令。"],
-    "tests": ["真实 ConPTY echo/交互/resize/长运行停止；Electron xterm E2E。", "Windows 未打包和打包应用分别验证 native 模块。"]
+    "status": "retired",
+    "capabilities": [],
+    "scenarios": [],
+    "blockedBy": [],
+    "reason": "不再单独建设多终端、ConPTY 管理或后台命令平台。Pi 原生 shell 与上下文语义由 #4 承接，必要启动参数由 #10 承接；已有终端可复用。"
   },
   {
     "key": "preview",
+    "number": 17,
     "title": "feat: 开发服务、隔离预览与截图上下文",
-    "capabilities": ["I07", "I10"],
-    "stories": [5, 16, 63, 64],
-    "scenarios": ["T14", "T19"],
-    "blockedBy": ["terminal", "editor"],
-    "outcome": "用户启动/停止/重启开发服务，在工作台查看网页、Markdown、图片和产物，并把截图或选区发送给 Agent。",
-    "decisions": ["预览内容与应用 IPC 权限隔离，开发服务拥有独立进程身份。", "端口映射通过统一环境接口，远端行为在 remote 集成验收。"],
-    "acceptance": ["服务命令、cwd、地址、日志和退出状态真实，重启没有遗留同服务进程。", "网页/文件产物可访问，导航/错误/证书状态可见，预览无宿主控制接口。", "截图与 DOM/选区上下文可预览后进入真实 Pi 图片/文本输入。", "本地地址和远端映射生命周期可显示/关闭。"],
-    "tests": ["真实本地 HTTP 开发服务+Electron 预览/重启/截图验收。", "远端端口映射另在 remote 的 T14/T17 链路验收。"]
+    "status": "retired",
+    "capabilities": [],
+    "scenarios": [],
+    "blockedBy": [],
+    "reason": "不再建设开发服务发现、端口和浏览器预览管理平台；必要的本地文件、图片和 Markdown 预览由 #14 承接。"
   },
   {
     "key": "git",
+    "number": 18,
     "title": "feat: Git 改动、行级审阅、提交同步与冲突处理",
-    "capabilities": ["I08", "I10"],
-    "stories": [16, 65, 66, 67],
-    "scenarios": ["T15"],
-    "blockedBy": ["editor"],
-    "outcome": "用户审阅真实 staged/unstaged/untracked Diff，评论代码位置，stage/unstage、commit、分支同步及解决冲突。",
-    "decisions": ["调用真实 Git，工作区总改动不声称由某会话产生；保留已有 dirty tree。", "评论保存文件、范围和 base revision，过期锚点可见；索引和工作树分开。"],
-    "acceptance": ["保留ZCode原生Diff组件和操作路径，状态与行级Diff准确覆盖未跟踪/重命名/二进制/冲突；确有能力缺口时最小增补并记录兼容差异，不强制替换为旧原型编辑器。", "文件/行级 stage/unstage、commit、branch、pull/push 有真实退出结果与失败恢复。", "评论能带版本定位发给 Agent；基准变更后显示过期。", "冲突可比较并保存解决，普通目录明确无 Git 能力，已有改动不被误删。"],
-    "tests": ["真实临时 Git repo + bare remote 测试 dirty tree、索引、提交同步、冲突。", "Electron Diff/评论/提交 E2E。"]
+    "status": "retired",
+    "capabilities": [],
+    "scenarios": [],
+    "blockedBy": [],
+    "reason": "完整 Git 状态、行级暂存、提交同步和冲突处理不是首版必需；已有只读信息与可复用组件保留。"
   },
   {
     "key": "github-worktrees",
+    "number": 19,
     "title": "feat: worktree 隔离任务与 GitHub Issue/PR 开发闭环",
-    "capabilities": ["I09", "I11"],
-    "stories": [68, 69],
-    "scenarios": ["T15"],
-    "blockedBy": ["git", "workbench"],
-    "outcome": "用户从 GitHub Issue 创建绑定独立 worktree 的工作，审阅合并成果，创建关联 PR 并查看 review/checks。",
-    "decisions": ["GitHub 经宿主 gh，Issue/Task/Session ID 显式关联；失败可重试不伪造成功。", "删除 worktree 前展示 dirty/index 状态，保留未提交内容。"],
-    "acceptance": ["创建/列出/打开/移除 worktree 与分支生命周期可用，两个任务文件改动隔离。", "gh 账户状态、Issues 正文/评论、PR 创建、reviews 和 checks 可操作。", "Issue 启动会话带来源链接，PR 正确关联 Issue 与 base/head。", "无认证/网络失败/冲突均有真实错误与恢复路径。"],
-    "tests": ["真实临时 worktree/bare remote 的创建、合并及拒绝脏删除。", "本地 gh 协议边界测试 + 本仓库实际 Issue/PR 读取和可控 PR 创建验收。"]
+    "status": "retired",
+    "capabilities": [],
+    "scenarios": [],
+    "blockedBy": [],
+    "reason": "GitHub Issue→worktree→PR 产品工作流不属于 Pi 核心能力或必要桌面体验。"
   },
   {
     "key": "plan-tasks",
+    "number": 20,
     "title": "feat: 随附 Pi Plan 扩展、待办、任务与产物记录",
-    "capabilities": ["I12", "P23", "P24"],
-    "stories": [70, 71],
-    "scenarios": ["T16"],
-    "blockedBy": ["extension-ui"],
-    "outcome": "用户切换规划与执行，查看真实工具集，持续维护任务计划、待办、状态和产物。",
-    "decisions": ["作为可关闭的随附 Pi 扩展，通过公开 tools/lifecycle API 实现；不虚构为原生 RPC。", "计划模式实际限制工具，状态持久化关联 Pi session 和 task。"],
-    "acceptance": ["Plan/执行切换改变实际可调用工具且 UI 与其一致。", "待办创建/更新/完成、任务状态与产物有真实工具结果，重启可恢复。", "扩展禁用/失败在 UI 清晰，不保留虚假能力入口。"],
-    "tests": ["真实 Pi 确定性 provider 调用随附任务工具，验证状态和禁用效果。", "GUI 计划→执行→产物全链路 E2E。"]
+    "status": "retired",
+    "capabilities": [],
+    "scenarios": [],
+    "blockedBy": [],
+    "reason": "不随附维护自有 Plan、待办和任务系统；Pi 扩展的加载、命令和交互由 #12/#13/#25 负责。"
   },
   {
     "key": "subagents",
+    "number": 21,
     "title": "feat: 真实子 Agent 串并行委派、汇总与取消",
-    "capabilities": ["I13", "I09"],
-    "stories": [72, 73],
-    "scenarios": ["T07", "T16"],
-    "blockedBy": ["plan-tasks", "github-worktrees", "queue-stop"],
-    "outcome": "用户从父任务委派独立子 Agent，观察串/并行状态、来源/上下文/费用，停止/继续并汇总结果。",
-    "decisions": ["每子会话独立真实 Pi 进程，可绑定 worktree；关联父 task/session。", "取消父任务的传播策略明确，汇总用量保留来源不重复计费。"],
-    "acceptance": ["至少两个并行和一个串行子任务实际执行工具，结果可交接到父会话。", "启动/暂停或停止/继续/失败可观察；一个崩溃不误完成其他任务。", "上下文、产物、工具来源、分项与总用量可追踪。", "关闭随附扩展时不能继续调度隐藏 Agent。"],
-    "tests": ["真实 Pi 进程+确定性 provider 多子任务，取消/失败/重启与 worktree 隔离集成。", "真实模型一次委派结果汇总验收。"]
+    "status": "retired",
+    "capabilities": [],
+    "scenarios": [],
+    "blockedBy": [],
+    "reason": "不建设自有子 Agent 编排系统；用户安装的 Pi 扩展按明确的扩展兼容范围使用。"
   },
   {
     "key": "mcp",
+    "number": 22,
     "title": "feat: MCP stdio/HTTP 认证、工具资源 prompts 与重连",
-    "capabilities": ["I14", "P23", "P24"],
-    "stories": [74, 75],
-    "scenarios": ["T16"],
-    "blockedBy": ["extension-ui", "auth"],
-    "outcome": "用户配置 MCP 服务并从 Pi 调用真实工具、资源和 prompts，观察认证、目录变更、超时、取消与重连。",
-    "decisions": ["随附可关闭 Pi 扩展适配 MCP SDK；不是上游原生 RPC。", "stdio 与 Streamable HTTP 均支持，MCP 凭据在目标 profile，重连不重放副作用工具。"],
-    "acceptance": ["连接/认证/发现/调用在两种传输均可运行，资源与 prompt 可作为上下文。", "工具变化更新 Pi active catalog，失联/取消/超时/失败可查看且不假成功。", "HTTP OAuth 授权/取消/刷新正确，stdio 进程生命周期可管理。"],
-    "tests": ["真实本地 MCP SDK stdio/HTTP 服务及 OAuth 端点集成，调用真实文件/计算行为。", "至少一个外部 MCP 服务验收，凭据缺失时保持该验收待完成。"]
+    "status": "retired",
+    "capabilities": [],
+    "scenarios": [],
+    "blockedBy": [],
+    "reason": "不建设通用 MCP 管理系统；Pi 扩展可提供相关功能，不以此要求 GUI 另造 MCP 产品。"
   },
   {
     "key": "remote",
+    "number": 23,
     "title": "feat: WSL/SSH 目标侧主管、远端文件 Git PTY 和恢复",
-    "capabilities": ["I16", "I07", "I01", "P17", "P18", "P34"],
-    "stories": [2, 3, 37, 64, 78],
-    "scenarios": ["T07", "T09", "T14", "T17"],
-    "blockedBy": ["workbench", "terminal", "git", "preview", "auth"],
-    "outcome": "用户打开 WSL/SSH 工作区，在目标运行文件/Git/PTY/Pi，断线后重连恢复真实运行状态并访问预览。",
-    "decisions": ["目标侧 session supervisor 持久进程身份与事件游标；SSH 外层隧道不改变内部 Pi JSONL。", "路径、shell、认证和端口来自目标，重连先 reconcile，不隐式重放已执行副作用。"],
-    "acceptance": ["WSL 和 SSH 均完成 cwd/文件/Git/终端/Agent 操作，中文/空格路径可用。", "断线状态可见，后台主管继续或明确失败；重连不重复 prompt/commit/写文件。", "端口映射启动/停止可用，远端预览截图能回到所属会话。", "目标认证和 profile 不误写 Windows 本地全局配置。"],
-    "tests": ["本地 SSH 协议/主管可控断网集成；真实 WSL 发行版与 SSH 主机完整 T17。", "无外部主机/发行版保持验收开启并记录精确前提。"]
+    "status": "retired",
+    "capabilities": [],
+    "scenarios": [],
+    "blockedBy": [],
+    "reason": "WSL/SSH 工作区、目标侧主管、远端 Git/PTY、端口转发和断线恢复退出首版；在线 provider/API/OAuth 仍由 #7/#10 保留。"
   },
   {
     "key": "schedule",
+    "number": 24,
     "title": "feat: 持久后台与定时任务、恢复策略和通知",
-    "capabilities": ["I15"],
-    "stories": [8, 76, 77],
-    "scenarios": ["T09", "T16", "T17"],
-    "blockedBy": ["plan-tasks", "workbench", "queue-stop"],
-    "outcome": "用户安排本地或目标环境的后台/定时任务，查看历史和通知，休眠/退出后按策略恢复且同次触发不重复。",
-    "decisions": ["持久 trigger ID/scheduled time/target/state/next run，事务化领取和并发策略。", "窗口关闭、宿主退出和目标离线分开；missed-run skip/catch-up 明确。"],
-    "acceptance": ["一次性/周期计划及并发/错过执行策略可配置，Pi 真正执行并关联日志/产物。", "重启/休眠/时钟跳变/断线不会重复创建同一触发运行。", "后台宿主和通知真实，目标不可用暂停/失败，不盲目 replay。"],
-    "tests": ["受控时钟+真实子进程/持久数据库的崩溃恢复、重复领取集成。", "Windows 关闭窗口后台运行、休眠/恢复与通知实机记录。"]
+    "status": "retired",
+    "capabilities": [],
+    "scenarios": [],
+    "blockedBy": [],
+    "reason": "不建设持久后台任务或定时调度平台；普通会话运行和保存恢复由 #4/#5 负责。"
   },
   {
     "key": "tui-complete",
-    "title": "feat: 完整公开扩展 UI 类别与渲染器兼容",
-    "capabilities": ["P27", "P28"],
-    "stories": [53, 54, 55, 56],
-    "scenarios": ["T09", "T12", "T19"],
-    "blockedBy": ["tui-proof", "extension-ui", "settings"],
-    "outcome": "用户使用固定 Pi 公开 UI 的每个类别，包括组件 widget、header/footer/editor、主题、工作指示器及自定义渲染器。",
-    "decisions": ["以固定 ExtensionUIContext 与 renderer 注册清单生成验收矩阵；结构化 GUI 与真实终端表面协调。", "直接访问 stdio 或严格 tui guard 扩展给显式版本化适配，不声称任意第三方零适配。"],
-    "acceptance": ["custom overlay/focus/resize、factory widgets、header/footer/editor、autocomplete/input hooks/编辑器读写都运行。", "theme/getTheme/setTheme、working visibility/indicator/message、thinking label、tool expansion/reset 真正更新。", "tool renderCall/renderResult/renderShell、message/entry renderers、Markdown transformers 执行且未知/错误 fallback 保留数据。", "reload/替换/取消释放组件、timer/listener，不复活旧 UI；快捷键与 IME 不双重提交。", "逐类别代表样例有可复现结果，结果回到同一个 RPC session。"],
-    "tests": ["真实 Pi+terminal headless+Electron 类别矩阵；四会话和重载后再次交互。", "记录样例的 guard/cleanup 适配及来源，不把 source inspection 记成通过。"]
+    "title": "feat: 补齐必要 Pi 扩展交互并呈现兼容限制",
+    "capabilities": [
+      "P27",
+      "P28"
+    ],
+    "scenarios": [
+      "V09"
+    ],
+    "blockedBy": [
+      "tui-proof",
+      "extension-ui",
+      "settings"
+    ],
+    "outcome": "必要扩展操作在原生 GUI 有可用等价交互，复杂 TUI 的限制可见，不出现无反馈入口或假成功。",
+    "decisions": [
+      "以 #8 类别清单及实际 Pi 公共接口为依据，复用原生对话、状态、输入区和 Side Pane。",
+      "不以扩展支持为理由随附 Plan/MCP/子 Agent/调度等业务系统；不承诺任意第三方 TUI 零适配。"
+    ],
+    "acceptance": [
+      "#8 确认的必要交互有真实回答/取消/错误路径，结果回到同一 Pi 会话；基础 RPC UI 由 #13 交付。",
+      "custom/组件 widget/header/footer/editor/theme/renderer 等逐类注明 GUI 等价、受限或不支持及原因；不默认要求通用 ANSI 兼容引擎。",
+      "扩展的原始消息/工具结果不会因 renderer 不兼容丢失；必要输入不能无提示悬挂，提供取消和可操作说明。",
+      "reload/会话替换/停止清理旧 UI、timer/listener 和请求；IME/快捷键不双重提交。",
+      "代表样例、支持版本、复用来源和限制进入使用文档；新发现的复杂 TUI 需求单独记录，不自动扩大首版。"
+    ],
+    "tests": [
+      "按 #8 清单运行已声明支持的类别和至少一个不兼容样例；真实 Pi+GUI 核对结果、取消和错误提示。",
+      "两个会话及重载后再次交互，未验证项保留待验收或明确兼容限制。"
+    ],
+    "number": 25,
+    "status": "active"
   },
   {
     "key": "ux-performance",
-    "title": "feat: 中文键盘工作流、主题无障碍与长会话性能",
-    "capabilities": ["I17", "P28"],
-    "stories": [6, 8, 56, 79, 80],
-    "scenarios": ["T18", "T19"],
-    "blockedBy": ["conversation", "workbench", "editor", "terminal", "extension-ui", "resources", "plan-tasks", "git"],
-    "outcome": "用户通过命令面板和快捷键操作核心流程，中文 IME、明暗主题和辅助技术可用，长历史仍能输入和停止。",
-    "decisions": ["虚拟化/分块投影保持滚动锚点，向上阅读不被强制滚到末尾。", "中文默认，英文文案结构保留；语义 focus/live regions 和统一密度/字体。"],
-    "acceptance": ["命令面板覆盖窗口/文件/会话/模型/资源/任务/Git，快捷键可配置并可键盘完成核心流程；帮助、changelog 和退出有真实入口，退出遵守后台任务策略。", "代码字体和显示密度可配置并持久化；Pi 主题映射及 TUI 专用选项的作用域可查看。", "IME 合成期间 Enter 不发送，焦点返回正确，状态/错误有辅助提示。", "1280×800/1920×1080 明暗主题及长中文、空/加载/错误/等待/运行无关键遮挡。", "一万条消息+长工具输出+四会话实测输入 p95<100ms、事件展示 p95<200ms，附机器/构建/数据规模。"],
-    "tests": ["Electron 键盘/IME/焦点 E2E 与关键视口截图；必要 accessibility 检查。", "实际性能计时，失败必须修复或保持开启，不用 provider 网络时间代替。"]
+    "title": "feat: Pi 核心桌面流程的中文输入、键盘与长会话体验",
+    "capabilities": [
+      "P28",
+      "D02",
+      "D03",
+      "D05"
+    ],
+    "scenarios": [
+      "V12"
+    ],
+    "blockedBy": [
+      "conversation",
+      "workbench",
+      "editor",
+      "extension-ui",
+      "resources",
+      "tui-complete"
+    ],
+    "outcome": "核心 Pi 操作保持原生交互；中文输入、键盘、焦点、滚动和长会话可实际使用。",
+    "decisions": [
+      "保留原生主题/焦点/滚动/展示状态，长记录按需要分块或虚拟化，不另设全 IDE 性能工程。",
+      "以真实用户核心流程验收，不强制四会话、一万消息或旧任意性能数值。"
+    ],
+    "acceptance": [
+      "核心会话/模型/资源/设置流程可从原生菜单、快捷键和必要命令入口到达；帮助/版本/退出入口准确。",
+      "IME 合成 Enter 不误发送，弹窗后焦点正确，状态和错误可发现。",
+      "1280×800/1920×1080 明暗主题的核心空/运行/等待/失败状态可用；未登记布局改变视为缺陷。",
+      "长历史和长工具输出时仍可输入、停止、向上阅读；新增流不抢滚动，可返回最新。记录测试规模、机器和实际延迟，发现阻塞即修复。",
+      "显示/主题设置可保存，Pi TUI 专属选项与 GUI 适用范围清楚。"
+    ],
+    "tests": [
+      "原生 GUI IME/键盘/焦点/滚动操作和同状态截图；扩展等待与错误恢复。",
+      "代表性长历史和两个会话交错输出实测；必要局部性能检查，不以网络耗时替代界面响应。"
+    ],
+    "number": 26,
+    "status": "active"
   },
   {
     "key": "packaging",
-    "title": "feat: Windows 安装升级回退、迁移和可审阅诊断",
-    "capabilities": ["I18", "P33", "P32"],
-    "stories": [9, 81, 82, 84],
-    "scenarios": ["T01", "T20"],
-    "blockedBy": ["workbench", "terminal", "settings"],
-    "outcome": "用户安装/卸载/升级/回退 Windows 应用，保留配置/会话/布局，检查版本并导出可查看的诊断或 bug 报告。",
-    "decisions": ["GUI/Pi/扩展升级对象分开，固定兼容版本，迁移可恢复并有备份。", "诊断日志不含凭据，导出/提交由用户主动触发且可先审阅。"],
-    "acceptance": ["Windows 安装包可启动主流程和 native PTY，卸载保留策略明确。", "前后版本升级/回退真实验证 settings/session/layout/drafts 迁移及失败恢复。", "Pi/GUI/extension/target 版本、日志、目录刷新/更新与 bug report 有实际结果。", "文档、快捷键、来源版本和 notices 与打包内容一致。"],
-    "tests": ["打包 smoke 与 Windows 实机安装→使用→升级→回退→卸载证据。", "迁移失败/损坏状态恢复、日志脱敏和导出归档可读性。"]
+    "title": "feat: 可启动的 Windows 交付、保存恢复与 Pi 诊断",
+    "capabilities": [
+      "P32",
+      "P33",
+      "D06"
+    ],
+    "scenarios": [
+      "V01",
+      "V12"
+    ],
+    "blockedBy": [
+      "workbench",
+      "settings"
+    ],
+    "outcome": "交付可启动、可试用的 Windows 版本，配置与历史可保存恢复；Pi 版本和诊断可检查。",
+    "decisions": [
+      "GUI/Pi/扩展版本分开，保持固定兼容版本；必要更新选项有真实作用，不另建云更新平台。",
+      "默认交付可直接运行的 Windows 包；若交付安装器，其安装/卸载/覆盖升级也必须实际验证。",
+      "诊断/bug 报告先由用户查看，外发由用户主动触发；不得含凭据。"
+    ],
+    "acceptance": [
+      "实际交付 exe 启动→本地项目→Pi 对话/工具→停止→关闭→恢复通过；缺少运行条件有可操作说明。",
+      "配置/历史/草稿的保存、损坏状态提示和必要迁移/备份可恢复；退出进程证据区分运行时清理与测试补杀。",
+      "Pi/GUI/扩展版本、模型目录刷新、诊断和 Pi 维护入口真实；不把生成报告当成已上传。",
+      "有安装器时记录实际安装、覆盖升级和卸载的数据保留结果；不要求凭空建立多版本回退和自动更新系统。",
+      "用法、兼容限制、来源/许可证/notices 与包内实际内容一致，不将开发构建冒充完整首版。"
+    ],
+    "tests": [
+      "新打包 exe 的 GUI→真实 Pi 启动/停止/保存恢复和进程退出检查；包与源码版本对应。",
+      "实际发行形式的本地 Windows 验收、配置异常恢复与诊断脱敏；在线 provider 和安装器结果分开。"
+    ],
+    "number": 27,
+    "status": "active"
   },
   {
     "key": "release-acceptance",
-    "title": "test: 完整首版能力核对、真实环境和跨模块发布验收",
-    "capabilities": ["P01", "P02", "P03", "P04", "P05", "P06", "P07", "P08", "P09", "P10", "P11", "P12", "P13", "P14", "P15", "P16", "P17", "P18", "P19", "P20", "P21", "P22", "P23", "P24", "P25", "P26", "P27", "P28", "P29", "P30", "P31", "P32", "P33", "P34", "I01", "I02", "I03", "I04", "I05", "I06", "I07", "I08", "I09", "I10", "I11", "I12", "I13", "I14", "I15", "I16", "I17", "I18"],
-    "stories": [81, 82, 83, 84],
-    "scenarios": ["T01", "T02", "T03", "T04", "T05", "T06", "T07", "T08", "T09", "T10", "T11", "T12", "T13", "T14", "T15", "T16", "T17", "T18", "T19", "T20"],
-    "blockedBy": ["conversation", "queue-stop", "history", "settings", "llama", "resources", "extension-ui", "language", "preview", "github-worktrees", "subagents", "mcp", "remote", "schedule", "tui-complete", "ux-performance", "packaging"],
-    "outcome": "维护者取得 P01–P34、I01–I18、84 条故事和 T01–T20 的完整交付/验收证据，用户可安装并完成真实工作闭环。",
-    "decisions": ["仅全部通过后关闭父规格；外部环境条件缺失保持任务开启，离线与真实结果分别记录。", "回归创建关联修复票，不降低验收标准；PR 基线独立审查并修复后合并。"],
-    "acceptance": ["每行能力关联实施 Issue、合并 PR、实际支持路径与可复现证据，所有用户故事均有交付。", "真实 Pi 文本/图片/文件读写/shell/停止/续接/fork/tree/扩展 UI/provider/reload 验收。", "真实 OAuth、llama.cpp、MCP、GitHub、WSL/SSH 和 Windows 安装升级恢复按矩阵完成。", "全部必要的本地 typecheck/lint/合同/集成/Electron/build/package 检查通过，关键状态截图和性能报告齐全。", "文档与最终代码一致，代码推送，安装包可定位，最终提交记录；真实阻塞清单为空才发布完整首版。"],
-    "tests": ["执行仓库实际脚本并保存结果；按主规格逐项进行跨模块用户旅程与真实环境验收。", "对最终 PR 基线审查完整 diff，复查所有修复与兼容来源许可证。"]
+    "title": "test: Pi 能力与必要桌面体验的最终本地验收",
+    "capabilities": [
+      "P01",
+      "P02",
+      "P03",
+      "P04",
+      "P05",
+      "P06",
+      "P07",
+      "P08",
+      "P09",
+      "P10",
+      "P11",
+      "P12",
+      "P13",
+      "P14",
+      "P15",
+      "P16",
+      "P17",
+      "P18",
+      "P19",
+      "P20",
+      "P21",
+      "P22",
+      "P23",
+      "P24",
+      "P25",
+      "P26",
+      "P27",
+      "P28",
+      "P29",
+      "P30",
+      "P31",
+      "P32",
+      "P33",
+      "P34",
+      "D01",
+      "D02",
+      "D03",
+      "D04",
+      "D05",
+      "D06"
+    ],
+    "scenarios": [
+      "V01",
+      "V02",
+      "V03",
+      "V04",
+      "V05",
+      "V06",
+      "V07",
+      "V08",
+      "V09",
+      "V10",
+      "V11",
+      "V12"
+    ],
+    "blockedBy": [
+      "conversation",
+      "queue-stop",
+      "workbench",
+      "tree-bridge",
+      "auth",
+      "tui-proof",
+      "history",
+      "settings",
+      "llama",
+      "resources",
+      "extension-ui",
+      "editor",
+      "tui-complete",
+      "ux-performance",
+      "packaging"
+    ],
+    "outcome": "收缩后每项 Pi 映射和必要桌面能力都有真实结果、来源与限制，交付一个可启动、可试用且待用户验收的版本。",
+    "decisions": [
+      "以 scope.json/tickets.json 和本票最新正文验收；旧 52/84/20、退出范围的 10 张票不作为门槛。",
+      "每能力都有实施票和证据，最终验收票不能代替具体实现；可复用旧资产必须在原生 GUI 链路重验。",
+      "远程 CI 已取消，只运行实际相关本地检查；受控模型、真实 Pi、在线 provider、安装器和用户验收分别报告。"
+    ],
+    "acceptance": [
+      "全部 active 实施票的验收条件和当前范围能力逐项通过；兼容限制按 #8/#25 明示，未验证不写为完成。",
+      "V01–V12 场景在最终版本核对，在线认证/模型、llama、包/扩展和主动分享提供各自真实证据或保持本票未完成。",
+      "原生界面基线已确认；新增入口、菜单、焦点、滚动和状态对照，无未登记改版。",
+      "最终 Windows 交付与源码对应，可靠启动/停止/保存恢复和必要发行形式验证通过。",
+      "Standards/Spec 审查与相关本地检查通过，保留所有未提交工作，最终交用户验收；不自动追加额外 IDE/远程功能。"
+    ],
+    "tests": [
+      "node scripts/check-delivery-plan.mjs 与 --github 核对当前能力覆盖、父子关系和依赖；按实际 package.json 运行受影响产品检查。",
+      "最终真实 Pi GUI 端到端、本地 Windows 包和在线环境分别留证，账本逐项回填；此处文档更新不记为上述测试已通过。"
+    ],
+    "number": 28,
+    "status": "active"
   }
 ]
