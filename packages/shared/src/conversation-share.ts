@@ -87,7 +87,7 @@ export function isConversationShareSchemaVersionSupported(version: number): bool
  *
  * 渲染链本来就容错（buildConversationTurnRenderUnits 把认不出的 kind 归入 assistantWork，
  * ConversationShareReadonlyTimeline 的 switch 认不出就不渲染），所以这里只需要不抛。
- * 计数交给调用方转成「部分内容需要更新 ZCode 查看」的软提示，不能静默。
+ * 计数交给调用方转成当前产品名称的版本软提示，不能静默。
  */
 export function decodeConversationShareRows(rows: readonly unknown[]): {
   rows: ConversationRow[];
@@ -356,7 +356,7 @@ export const conversationSharePreviewDataSchema = z.object({
 export type ConversationSharePreviewWire = z.infer<typeof conversationSharePreviewDataSchema>;
 export type ConversationSharePreview = Omit<ConversationSharePreviewWire, "rows"> & {
   rows: ConversationRow[];
-  /** 本端认不出、已跳过的行数；>0 时 UI 必须给「部分内容需要更新 ZCode 查看」软提示。 */
+  /** 本端认不出、已跳过的行数；>0 时 UI 必须给当前产品名称的版本软提示。 */
   unsupportedRowCount: number;
 };
 
@@ -394,7 +394,7 @@ export type ConversationShareContinuation = Omit<ConversationShareContinuationWi
   rows: ConversationRow[];
   /** 未解析的原始 rows：落盘只读副本时按原样保存，避免未知字段被本端永久抹掉。 */
   rawRows: readonly unknown[];
-  /** 本端认不出、已跳过的行数；>0 时 UI 必须给「部分内容需要更新 ZCode 查看」软提示。 */
+  /** 本端认不出、已跳过的行数；>0 时 UI 必须给当前产品名称的版本软提示。 */
   unsupportedRowCount: number;
 };
 
