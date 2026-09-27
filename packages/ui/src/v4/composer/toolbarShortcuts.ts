@@ -203,7 +203,11 @@ export function useToolbarShortcutBindings(params: {
         hasAnyOption,
         toolbarDisabled,
         modelMenuDisabled,
-        modalOpen: Boolean(document.querySelector('[role="dialog"][aria-modal="true"]')),
+        modalOpen: Boolean(
+          document.querySelector(
+            '[role="dialog"][aria-modal="true"], [data-slot="dialog-content"][data-state="open"]',
+          ),
+        ),
         modelOption,
         modeOption,
         thoughtOption,

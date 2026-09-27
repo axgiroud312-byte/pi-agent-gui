@@ -24,6 +24,7 @@ import {
   pendingUserInputToViewModel,
 } from "@/v4/pendingInteractionAdapter.js";
 import { V4UserInputDialog } from "@/v4/V4UserInputDialog.js";
+import { usePiUserInputFocus } from "@/v4/usePiUserInputFocus.js";
 import { useV4Conversation } from "@/v4/V4ConversationContext.js";
 
 interface V4InteractionDialogsProps {
@@ -165,6 +166,8 @@ export function V4InteractionDialogs({
   ]);
   const autoResolutionIntentRef = useRef(createInteractionAutoResolutionIntentTracker());
   const loggedSnoozeSourceIdsRef = useRef(new Set<string>());
+  const { capture: captureUserInputReturnFocus, restore: restoreUserInputReturnFocus } =
+    usePiUserInputFocus(Boolean(pending));
   const [permissionResponse, setPermissionResponse] = useState<{
     interactionId: string;
     pending: boolean;
@@ -396,6 +399,8 @@ export function V4InteractionDialogs({
       key={pending.interactionId}
       model={model}
       onSubmit={(answer) => resolveInteraction(pending.interactionId, answer)}
+      onCaptureReturnFocus={captureUserInputReturnFocus}
+      onRestoreReturnFocus={restoreUserInputReturnFocus}
     />
   );
 }

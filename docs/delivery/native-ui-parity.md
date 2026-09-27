@@ -64,6 +64,7 @@
 | --- | --- | --- | --- |
 | PI26-S1 | 保留原生 Lexical contenteditable、聊天 form 与 Enter 发送路径 | 仅在该 contenteditable 的 IME 组合、Chromium `keyCode=229` 或紧邻 `compositionend` 的候选确认 Enter 上阻断提交；不影响工具栏/弹窗 Enter，随后普通 Enter 和显式按钮仍向同一 Pi 会话发送原文 | #26/D03/D05/V12；纯逻辑红测后修复。最终隔离源码的生产入口 GUI `D:/Temp/pi-ime-gui-20260927-d/pi-ime-gui-report.json` 在 1280×800 深色、1920×1080 浅色以固定 Pi 0.87.0 验证候选确认不发送、草稿保留、普通 Enter/按钮各发一次及进程清理。物理中文输入法、原版成对截图与包内运行仍待验。 |
 | PI26-S2 | 保留原生 v4 时间线、工具输出的五行内层滚动和返回最新按钮 | 滚轮在可滚动的 Pi bash 输出内时只改变输出位置，仍由 Pi 续流驱动时间线吸底；滚轮在时间线自身时保留阅读锚点，返回最新显式吸底 | #26/V12；内层滚轮红测后修复。`D:/Temp/pi-long-scroll-gui-20260927-e/pi-long-scroll-gui-report.json` 在固定 Pi 0.87.0 的 24 回合历史、120 行工具结果及 24 帧续流中验证两个滚动所有权，并在 1920×1080 浅色验证 Ctrl+M 模型菜单及 Escape 后 composer 焦点；进程清理无残留。原版成对截图、更大历史规模、其余焦点/快捷键及包内运行仍待验。 |
+| PI26-S3 | Pi 扩展 userInput 沿用原生 Dialog、Button、Input 与 Textarea | select/confirm/input/editor 的初始焦点、反向 Tab、Escape 取消及 Ctrl+M 模型快捷键作用域由同一弹窗控制；关闭后回到仍可用的原生控件，最终 Pi 状态若禁用 composer 则回退模型或会话树按钮 | #26/P27/V09/V12；原实现的 select 初始焦点和最终 BODY 均由固定 Pi GUI 红测复现，修复后 `D:/Temp/pi-dialog-focus-gui-20260928-n/pi-dialog-focus-gui-report.json` 验证四类连续交互的键盘路径、Pi 回答值与 500ms 后稳定焦点，且进程无残留。此隔离基线的扩展命令仍进入 `noRun`，composer 为 `contenteditable=false`；回退焦点不修复会话状态，主分支对应语义修复后须复跑可编辑 composer 恢复。原版成对截图、更多扩展交互、包内 GUI 与用户验收仍待验。 |
 
 这是原有输入框的事件门禁修复，没有更改布局、控件或原版代码。GUI 使用合成 composition 事件与真实键盘 Enter，不能代替用户机器上物理中文输入法的最终试用。
 
