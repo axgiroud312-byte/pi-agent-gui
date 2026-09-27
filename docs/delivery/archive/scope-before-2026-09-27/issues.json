@@ -1,0 +1,398 @@
+{
+  "36": {
+    "number": 36,
+    "title": "fix: 修复原生导入集成的构建、来源与可写缓存边界",
+    "body": "## Parent\n#32；Refs #1。I01/I17/I18、P28；US01/US56/US80/US81/US84；T01/T19/T20。\n\n## 用户可见结果\n固定原生 ZCode 工程在 Windows 能安装、构建、运行并形成真实原版/产品对照；品牌后的产品保留原生交互并关闭已排除的厂商商业服务。\n\n## 已发现的集成缺陷\n- 导入后 CI 仍使用旧 npm 缓存/命令，检查未执行。\n- 声明清单引用遗漏输入，Windows 旧检出换行导致字节校验失败。\n- 产品单测放在 composite 源目录，typecheck 试图覆盖桌面源文件；UI 测试未使用所属项目 alias。\n- 关闭厂商目录同步后，内建 provider 的活动缓存回落到只读资源目录，反复尝试写入。\n- 首轮品牌迁移遗漏空模型套餐推广和中央/启动 Z 水印。\n\n## 验收\n- [ ] 冻结原生 pnpm 工具链安装/构建通过；不凭未经验证的“Vite 未发布/不兼容”结论降级。\n- [ ] 原生 CI 执行实际类型/静态/合同/GUI smoke，失败保持失败。\n- [ ] 来源和许可字节/清单核对可在新 checkout 复现；未解决的发行材料明确记录。\n- [ ] provider 缓存写入个人目录，随附资源不作为可写 cache/lock；回归通过。\n- [ ] 实际原版和产品 Electron 操作、截图、隔离审计通过，无伪造 UI/模型成功。\n\n## 测试\n冻结安装、原生构建/typecheck/lint/architecture，Node 来源/品牌/服务/UI回归，真实 Electron+原生 Agent+可控本地模型端点的操作验证。此项不代表 Pi 已接入，也不替代 #33 用户确认。\n\n## Blocked by\nNone；与 #32 同一交付 PR 集成，#33 必须等实际用户确认。\n",
+    "state": "closed",
+    "state_reason": "completed",
+    "html_url": "https://github.com/axgiroud312-byte/pi-agent-gui/issues/36",
+    "blockers": []
+  },
+  "34": {
+    "number": 34,
+    "title": "feat: 在 ZCode 原生 Agent 服务边界接入 Pi RPC 的真实闭环",
+    "body": "<!-- delivery:native-agent -->\n\nBlocked by: #33\n\n## Parent\n\n#1 — 完整首版范围；本票不缩减父规格。\n\n## Coverage\n\n能力：P01, P03, P04, P10, P17, I01, I02, I18。\n\n用户故事：US01, US03, US04, US10, US11, US13, US21, US22, US23, US25, US26, US81, US84（编号对应父规格）。\n\n验收场景：T01, T02, T03, T06, T07, T09。\n\n## What to build\n\n在用户已确认的原生 ZCode 界面中创建会话、发送文本、看到真实 Pi 流式消息和工具、停止并恢复原生历史；不改造成第二套聊天工作台。\n\n## Boundaries and decisions\n\n- 保留原生 service accessor、session/Agent服务接口及前端状态/命令/订阅结构；在该边界映射 Pi，不把更换 model provider 当作换 Agent。\n\n- 将原生命令确认、snapshot/delta、session index、epoch/cursor映射到 Pi真实状态；Pi 每活动会话进程隔离、JSONL/单写者/取消及不重放副作用。\n\n- 旧 RPC/桥/测试模块按复用清单选择迁入；最终产品的 Agent调用无原 ZCode Agent fallback，前端不运行第二套队列/模型循环。\n\n## Acceptance criteria\n\n- [ ] 原生GUI→服务适配→固定真实Pi链路通过创建/文本流/一次真实工具/停止/历史恢复，截图和操作路径相对已确认底座无未登记改变。\n\n- [ ] 区分命令接收与运行完成，保留agent_settled/retry/compaction/扩展无Run语义、响应关联、异常输出、背压和进程退出结果。\n\n- [ ] 至少两个实际会话进程互不串台，单写者、generation/取消/重连不重放有合同证据。\n\n- [ ] 可启动产品中的Agent动作仅由Pi执行；原引擎对照路径隔离，产品无暗中fallback或mock-only成功。\n\n- [ ] 服务合同、测试seam、构建/包路径与后续迁入接口明确，审查和必要的 Windows 本地验证通过。\n\n## Testing\n\n- 最高边界为原生GUI用户操作→真实宿主/服务适配→Pi RPC外部进程；复用可控JSONL边界测试并增加原生订阅/命令确认合同。\n\n- 固定真实Pi的文本/工具/停止/原生历史验收；独立原版对照与Pi结果区分。后续图片/双队列/完整认证等全量能力仍由原实施票完成。\n\n## Blocked by\n\n- #33\n\n## Evidence\n\n实施后回写 PR、实际执行命令/结果、协议场景、关键 UI 截图和真实环境验收。尚未执行或受外部条件阻塞的项目保持未完成。\n\n## 验收方式更新（2026-09-27）\n\n按用户“消除 CI，更新 Issue”的要求，取消本仓库远程 CI：Windows GitHub Actions 工作流已停用，工作流配置从开发分支移除。Issue 完成、PR 审查和合并不再要求远程 CI 运行或通过；旧评论中的相关要求由本次更新覆盖。必要检查按改动范围在本地执行并记录实际结果，纯文档或流程配置变更只做相关检查。已有测试脚本、真实功能验收和审查要求保留；取消 CI 不代表现有缺陷已修复或本票已完成。当前仍只收尾 #34，后续任务按已有范围确认处理。\n",
+    "state": "open",
+    "state_reason": null,
+    "html_url": "https://github.com/axgiroud312-byte/pi-agent-gui/issues/34",
+    "blockers": [
+      33
+    ]
+  },
+  "33": {
+    "number": 33,
+    "title": "decision: 用户确认原生 ZCode 界面与交互保留正确",
+    "body": "<!-- delivery:native-ui-gate -->\n\nBlocked by: #32\n\n## Parent\n\n#1 — 完整首版范围；本票不缩减父规格。\n\n## Coverage\n\n能力：I02, I17。\n\n用户故事：US05, US06, US79, US80, US83（编号对应父规格）。\n\n验收场景：T19。\n\n## What to build\n\n用户查看可运行原生底座、成对截图和操作记录，明确确认是否允许进入 Pi 后端替换。\n\n## Boundaries and decisions\n\n- 这是用户明确选择的一次人工界面关卡；必须记录用户对实际运行版本的明确确认。2026-09-23已确认，记录见Evidence。\n\n- 若不通过，回到原生导入票修复并重新呈现；旧样式分支截图和自动检查不能替代用户确认。\n\n## Acceptance criteria\n\n- [x] 原版提交、产品提交、可启动版本、成对截图/操作记录及必要差异清单可访问。\n\n- [x] 用户明确确认原生布局和交互保留正确，保存原话/链接/日期及所确认的产品提交。\n\n- [x] 仅在明确确认后关闭本票；没有确认时暂停全部 Pi 新适配与旧功能分支整合。\n\n## Testing\n\n- 用户按原生交互对照材料检查并运行核心操作；验收记录真实反馈。\n\n- 自动检查仅为输入证据，不能将本票自动标记为通过。\n\n## Blocked by\n\n- #32\n\n## Evidence\n\n2026-09-23 用户已明确确认实际界面，原话、版本及来源见[确认记录](https://github.com/axgiroud312-byte/pi-agent-gui/issues/33#issuecomment-5787163874)。产品构建 `0de01e26`，对照证据 `36e3eb8`，主线 `59362a3`（PR #37）。本票完成，后续 #34 可以领取；完整首版验收仍由 #1/#28 跟踪。\n",
+    "state": "closed",
+    "state_reason": "completed",
+    "html_url": "https://github.com/axgiroud312-byte/pi-agent-gui/issues/33",
+    "blockers": [
+      32
+    ]
+  },
+  "32": {
+    "number": 32,
+    "title": "feat: 导入并运行 ZCode 原生桌面底座，建立界面与交互对照",
+    "body": "<!-- delivery:zcode-design -->\n\nBlocked by: None (can start immediately).\n\n## Parent\n\n#1 — 完整首版范围；本票不缩减父规格。\n\n## Coverage\n\n能力：P28, I01, I02, I17, I18。\n\n用户故事：US01, US05, US06, US12, US56, US79, US80, US83, US84（编号对应父规格）。\n\n验收场景：T01, T19, T20。\n\n## What to build\n\n用户可启动保留原生布局/输入框/面板/时间线/菜单操作的 ZCode 桌面底座，并看到固定原版与产品副本的成对截图和操作记录；该结果交到用户关卡后暂停。\n\n## Boundaries and decisions\n\n- 以 ZCode 872ad960de7ec172591f7e1952f7849229f94521 完整公开工程为底座，保留必要 packages、资源、锁文件、Electron壳、UI状态及本地服务。原样式复用分支仅作来源研究，不作为原生工程导入。\n\n- 用户允许替换当前自建工程结构；先保存旧主线/分支/许可和复用清单，不整批合并旧 App/布局。固定上游构建版本优先于旧原型版本。\n\n- 品牌/厂商专属商业入口按主规格移除或替换；通用 Pi 认证/资源/分享目标保留。原 ZCode Agent 仅用于隔离对照，不宣称已经接通 Pi。\n\n## Acceptance criteria\n\n- [ ] 固定来源完整导入并可在 Windows 实际启动，提供源码/版本/许可证/NOTICE和必要修改记录；保留本仓库历史与开发文档。\n\n- [ ] 原版与产品均真实运行，工作区/会话导航、原生 Lexical 输入、标签/分栏/拖拽、Side Pane/终端、时间线/工具展开、菜单/设置/快捷键/焦点按原生路径可操作。\n\n- [ ] 完成品牌和确认允许的厂商入口处理；逐入口记录理由、行为及位置，通用功能不得因 Pi 基础 RPC 未提供而删除。\n\n- [ ] 1280×800 和1920×1080、明暗主题、关键空/运行/等待/错误状态有成对截图及操作步骤；只比较 CSS 或产品自身截图不算验收。\n\n- [ ] 建立原生工程实际检查脚本/CI，构建或功能故障保留未完成；提交可启动产物及对照供用户确认后暂停，不继续 Pi 替换。\n\n## Testing\n\n- 原生 Electron 工作台真实操作/截图对照、构建与启动 smoke；记录原版数据、主题、缩放和平台，确保可复现。\n\n- Agent交互状态可在隔离原版 Agent 中取证；不把旧模型或测试替身当作 Pi 产品通过。下一阶段由用户关卡控制。\n\n## Blocked by\n\nNone (can start immediately).\n\n## Evidence\n\n实施后回写 PR、实际执行命令/结果、协议场景、关键 UI 截图和真实环境验收。尚未执行或受外部条件阻塞的项目保持未完成。",
+    "state": "closed",
+    "state_reason": "completed",
+    "html_url": "https://github.com/axgiroud312-byte/pi-agent-gui/issues/32",
+    "blockers": []
+  },
+  "30": {
+    "number": 30,
+    "title": "fix: 首条运行的接受状态、重试恢复与桌面打包集成",
+    "body": "## Parent\n#1；发现于 #2 集成。P04 / I18；US22、US23、US81；T01、T03、T09。\n\n## What to build\n修复真实 GUI/宿主集成中发现的状态差异，并验证打包后使用随附 Pi 的完整启动链。\n\n## Acceptance criteria\n- [ ] prompt 响应前为 submitting，不提前宣称 accepted。\n- [ ] 自动重试成功后清除临时失败，只有 agent_settled 标记完成。\n- [ ] 明确被拒绝的输入可由用户纠正后发送，不自动重放；投递不确定时禁止盲目重发。\n- [ ] Windows 打包应用实际启动随附 Pi 0.87.0；无认证显示真实失败和恢复入口。\n\n## Testing\n宿主真实子进程测试、Electron E2E、打包应用真实 Pi smoke；结果回写 #2 PR。构建器下载失败需按实际代理配置修复，不将网络失败记作产品测试通过。\n\n## Blocked by\nNone. 在 #2 开发分支修复后与同一 PR 集成。",
+    "state": "closed",
+    "state_reason": "completed",
+    "html_url": "https://github.com/axgiroud312-byte/pi-agent-gui/issues/30",
+    "blockers": []
+  },
+  "28": {
+    "number": 28,
+    "title": "test: 完整首版能力核对、真实环境和跨模块发布验收",
+    "body": "<!-- delivery:release-acceptance -->\n\nBlocked by: #3, #4, #9, #10, #11, #12, #13, #15, #17, #19, #21, #22, #23, #24, #25, #26, #27\n\n## Parent\n\n#1 — 完整首版范围；本票不缩减父规格。\n\n## Coverage\n\n能力：P01, P02, P03, P04, P05, P06, P07, P08, P09, P10, P11, P12, P13, P14, P15, P16, P17, P18, P19, P20, P21, P22, P23, P24, P25, P26, P27, P28, P29, P30, P31, P32, P33, P34, I01, I02, I03, I04, I05, I06, I07, I08, I09, I10, I11, I12, I13, I14, I15, I16, I17, I18。\n\n用户故事：US81, US82, US83, US84（编号对应父规格）。\n\n验收场景：T01, T02, T03, T04, T05, T06, T07, T08, T09, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20。\n\n## What to build\n\n维护者取得 P01–P34、I01–I18、84 条故事和 T01–T20 的完整交付/验收证据，用户可安装并完成真实工作闭环。\n\n## Native ZCode delivery contract\n\n本票采用主规格已确认的**原生 ZCode + Pi**路线，参见产品目标、ADR 0001、native-rebase-plan 与 native-ui-parity。保留原生组件、状态、菜单/面板位置和操作路径，在 Agent 服务边界或可复用宿主服务中实现。\n\n- 原生导入和用户界面确认、最小 Pi 适配的阻塞边全部解除后才能领取。方向确认不等于实际界面确认。\n- 旧工作树/提交只是候选复用资产；在新原生产品中重新验收前不算本票完成，也不整批合并旧自建前端。\n- 本票验收还必须包含原版/产品同状态截图、操作步骤及已登记差异，全部功能行为真实；不能以功能测试或颜色一致代替交互一致。\n- 使用原生工程实际提供的检查脚本；继续按原完整 P/I/T 与用户故事验收。必要来源/许可证与迁入代码在同一变更记录。\n\n## Boundaries and decisions\n\n- 仅全部通过后关闭父规格；外部环境条件缺失保持任务开启，离线与真实结果分别记录。\n\n- 回归创建关联修复票，不降低验收标准；PR 基线独立审查并修复后合并。\n\n## Acceptance criteria\n\n- [ ] 每行能力关联实施 Issue、合并 PR、实际支持路径与可复现证据，所有用户故事均有交付。\n\n- [ ] 真实 Pi 文本/图片/文件读写/shell/停止/续接/fork/tree/扩展 UI/provider/reload 验收。\n\n- [ ] 真实 OAuth、llama.cpp、MCP、GitHub、WSL/SSH 和 Windows 安装升级恢复按矩阵完成。\n\n- [ ] 全部必要的本地 typecheck/lint/合同/集成/Electron/build/package 检查通过，关键状态截图和性能报告齐全。\n\n- [ ] 文档与最终代码一致，代码推送，安装包可定位，最终提交记录；真实阻塞清单为空才发布完整首版。\n\n## Testing\n\n- 执行仓库实际脚本并保存结果；按主规格逐项进行跨模块用户旅程与真实环境验收。\n\n- 对最终 PR 基线审查完整 diff，复查所有修复与兼容来源许可证。\n\n## Blocked by\n\n- #3\n- #4\n- #9\n- #10\n- #11\n- #12\n- #13\n- #15\n- #17\n- #19\n- #21\n- #22\n- #23\n- #24\n- #25\n- #26\n- #27\n\n## Evidence\n\n实施后回写 PR、实际执行命令/结果、协议场景、关键 UI 截图和真实环境验收。尚未执行或受外部条件阻塞的项目保持未完成。\n\n## 验收方式更新（2026-09-27）\n\n按用户“消除 CI，更新 Issue”的要求，取消本仓库远程 CI：Windows GitHub Actions 工作流已停用，工作流配置从开发分支移除。Issue 完成、PR 审查和合并不再要求远程 CI 运行或通过；旧评论中的相关要求由本次更新覆盖。必要检查按改动范围在本地执行并记录实际结果，纯文档或流程配置变更只做相关检查。已有测试脚本、真实功能验收和审查要求保留；取消 CI 不代表现有缺陷已修复或本票已完成。当前仍只收尾 #34，后续任务按已有范围确认处理。\n",
+    "state": "open",
+    "state_reason": null,
+    "html_url": "https://github.com/axgiroud312-byte/pi-agent-gui/issues/28",
+    "blockers": [
+      3,
+      4,
+      9,
+      10,
+      11,
+      12,
+      13,
+      15,
+      17,
+      19,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27
+    ]
+  },
+  "27": {
+    "number": 27,
+    "title": "feat: Windows 安装升级回退、迁移和可审阅诊断",
+    "body": "<!-- delivery:packaging -->\n\nBlocked by: #5, #16, #10\n\n## Parent\n\n#1 — 完整首版范围；本票不缩减父规格。\n\n## Coverage\n\n能力：I18, P33, P32。\n\n用户故事：US09, US81, US82, US84（编号对应父规格）。\n\n验收场景：T01, T20。\n\n## What to build\n\n用户安装/卸载/升级/回退 Windows 应用，保留配置/会话/布局，检查版本并导出可查看的诊断或 bug 报告。\n\n## Native ZCode delivery contract\n\n本票采用主规格已确认的**原生 ZCode + Pi**路线，参见产品目标、ADR 0001、native-rebase-plan 与 native-ui-parity。保留原生组件、状态、菜单/面板位置和操作路径，在 Agent 服务边界或可复用宿主服务中实现。\n\n- 原生导入和用户界面确认、最小 Pi 适配的阻塞边全部解除后才能领取。方向确认不等于实际界面确认。\n- 旧工作树/提交只是候选复用资产；在新原生产品中重新验收前不算本票完成，也不整批合并旧自建前端。\n- 本票验收还必须包含原版/产品同状态截图、操作步骤及已登记差异，全部功能行为真实；不能以功能测试或颜色一致代替交互一致。\n- 使用原生工程实际提供的检查脚本；继续按原完整 P/I/T 与用户故事验收。必要来源/许可证与迁入代码在同一变更记录。\n\n## Boundaries and decisions\n\n- GUI/Pi/扩展升级对象分开，固定兼容版本，迁移可恢复并有备份。\n\n- 诊断日志不含凭据，导出/提交由用户主动触发且可先审阅。\n\n## Acceptance criteria\n\n- [ ] Windows 安装包可启动主流程和 native PTY，卸载保留策略明确。\n\n- [ ] 前后版本升级/回退真实验证 settings/session/layout/drafts 迁移及失败恢复。\n\n- [ ] Pi/GUI/extension/target 版本、日志、目录刷新/更新与 bug report 有实际结果。\n\n- [ ] 文档、快捷键、来源版本和 notices 与打包内容一致。\n\n## Testing\n\n- 打包 smoke 与 Windows 实机安装→使用→升级→回退→卸载证据。\n\n- 迁移失败/损坏状态恢复、日志脱敏和导出归档可读性。\n\n## Blocked by\n\n- #5\n- #16\n- #10\n\n## Evidence\n\n实施后回写 PR、实际执行命令/结果、协议场景、关键 UI 截图和真实环境验收。尚未执行或受外部条件阻塞的项目保持未完成。",
+    "state": "open",
+    "state_reason": null,
+    "html_url": "https://github.com/axgiroud312-byte/pi-agent-gui/issues/27",
+    "blockers": [
+      5,
+      16,
+      10
+    ]
+  },
+  "26": {
+    "number": 26,
+    "title": "feat: 中文键盘工作流、主题无障碍与长会话性能",
+    "body": "<!-- delivery:ux-performance -->\n\nBlocked by: #3, #5, #14, #16, #13, #12, #20, #18\n\n## Parent\n\n#1 — 完整首版范围；本票不缩减父规格。\n\n## Coverage\n\n能力：I17, P28。\n\n用户故事：US06, US08, US56, US79, US80（编号对应父规格）。\n\n验收场景：T18, T19。\n\n## What to build\n\n用户通过命令面板和快捷键操作核心流程，中文 IME、明暗主题和辅助技术可用，长历史仍能输入和停止。\n\n## Native ZCode delivery contract\n\n本票采用主规格已确认的**原生 ZCode + Pi**路线，参见产品目标、ADR 0001、native-rebase-plan 与 native-ui-parity。保留原生组件、状态、菜单/面板位置和操作路径，在 Agent 服务边界或可复用宿主服务中实现。\n\n- 原生导入和用户界面确认、最小 Pi 适配的阻塞边全部解除后才能领取。方向确认不等于实际界面确认。\n- 旧工作树/提交只是候选复用资产；在新原生产品中重新验收前不算本票完成，也不整批合并旧自建前端。\n- 本票验收还必须包含原版/产品同状态截图、操作步骤及已登记差异，全部功能行为真实；不能以功能测试或颜色一致代替交互一致。\n- 使用原生工程实际提供的检查脚本；继续按原完整 P/I/T 与用户故事验收。必要来源/许可证与迁入代码在同一变更记录。\n\n## Boundaries and decisions\n\n- 虚拟化/分块投影保持滚动锚点，向上阅读不被强制滚到末尾。\n\n- 中文默认，英文文案结构保留；语义 focus/live regions 和统一密度/字体。\n\n## Acceptance criteria\n\n- [ ] 命令面板覆盖窗口/文件/会话/模型/资源/任务/Git，快捷键可配置并可键盘完成核心流程；帮助、changelog 和退出有真实入口，退出遵守后台任务策略。\n\n- [ ] 代码字体和显示密度可配置并持久化；Pi 主题映射及 TUI 专用选项的作用域可查看。\n\n- [ ] IME 合成期间 Enter 不发送，焦点返回正确，状态/错误有辅助提示。\n\n- [ ] 1280×800/1920×1080 明暗主题及长中文、空/加载/错误/等待/运行无关键遮挡。\n\n- [ ] 一万条消息+长工具输出+四会话实测输入 p95<100ms、事件展示 p95<200ms，附机器/构建/数据规模。\n\n## Testing\n\n- Electron 键盘/IME/焦点 E2E 与关键视口截图；必要 accessibility 检查。\n\n- 实际性能计时，失败必须修复或保持开启，不用 provider 网络时间代替。\n\n## Blocked by\n\n- #3\n- #5\n- #14\n- #16\n- #13\n- #12\n- #20\n- #18\n\n## Evidence\n\n实施后回写 PR、实际执行命令/结果、协议场景、关键 UI 截图和真实环境验收。尚未执行或受外部条件阻塞的项目保持未完成。",
+    "state": "open",
+    "state_reason": null,
+    "html_url": "https://github.com/axgiroud312-byte/pi-agent-gui/issues/26",
+    "blockers": [
+      3,
+      5,
+      14,
+      16,
+      13,
+      12,
+      20,
+      18
+    ]
+  },
+  "25": {
+    "number": 25,
+    "title": "feat: 完整公开扩展 UI 类别与渲染器兼容",
+    "body": "<!-- delivery:tui-complete -->\n\nBlocked by: #8, #13, #10\n\n## Parent\n\n#1 — 完整首版范围；本票不缩减父规格。\n\n## Coverage\n\n能力：P27, P28。\n\n用户故事：US53, US54, US55, US56（编号对应父规格）。\n\n验收场景：T09, T12, T19。\n\n## What to build\n\n用户使用固定 Pi 公开 UI 的每个类别，包括组件 widget、header/footer/editor、主题、工作指示器及自定义渲染器。\n\n## Native ZCode delivery contract\n\n本票采用主规格已确认的**原生 ZCode + Pi**路线，参见产品目标、ADR 0001、native-rebase-plan 与 native-ui-parity。保留原生组件、状态、菜单/面板位置和操作路径，在 Agent 服务边界或可复用宿主服务中实现。\n\n- 原生导入和用户界面确认、最小 Pi 适配的阻塞边全部解除后才能领取。方向确认不等于实际界面确认。\n- 旧工作树/提交只是候选复用资产；在新原生产品中重新验收前不算本票完成，也不整批合并旧自建前端。\n- 本票验收还必须包含原版/产品同状态截图、操作步骤及已登记差异，全部功能行为真实；不能以功能测试或颜色一致代替交互一致。\n- 使用原生工程实际提供的检查脚本；继续按原完整 P/I/T 与用户故事验收。必要来源/许可证与迁入代码在同一变更记录。\n\n## Boundaries and decisions\n\n- 以固定 ExtensionUIContext 与 renderer 注册清单生成验收矩阵；结构化 GUI 与真实终端表面协调。\n\n- 直接访问 stdio 或严格 tui guard 扩展给显式版本化适配，不声称任意第三方零适配。\n\n## Acceptance criteria\n\n- [ ] custom overlay/focus/resize、factory widgets、header/footer/editor、autocomplete/input hooks/编辑器读写都运行。\n\n- [ ] theme/getTheme/setTheme、working visibility/indicator/message、thinking label、tool expansion/reset 真正更新。\n\n- [ ] tool renderCall/renderResult/renderShell、message/entry renderers、Markdown transformers 执行且未知/错误 fallback 保留数据。\n\n- [ ] reload/替换/取消释放组件、timer/listener，不复活旧 UI；快捷键与 IME 不双重提交。\n\n- [ ] 逐类别代表样例有可复现结果，结果回到同一个 RPC session。\n\n## Testing\n\n- 真实 Pi+terminal headless+Electron 类别矩阵；四会话和重载后再次交互。\n\n- 记录样例的 guard/cleanup 适配及来源，不把 source inspection 记成通过。\n\n## Blocked by\n\n- #8\n- #13\n- #10\n\n## Evidence\n\n实施后回写 PR、实际执行命令/结果、协议场景、关键 UI 截图和真实环境验收。尚未执行或受外部条件阻塞的项目保持未完成。",
+    "state": "open",
+    "state_reason": null,
+    "html_url": "https://github.com/axgiroud312-byte/pi-agent-gui/issues/25",
+    "blockers": [
+      8,
+      13,
+      10
+    ]
+  },
+  "24": {
+    "number": 24,
+    "title": "feat: 持久后台与定时任务、恢复策略和通知",
+    "body": "<!-- delivery:schedule -->\n\nBlocked by: #20, #5, #4\n\n## Parent\n\n#1 — 完整首版范围；本票不缩减父规格。\n\n## Coverage\n\n能力：I15。\n\n用户故事：US08, US76, US77（编号对应父规格）。\n\n验收场景：T09, T16, T17。\n\n## What to build\n\n用户安排本地或目标环境的后台/定时任务，查看历史和通知，休眠/退出后按策略恢复且同次触发不重复。\n\n## Native ZCode delivery contract\n\n本票采用主规格已确认的**原生 ZCode + Pi**路线，参见产品目标、ADR 0001、native-rebase-plan 与 native-ui-parity。保留原生组件、状态、菜单/面板位置和操作路径，在 Agent 服务边界或可复用宿主服务中实现。\n\n- 原生导入和用户界面确认、最小 Pi 适配的阻塞边全部解除后才能领取。方向确认不等于实际界面确认。\n- 旧工作树/提交只是候选复用资产；在新原生产品中重新验收前不算本票完成，也不整批合并旧自建前端。\n- 本票验收还必须包含原版/产品同状态截图、操作步骤及已登记差异，全部功能行为真实；不能以功能测试或颜色一致代替交互一致。\n- 使用原生工程实际提供的检查脚本；继续按原完整 P/I/T 与用户故事验收。必要来源/许可证与迁入代码在同一变更记录。\n\n## Boundaries and decisions\n\n- 持久 trigger ID/scheduled time/target/state/next run，事务化领取和并发策略。\n\n- 窗口关闭、宿主退出和目标离线分开；missed-run skip/catch-up 明确。\n\n## Acceptance criteria\n\n- [ ] 一次性/周期计划及并发/错过执行策略可配置，Pi 真正执行并关联日志/产物。\n\n- [ ] 重启/休眠/时钟跳变/断线不会重复创建同一触发运行。\n\n- [ ] 后台宿主和通知真实，目标不可用暂停/失败，不盲目 replay。\n\n## Testing\n\n- 受控时钟+真实子进程/持久数据库的崩溃恢复、重复领取集成。\n\n- Windows 关闭窗口后台运行、休眠/恢复与通知实机记录。\n\n## Blocked by\n\n- #20\n- #5\n- #4\n\n## Evidence\n\n实施后回写 PR、实际执行命令/结果、协议场景、关键 UI 截图和真实环境验收。尚未执行或受外部条件阻塞的项目保持未完成。",
+    "state": "open",
+    "state_reason": null,
+    "html_url": "https://github.com/axgiroud312-byte/pi-agent-gui/issues/24",
+    "blockers": [
+      20,
+      5,
+      4
+    ]
+  },
+  "23": {
+    "number": 23,
+    "title": "feat: WSL/SSH 目标侧主管、远端文件 Git PTY 和恢复",
+    "body": "<!-- delivery:remote -->\n\nBlocked by: #5, #16, #18, #17, #7\n\n## Parent\n\n#1 — 完整首版范围；本票不缩减父规格。\n\n## Coverage\n\n能力：I16, I07, I01, P17, P18, P34。\n\n用户故事：US02, US03, US37, US64, US78（编号对应父规格）。\n\n验收场景：T07, T09, T14, T17。\n\n## What to build\n\n用户打开 WSL/SSH 工作区，在目标运行文件/Git/PTY/Pi，断线后重连恢复真实运行状态并访问预览。\n\n## Native ZCode delivery contract\n\n本票采用主规格已确认的**原生 ZCode + Pi**路线，参见产品目标、ADR 0001、native-rebase-plan 与 native-ui-parity。保留原生组件、状态、菜单/面板位置和操作路径，在 Agent 服务边界或可复用宿主服务中实现。\n\n- 原生导入和用户界面确认、最小 Pi 适配的阻塞边全部解除后才能领取。方向确认不等于实际界面确认。\n- 旧工作树/提交只是候选复用资产；在新原生产品中重新验收前不算本票完成，也不整批合并旧自建前端。\n- 本票验收还必须包含原版/产品同状态截图、操作步骤及已登记差异，全部功能行为真实；不能以功能测试或颜色一致代替交互一致。\n- 使用原生工程实际提供的检查脚本；继续按原完整 P/I/T 与用户故事验收。必要来源/许可证与迁入代码在同一变更记录。\n\n## Boundaries and decisions\n\n- 目标侧 session supervisor 持久进程身份与事件游标；SSH 外层隧道不改变内部 Pi JSONL。\n\n- 路径、shell、认证和端口来自目标，重连先 reconcile，不隐式重放已执行副作用。\n\n## Acceptance criteria\n\n- [ ] WSL 和 SSH 均完成 cwd/文件/Git/终端/Agent 操作，中文/空格路径可用。\n\n- [ ] 断线状态可见，后台主管继续或明确失败；重连不重复 prompt/commit/写文件。\n\n- [ ] 端口映射启动/停止可用，远端预览截图能回到所属会话。\n\n- [ ] 目标认证和 profile 不误写 Windows 本地全局配置。\n\n## Testing\n\n- 本地 SSH 协议/主管可控断网集成；真实 WSL 发行版与 SSH 主机完整 T17。\n\n- 无外部主机/发行版保持验收开启并记录精确前提。\n\n## Blocked by\n\n- #5\n- #16\n- #18\n- #17\n- #7\n\n## Evidence\n\n实施后回写 PR、实际执行命令/结果、协议场景、关键 UI 截图和真实环境验收。尚未执行或受外部条件阻塞的项目保持未完成。",
+    "state": "open",
+    "state_reason": null,
+    "html_url": "https://github.com/axgiroud312-byte/pi-agent-gui/issues/23",
+    "blockers": [
+      5,
+      16,
+      18,
+      17,
+      7
+    ]
+  },
+  "22": {
+    "number": 22,
+    "title": "feat: MCP stdio/HTTP 认证、工具资源 prompts 与重连",
+    "body": "<!-- delivery:mcp -->\n\nBlocked by: #13, #7\n\n## Parent\n\n#1 — 完整首版范围；本票不缩减父规格。\n\n## Coverage\n\n能力：I14, P23, P24。\n\n用户故事：US74, US75（编号对应父规格）。\n\n验收场景：T16。\n\n## What to build\n\n用户配置 MCP 服务并从 Pi 调用真实工具、资源和 prompts，观察认证、目录变更、超时、取消与重连。\n\n## Native ZCode delivery contract\n\n本票采用主规格已确认的**原生 ZCode + Pi**路线，参见产品目标、ADR 0001、native-rebase-plan 与 native-ui-parity。保留原生组件、状态、菜单/面板位置和操作路径，在 Agent 服务边界或可复用宿主服务中实现。\n\n- 原生导入和用户界面确认、最小 Pi 适配的阻塞边全部解除后才能领取。方向确认不等于实际界面确认。\n- 旧工作树/提交只是候选复用资产；在新原生产品中重新验收前不算本票完成，也不整批合并旧自建前端。\n- 本票验收还必须包含原版/产品同状态截图、操作步骤及已登记差异，全部功能行为真实；不能以功能测试或颜色一致代替交互一致。\n- 使用原生工程实际提供的检查脚本；继续按原完整 P/I/T 与用户故事验收。必要来源/许可证与迁入代码在同一变更记录。\n\n## Boundaries and decisions\n\n- 随附可关闭 Pi 扩展适配 MCP SDK；不是上游原生 RPC。\n\n- stdio 与 Streamable HTTP 均支持，MCP 凭据在目标 profile，重连不重放副作用工具。\n\n## Acceptance criteria\n\n- [ ] 连接/认证/发现/调用在两种传输均可运行，资源与 prompt 可作为上下文。\n\n- [ ] 工具变化更新 Pi active catalog，失联/取消/超时/失败可查看且不假成功。\n\n- [ ] HTTP OAuth 授权/取消/刷新正确，stdio 进程生命周期可管理。\n\n## Testing\n\n- 真实本地 MCP SDK stdio/HTTP 服务及 OAuth 端点集成，调用真实文件/计算行为。\n\n- 至少一个外部 MCP 服务验收，凭据缺失时保持该验收待完成。\n\n## Blocked by\n\n- #13\n- #7\n\n## Evidence\n\n实施后回写 PR、实际执行命令/结果、协议场景、关键 UI 截图和真实环境验收。尚未执行或受外部条件阻塞的项目保持未完成。",
+    "state": "open",
+    "state_reason": null,
+    "html_url": "https://github.com/axgiroud312-byte/pi-agent-gui/issues/22",
+    "blockers": [
+      13,
+      7
+    ]
+  },
+  "21": {
+    "number": 21,
+    "title": "feat: 真实子 Agent 串并行委派、汇总与取消",
+    "body": "<!-- delivery:subagents -->\n\nBlocked by: #20, #19, #4\n\n## Parent\n\n#1 — 完整首版范围；本票不缩减父规格。\n\n## Coverage\n\n能力：I13, I09。\n\n用户故事：US72, US73（编号对应父规格）。\n\n验收场景：T07, T16。\n\n## What to build\n\n用户从父任务委派独立子 Agent，观察串/并行状态、来源/上下文/费用，停止/继续并汇总结果。\n\n## Native ZCode delivery contract\n\n本票采用主规格已确认的**原生 ZCode + Pi**路线，参见产品目标、ADR 0001、native-rebase-plan 与 native-ui-parity。保留原生组件、状态、菜单/面板位置和操作路径，在 Agent 服务边界或可复用宿主服务中实现。\n\n- 原生导入和用户界面确认、最小 Pi 适配的阻塞边全部解除后才能领取。方向确认不等于实际界面确认。\n- 旧工作树/提交只是候选复用资产；在新原生产品中重新验收前不算本票完成，也不整批合并旧自建前端。\n- 本票验收还必须包含原版/产品同状态截图、操作步骤及已登记差异，全部功能行为真实；不能以功能测试或颜色一致代替交互一致。\n- 使用原生工程实际提供的检查脚本；继续按原完整 P/I/T 与用户故事验收。必要来源/许可证与迁入代码在同一变更记录。\n\n## Boundaries and decisions\n\n- 每子会话独立真实 Pi 进程，可绑定 worktree；关联父 task/session。\n\n- 取消父任务的传播策略明确，汇总用量保留来源不重复计费。\n\n## Acceptance criteria\n\n- [ ] 至少两个并行和一个串行子任务实际执行工具，结果可交接到父会话。\n\n- [ ] 启动/暂停或停止/继续/失败可观察；一个崩溃不误完成其他任务。\n\n- [ ] 上下文、产物、工具来源、分项与总用量可追踪。\n\n- [ ] 关闭随附扩展时不能继续调度隐藏 Agent。\n\n## Testing\n\n- 真实 Pi 进程+确定性 provider 多子任务，取消/失败/重启与 worktree 隔离集成。\n\n- 真实模型一次委派结果汇总验收。\n\n## Blocked by\n\n- #20\n- #19\n- #4\n\n## Evidence\n\n实施后回写 PR、实际执行命令/结果、协议场景、关键 UI 截图和真实环境验收。尚未执行或受外部条件阻塞的项目保持未完成。",
+    "state": "open",
+    "state_reason": null,
+    "html_url": "https://github.com/axgiroud312-byte/pi-agent-gui/issues/21",
+    "blockers": [
+      20,
+      19,
+      4
+    ]
+  },
+  "20": {
+    "number": 20,
+    "title": "feat: 随附 Pi Plan 扩展、待办、任务与产物记录",
+    "body": "<!-- delivery:plan-tasks -->\n\nBlocked by: #13\n\n## Parent\n\n#1 — 完整首版范围；本票不缩减父规格。\n\n## Coverage\n\n能力：I12, P23, P24。\n\n用户故事：US70, US71（编号对应父规格）。\n\n验收场景：T16。\n\n## What to build\n\n用户切换规划与执行，查看真实工具集，持续维护任务计划、待办、状态和产物。\n\n## Native ZCode delivery contract\n\n本票采用主规格已确认的**原生 ZCode + Pi**路线，参见产品目标、ADR 0001、native-rebase-plan 与 native-ui-parity。保留原生组件、状态、菜单/面板位置和操作路径，在 Agent 服务边界或可复用宿主服务中实现。\n\n- 原生导入和用户界面确认、最小 Pi 适配的阻塞边全部解除后才能领取。方向确认不等于实际界面确认。\n- 旧工作树/提交只是候选复用资产；在新原生产品中重新验收前不算本票完成，也不整批合并旧自建前端。\n- 本票验收还必须包含原版/产品同状态截图、操作步骤及已登记差异，全部功能行为真实；不能以功能测试或颜色一致代替交互一致。\n- 使用原生工程实际提供的检查脚本；继续按原完整 P/I/T 与用户故事验收。必要来源/许可证与迁入代码在同一变更记录。\n\n## Boundaries and decisions\n\n- 作为可关闭的随附 Pi 扩展，通过公开 tools/lifecycle API 实现；不虚构为原生 RPC。\n\n- 计划模式实际限制工具，状态持久化关联 Pi session 和 task。\n\n## Acceptance criteria\n\n- [ ] Plan/执行切换改变实际可调用工具且 UI 与其一致。\n\n- [ ] 待办创建/更新/完成、任务状态与产物有真实工具结果，重启可恢复。\n\n- [ ] 扩展禁用/失败在 UI 清晰，不保留虚假能力入口。\n\n## Testing\n\n- 真实 Pi 确定性 provider 调用随附任务工具，验证状态和禁用效果。\n\n- GUI 计划→执行→产物全链路 E2E。\n\n## Blocked by\n\n- #13\n\n## Evidence\n\n实施后回写 PR、实际执行命令/结果、协议场景、关键 UI 截图和真实环境验收。尚未执行或受外部条件阻塞的项目保持未完成。",
+    "state": "open",
+    "state_reason": null,
+    "html_url": "https://github.com/axgiroud312-byte/pi-agent-gui/issues/20",
+    "blockers": [
+      13
+    ]
+  },
+  "19": {
+    "number": 19,
+    "title": "feat: worktree 隔离任务与 GitHub Issue/PR 开发闭环",
+    "body": "<!-- delivery:github-worktrees -->\n\nBlocked by: #18, #5\n\n## Parent\n\n#1 — 完整首版范围；本票不缩减父规格。\n\n## Coverage\n\n能力：I09, I11。\n\n用户故事：US68, US69（编号对应父规格）。\n\n验收场景：T15。\n\n## What to build\n\n用户从 GitHub Issue 创建绑定独立 worktree 的工作，审阅合并成果，创建关联 PR 并查看 review/checks。\n\n## Native ZCode delivery contract\n\n本票采用主规格已确认的**原生 ZCode + Pi**路线，参见产品目标、ADR 0001、native-rebase-plan 与 native-ui-parity。保留原生组件、状态、菜单/面板位置和操作路径，在 Agent 服务边界或可复用宿主服务中实现。\n\n- 原生导入和用户界面确认、最小 Pi 适配的阻塞边全部解除后才能领取。方向确认不等于实际界面确认。\n- 旧工作树/提交只是候选复用资产；在新原生产品中重新验收前不算本票完成，也不整批合并旧自建前端。\n- 本票验收还必须包含原版/产品同状态截图、操作步骤及已登记差异，全部功能行为真实；不能以功能测试或颜色一致代替交互一致。\n- 使用原生工程实际提供的检查脚本；继续按原完整 P/I/T 与用户故事验收。必要来源/许可证与迁入代码在同一变更记录。\n\n## Boundaries and decisions\n\n- GitHub 经宿主 gh，Issue/Task/Session ID 显式关联；失败可重试不伪造成功。\n\n- 删除 worktree 前展示 dirty/index 状态，保留未提交内容。\n\n## Acceptance criteria\n\n- [ ] 创建/列出/打开/移除 worktree 与分支生命周期可用，两个任务文件改动隔离。\n\n- [ ] gh 账户状态、Issues 正文/评论、PR 创建、reviews 和 checks 可操作。\n\n- [ ] Issue 启动会话带来源链接，PR 正确关联 Issue 与 base/head。\n\n- [ ] 无认证/网络失败/冲突均有真实错误与恢复路径。\n\n## Testing\n\n- 真实临时 worktree/bare remote 的创建、合并及拒绝脏删除。\n\n- 本地 gh 协议边界测试 + 本仓库实际 Issue/PR 读取和可控 PR 创建验收。\n\n## Blocked by\n\n- #18\n- #5\n\n## Evidence\n\n实施后回写 PR、实际执行命令/结果、协议场景、关键 UI 截图和真实环境验收。尚未执行或受外部条件阻塞的项目保持未完成。\n\n## 验收方式更新（2026-09-27）\n\n按用户“消除 CI，更新 Issue”的要求，取消本仓库远程 CI：Windows GitHub Actions 工作流已停用，工作流配置从开发分支移除。Issue 完成、PR 审查和合并不再要求远程 CI 运行或通过；旧评论中的相关要求由本次更新覆盖。必要检查按改动范围在本地执行并记录实际结果，纯文档或流程配置变更只做相关检查。已有测试脚本、真实功能验收和审查要求保留；取消 CI 不代表现有缺陷已修复或本票已完成。当前仍只收尾 #34，后续任务按已有范围确认处理。\n",
+    "state": "open",
+    "state_reason": null,
+    "html_url": "https://github.com/axgiroud312-byte/pi-agent-gui/issues/19",
+    "blockers": [
+      18,
+      5
+    ]
+  },
+  "18": {
+    "number": 18,
+    "title": "feat: Git 改动、行级审阅、提交同步与冲突处理",
+    "body": "<!-- delivery:git -->\n\nBlocked by: #14\n\n## Parent\n\n#1 — 完整首版范围；本票不缩减父规格。\n\n## Coverage\n\n能力：I08, I10。\n\n用户故事：US16, US65, US66, US67（编号对应父规格）。\n\n验收场景：T15。\n\n## What to build\n\n用户审阅真实 staged/unstaged/untracked Diff，评论代码位置，stage/unstage、commit、分支同步及解决冲突。\n\n## Native ZCode delivery contract\n\n本票采用主规格已确认的**原生 ZCode + Pi**路线，参见产品目标、ADR 0001、native-rebase-plan 与 native-ui-parity。保留原生组件、状态、菜单/面板位置和操作路径，在 Agent 服务边界或可复用宿主服务中实现。\n\n- 原生导入和用户界面确认、最小 Pi 适配的阻塞边全部解除后才能领取。方向确认不等于实际界面确认。\n- 旧工作树/提交只是候选复用资产；在新原生产品中重新验收前不算本票完成，也不整批合并旧自建前端。\n- 本票验收还必须包含原版/产品同状态截图、操作步骤及已登记差异，全部功能行为真实；不能以功能测试或颜色一致代替交互一致。\n- 使用原生工程实际提供的检查脚本；继续按原完整 P/I/T 与用户故事验收。必要来源/许可证与迁入代码在同一变更记录。\n\n## Boundaries and decisions\n\n- 调用真实 Git，工作区总改动不声称由某会话产生；保留已有 dirty tree。\n\n- 评论保存文件、范围和 base revision，过期锚点可见；索引和工作树分开。\n\n## Acceptance criteria\n\n- [ ] 保留ZCode原生Diff组件和操作路径，状态与行级Diff准确覆盖未跟踪/重命名/二进制/冲突；确有能力缺口时最小增补并记录兼容差异，不强制替换为旧原型编辑器。\n\n- [ ] 文件/行级 stage/unstage、commit、branch、pull/push 有真实退出结果与失败恢复。\n\n- [ ] 评论能带版本定位发给 Agent；基准变更后显示过期。\n\n- [ ] 冲突可比较并保存解决，普通目录明确无 Git 能力，已有改动不被误删。\n\n## Testing\n\n- 真实临时 Git repo + bare remote 测试 dirty tree、索引、提交同步、冲突。\n\n- Electron Diff/评论/提交 E2E。\n\n## Blocked by\n\n- #14\n\n## Evidence\n\n实施后回写 PR、实际执行命令/结果、协议场景、关键 UI 截图和真实环境验收。尚未执行或受外部条件阻塞的项目保持未完成。",
+    "state": "open",
+    "state_reason": null,
+    "html_url": "https://github.com/axgiroud312-byte/pi-agent-gui/issues/18",
+    "blockers": [
+      14
+    ]
+  },
+  "17": {
+    "number": 17,
+    "title": "feat: 开发服务、隔离预览与截图上下文",
+    "body": "<!-- delivery:preview -->\n\nBlocked by: #16, #14\n\n## Parent\n\n#1 — 完整首版范围；本票不缩减父规格。\n\n## Coverage\n\n能力：I07, I10。\n\n用户故事：US05, US16, US63, US64（编号对应父规格）。\n\n验收场景：T14, T19。\n\n## What to build\n\n用户启动/停止/重启开发服务，在工作台查看网页、Markdown、图片和产物，并把截图或选区发送给 Agent。\n\n## Native ZCode delivery contract\n\n本票采用主规格已确认的**原生 ZCode + Pi**路线，参见产品目标、ADR 0001、native-rebase-plan 与 native-ui-parity。保留原生组件、状态、菜单/面板位置和操作路径，在 Agent 服务边界或可复用宿主服务中实现。\n\n- 原生导入和用户界面确认、最小 Pi 适配的阻塞边全部解除后才能领取。方向确认不等于实际界面确认。\n- 旧工作树/提交只是候选复用资产；在新原生产品中重新验收前不算本票完成，也不整批合并旧自建前端。\n- 本票验收还必须包含原版/产品同状态截图、操作步骤及已登记差异，全部功能行为真实；不能以功能测试或颜色一致代替交互一致。\n- 使用原生工程实际提供的检查脚本；继续按原完整 P/I/T 与用户故事验收。必要来源/许可证与迁入代码在同一变更记录。\n\n## Boundaries and decisions\n\n- 预览内容与应用 IPC 权限隔离，开发服务拥有独立进程身份。\n\n- 端口映射通过统一环境接口，远端行为在 remote 集成验收。\n\n## Acceptance criteria\n\n- [ ] 服务命令、cwd、地址、日志和退出状态真实，重启没有遗留同服务进程。\n\n- [ ] 网页/文件产物可访问，导航/错误/证书状态可见，预览无宿主控制接口。\n\n- [ ] 截图与 DOM/选区上下文可预览后进入真实 Pi 图片/文本输入。\n\n- [ ] 本地地址和远端映射生命周期可显示/关闭。\n\n## Testing\n\n- 真实本地 HTTP 开发服务+Electron 预览/重启/截图验收。\n\n- 远端端口映射另在 remote 的 T14/T17 链路验收。\n\n## Blocked by\n\n- #16\n- #14\n\n## Evidence\n\n实施后回写 PR、实际执行命令/结果、协议场景、关键 UI 截图和真实环境验收。尚未执行或受外部条件阻塞的项目保持未完成。",
+    "state": "open",
+    "state_reason": null,
+    "html_url": "https://github.com/axgiroud312-byte/pi-agent-gui/issues/17",
+    "blockers": [
+      16,
+      14
+    ]
+  },
+  "16": {
+    "number": 16,
+    "title": "feat: ConPTY 多终端、后台命令与 CLI profiles",
+    "body": "<!-- delivery:terminal -->\n\nBlocked by: #34\n\n## Parent\n\n#1 — 完整首版范围；本票不缩减父规格。\n\n## Coverage\n\n能力：I06, I10, P34。\n\n用户故事：US24, US61, US62（编号对应父规格）。\n\n验收场景：T14, T20。\n\n## What to build\n\n用户在工作区打开多个真实交互终端，resize/停止命令、查看后台日志/退出码并引用输出。\n\n## Native ZCode delivery contract\n\n本票采用主规格已确认的**原生 ZCode + Pi**路线，参见产品目标、ADR 0001、native-rebase-plan 与 native-ui-parity。保留原生组件、状态、菜单/面板位置和操作路径，在 Agent 服务边界或可复用宿主服务中实现。\n\n- 原生导入和用户界面确认、最小 Pi 适配的阻塞边全部解除后才能领取。方向确认不等于实际界面确认。\n- 旧工作树/提交只是候选复用资产；在新原生产品中重新验收前不算本票完成，也不整批合并旧自建前端。\n- 本票验收还必须包含原版/产品同状态截图、操作步骤及已登记差异，全部功能行为真实；不能以功能测试或颜色一致代替交互一致。\n- 使用原生工程实际提供的检查脚本；继续按原完整 P/I/T 与用户故事验收。必要来源/许可证与迁入代码在同一变更记录。\n\n## Boundaries and decisions\n\n- 保留ZCode原生终端面板及xterm/PTY服务；Windows ConPTY与所采用Electron的native ABI和安装包实际验证，旧分支版本不能强制覆盖上游。\n\n- 终端所属执行环境显式，停止清理对应进程树且不影响其他会话。\n\n## Acceptance criteria\n\n- [ ] 真实 shell 双向输入/resize/Unicode/复制粘贴可用，多终端输出不串台。\n\n- [ ] 后台命令日志、启动时间、退出码和取消结果真实，输出可引用到 Agent。\n\n- [ ] Pi interactive/print/JSON CLI profile 真实启动，主对话仍 RPC。\n\n- [ ] 打包后 native PTY 正常加载并执行命令。\n\n## Testing\n\n- 真实 ConPTY echo/交互/resize/长运行停止；Electron xterm E2E。\n\n- Windows 未打包和打包应用分别验证 native 模块。\n\n## Blocked by\n\n- #34\n\n## Evidence\n\n实施后回写 PR、实际执行命令/结果、协议场景、关键 UI 截图和真实环境验收。尚未执行或受外部条件阻塞的项目保持未完成。",
+    "state": "open",
+    "state_reason": null,
+    "html_url": "https://github.com/axgiroud312-byte/pi-agent-gui/issues/16",
+    "blockers": [
+      34
+    ]
+  },
+  "15": {
+    "number": 15,
+    "title": "feat: 可取消搜索替换与 TS/JS、JSON、Python 语言服务",
+    "body": "<!-- delivery:language -->\n\nBlocked by: #14\n\n## Parent\n\n#1 — 完整首版范围；本票不缩减父规格。\n\n## Coverage\n\n能力：I05, I10。\n\n用户故事：US59, US60, US62（编号对应父规格）。\n\n验收场景：T13, T18。\n\n## What to build\n\n用户搜索替换大项目，并使用补全、定义/引用、重命名、格式化与诊断，发送诊断给 Agent。\n\n## Native ZCode delivery contract\n\n本票采用主规格已确认的**原生 ZCode + Pi**路线，参见产品目标、ADR 0001、native-rebase-plan 与 native-ui-parity。保留原生组件、状态、菜单/面板位置和操作路径，在 Agent 服务边界或可复用宿主服务中实现。\n\n- 原生导入和用户界面确认、最小 Pi 适配的阻塞边全部解除后才能领取。方向确认不等于实际界面确认。\n- 旧工作树/提交只是候选复用资产；在新原生产品中重新验收前不算本票完成，也不整批合并旧自建前端。\n- 本票验收还必须包含原版/产品同状态截图、操作步骤及已登记差异，全部功能行为真实；不能以功能测试或颜色一致代替交互一致。\n- 使用原生工程实际提供的检查脚本；继续按原完整 P/I/T 与用户故事验收。必要来源/许可证与迁入代码在同一变更记录。\n\n## Boundaries and decisions\n\n- 可配置 LSP 适配；随附固定 TS/JS、JSON、Python 服务并验证各声明能力。\n\n- 搜索流式可取消，替换前基准校验，语言服务按执行环境/cwd 隔离。\n\n## Acceptance criteria\n\n- [ ] 全局搜索/替换/取消真实且不阻塞输入，结果能定位行列。\n\n- [ ] 三类随附语言有补全/导航/引用/重命名/格式化/诊断的可运行例子。\n\n- [ ] 用户可配置其他 LSP；崩溃/重启/版本信息可查看。\n\n- [ ] 诊断可作为带来源上下文交给会话。\n\n## Testing\n\n- 真实语言服务器与临时项目的端到端合同，不以静态 fixture 代替语言行为。\n\n- 大目录搜索中止及草稿与替换冲突 E2E。\n\n## Blocked by\n\n- #14\n\n## Evidence\n\n实施后回写 PR、实际执行命令/结果、协议场景、关键 UI 截图和真实环境验收。尚未执行或受外部条件阻塞的项目保持未完成。",
+    "state": "open",
+    "state_reason": null,
+    "html_url": "https://github.com/axgiroud312-byte/pi-agent-gui/issues/15",
+    "blockers": [
+      14
+    ]
+  },
+  "14": {
+    "number": 14,
+    "title": "feat: 真实文件树、多标签编辑与磁盘冲突恢复",
+    "body": "<!-- delivery:editor -->\n\nBlocked by: #34\n\n## Parent\n\n#1 — 完整首版范围；本票不缩减父规格。\n\n## Coverage\n\n能力：I03, I04, I10。\n\n用户故事：US16, US57, US58, US63（编号对应父规格）。\n\n验收场景：T13, T19。\n\n## What to build\n\n用户创建/重命名/移动/删除真实文件，多标签编辑保存，并在 Agent 或外部程序修改文件时比较/合并/重载。\n\n## Native ZCode delivery contract\n\n本票采用主规格已确认的**原生 ZCode + Pi**路线，参见产品目标、ADR 0001、native-rebase-plan 与 native-ui-parity。保留原生组件、状态、菜单/面板位置和操作路径，在 Agent 服务边界或可复用宿主服务中实现。\n\n- 原生导入和用户界面确认、最小 Pi 适配的阻塞边全部解除后才能领取。方向确认不等于实际界面确认。\n- 旧工作树/提交只是候选复用资产；在新原生产品中重新验收前不算本票完成，也不整批合并旧自建前端。\n- 本票验收还必须包含原版/产品同状态截图、操作步骤及已登记差异，全部功能行为真实；不能以功能测试或颜色一致代替交互一致。\n- 使用原生工程实际提供的检查脚本；继续按原完整 P/I/T 与用户故事验收。必要来源/许可证与迁入代码在同一变更记录。\n\n## Boundaries and decisions\n\n- 优先复用ZCode原生文件/编辑/预览组件与宿主服务；检查主规格能力差额，必要的编辑器增补沿用原生操作路径并登记差异。内容摘要或版本检查避免静默覆盖草稿。\n\n- 执行环境接口隔离本地路径；引用文件/目录/选区均显式预览，目录不隐式全量注入。\n\n## Acceptance criteria\n\n- [ ] 中文、空格、长路径 CRUD 和 watcher 更新可用；普通目录工作。\n\n- [ ] 多标签/草稿恢复/保存，外部改动与未保存草稿有 compare/merge/reload；保存检查最新版本。\n\n- [ ] 快速打开、定位行列、Markdown/图片/文本预览真实。\n\n- [ ] 文件和选区引用保留路径/版本/文本快照，可发送并回到源位置。\n\n## Testing\n\n- 临时真实文件系统+Electron 编辑、外部改动和冲突测试。\n\n- 关键状态、中文路径及多标签截图。\n\n## Blocked by\n\n- #34\n\n## Evidence\n\n实施后回写 PR、实际执行命令/结果、协议场景、关键 UI 截图和真实环境验收。尚未执行或受外部条件阻塞的项目保持未完成。",
+    "state": "open",
+    "state_reason": null,
+    "html_url": "https://github.com/axgiroud312-byte/pi-agent-gui/issues/14",
+    "blockers": [
+      34
+    ]
+  },
+  "13": {
+    "number": 13,
+    "title": "feat: 全原生扩展交互、工具目录及生命周期展示",
+    "body": "<!-- delivery:extension-ui -->\n\nBlocked by: #6, #3, #4\n\n## Parent\n\n#1 — 完整首版范围；本票不缩减父规格。\n\n## Coverage\n\n能力：P23, P24, P25, P26。\n\n用户故事：US13, US14, US52, US53, US54（编号对应父规格）。\n\n验收场景：T04, T06, T09, T12。\n\n## What to build\n\n用户交互全部 RPC 扩展对话与状态/widget，并检查动态工具/生命周期/错误。\n\n## Native ZCode delivery contract\n\n本票采用主规格已确认的**原生 ZCode + Pi**路线，参见产品目标、ADR 0001、native-rebase-plan 与 native-ui-parity。保留原生组件、状态、菜单/面板位置和操作路径，在 Agent 服务边界或可复用宿主服务中实现。\n\n- 原生导入和用户界面确认、最小 Pi 适配的阻塞边全部解除后才能领取。方向确认不等于实际界面确认。\n- 旧工作树/提交只是候选复用资产；在新原生产品中重新验收前不算本票完成，也不整批合并旧自建前端。\n- 本票验收还必须包含原版/产品同状态截图、操作步骤及已登记差异，全部功能行为真实；不能以功能测试或颜色一致代替交互一致。\n- 使用原生工程实际提供的检查脚本；继续按原完整 P/I/T 与用户故事验收。必要来源/许可证与迁入代码在同一变更记录。\n\n## Boundaries and decisions\n\n- 交互归属 session+generation+request ID，fire-and-forget 不发送伪响应。\n\n- read/write/edit/bash/powershell/grep/find/ls 与自定义/覆盖工具使用通用结果表示。\n\n## Acceptance criteria\n\n- [ ] select/confirm/input/editor 的回答、取消、超时、并行会话与停止正确。\n\n- [ ] notify/status/widget/title/editor text 的更新和清除均生效。\n\n- [ ] 工具目录及 active tools 控制改变实际 Pi 工具集；输入变换/扩展消息/provider 和 errors 保留。\n\n- [ ] 加载/卸载/reload/会话替换生命周期可观察，无旧 UI 复活。\n\n## Testing\n\n- 真实 Pi 扩展样例触发每类 UI 和工具，四会话并行 E2E。\n\n- 未知工具 text/image/details 及异常扩展合同。\n\n## Blocked by\n\n- #6\n- #3\n- #4\n\n## Evidence\n\n实施后回写 PR、实际执行命令/结果、协议场景、关键 UI 截图和真实环境验收。尚未执行或受外部条件阻塞的项目保持未完成。",
+    "state": "open",
+    "state_reason": null,
+    "html_url": "https://github.com/axgiroud312-byte/pi-agent-gui/issues/13",
+    "blockers": [
+      6,
+      3,
+      4
+    ]
+  },
+  "12": {
+    "number": 12,
+    "title": "feat: Skills、模板、上下文、包与资源热重载中心",
+    "body": "<!-- delivery:resources -->\n\nBlocked by: #6, #10\n\n## Parent\n\n#1 — 完整首版范围；本票不缩减父规格。\n\n## Coverage\n\n能力：P21, P22, P24, P29, P30, P32。\n\n用户故事：US17, US46, US47, US48, US49, US50, US51, US52, US54（编号对应父规格）。\n\n验收场景：T11。\n\n## What to build\n\n用户发现、编辑、创建和调用 Skills/模板/上下文，按作用域安装、固定、过滤和更新真实 Pi 包并重载。\n\n## Native ZCode delivery contract\n\n本票采用主规格已确认的**原生 ZCode + Pi**路线，参见产品目标、ADR 0001、native-rebase-plan 与 native-ui-parity。保留原生组件、状态、菜单/面板位置和操作路径，在 Agent 服务边界或可复用宿主服务中实现。\n\n- 原生导入和用户界面确认、最小 Pi 适配的阻塞边全部解除后才能领取。方向确认不等于实际界面确认。\n- 旧工作树/提交只是候选复用资产；在新原生产品中重新验收前不算本票完成，也不整批合并旧自建前端。\n- 本票验收还必须包含原版/产品同状态截图、操作步骤及已登记差异，全部功能行为真实；不能以功能测试或颜色一致代替交互一致。\n- 使用原生工程实际提供的检查脚本；继续按原完整 P/I/T 与用户故事验收。必要来源/许可证与迁入代码在同一变更记录。\n\n## Boundaries and decisions\n\n- get_commands sourceInfo 来自固定版；内建 TUI slash 命令不假设 RPC 可调用。\n\n- 包使用 Pi 管理命令，资源和 trust 解析沿用 Pi，不另建不兼容加载器。\n\n## Acceptance criteria\n\n- [ ] 全局/项目/包来源、加载错误、system prompt 替换追加及优先级可查看编辑。\n\n- [ ] 带参数模板/Skill 调用真实展开；启停与修改的生效时机清晰。\n\n- [ ] npm/Git/local 安装卸载更新固定版本与过滤真实影响加载结果。\n\n- [ ] 重载后命令/工具/provider/theme 目录刷新且旧 session context 失效可诊断。\n\n## Testing\n\n- 本地测试包与临时 Git/npm fixture 的全生命周期；真实 Pi 资源调用。\n\n- 至少一个真实 npm/Git 包安装与卸载结果和 UI 截图。\n\n## Blocked by\n\n- #6\n- #10\n\n## Evidence\n\n实施后回写 PR、实际执行命令/结果、协议场景、关键 UI 截图和真实环境验收。尚未执行或受外部条件阻塞的项目保持未完成。",
+    "state": "open",
+    "state_reason": null,
+    "html_url": "https://github.com/axgiroud312-byte/pi-agent-gui/issues/12",
+    "blockers": [
+      6,
+      10
+    ]
+  },
+  "11": {
+    "number": 11,
+    "title": "feat: llama.cpp router 模型管理与实际会话接入",
+    "body": "<!-- delivery:llama -->\n\nBlocked by: #7\n\n## Parent\n\n#1 — 完整首版范围；本票不缩减父规格。\n\n## Coverage\n\n能力：P20。\n\n用户故事：US42（编号对应父规格）。\n\n验收场景：T10。\n\n## What to build\n\n用户连接 router，查看实时模型，下载、加载、卸载、取消并选作 Pi 会话模型。\n\n## Native ZCode delivery contract\n\n本票采用主规格已确认的**原生 ZCode + Pi**路线，参见产品目标、ADR 0001、native-rebase-plan 与 native-ui-parity。保留原生组件、状态、菜单/面板位置和操作路径，在 Agent 服务边界或可复用宿主服务中实现。\n\n- 原生导入和用户界面确认、最小 Pi 适配的阻塞边全部解除后才能领取。方向确认不等于实际界面确认。\n- 旧工作树/提交只是候选复用资产；在新原生产品中重新验收前不算本票完成，也不整批合并旧自建前端。\n- 本票验收还必须包含原版/产品同状态截图、操作步骤及已登记差异，全部功能行为真实；不能以功能测试或颜色一致代替交互一致。\n- 使用原生工程实际提供的检查脚本；继续按原完整 P/I/T 与用户故事验收。必要来源/许可证与迁入代码在同一变更记录。\n\n## Boundaries and decisions\n\n- 适配固定版 MIT router client/controller，通过公开 Pi provider API 推理；内部非公开导出不假装公开。\n\n- 取消需发送 router 真实终止操作并复查状态，不能只取消本地观察。\n\n## Acceptance criteria\n\n- [ ] 列表反映 loaded/loading/unloaded/downloading/sleeping、autoload/preset 规则。\n\n- [ ] SSE/轮询进度、加载/卸载/下载及取消真实，断线后先查询不重放。\n\n- [ ] 认证与 router base URL 在正确环境，刷新后可由 Pi 调用模型。\n\n## Testing\n\n- 本地 HTTP/SSE 合同端点覆盖进度/失败/取消/重连。\n\n- 真实 llama.cpp+GGUF 完成一次加载推理和卸载；无服务时保持真实验收待完成。\n\n## Blocked by\n\n- #7\n\n## Evidence\n\n实施后回写 PR、实际执行命令/结果、协议场景、关键 UI 截图和真实环境验收。尚未执行或受外部条件阻塞的项目保持未完成。",
+    "state": "open",
+    "state_reason": null,
+    "html_url": "https://github.com/axgiroud312-byte/pi-agent-gui/issues/11",
+    "blockers": [
+      7
+    ]
+  },
+  "10": {
+    "number": 10,
+    "title": "feat: 完整分层设置、provider 配置与启动 profiles",
+    "body": "<!-- delivery:settings -->\n\nBlocked by: #7, #6\n\n## Parent\n\n#1 — 完整首版范围；本票不缩减父规格。\n\n## Coverage\n\n能力：P05, P06, P07, P08, P19, P28, P31, P32, P34。\n\n用户故事：US38, US39, US40, US41, US43, US44, US45, US46, US56（编号对应父规格）。\n\n验收场景：T01, T10, T11。\n\n## What to build\n\n用户管理当前/全局/工作区设置、完整未知字段、模型 scopes/defaults、自定义 provider 和 CLI 启动 profile。\n\n## Native ZCode delivery contract\n\n本票采用主规格已确认的**原生 ZCode + Pi**路线，参见产品目标、ADR 0001、native-rebase-plan 与 native-ui-parity。保留原生组件、状态、菜单/面板位置和操作路径，在 Agent 服务边界或可复用宿主服务中实现。\n\n- 原生导入和用户界面确认、最小 Pi 适配的阻塞边全部解除后才能领取。方向确认不等于实际界面确认。\n- 旧工作树/提交只是候选复用资产；在新原生产品中重新验收前不算本票完成，也不整批合并旧自建前端。\n- 本票验收还必须包含原版/产品同状态截图、操作步骤及已登记差异，全部功能行为真实；不能以功能测试或颜色一致代替交互一致。\n- 使用原生工程实际提供的检查脚本；继续按原完整 P/I/T 与用户故事验收。必要来源/许可证与迁入代码在同一变更记录。\n\n## Boundaries and decisions\n\n- Pi SettingsManager 为生效权威；缺少 setter 时锁定+重读+字段 patch，保留 JSONC 和未知 sibling。\n\n- 显示实际 trust 决策；不静默信任或禁用资源；网络刷新显式遵守 offline 配置。\n\n## Acceptance criteria\n\n- [ ] 全部固定版 Pi 设置都有表单或高级编辑入口，显示来源和即时/重载/重启时机。\n\n- [ ] 重试/压缩/cache/transport/proxy/images/shell/resources/thinking budget/scoped models 可保存且真实生效。\n\n- [ ] 自定义 base URL/headers/API/model 参数及扩展 provider 刷新可使用，不固定厂商清单。\n\n- [ ] 项目不可信时资源加载结果与 Pi 一致；未知字段和并发无关编辑不会丢失，坏 JSON 不被覆盖。\n\n- [ ] 交互/print/JSON CLI 和临时扩展/精确资源 flags 可从 IDE profile 发起，主会话仍 RPC。\n\n## Testing\n\n- 真实 settings/models 配置的范围、未知字段、外部变更、语法错误、trust fixtures。\n\n- 真实 Pi 自定义 provider/profile 启动与当前/默认模型差异验收。\n\n## Blocked by\n\n- #7\n- #6\n\n## Evidence\n\n实施后回写 PR、实际执行命令/结果、协议场景、关键 UI 截图和真实环境验收。尚未执行或受外部条件阻塞的项目保持未完成。",
+    "state": "open",
+    "state_reason": null,
+    "html_url": "https://github.com/axgiroud312-byte/pi-agent-gui/issues/10",
+    "blockers": [
+      7,
+      6
+    ]
+  },
+  "9": {
+    "number": 9,
+    "title": "feat: 会话目录、原生分支与导入导出分享",
+    "body": "<!-- delivery:history -->\n\nBlocked by: #6, #5\n\n## Parent\n\n#1 — 完整首版范围；本票不缩减父规格。\n\n## Coverage\n\n能力：P10, P11, P12, P13, P14, P15, P16, P17。\n\n用户故事：US07, US25, US26, US27, US28, US29, US30, US31, US33, US34, US35, US36（编号对应父规格）。\n\n验收场景：T08, T09。\n\n## What to build\n\n用户发现 CLI 历史、创建/命名/归档/删除/恢复会话、导航树、fork/clone/编辑历史、导入导出及主动分享。\n\n## Native ZCode delivery contract\n\n本票采用主规格已确认的**原生 ZCode + Pi**路线，参见产品目标、ADR 0001、native-rebase-plan 与 native-ui-parity。保留原生组件、状态、菜单/面板位置和操作路径，在 Agent 服务边界或可复用宿主服务中实现。\n\n- 原生导入和用户界面确认、最小 Pi 适配的阻塞边全部解除后才能领取。方向确认不等于实际界面确认。\n- 旧工作树/提交只是候选复用资产；在新原生产品中重新验收前不算本票完成，也不整批合并旧自建前端。\n- 本票验收还必须包含原版/产品同状态截图、操作步骤及已登记差异，全部功能行为真实；不能以功能测试或颜色一致代替交互一致。\n- 使用原生工程实际提供的检查脚本；继续按原完整 P/I/T 与用户故事验收。必要来源/许可证与迁入代码在同一变更记录。\n\n## Boundaries and decisions\n\n- 只读索引原生 JSONL，归档是 IDE 元数据；原生 session/entry ID 不混用。\n\n- new/switch/fork/clone cancelled 保持原状态；成功后重取身份和目录。\n\n## Acceptance criteria\n\n- [ ] CLI 与 GUI 在同一存储可互续，临时和自定义目录启动真实有效。\n\n- [ ] fork/clone/历史编辑/重新生成保留原历史；树过滤、书签、摘要和当前分支可用。\n\n- [ ] 归档/删除/恢复不误删其他会话；活动会话所有权受到检查。\n\n- [ ] HTML/JSONL 导出可打开，导入后可继续；复制最近回复和 gist 分享返回真实链接。\n\n- [ ] 原始 history、有效 context/edits、摘要/工具用量准确区分。\n\n## Testing\n\n- 临时会话目录+真实 Pi 的 CLI→GUI→CLI、取消与替换回归；GUI 分支/导出 E2E。\n\n- 用户主动触发的真实 gh gist 分享和导入验证。\n\n## Blocked by\n\n- #6\n- #5\n\n## Evidence\n\n实施后回写 PR、实际执行命令/结果、协议场景、关键 UI 截图和真实环境验收。尚未执行或受外部条件阻塞的项目保持未完成。",
+    "state": "open",
+    "state_reason": null,
+    "html_url": "https://github.com/axgiroud312-byte/pi-agent-gui/issues/9",
+    "blockers": [
+      6,
+      5
+    ]
+  },
+  "8": {
+    "number": 8,
+    "title": "feat: 同一 RPC 会话的真实 TUI 组件兼容纵向验证",
+    "body": "<!-- delivery:tui-proof -->\n\nBlocked by: #34\n\n## Parent\n\n#1 — 完整首版范围；本票不缩减父规格。\n\n## Coverage\n\n能力：P27。\n\n用户故事：US53, US54, US55, US84（编号对应父规格）。\n\n验收场景：T09, T12。\n\n## What to build\n\n用户在 GUI 终端兼容面板交互真实 Pi custom 组件与自定义 editor，其结果回到原 RPC 所有的同一会话。\n\n## Native ZCode delivery contract\n\n本票采用主规格已确认的**原生 ZCode + Pi**路线，参见产品目标、ADR 0001、native-rebase-plan 与 native-ui-parity。保留原生组件、状态、菜单/面板位置和操作路径，在 Agent 服务边界或可复用宿主服务中实现。\n\n- 原生导入和用户界面确认、最小 Pi 适配的阻塞边全部解除后才能领取。方向确认不等于实际界面确认。\n- 旧工作树/提交只是候选复用资产；在新原生产品中重新验收前不算本票完成，也不整批合并旧自建前端。\n- 本票验收还必须包含原版/产品同状态截图、操作步骤及已登记差异，全部功能行为真实；不能以功能测试或颜色一致代替交互一致。\n- 使用原生工程实际提供的检查脚本；继续按原完整 P/I/T 与用户故事验收。必要来源/许可证与迁入代码在同一变更记录。\n\n## Boundaries and decisions\n\n- 固定版最小 RPC UI composition seam + Pi TUI Terminal 适配，ANSI 包装在版本化 JSONL 中。\n\n- 不得启动无关 Pi TUI 会话、伪造 mode=tui 或替换 Agent loop；严格 TUI guard 的样例使用显式适配。\n\n- 组件工厂和 custom<T> 任意结果留在 Pi 进程，UI epoch 管理 reload/会话替换生命周期。\n\n## Acceptance criteria\n\n- [ ] custom modal/overlay 可键盘输入、resize、返回值；PID/sessionId 保持一致并影响真实工具结果。\n\n- [ ] 自定义 editor 保留文本、paste/submit/focus，native composer 同步且不双重投递。\n\n- [ ] session_start 中等待 UI 不死锁；停止/替换/reload 清理旧组件与等待。\n\n- [ ] 提供补丁来源、版本、许可证及可重建实际 CLI artifact，测试不是只改未被启动的 dist 文件。\n\n## Testing\n\n- 真实 Pi 进程 + xterm/headless 驱动交互；Electron custom UI 场景截图。\n\n- 重载后再次交互、晚到 factory、同步 done 和错误处理；其余公开 UI 类别由 tui-complete 补齐。\n\n## Blocked by\n\n- #34\n\n## Evidence\n\n实施后回写 PR、实际执行命令/结果、协议场景、关键 UI 截图和真实环境验收。尚未执行或受外部条件阻塞的项目保持未完成。",
+    "state": "open",
+    "state_reason": null,
+    "html_url": "https://github.com/axgiroud312-byte/pi-agent-gui/issues/8",
+    "blockers": [
+      34
+    ]
+  },
+  "7": {
+    "number": 7,
+    "title": "feat: 执行环境内的 Pi API key 与 OAuth 认证管理",
+    "body": "<!-- delivery:auth -->\n\nBlocked by: #34\n\n## Parent\n\n#1 — 完整首版范围；本票不缩减父规格。\n\n## Coverage\n\n能力：P18, P19, P33。\n\n用户故事：US37, US40, US41, US43, US81（编号对应父规格）。\n\n验收场景：T01, T10, T17。\n\n## What to build\n\n用户通过 Pi 支持的动态 provider 目录登录、取消、刷新及登出；认证保存在实际执行环境，并可恢复认证失败。\n\n## Native ZCode delivery contract\n\n本票采用主规格已确认的**原生 ZCode + Pi**路线，参见产品目标、ADR 0001、native-rebase-plan 与 native-ui-parity。保留原生组件、状态、菜单/面板位置和操作路径，在 Agent 服务边界或可复用宿主服务中实现。\n\n- 原生导入和用户界面确认、最小 Pi 适配的阻塞边全部解除后才能领取。方向确认不等于实际界面确认。\n- 旧工作树/提交只是候选复用资产；在新原生产品中重新验收前不算本票完成，也不整批合并旧自建前端。\n- 本票验收还必须包含原版/产品同状态截图、操作步骤及已登记差异，全部功能行为真实；不能以功能测试或颜色一致代替交互一致。\n- 使用原生工程实际提供的检查脚本；继续按原完整 P/I/T 与用户故事验收。必要来源/许可证与迁入代码在同一变更记录。\n\n## Boundaries and decisions\n\n- 固定版公开 ModelRuntime.login/getAuth/logout，GUI 管理通道不进入模型聊天。\n\n- provider-driven text/secret/select/manual_code/auth_url/device_code 回调，操作和 prompt 各自取消。\n\n- 凭据不进入普通日志/消息；一个 provider 多账户用显式 profile，不能虚构项目 auth.json 自动继承。\n\n## Acceptance criteria\n\n- [ ] API key 和 OAuth browser/device/manual 回调、取消、过期和失败均可观察。\n\n- [ ] 原生刷新串行化；已保存但本地同步失败准确报告，不泄露 CredentialSynchronizationError 中的 credential。\n\n- [ ] 登出后反映 ambient/env fallback 的真实来源；保存与实际验证状态分开。\n\n- [ ] 动态注册 provider 能使用相同认证 UI；本票验收本地执行环境和可注入目标的接口合同，SSH/WSL 实机认证由依赖本票的 remote 任务验收。\n\n## Testing\n\n- 真实 ModelRuntime + 本地可控 OAuth HTTP 端点覆盖取消/刷新并发/过期/登出。\n\n- 至少一个真实 API key 和订阅 OAuth 账号验收，未提供账号时保持待完成，不记录假成功。\n\n## Blocked by\n\n- #34\n\n## Evidence\n\n实施后回写 PR、实际执行命令/结果、协议场景、关键 UI 截图和真实环境验收。尚未执行或受外部条件阻塞的项目保持未完成。",
+    "state": "open",
+    "state_reason": null,
+    "html_url": "https://github.com/axgiroud312-byte/pi-agent-gui/issues/7",
+    "blockers": [
+      34
+    ]
+  },
+  "6": {
+    "number": 6,
+    "title": "feat: 验证版本化能力桥、原生树跳转与资源重载",
+    "body": "<!-- delivery:tree-bridge -->\n\nBlocked by: #34\n\n## Parent\n\n#1 — 完整首版范围；本票不缩减父规格。\n\n## Coverage\n\n能力：P12, P13, P21, P23, P24, P30。\n\n用户故事：US27, US28, US29, US31, US49, US52, US54, US84（编号对应父规格）。\n\n验收场景：T08, T09, T11, T12。\n\n## What to build\n\n用户在同一 RPC 会话真实跳转历史节点、设置书签、查看工具/上下文来源并热重载，能力握手明确兼容版本。\n\n## Native ZCode delivery contract\n\n本票采用主规格已确认的**原生 ZCode + Pi**路线，参见产品目标、ADR 0001、native-rebase-plan 与 native-ui-parity。保留原生组件、状态、菜单/面板位置和操作路径，在 Agent 服务边界或可复用宿主服务中实现。\n\n- 原生导入和用户界面确认、最小 Pi 适配的阻塞边全部解除后才能领取。方向确认不等于实际界面确认。\n- 旧工作树/提交只是候选复用资产；在新原生产品中重新验收前不算本票完成，也不整批合并旧自建前端。\n- 本票验收还必须包含原版/产品同状态截图、操作步骤及已登记差异，全部功能行为真实；不能以功能测试或颜色一致代替交互一致。\n- 使用原生工程实际提供的检查脚本；继续按原完整 P/I/T 与用户故事验收。必要来源/许可证与迁入代码在同一变更记录。\n\n## Boundaries and decisions\n\n- 优先 pi.registerCommand + ExtensionCommandContext.navigateTree/reload/setLabel，控制消息版本化且带关联 ID。\n\n- 缺失桥不能把控制请求当模型 prompt；控制失败不能被 prompt accepted 掩盖。\n\n- 会话替换或 reload 后重新绑定上下文，保留真实 rpc 模式；兼容补丁固定来源并最小化。\n\n## Acceptance criteria\n\n- [ ] 握手列出真实支持操作、Pi/bridge 版本与 generation；不支持时失败可诊断。\n\n- [ ] 树跳转改变 Pi active leaf/下一条原生 entry 的父节点；用户节点回填文本和可选分支摘要与上游一致。\n\n- [ ] 书签增删后 get_tree/get_entries 返回真实记录；原分支保留。\n\n- [ ] 重载刷新命令/工具/资源并拒绝旧 context；会话生命周期不重复触发。\n\n- [ ] 无凭据可用固定真实 Pi + 确定性 provider 验证核心机制，不用前端数组切换代替。\n\n## Testing\n\n- 真实 Pi 进程执行 navigate/label/reload/取消/替换合同，断言 sessionId/entryId 和上下文。\n\n- GUI 树点击→桥→Pi→后续消息的 E2E。\n\n## Blocked by\n\n- #34\n\n## Evidence\n\n实施后回写 PR、实际执行命令/结果、协议场景、关键 UI 截图和真实环境验收。尚未执行或受外部条件阻塞的项目保持未完成。",
+    "state": "open",
+    "state_reason": null,
+    "html_url": "https://github.com/axgiroud312-byte/pi-agent-gui/issues/6",
+    "blockers": [
+      34
+    ]
+  },
+  "5": {
+    "number": 5,
+    "title": "feat: 多工作区四会话并行、分栏与重启恢复",
+    "body": "<!-- delivery:workbench -->\n\nBlocked by: #34\n\n## Parent\n\n#1 — 完整首版范围；本票不缩减父规格。\n\n## Coverage\n\n能力：I01, I02, P10, P17。\n\n用户故事：US01, US02, US03, US04, US05, US06, US07, US08, US09, US10（编号对应父规格）。\n\n验收场景：T07, T09, T18, T19。\n\n## What to build\n\n用户管理最近项目、并排四个独立会话，切换焦点不影响后台运行，重启恢复布局、草稿和文件引用。\n\n## Native ZCode delivery contract\n\n本票采用主规格已确认的**原生 ZCode + Pi**路线，参见产品目标、ADR 0001、native-rebase-plan 与 native-ui-parity。保留原生组件、状态、菜单/面板位置和操作路径，在 Agent 服务边界或可复用宿主服务中实现。\n\n- 原生导入和用户界面确认、最小 Pi 适配的阻塞边全部解除后才能领取。方向确认不等于实际界面确认。\n- 旧工作树/提交只是候选复用资产；在新原生产品中重新验收前不算本票完成，也不整批合并旧自建前端。\n- 本票验收还必须包含原版/产品同状态截图、操作步骤及已登记差异，全部功能行为真实；不能以功能测试或颜色一致代替交互一致。\n- 使用原生工程实际提供的检查脚本；继续按原完整 P/I/T 与用户故事验收。必要来源/许可证与迁入代码在同一变更记录。\n\n## Boundaries and decisions\n\n- 保留ZCode原生pane tree、标签/拖拽/焦点和会话绑定，复用原有布局持久化；Pi原生历史独立管理，不以自建slots代替原生交互。\n\n- 执行环境显式建模；本票先交付本地适配，WSL/SSH 由 remote 实现。\n\n## Acceptance criteria\n\n- [ ] 普通目录及多个 Git 项目设置/草稿/会话隔离，显示 cwd/环境/分支。\n\n- [ ] 至少四个独立 Pi 进程交错输出无串台；崩溃/停止仅影响所属会话。\n\n- [ ] 标签、可拖动分栏、调整大小和布局恢复真实可操作。\n\n- [ ] 后台完成、错误、待输入可发现；搜索名称/项目/时间/状态；重启不重放 prompt。\n\n- [ ] 窗口恢复保留未发送草稿、附件和打开文件；会话所有权避免多个 GUI 同写历史。\n\n## Testing\n\n- 四独立子进程 Electron E2E，重启/单进程退出/延迟旧 generation 事件。\n\n- 两个真实工作区与 Pi 会话的恢复截图。\n\n## Blocked by\n\n- #34\n\n## Evidence\n\n实施后回写 PR、实际执行命令/结果、协议场景、关键 UI 截图和真实环境验收。尚未执行或受外部条件阻塞的项目保持未完成。",
+    "state": "open",
+    "state_reason": null,
+    "html_url": "https://github.com/axgiroud312-byte/pi-agent-gui/issues/5",
+    "blockers": [
+      34
+    ]
+  },
+  "4": {
+    "number": 4,
+    "title": "feat: Pi 双队列、完整停止和带上下文 shell 控制",
+    "body": "<!-- delivery:queue-stop -->\n\nBlocked by: #34\n\n## Parent\n\n#1 — 完整首版范围；本票不缩减父规格。\n\n## Coverage\n\n能力：P02, P03, P09。\n\n用户故事：US18, US19, US20, US21, US24（编号对应父规格）。\n\n验收场景：T03, T05, T06, T07。\n\n## What to build\n\n运行中可转向、排队、取回编辑和调整投递模式，完整停止后保留未处理输入；可执行带或不带模型上下文的 shell。\n\n## Native ZCode delivery contract\n\n本票采用主规格已确认的**原生 ZCode + Pi**路线，参见产品目标、ADR 0001、native-rebase-plan 与 native-ui-parity。保留原生组件、状态、菜单/面板位置和操作路径，在 Agent 服务边界或可复用宿主服务中实现。\n\n- 原生导入和用户界面确认、最小 Pi 适配的阻塞边全部解除后才能领取。方向确认不等于实际界面确认。\n- 旧工作树/提交只是候选复用资产；在新原生产品中重新验收前不算本票完成，也不整批合并旧自建前端。\n- 本票验收还必须包含原版/产品同状态截图、操作步骤及已登记差异，全部功能行为真实；不能以功能测试或颜色一致代替交互一致。\n- 使用原生工程实际提供的检查脚本；继续按原完整 P/I/T 与用户故事验收。必要来源/许可证与迁入代码在同一变更记录。\n\n## Boundaries and decisions\n\n- Pi 是队列权威；宿主只保存已接受输入的附件和关联，清空/重建在会话控制序列内进行。\n\n- 停止阻止新入队、取消交互、clear_queue 后 abort/abort_bash/abort_retry；不因待决长命令阻塞停止。\n\n## Acceptance criteria\n\n- [ ] 双队列 all/one-at-a-time 顺序真实且无第二调度器。\n\n- [ ] 消费竞态和双击不重复投递；取回/编辑/重排保留文本、图片和原顺序；无法确认消费的输入显示待核实。\n\n- [ ] 停止执行、shell、重试、压缩和扩展等待后不自动续接，其他会话继续。\n\n- [ ] shell 输出/退出码真实，excludeFromContext 的后续上下文差异可验证。\n\n## Testing\n\n- 可控 RPC 进程注入消费/清队列竞态与延迟响应，四会话停止隔离。\n\n- 真实 Pi shell/队列/停止集成与 GUI E2E。\n\n## Blocked by\n\n- #34\n\n## Evidence\n\n实施后回写 PR、实际执行命令/结果、协议场景、关键 UI 截图和真实环境验收。尚未执行或受外部条件阻塞的项目保持未完成。",
+    "state": "open",
+    "state_reason": null,
+    "html_url": "https://github.com/axgiroud312-byte/pi-agent-gui/issues/4",
+    "blockers": [
+      34
+    ]
+  },
+  "3": {
+    "number": 3,
+    "title": "feat: 完整消息、工具、图片、模型 thinking 与重试压缩体验",
+    "body": "<!-- delivery:conversation -->\n\nBlocked by: #34\n\n## Parent\n\n#1 — 完整首版范围；本票不缩减父规格。\n\n## Coverage\n\n能力：P01, P04, P05, P06, P07, P08, P14, P15。\n\n用户故事：US11, US12, US13, US14, US15, US22, US23, US32, US33, US34, US38, US39（编号对应父规格）。\n\n验收场景：T03, T04, T06, T10, T18。\n\n## What to build\n\n用户发送图片、阅读 Markdown/thinking/工具及未知消息，切换真实模型与 thinking，观察重试、压缩、有效上下文和准确用量。\n\n## Native ZCode delivery contract\n\n本票采用主规格已确认的**原生 ZCode + Pi**路线，参见产品目标、ADR 0001、native-rebase-plan 与 native-ui-parity。保留原生组件、状态、菜单/面板位置和操作路径，在 Agent 服务边界或可复用宿主服务中实现。\n\n- 原生导入和用户界面确认、最小 Pi 适配的阻塞边全部解除后才能领取。方向确认不等于实际界面确认。\n- 旧工作树/提交只是候选复用资产；在新原生产品中重新验收前不算本票完成，也不整批合并旧自建前端。\n- 本票验收还必须包含原版/产品同状态截图、操作步骤及已登记差异，全部功能行为真实；不能以功能测试或颜色一致代替交互一致。\n- 使用原生工程实际提供的检查脚本；继续按原完整 P/I/T 与用户故事验收。必要来源/许可证与迁入代码在同一变更记录。\n\n## Boundaries and decisions\n\n- 保留原生ZCode输入框/消息时间线/工具组件与状态，通过服务适配投影Pi；旧assistant-ui不是新产品强制底座。前端不运行自己的Agent队列。\n\n- 按 contentIndex 合并增量，message_end 权威校正；tool partialResult 替换；未知内容保留结构化视图。\n\n- 模型及 thinking 来自 Pi 实时枚举；session 设置和新会话默认值分开。\n\n## Acceptance criteria\n\n- [ ] 图片选择/粘贴/拖入及预览可用，发送后的 MIME 和内容真实进入 Pi。\n\n- [ ] text/thinking/toolcall 增量、图片/details/未知工具最终与 get_messages 一致；长工具输出可展开。\n\n- [ ] 模型搜索/选择/循环及 thinking 等级/循环与会话一致，不展示不支持的等级。\n\n- [ ] 手动/自动压缩、重试取消与失败状态可观察；agent_end 后重试或续接仍为运行。\n\n- [ ] 历史与有效上下文分开，token/cache/费用包含摘要且不重复；缺失数值明确未知。\n\n## Testing\n\n- GUI 主链路覆盖 T03/T04，错误/重试/overflow/compaction/最终校正 fixtures。\n\n- 真实 Pi 文本+图片、工具、压缩和模型切换冒烟；无账号的部分保持待验收。\n\n## Blocked by\n\n- #34\n\n## Evidence\n\n实施后回写 PR、实际执行命令/结果、协议场景、关键 UI 截图和真实环境验收。尚未执行或受外部条件阻塞的项目保持未完成。",
+    "state": "open",
+    "state_reason": null,
+    "html_url": "https://github.com/axgiroud312-byte/pi-agent-gui/issues/3",
+    "blockers": [
+      34
+    ]
+  },
+  "2": {
+    "number": 2,
+    "title": "feat: 启动桌面工作区并通过独立 Pi RPC 进程完成文本会话",
+    "body": "<!-- delivery:runtime -->\n\nBlocked by: None (can start immediately).\n\n## Parent\n\n#1 — 完整首版范围；本票不缩减父规格。\n\n## Coverage\n\n能力：P01, P04, P33, I01, I18。\n\n用户故事：US01, US03, US10, US11, US22, US23, US81, US83, US84（编号对应父规格）。\n\n验收场景：T01, T02, T03, T07。\n\n## What to build\n\n用户选择普通目录或 Git 工作区，查看实际 Pi 版本、进程状态，发送文本并看到真实流式回复及完成或失败。交付可运行 Electron 应用和后续任务可执行的检查脚本。\n\n## Boundaries and decisions\n\n- Electron + React + TypeScript + Vite + Tailwind；受限 preload IPC，renderer 无 Node 权限。\n\n- Pi 固定 0.87.0；每活动会话独立进程及 generation，stdin/stdout JSONL，stderr 分离；不建立第二套模型循环。\n\n- 启动设置允许选择 Pi/Node 可执行文件和工作目录，缺失或不兼容有可操作诊断；控制操作不自动重放。\n\n## Acceptance criteria\n\n- [ ] GUI → 宿主 → 子进程能发送文本、接收增量、按 agent_settled 完成；prompt 响应与 agent_end 均不误记完成。\n\n- [ ] 增量 UTF-8、LF/CRLF、U+2028/U+2029、尾部记录、半行、多行、异常 stdout 和 stderr 按协议处理。\n\n- [ ] 请求 ID 唯一，响应匹配 command，退出/超时结算在途请求，旧 generation 输出不污染当前运行。\n\n- [ ] 提供 typecheck、静态检查、合同/集成、Electron E2E、build 和 Windows package 脚本及 CI；依赖锁定并记录许可证。\n\n- [ ] 缺失 Pi、无效版本/目录和进程失败能在 UI 查看并修正配置后重试。\n\n## Testing\n\n- 真实子进程边界 fixture 验证 framing、关联、背压和退出；Electron E2E 实际输入并检查状态。\n\n- 固定真实 Pi 运行版本/状态/消息合同；真实模型与安装包全量验收另由 release-acceptance 追踪，不能把离线替身记成真实模型。\n\n## Blocked by\n\nNone (can start immediately).\n\n## Evidence\n\n实施后回写 PR、实际执行命令/结果、协议场景、关键 UI 截图和真实环境验收。尚未执行或受外部条件阻塞的项目保持未完成。",
+    "state": "closed",
+    "state_reason": "completed",
+    "html_url": "https://github.com/axgiroud312-byte/pi-agent-gui/issues/2",
+    "blockers": []
+  },
+  "1": {
+    "number": 1,
+    "title": "Spec: Pi Agent IDE 完整首版 — ZCode 原生工作台 + Pi RPC",
+    "body": "## Problem Statement\n\n用户希望把 Pi Coding Agent 作为日常工作的 Agent 引擎，在一个统一桌面工作台里完成理解项目、讨论方案、编辑文件、运行程序、调试问题、审阅改动、管理扩展和交付任务。\n\n只有聊天窗口不足以承接这些工作：用户仍然需要在终端、编辑器、文件管理器、Git 工具、浏览器和 GitHub 间来回切换；Pi 的会话树、模型配置、资源与扩展能力也缺少直观入口。\n\n**用户已明确确认：第一版以固定 ZCode 原生开源工程为底座，保留其布局和用户交互，在 Agent 服务边界适配 Pi；完整通用 Agent IDE 范围保持不变。** 分期用于组织开发与验证，首版完成条件按本规格的全量能力矩阵判断。\n\n已有 #2/#30（PR #31）交付旧自建桌面/RPC 基础，其他分支保存了 Pi/宿主功能资产。用户指出其界面和交互明显偏离目标，现确认切换为 ZCode 原生工程底座；旧功能测试通过不代表原生交互一致。\n\n## Solution\n\n构建本地优先的 **Pi Agent IDE：ZCode 原生工作台 + Pi Agent 内核**。以固定 ZCode 完整公开工程为产品起点，保留原生 Electron 壳、界面组件、布局状态、Lexical 输入框、会话时间线、服务接口和可复用本地宿主服务，在 Agent 服务边界适配 Pi RPC。\n\n### 2026-09-22 已确认的路线修订\n\n- 原生工程优先，允许替换现有自建工程；旧分支保留，Pi RPC/桥/测试按需迁入，旧自建前端不再作为产品底座。\n- **布局和用户操作逻辑保持原生一致是硬条件。** 仅复制颜色、字号、圆角或独立组件不合格。默认保留原生入口、组件、操作步骤及反馈，必要差异逐项登记。\n- 完整首版仍包含原 84 条用户故事、P01–P34、I01–I18 和 T01–T20。Pi 基础 RPC 未提供不构成删减理由；Plan、子 Agent、MCP、调度等用公开扩展/宿主补齐。\n- 产品换品牌并处理获准厂商入口：Z.AI/BigModel 产品账户、Coding Plan/充值/团队/票据、厂商云服务不直接带入。Pi 支持的 provider 认证和原规格通用能力保留；开源许可/NOTICE 归属保留。公开 Computer Use 占位不算可用能力，也不新增为必需项。\n- 首版发行是 **Windows 桌面**，包含 WSL/SSH 和 Pi CLI 互通；独立 Web 产品和独立 ZCode 风格 CLI 发行不在本次范围。\n- Pi 会话树、双队列、扩展 TUI 等特有入口优先进入原生菜单/输入区/设置/详情/Side Pane，必要时最小增补，不另造主工作台。\n- **先完成原生导入与对照 #32，然后在用户关卡 #33 暂停。用户明确确认实际界面后，才实施 Pi 最小接入 #34 和后续能力票。** 本次路线确认不等于未来运行界面已验收。\n\n### 2026-09-23 实际原生界面关卡已通过\n\n原生PR #37已合并为`59362a3`，#32/#36完成。用户已确认实际产品构建`0de01e26`及`36e3eb8`对照材料，原话与来源见[#33确认记录](https://github.com/axgiroud312-byte/pi-agent-gui/issues/33#issuecomment-5787163874)；#33已关闭。当前唯一就绪实施票为#34，尚未开发。本次交付后续全量执行文档，后续按既有原生依赖连续推进完整范围。\n\n### 首版完整体验\n\n- 工作区、任务/会话、标签/拖拽/分栏、Side Pane、底终端及窗口布局沿用固定原版，用户沿原路径完成工作。\n- 原生输入框承接引用、图片、模型/thinking/命令及 Pi 双队列；时间线呈现真实消息、工具、状态和错误。\n- 原生文件、Git、终端、预览、资源、设置与平台服务优先复用，按能力矩阵补齐差额。\n- 本地/WSL/SSH 操作落到真实执行环境；Pi 原生历史、队列、重试、压缩和扩展语义保持。\n\n### 范围基准\n\n1. ZCode：固定提交 872ad960de7ec172591f7e1952f7849229f94521 的完整原生源码与实际运行；第一方 Apache-2.0，保留适用 notices/第三方许可。\n2. Pi：已发布 @earendil-works/pi-coding-agent@0.87.0，release 提交 16787ad5b2dc748047f314ca1bfe7708f30f54f3。Agent 核心运行继续由 Pi RPC 驱动。\n3. 每个矩阵行均为首版必需，并登记原生 RPC、扩展桥、宿主或固定兼容层路径及新原生产品验收。\n4. Windows 为验收平台，保留跨平台架构及原定 WSL/SSH。无法实现的项目保持未完成并提交用户决定。\n5. 原生源码导入、交互对照和用户确认是新增交付前置，不改变原 84 故事及全量功能矩阵。\n\n## User Stories\n\n### 工作台与并行工作\n\n1. 作为开发者，我希望在一个桌面应用里管理多个项目，以便在不同代码库和通用任务之间切换。\n2. 作为开发者，我希望选择本地目录、WSL 或 SSH 工作区，以便在代码实际所在的环境执行任务。\n3. 作为开发者，我希望始终看到会话的工作区、执行环境和 Git 分支，以便明确当前操作对象。\n4. 作为开发者，我希望同时运行多个独立会话，以便并行处理互不依赖的工作。\n5. 作为开发者，我希望并排查看多个会话、文件和预览，以便比较结果并同时保持上下文。\n6. 作为开发者，我希望拖动、调整和恢复面板布局，以便建立适合自己的长期工作环境。\n7. 作为开发者，我希望按项目、名称、状态和时间搜索会话，以便快速找回以前的工作。\n8. 作为开发者，我希望看到后台会话的完成、错误和待输入状态，以便及时处理需要关注的任务。\n9. 作为开发者，我希望重启应用后恢复会话、未发送草稿和已打开文件，以便继续工作。\n10. 作为开发者，我希望一个 Agent 进程失败不会结束其他会话，以便并行工作保持可用。\n\n### 对话、工具与运行控制\n\n11. 作为用户，我希望输入多行文字并实时看到回复，以便持续理解 Agent 的进展。\n12. 作为用户，我希望 Markdown、代码、表格和模型实际输出的 thinking 内容正确展示，以便阅读复杂结果。\n13. 作为用户，我希望展开工具的参数、过程输出、结果和错误，以便知道 Agent 实际执行了什么。\n14. 作为用户，我希望内建工具、自定义工具和未知工具都有通用展示，以便安装新扩展后仍能观察执行过程。\n15. 作为用户，我希望粘贴、拖入和选择图片附件，并在发送前查看它们，以便提供视觉上下文。\n16. 作为开发者，我希望用文件、目录、编辑器选区、Diff 和终端输出作为上下文，以便减少复制整理工作。\n17. 作为用户，我希望搜索并执行 slash 命令、Skills 和提示模板，以便使用已有能力。\n18. 作为用户，我希望在运行中发送转向消息，以便 Agent 在当前工具轮次结束后调整方向。\n19. 作为用户，我希望把补充工作放进后续队列，以便它在当前工作完成后继续。\n20. 作为用户，我希望查看、取回、清空和重新编辑队列内容，并调整投递模式，以便准确控制接下来的工作。\n21. 作为用户，我希望停止运行时也停止自动续接并保留未处理输入，以便不会出现停止后再次自行运行的情况。\n22. 作为用户，我希望分别看到已接收、排队、执行、重试、压缩、等待交互和完成状态，以便判断任务是否真的结束。\n23. 作为用户，我希望提供商、工具、协议和进程错误有对应恢复入口，以便不用猜测失败发生在哪一层。\n24. 作为开发者，我希望从输入区执行带上下文或不带上下文的命令，以便沿用 Pi 的 shell 工作流。\n\n### 会话、历史与上下文\n\n25. 作为用户，我希望创建、命名、恢复、归档和删除会话，以便整理长期工作记录。\n26. 作为 Pi 用户，我希望现有 CLI 会话能够被发现并继续，以便 GUI 和 CLI 共享历史。\n27. 作为用户，我希望查看完整会话树和废弃分支，以便比较不同尝试。\n28. 作为用户，我希望跳到历史节点继续，并选择是否总结离开的分支，以便保留有用上下文。\n29. 作为用户，我希望给节点添加书签、搜索和过滤，以便定位关键决定。\n30. 作为用户，我希望从早期输入 fork 或复制当前分支为新会话，以便试验新的方向。\n31. 作为用户，我希望理解编辑历史输入与重新生成会创建什么分支，以便原始历史保持可追溯。\n32. 作为用户，我希望手动压缩、配置自动压缩并看到结果，以便处理长时间任务。\n33. 作为用户，我希望区分完整历史与实际发送给模型的上下文，以便理解压缩和扩展上下文编辑的影响。\n34. 作为用户，我希望查看 token、cache、费用和上下文占用，以便掌握本次与长期使用情况。\n35. 作为用户，我希望使用临时会话和自定义会话存储位置，以便适配不同工作习惯。\n36. 作为用户，我希望导入、导出、复制和主动分享会话，以便迁移、协作或记录成果。\n\n### 模型、认证与设置\n\n37. 作为用户，我希望管理 Pi 支持的 API key 与订阅 OAuth 登录，以便沿用已有提供商账户。\n38. 作为用户，我希望切换、搜索和限定模型列表，并保存启动默认值，以便快速使用合适模型。\n39. 作为用户，我希望选择模型实际支持的 thinking 等级及预算，以便控制思考深度。\n40. 作为用户，我希望配置自定义 provider、base URL、headers 和模型参数，以便接入兼容网关或自托管模型。\n41. 作为用户，我希望扩展动态注册的 provider 和模型自动出现在界面中，以便无需修改 IDE 代码。\n42. 作为用户，我希望连接 llama.cpp router，下载、加载和卸载模型，以便使用 Pi 支持的本地推理工作流。\n43. 作为用户，我希望区分全局、工作区和当前运行的设置来源，以便理解最终生效值。\n44. 作为高级用户，我希望所有 Pi 设置都有完整编辑入口并保留未知字段，以便使用表单尚未专门展示的选项。\n45. 作为用户，我希望配置重试、压缩、缓存、传输、代理、图片、shell 和资源路径，以便保持与 Pi 的完整配置能力一致。\n46. 作为用户，我希望 Pi 的项目资源加载与信任状态可见且保持原有语义，以便知道哪些项目配置和扩展实际生效。\n\n### 开放资源与扩展\n\n47. 作为用户，我希望查看、创建、编辑和启停 Skills，以便沉淀可复用工作方法。\n48. 作为用户，我希望管理带参数的提示模板，以便快速发起常见工作。\n49. 作为开发者，我希望检查与编辑加载的上下文指令和 system prompt 来源，以便调整 Agent 行为。\n50. 作为用户，我希望从 npm、Git 和本地路径安装、更新、固定版本或卸载 Pi 包，以便使用生态资源。\n51. 作为用户，我希望按全局和工作区作用域过滤包内的扩展、Skills、模板和主题，以便按项目启用所需能力。\n52. 作为用户，我希望查看已加载扩展、工具与错误，并热重载资源，以便修改扩展后继续工作。\n53. 作为扩展使用者，我希望选择、确认、单行输入、多行编辑、状态和 widget 都能正常交互，以便扩展不会因为 GUI 而卡住。\n54. 作为扩展作者，我希望自定义工具、消息、provider 和生命周期行为保留，以便复用已有扩展逻辑。\n55. 作为扩展使用者，我希望自定义 TUI、header、footer、editor 和渲染器有实际兼容路径，以便复杂扩展不被静默丢弃。\n56. 作为用户，我希望主题、代码字体、快捷键和显示密度可配置，以便长时间舒适使用。\n\n### 编辑、终端与交付\n\n57. 作为开发者，我希望浏览和管理文件及目录，以便完成项目维护。\n58. 作为开发者，我希望多标签编辑文件、保存和恢复草稿，并处理磁盘上的并发变更，以便与 Agent 共同修改代码。\n59. 作为开发者，我希望全局搜索、替换、快速打开与定位行列，以便探索大项目。\n60. 作为开发者，我希望使用补全、跳转、引用、重命名、格式化和诊断，以便完成基本 IDE 工作。\n61. 作为开发者，我希望使用多个真实终端，并保存后台命令的执行记录，以便运行构建、测试和开发服务。\n62. 作为开发者，我希望把终端选区与诊断发送给 Agent，以便共同排查问题。\n63. 作为开发者，我希望在工作台里预览应用、网页、Markdown、图片和生成物，以便验证结果。\n64. 作为开发者，我希望管理预览服务、地址和远端端口映射，以便本地与远端项目拥有一致的预览体验。\n65. 作为开发者，我希望浏览 staged、unstaged、未跟踪文件与行级 Diff，以便审阅真实工作区改动。\n66. 作为开发者，我希望在 Diff 上评论并把反馈发送给 Agent，以便修改建议关联具体代码位置。\n67. 作为开发者，我希望管理分支、stage、commit、pull、push 和冲突，以便完成版本交付。\n68. 作为开发者，我希望为并行任务创建独立 worktree，以便它们的文件改动互不干扰。\n69. 作为开发者，我希望在 IDE 中查看和关联 GitHub Issues、创建 PR、查看 review 与 checks，以便完成 Issue 驱动的开发闭环。\n\n### 通用 Agent 工作流与产品化\n\n70. 作为用户，我希望在规划与执行之间切换，并看到实际启用的工具集，以便选择工作方式。\n71. 作为用户，我希望任务计划、待办、状态和产物形成可持续的工作记录，以便管理复杂目标。\n72. 作为用户，我希望启动、观察、停止和继续子 Agent，并收集其结果，以便委派独立工作。\n73. 作为用户，我希望并行和串行子任务都保留来源、上下文和费用关联，以便理解整个任务的执行情况。\n74. 作为用户，我希望配置 MCP 服务并使用其工具、资源和 prompts，以便接入外部系统。\n75. 作为用户，我希望连接失败、工具变化和任务取消能反映到 MCP 状态中，以便排查集成问题。\n76. 作为用户，我希望安排后台及定时任务，并查看执行历史，以便自动处理重复工作。\n77. 作为用户，我希望系统休眠、断线或退出后的任务状态与恢复策略明确，以便避免漏做或重复执行。\n78. 作为远端开发者，我希望重连后恢复真实任务状态，并访问远端文件和终端，以便继续 SSH 或 WSL 工作。\n79. 作为用户，我希望用快捷键和命令面板操作核心流程，并正常使用中文输入法，以便高效工作。\n80. 作为用户，我希望明暗主题、焦点、状态文案和屏幕阅读器提示一致，以便准确操作所有面板。\n81. 作为用户，我希望看到 GUI、Pi、扩展和执行环境的版本与诊断，以便定位兼容性问题。\n82. 作为用户，我希望安装、升级和回退有明确结果，现有会话与配置仍可继续使用，以便放心维护工具。\n83. 作为维护者，我希望每个首版能力都关联实施 Issue 和可复现验收，以便判断完整版本是否达到交付标准。\n84. 作为维护者，我希望复用的开源代码保留来源和许可，并有清晰的 Pi 适配边界，以便持续跟进上游。\n\n## Implementation Decisions\n\n### 1. 产品与技术基线\n\n- 以固定 ZCode 原生工程为底座，沿用其包结构、Electron 宿主、共享 React/TypeScript UI、原生输入/时间线/布局状态、平台接口、资源和锁定依赖。先按原生脚本跑通，再记录必要的版本兼容调整。\n- 保留原生组件、前端 store、命令确认与订阅协议；撤销“自建 shadcn/assistant-ui 工作台为产品起点”的决定。旧实现只作为可审查的模块/测试资产，默认不迁入其整套 App/布局。\n- 编辑/Diff/终端优先复用原生组件和本地服务；矩阵中的编辑、冲突、语言服务、ConPTY等能力仍须补齐和验收。TS/JS、JSON、Python声明的语言能力不因换底座减少。\n- 在原生 Agent/session 服务边界将用户命令和 snapshot/delta/session-index投影映射到 Pi。两者虽可使用 stdio，协议与数据所有权并不相同，不能只替换 provider。\n- Pi拥有模型循环、工具、原生历史、上下文、队列及重试/压缩；宿主/renderer不另建Agent loop。原引擎只用于隔离原版对照，最终产品Agent请求无旧引擎fallback。\n- 固定 Pi、ZCode、桥接协议和行为 fixtures；更新时比较接口、语义、资源、原生操作路径与来源许可。\n\n### 2. Pi 首版全能力矩阵\n\n路径缩写：**R** = 上游原生 RPC；**B** = Pi 公开扩展 API 的 GUI 桥；**H** = IDE 宿主管理能力；**C** = 固定版本兼容层。每一行均为首版必需。\n\n| ID | 能力与完整入口 | 实现路径 | 关键验收结果 |\n| --- | --- | --- | --- |\n| P01 | 文本 / 图片 prompt、Skills 与模板展开 | R：`prompt` | 文本与图片真实进入 Pi；失败、接受与完成分别显示 |\n| P02 | 转向、后续、双队列与投递模式 | R：`steer`、`follow_up`、两种 mode 设置、`clear_queue` | 顺序符合 Pi，取回队列不产生重复提交 |\n| P03 | 停止 Agent、shell 与重试 | R：`abort`、`abort_bash`、`abort_retry` | 运行完整停止；未执行输入可恢复；其他会话继续 |\n| P04 | 状态、消息、流式 thinking、工具和扩展消息 | R：`get_state`、`get_messages` 及所有标准事件 | 完整历史与流式内容一致；未知工具与消息有通用展示 |\n| P05 | 模型枚举、搜索、选择、循环与 scoped models | R：`get_available_models`、`set_model`、`cycle_model`；B/H：scope 与默认值 | 当前模型、可用列表及启动默认值各自正确 |\n| P06 | thinking 等级、循环、预算及默认值 | R：`get_available_thinking_levels`、`set_thinking_level`、`cycle_thinking_level`；H：设置 | 只显示模型实际支持的等级，配置与当前会话一致 |\n| P07 | 自动重试开关、退避与失败展示 | R：`set_auto_retry`、retry 事件；H：完整参数 | 重试期间保持运行状态，取消后不继续重试 |\n| P08 | 手动 / 自动压缩、摘要及 overflow 恢复 | R：`compact`、`set_auto_compaction` 和 compaction 事件 | 原始历史仍可查，摘要与重试状态真实，费用准确呈现 |\n| P09 | 用户 shell、带 / 不带模型上下文的执行 | R：`bash`、`abort_bash`，按固定版本支持 `excludeFromContext` | 输出流、退出码和是否进入后续上下文可验证 |\n| P10 | 创建、切换、重命名会话 | R：`new_session`、`switch_session`、`set_session_name` | 正确处理扩展返回的 cancelled，cwd 和会话绑定一致 |\n| P11 | 会话目录、历史搜索、归档、删除与恢复 | H/B：原生会话索引与管理 | 发现 CLI 会话，归档为 IDE 元数据，删除不影响其他会话 |\n| P12 | fork、clone、历史输入编辑和分支重试 | R：`get_fork_messages`、`fork`、`clone`；B：树导航 | 使用真实 entry ID 和原生分支，保留原路径，恢复正确输入 |\n| P13 | 全树、增量 entries、书签、过滤和树跳转 | R：`get_tree`、`get_entries`；B：`navigateTree`、`setLabel` | 切换真实 active leaf，可选分支摘要，不只切换前端数组 |\n| P14 | 当前上下文、原始历史、context edits 与摘要检查 | R/B：entries、上下文投影与公开扩展钩子 | 原始记录与模型有效上下文可区分，扩展变更仍按 Pi 处理 |\n| P15 | token / cache / 费用 / 上下文与会话信息 | R：`get_session_stats`；B：可用附加诊断 | 缺失值显示未知，包含工具与摘要用量，不重复累计 |\n| P16 | 复制、HTML / JSONL 导出、导入及 gist 分享 | R：`get_last_assistant_text`、`export_html`；H/B：原生格式与分享流程 | 导出可打开、导入可续接，分享由用户主动触发并返回有效链接 |\n| P17 | 持久 / 临时会话、自定义存储与 CLI 续接 | R 启动参数、H：索引及会话所有权 | CLI 与 GUI 历史可互通，临时会话符合用户选择 |\n| P18 | API key、订阅 OAuth、自定义 provider 认证与登出 | H/B：固定版 Pi 认证管理适配 | 登录、刷新、取消、过期与登出可观察，凭据属于实际执行环境 |\n| P19 | 内建与自定义 provider、headers、协议、动态模型目录 | H/B：Pi 模型配置及 `registerProvider` 能力 | 支持全部已配置 provider，不硬编码固定厂商名单 |\n| P20 | llama.cpp router 配置、模型下载 / 加载 / 卸载 | H/B：Pi provider 与 router 管理能力 | 列表反映实际 router；可取消操作；模型可用于会话 |\n| P21 | 上下文指令、system prompt 替换 / 追加与来源 | H/B：Pi 资源解析、公开 prompt 输入查询 | 展示实际加载链及覆盖关系，修改生效时机明确 |\n| P22 | Skills、模板的发现、创建、编辑、调用及来源 | R：`get_commands` / `prompt`；H/B：资源管理 | 参数展开与 Pi 一致，区分全局、项目、包来源 |\n| P23 | 全部内建工具、自定义工具、覆盖工具及动态启停 | R：工具事件；B：工具枚举与 active tools | 覆盖 read/write/edit/bash/powershell/grep/find/ls，实际工具集与 UI 一致 |\n| P24 | 扩展命令、生命周期、输入变换、自定义消息和 provider | R/B：公开扩展机制 | 加载、运行、会话替换、错误和卸载均可观察，保留扩展数据 |\n| P25 | 选择 / 确认 / 输入 / 多行编辑等扩展交互 | R：完整 `extension_ui_request/response` | 关联 ID 正确；取消、超时和并行会话互不干扰 |\n| P26 | 通知、状态、widget、标题、输入区文本 | R：全部 fire-and-forget UI 方法 | 更新和清除均生效；不为无需回应的请求发送虚假响应 |\n| P27 | 自定义 TUI、渲染器、header / footer / editor、工作指示器和 UI 读写 | B/C：结构化展示与终端兼容表面 | 每类公开扩展 UI 有可运行样例；交互结果回到同一个 Pi 会话 |\n| P28 | 主题、快捷键、显示偏好、帮助、changelog 与退出 | H/B/C：GUI 等价交互和兼容映射 | 核心操作可键盘完成；Pi 主题可映射，TUI 专用参数作用域明确 |\n| P29 | npm / Git / 本地包安装、卸载、更新、固定版本与资源过滤 | H：Pi 包管理命令；B：重载 | 全局与项目作用域、排除规则和固定版本语义与上游一致 |\n| P30 | 资源热重载、临时扩展与精确资源加载选项 | B：`reload`；H：启动 profile | 重载后重建命令与工具目录，旧会话上下文不被误用 |\n| P31 | 完整 Pi 设置、网络、重试、缓存、图片与工具配置 | H：表单 + schema 感知的高级配置 | 保留未知字段，显示覆盖来源，写入后有效值正确 |\n| P32 | Pi 既有项目信任、启动离线、遥测和更新设置 | H/B：实际 Pi 设置与启动策略 | 资源加载与用户选项一致，不能静默更改为另一种模式 |\n| P33 | Pi 版本、模型目录刷新、升级、诊断与 bug 报告 | H/B：Pi 维护入口及 GUI 诊断 | 明确更新对象，故障报告内容可查看，导出 / 提交有实际结果 |\n| P34 | CLI 工作模式与环境选项的 IDE 接入 | H：终端、任务与启动 profile | 交互、print、JSON 等 CLI 用途可由 IDE 发起；GUI 主会话仍走 RPC |\n\n### 3. 通用 IDE 首版能力矩阵\n\n| ID | 能力 | 关键验收结果 |\n| --- | --- | --- |\n| I01 | 多工作区、最近项目、环境与会话导航 | 不同项目路径、设置和会话正确隔离；普通目录也能工作 |\n| I02 | 多会话并行、分栏、标签、布局恢复 | 至少四个会话可并行演示；焦点与输出不会串台 |\n| I03 | 文件树、创建 / 重命名 / 移动 / 删除与快速打开 | 文件系统真实变化及时呈现；中文、空格和长路径可操作 |\n| I04 | 多文件编辑、草稿、保存、冲突与文件预览 | 外部改动不覆盖未保存草稿；明确比较、合并或重新加载 |\n| I05 | 全局搜索 / 替换及语言服务 | TS/JS、JSON、Python 具备已声明的导航、补全、诊断与格式化；其他 LSP 可配置 |\n| I06 | 多终端、后台命令、任务日志与停止 | 真实 shell 可交互、resize 和取消，退出码和环境正确 |\n| I07 | 开发服务、网页 / 产物预览与远端端口映射 | 可启动、停止、重启并访问预览；截图与选区可作为 Agent 上下文 |\n| I08 | Git 状态、行级 Diff、stage / unstage、提交、分支、同步与冲突解决 | 展示真实索引和工作树；成功状态来自 Git 结果；保留已有改动 |\n| I09 | worktree 生命周期和并行任务绑定 | 独立任务改动隔离，可审阅和合并，删除前展示未提交状态 |\n| I10 | Diff 评论、文件 / 选区 / 输出引用与回到源位置 | 反馈保留文件、位置及基准版本，过期定位可见 |\n| I11 | GitHub Issues、PR、review、checks 与任务关联 | 可从 Issue 发起工作，创建关联 PR，查看检查与反馈；失败可重试 |\n| I12 | Plan / 执行、待办、产物和通用任务面板 | 预置 Pi 扩展提供真实状态与工具行为，界面与实际执行一致 |\n| I13 | 子 Agent、串行 / 并行委派、结果汇总与取消 | 子会话有真实进程 / 工具来源；父子关系、用量和终止语义可追踪 |\n| I14 | MCP 服务、认证、工具、资源、prompts 与状态 | 提供 stdio 和 Streamable HTTP 连接，实际调用及失败 / 重连被完整展示 |\n| I15 | 后台与定时任务、历史和通知 | 明确执行目标、时间与并发策略，重启 / 休眠后不重复创建同一次运行 |\n| I16 | WSL、SSH、连接恢复、远端文件 / Git / PTY / Agent | 所有操作落到正确目标；失联可见；重连不会隐式重放已执行命令 |\n| I17 | 命令面板、快捷键、主题、中文界面、无障碍与长会话性能 | 核心流程无需鼠标；中文 IME 不误发送；长历史仍能编辑与停止 |\n| I18 | 安装、设置迁移、版本管理、日志、更新与恢复 | Windows 安装包可完成全流程；更新后原会话、配置和布局可恢复 |\n\n### 4. 模块边界与数据所有权\n\n1. **原生工作台**：保留 ZCode 原有面板、输入框、时间线、前端状态与用户操作路径，通过原生服务/平台接口发出意图。\n2. **会话服务适配**：保持原生会话/Agent服务接口、命令确认、snapshot/delta和索引订阅，对接Pi实际运行状态、消息、队列、扩展与历史。原生UI投影不是另一套历史权威；Pi原生记录仍为准。\n3. **运行时主管**：为每个活动会话维护独立 Pi 子进程和 generation，管理启动、退出、重连与单写者所有权。\n4. **Pi 能力桥**：将公开扩展 API 暴露为版本化、可关联的控制操作，负责树导航、工具与资源目录、重载等缺口。\n5. **原生工作区服务**：优先保留文件、搜索、Git、worktree、PTY、开发服务和预览，补齐语言服务等矩阵差额；操作统一使用真实执行环境。\n6. **资源与配置中心**：管理 providers、认证、Skills、模板、扩展、包、主题、启动 profiles 与生效范围。\n7. **任务服务**：管理任务、子 Agent、MCP 接入、定时运行与产物关联，Agent 工作实际由 Pi 执行。\n8. **执行环境适配**：本地、WSL、SSH 共享行为接口；远端有明确文件、进程和端口映射能力。\n9. **持久化与诊断**：Pi 保存原生会话；IDE 的本地数据库保存工作区、索引、布局、草稿、任务调度与关联元数据，支持版本迁移和重建索引。\n\n实体区分 Workspace、ExecutionTarget、Session、RuntimeGeneration、Task、ToolCall、ExtensionInteraction、Artifact 与 GitHubIssueLink。会话 ID、会话 entry ID、RPC request ID、toolCallId 和任务 ID 各有独立含义。\n\nrenderer 通过受限、类型化 IPC 访问宿主服务；文件、进程、认证和远端连接操作留在宿主。预览内容与应用控制接口分离。配置编辑保留 Pi 的原有作用域、合并和未知字段。\n\n### 5. RPC 与桥接合同\n\n- 标准通道为 `pi --mode rpc` 的 stdin/stdout JSONL，不使用 JSON-RPC 2.0 假定；stderr 单独收集。本地进程、SSH 与 WSL 都保留同一 Pi 命令 / 事件合同。\n- 增量 UTF-8 解码，按 LF 分帧，兼容尾部 CR；保留字符串中的 U+2028/U+2029。处理跨块字符、半行、多行、末尾无换行、流背压、异常记录和 stdout 污染。\n- 每条命令带唯一 request ID；区分 `response`、Agent 事件、扩展交互和命名空间内的桥接事件。普通事件没有 request ID 时按所属进程 / generation 路由。\n- `prompt` 成功是接受、排队或扩展处理成功；任务结束以 `agent_settled` 为准。`agent_end`、单条 `message_end`、重试间隔均不能直接显示整个运行完成。\n- 流式消息从 `message_start` 开始，按 `contentIndex` 累积 text / thinking / toolcall 增量，最终以 `message_end.message` 校正。工具执行按 `toolCallId` 关联，累计 `partialResult` 使用替换语义。\n- Pi 拥有转向和后续队列。原生前端通过服务适配投影该队列及交互，不运行独立的第二个自动调度器。取回、编辑、重排通过受控桥接或清空 / 重建实现，并在同一会话命令序列内校验是否已被消费。\n- 完整停止先阻止新输入入队、取消待定扩展对话、清空队列，再停止相关运行、shell 与重试；恢复的草稿保留原顺序和附件。因原生 `clear_queue` 只返回文本，宿主需维护已接受输入的附件映射；不确定的输入显示状态待核实。\n- 运行中切换界面焦点不会停止其他会话。切换一个进程绑定的实际会话、导航历史或改写运行配置时，序列化控制操作并遵守 Pi 的 idle / compaction 约束。\n- `new_session`、`switch_session`、`fork`、`clone` 返回 cancelled 时维持原状态。替换后重新获取会话身份、命令、模型和状态，丢弃旧 generation 的迟到事件。\n- 进程退出使全部在途命令结算为明确错误。重连首先读取真实状态与历史；对 prompt、工具调用、文件写入、包安装、commit 和任务触发等操作不做盲目自动重放。\n- 桥接优先通过公开扩展命令和现有扩展 UI 子协议承载带版本号、operation 与关联 ID 的数据。新增输出类型时由兼容运行时显式声明，保持基础 RPC 兼容。控制结果不得依赖解析模型自然语言回复。\n- GUI 桥通过能力握手报告实际可用操作和版本；能力缺失应可诊断，在全量首版验收中视为未完成项。\n\n### 6. 扩展兼容与 TUI 缺口\n\n上游 RPC 原生支持对话与文本 widget，但 `custom()`、自定义编辑器、header/footer、部分 theme 和终端输入能力会降级。因此需要明确建设两种展示表面：\n\n1. **原生 GUI 表面**：结构化工具、消息、输入、选择、状态、widget、预览与可声明的交互组件。\n2. **终端兼容表面**：为原生 TUI 组件提供实际渲染、输入、焦点和 resize 的兼容宿主，将结果返回同一会话。\n\n优先使用 Pi 公开扩展接口；公开接口无法覆盖的 RPC UI 挂载点，以固定版本、最小差异的兼容补丁补齐，并记录上游来源和回归测试。Agent 内核仍在 Pi 进程运行，GUI 会话仍以 RPC 控制。\n\n需要严格 `tui` 模式或直接终端访问的第三方扩展，应提供明确的兼容声明与适配。不能仅伪造模式标记，也不能把打开另一个不关联当前会话的终端视为完成该能力。P27 必须覆盖上游公开 UI 方法类别及代表性样例；未通过时保持首版能力未完成。\n\n内建工具、扩展工具与自定义工具统一支持 text、image、details、流式结果、错误和用量。未知数据保留并提供可读的结构化查看，不因缺少专用卡片而丢失。\n\n### 7. 完整 IDE 交互\n\n- 默认保留固定ZCode原生布局、组件和操作路径，包括工作区/任务/会话导航、标签分栏、Lexical输入、时间线、工具展开、菜单、设置、快捷键、焦点、滚动及反馈。原版实际运行是对照基准，颜色/字号复用不等于原生交互一致。\n- 同分辨率/主题/状态记录原版与产品成对截图及操作步骤。除品牌、已确认厂商排除和Pi真实语义所需最小差异外不自行改版；差异登记入口、理由、能力/Issue与验收。未登记偏离作为缺陷修复。\n- 会话默认渐进展示：正文易读，thinking 与工具可折叠，重要等待和错误始终可见。用户向上阅读时保持滚动锚点，显示“返回最新”而不强制滚动。\n- 中文为默认界面语言，保留英文文案结构；输入法合成期间 Enter 不发送。命令面板覆盖窗口、文件、会话、模型、资源、任务与 Git 操作。\n- 文件引用区分路径、明确选区、文本快照和图片；选择目录不会隐式把整个目录内容塞进 prompt。发送前可看见具体上下文。\n- 编辑器以版本或内容摘要检查磁盘变更，提供 reload / compare / merge；Agent 写入和用户未保存修改之间不能静默覆盖。\n- Git 面板明确区分工作区总改动、某次任务已知改动、staged 和 unstaged。行级评论带版本锚点；Git 操作通过宿主执行并反馈真实退出结果。\n- 普通文件夹仍支持 Agent、文件、终端和预览，Git 与 GitHub 功能按工作区能力呈现。\n- provider 认证沿用 Pi 的认证提供能力，原生完成授权 URL、输入 / device code、刷新、取消与登出；配置中心不把凭据暴露成普通日志或消息内容。\n- 设置中心提供常用表单和完整高级编辑器，区分即时、重载和重启生效。现有会话的模型设置与新会话默认配置分开管理。\n\n### 8. 任务、远端与扩展工作流\n\n- Plan、待办和子 Agent 作为 IDE 随附、可关闭的 Pi 扩展交付；使用公开工具 / 生命周期 API，模式显示对应真实工具集与行为。\n- 每个子 Agent 具有可观察的真实执行与父子关联，支持并行、串行、结果交接、停止及失败；总用量与分项用量保持来源可追溯。\n- MCP 通过预置 Pi 扩展适配接入，不把它虚构为 Pi 原生 RPC 方法。连接、认证、工具发现、resources、prompts、超时、取消及断线各有状态。\n- 调度服务持久化触发 ID、计划时间、目标、状态和下一次执行。重启后的幂等判断依据记录与真实运行状态，提供错过执行的策略。\n- 窗口关闭、应用退出和目标断开分别建模。允许后台执行时保留明确宿主；目标不可用时任务显示暂停 / 失败，恢复后不无条件重放。\n- SSH 采用目标侧会话主管保存进程身份和事件游标，桌面重连恢复；SSH 字节隧道与事件外层封装不改变内部 Pi JSONL 合同。WSL 同样按独立执行环境处理路径、shell、文件与端口。\n- GitHub 能力通过宿主调用 `gh`，包括账户状态、Issues、PR、reviews 与 checks。GitHub 任务编号与 IDE 任务、Pi 会话保持显式关联。\n\n### 9. 开源复用决定\n\n- 直接导入固定 ZCode 原生工程及必要依赖/资源，承接其UI状态和可复用宿主；不局限于抽取独立展示组件。第一方Apache-2.0和所有适用第三方声明、修改记录随代码交付。\n- 替换产品品牌，保留许可/NOTICE归属；按确认清单处理厂商商业/云服务，通用Pi/IDE能力不得借此裁剪。\n- 旧Pi RPC/扩展桥/TUI/认证/文件/PTY逻辑和测试经职责适配可迁入；旧前端布局、assistant-ui运行界面及局部样式移植不成为新工程基础。\n- Claude Code Desktop、Codex App保留为历史研究资料；硬性交互基线为固定原生ZCode，不复制封闭源码和商标。\n\n### 10. Issue 驱动交付\n\n本 Issue保持为完整首版父规格。复用原#3–#28能力票并更新原生工程路线，保留P/I/T/故事覆盖；#2/#30旧原型交付历史保持CLOSED，不作为新原生产品通过依据。\n\n强制顺序：**#32原生导入/品牌处理/实际对照 → #33用户界面确认 → #34原生服务接Pi最小闭环 → #3–#27全量迁移/适配 → #28最终验收**。\n\n#33已在记录用户对实际版本的[明确确认](https://github.com/axgiroud312-byte/pi-agent-gui/issues/33#issuecomment-5787163874)后关闭。人工前置已满足；从#34开始，按原生阻塞依赖自动实施、测试、两轴审查、PR和本地验证证据回写。后续无需重复请求同一版本的界面关卡确认；完整能力和真实环境验收仍保持本规格要求。\n\n旧分支及证据保留为资产，本地完成评论不代表新产品通过。每张界面功能票同时验证行为和原版操作一致性。树/认证/TUI等高风险机制优先复用验证成果，在新链路重新验收。\n\n## Testing Decisions\n\n### 用户已确认的主要测试边界\n\n主要测试边界保持为 **原生GUI用户操作 → 桌面宿主/服务适配 → Pi RPC子进程**。可控JSONL进程只在外部边界；固定真实Pi做合同/实机验收，多会话保持独立进程隔离。新增原版/产品运行对照：阶段0记录原生UI/操作，用户确认后同一路径替换Pi并复验；不把测试降为内部组件mock。\n\n### 好的测试\n\n- 断言用户能够完成操作、看到正确结果、恢复工作且数据一致，而不是断言某个私有函数被调用。\n- 尽可能运行真实宿主、序列化、消息投影与 UI。测试替身位于外部边界，不为每个组件建立独立的虚假状态机。\n- 文件、Git、PTY 与语言服务优先使用临时工作区和真实本地程序；外部 provider、OAuth、MCP、SSH 和 GitHub 使用可控协议端点，辅以相应真实环境验收。\n- 少量聚焦合同测试用于 JSONL 分帧、版本迁移、事件状态与兼容适配。它们覆盖真实边界缺陷，不镜像实现。\n\n### 覆盖模块与场景\n\n| ID | 场景与通过条件 |\n| --- | --- |\n| T01 | 首次启动：Pi 缺失、版本不兼容、认证缺失、工作区不可用均有实际恢复入口；配置完成后可发起真实会话 |\n| T02 | JSONL：UTF-8 分块、中文、CRLF、U+2028/U+2029、半行、多行、末尾记录、stderr 与异常记录正确处理 |\n| T03 | 请求与运行：prompt 接受后继续流式输出；中途失败、retry、compaction 与队列续接不会被误记为完成 |\n| T04 | 消息：text / thinking / toolcall 增量与最终消息一致；累计工具输出不重复；图片、details、未知消息可查看 |\n| T05 | 双队列：转向与后续顺序、模式、取回、编辑、清空和附件恢复准确；并发点击与状态竞态不重复投递 |\n| T06 | 停止：执行、shell、重试、压缩与扩展对话中的停止均收敛；已停止会话不会因残留队列再次启动 |\n| T07 | 多会话：四个并行会话交错事件不串台；一个进程崩溃只影响其所属会话；停止与焦点切换互不混淆 |\n| T08 | 会话历史：CLI 会话发现、恢复、fork、clone、树跳转、书签、分支摘要、导入 / 导出和临时会话完整走通 |\n| T09 | 取消与恢复：扩展取消会话替换保持原状态；重启 / 重连时历史与实际状态一致；旧 generation 事件被隔离 |\n| T10 | 配置与 provider：API key / OAuth、动态模型、自定义 provider、thinking、scoped models、全局 / 项目覆盖及未知设置保存正确 |\n| T11 | 全资源：Skills、模板、上下文、主题、包安装 / 更新 / 固定 / 删除与热重载生效，加载失败可定位 |\n| T12 | 扩展 UI：四类对话、全部 fire-and-forget、超时、取消、多会话并发、custom TUI / editor / renderer 样例实际可交互 |\n| T13 | 编辑器：中文 / 空格路径、多标签、保存、外部变更、冲突、搜索替换、LSP 导航与诊断可用 |\n| T14 | 终端与预览：真实 PTY 交互 / resize / 停止；开发服务重启、截图引用与远端端口映射完整走通 |\n| T15 | Git：已有 dirty tree、未跟踪 / staged / unstaged、分支、worktree、行级评论、提交 / 同步、冲突和 GitHub PR / checks 正确 |\n| T16 | 工作流：Plan 工具行为、父子任务、并行委派、MCP 调用与取消、定时任务幂等和后台通知正确 |\n| T17 | 远端：WSL / SSH 的文件、cwd、Git、PTY、RPC、断线和恢复均落到正确环境，连接恢复不重放副作用 |\n| T18 | 性能与交互：一万条历史消息、长工具输出和四个活动会话下输入与停止仍可用；报告测试机与数据量，目标本地输入响应 p95 <100ms、收到事件到显示 p95 <200ms |\n| T19 | 原生交互一致性与可访问性：1280×800和1920×1080、明暗主题、长中文及空/加载/错误/等待/运行状态，提交固定ZCode原版与产品成对截图和操作路径；未登记布局/交互偏离修复，关键无遮挡，IME/焦点/键盘通过；初始原生界面用户关卡有明确确认 |\n| T20 | 产品化：Windows 安装、卸载、升级 / 回退、原生 PTY 依赖、配置迁移、会话恢复和诊断导出实机验收 |\n\n性能目标排除 provider 网络时间；测试记录硬件、构建模式和数据规模。大文本与文件搜索必须能中止，UI 不因同步解析长历史失去响应。\n\n### 上游先例与真实验证\n\n旧基础已通过JSONL、宿主隔离、真实Pi协议、Electron与打包测试，其他分支有文件/PTY/桥/认证/TUI资产。迁入原生工程后重新运行，旧结果不作为新产品通过证明。上游先例包括JSONL framing、prompt response semantics与child process exit。\n\n本地按改动影响及对应验收运行必要的类型检查、静态检查、合同 / 集成测试、Electron 关键 E2E 和打包检查，不需要真实模型密钥。真实 Pi 验收包括：文本回复、至少一种图片输入、文件读写 / shell、停止、续接、fork / tree、扩展对话、自定义 provider 与资源重载；认证、SSH、MCP、GitHub 及 llama.cpp 按各自真实环境记录证据。尚未执行的真实环境验收明确保持待完成。\n\n### 首版完成标准\n\n- #33对实际原生界面版本的用户确认已记录；完整产品保留原生布局/交互，必要差异全部可追溯。\n- P01–P34 与 I01–I18 全部关联已完成实施 Issue 和验收证据。\n- 每项 Pi 能力登记真实支持路径；高风险缺口有运行验证，尤其是树写操作、认证和 P27。\n- 核心 GUI 流程通过真实 Pi 验收；矩阵功能没有只能点击却无实际结果的入口。\n- 必要检查、Windows 实机安装及恢复验收通过。\n- README、使用说明、快捷键、兼容版本、组件来源与诊断入口对应实际发布内容。\n\n## Out of Scope\n\n- 重新实现 Pi 的模型推理、核心 Agent loop，或另起与 Pi 历史不互通的 Agent 引擎。\n- 复制厂商商标、封闭源码、商业云账户体系和专属计费 / 云托管服务。\n- 首版提供多人实时协作SaaS、移动端、独立Web产品、独立ZCode风格CLI发行或完整VS Code扩展市场兼容。原定Pi CLI互通、WSL/SSH与完整IDE能力仍在范围内。\n- 厂商专属产品账户、Coding Plan/充值/团队/票据和不可用的公开Computer Use占位；这不排除Pi支持的provider/OAuth或通用MCP/分享/资源/更新能力。\n- 对未来 Pi 版本、未公开的内部接口，以及任意第三方扩展未经适配便作出百分之百兼容承诺。固定版本公开产品能力与扩展 API 类别仍属于首版矩阵。\n\n## Further Notes\n\n### 已确认事项\n\n- GitHub 仓库：公开的 `axgiroud312-byte/pi-agent-gui`。\n- 使用 Matt 默认五标签；通用指导文件使用 `AGENTS.md`；领域文档采用 single-context。\n- 用户确认以完整 GUI → 宿主 → RPC 链路作为主要测试边界。\n- 用户最新范围要求：首版按完整通用 Agent IDE 验收，覆盖 Pi 支持能力。此要求覆盖前期较窄的会话工作台设想。\n- 2026-09-22经两轮grill-with-docs确认原生工程优先、完整范围、厂商入口处理、Windows发行、硬性交互一致性、Pi特有入口原生位置优先，以及一次实际界面用户确认。本修订覆盖旧组件拼装路线。\n\n### 可追溯来源\n\n1. [项目上游与 UI 调研说明](https://github.com/axgiroud312-byte/pi-agent-gui/blob/main/docs/references/upstream-and-ui.md)\n2. [Pi 固定版本产品 / CLI 能力](https://github.com/earendil-works/pi/blob/16787ad5b2dc748047f314ca1bfe7708f30f54f3/packages/coding-agent/README.md)\n3. [Pi RPC 协议](https://github.com/earendil-works/pi/blob/16787ad5b2dc748047f314ca1bfe7708f30f54f3/packages/coding-agent/docs/rpc.md) · [实际 RPC 类型](https://github.com/earendil-works/pi/blob/16787ad5b2dc748047f314ca1bfe7708f30f54f3/packages/coding-agent/src/modes/rpc/rpc-types.ts)\n4. [Pi 扩展](https://github.com/earendil-works/pi/blob/16787ad5b2dc748047f314ca1bfe7708f30f54f3/packages/coding-agent/docs/extensions.md) · [设置](https://github.com/earendil-works/pi/blob/16787ad5b2dc748047f314ca1bfe7708f30f54f3/packages/coding-agent/docs/settings.md) · [会话](https://github.com/earendil-works/pi/blob/16787ad5b2dc748047f314ca1bfe7708f30f54f3/packages/coding-agent/docs/sessions.md)\n5. [Pi 包管理](https://github.com/earendil-works/pi/blob/16787ad5b2dc748047f314ca1bfe7708f30f54f3/packages/coding-agent/docs/packages.md) · [自定义 provider](https://github.com/earendil-works/pi/blob/16787ad5b2dc748047f314ca1bfe7708f30f54f3/packages/coding-agent/docs/custom-provider.md) · [llama.cpp](https://github.com/earendil-works/pi/blob/16787ad5b2dc748047f314ca1bfe7708f30f54f3/packages/coding-agent/docs/llama-cpp.md)\n6. [上游 JSONL 测试](https://github.com/earendil-works/pi/blob/16787ad5b2dc748047f314ca1bfe7708f30f54f3/packages/coding-agent/test/rpc-jsonl.test.ts) · [请求语义测试](https://github.com/earendil-works/pi/blob/16787ad5b2dc748047f314ca1bfe7708f30f54f3/packages/coding-agent/test/rpc-prompt-response-semantics.test.ts) · [进程退出测试](https://github.com/earendil-works/pi/blob/16787ad5b2dc748047f314ca1bfe7708f30f54f3/packages/coding-agent/test/rpc-client-process-exit.test.ts)\n7. [ZCode 源码](https://github.com/zai-org/ZCode/tree/872ad960de7ec172591f7e1952f7849229f94521) · [ZCode 设计系统](https://github.com/zai-org/ZCode/blob/872ad960de7ec172591f7e1952f7849229f94521/DESIGN.md)\n8. [assistant-ui 外部状态适配](https://www.assistant-ui.com/docs/runtimes/custom/external-store) · [shadcn/ui](https://github.com/shadcn-ui/ui) · [Monaco](https://github.com/microsoft/monaco-editor) · [xterm.js](https://github.com/xtermjs/xterm.js)\n9. [Claude Code Desktop 交互文档](https://code.claude.com/docs/en/desktop) · [Codex App 功能](https://developers.openai.com/codex/app/features)\n\n本Issue是规格与验收合同。#32原生导入和#33实际界面确认均已完成；下一次实施从#34开始，连续推进#3–#27与#28最终验收。完整执行入口为仓库docs/delivery/full-development.md，恢复入口为next-context.md；每次领取仍核对GitHub最新状态和原生依赖。\n\n\n### 原生路线文档\n\n- [产品目标](https://github.com/axgiroud312-byte/pi-agent-gui/blob/main/docs/product-goal.md)\n- [ADR 0001](https://github.com/axgiroud312-byte/pi-agent-gui/blob/main/docs/adr/0001-native-zcode-base.md)\n- [新计划与用户关卡](https://github.com/axgiroud312-byte/pi-agent-gui/blob/main/docs/delivery/native-rebase-plan.md)\n- [原生交互验收](https://github.com/axgiroud312-byte/pi-agent-gui/blob/main/docs/delivery/native-ui-parity.md)\n- [旧成果复用清单](https://github.com/axgiroud312-byte/pi-agent-gui/blob/main/docs/delivery/reuse-inventory.md)\n- [新上下文执行入口](https://github.com/axgiroud312-byte/pi-agent-gui/blob/main/docs/delivery/next-context.md)\n\n## 验收方式更新（2026-09-27）\n\n按用户“消除 CI，更新 Issue”的要求，取消本仓库远程 CI：Windows GitHub Actions 工作流已停用，工作流配置从开发分支移除。Issue 完成、PR 审查和合并不再要求远程 CI 运行或通过；旧评论中的相关要求由本次更新覆盖。必要检查按改动范围在本地执行并记录实际结果，纯文档或流程配置变更只做相关检查。已有测试脚本、真实功能验收和审查要求保留；取消 CI 不代表现有缺陷已修复或本票已完成。当前仍只收尾 #34，后续任务按已有范围确认处理。\n",
+    "state": "open",
+    "state_reason": null,
+    "html_url": "https://github.com/axgiroud312-byte/pi-agent-gui/issues/1",
+    "blockers": []
+  }
+}
