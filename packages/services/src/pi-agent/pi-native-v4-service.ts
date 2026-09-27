@@ -981,7 +981,11 @@ export class PiNativeV4Service implements V4Methods {
     try {
       const result = await this.supervisor.runControlBridge(params.sessionId, params.action);
       if (params.action.operation === "navigate") await this.reconcilePiTreeHistory(record);
-      if (params.action.operation === "reload") await this.refreshRuntimeFacts(record);
+      if (["reload", "package_install", "package_remove", "package_update", "package_filter",
+        "resource_write", "resource_create", "resource_toggle"].includes(params.action.operation)) {
+        await this.refreshRuntimeFacts(record);
+        this.refreshWorkspaceConfig(record.workspaceKey);
+      }
       return piControlView(result);
     } catch (error) {
       if (params.action.operation === "navigate") {

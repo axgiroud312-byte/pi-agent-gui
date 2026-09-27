@@ -102,6 +102,7 @@
 | #9：P10、P11、P17 / V04 | `46c3e73` 用固定 Pi `SessionManager.list` 发现 CLI JSONL 历史；隔离 GUI `D:/Temp/pi-cli-history-gui3-20260927/pi-cli-history-gui-report.json` 验证 CLI→GUI→CLI 同一 session ID/JSONL 续接，退出无残留。定向测试 5/5 中包含实际固定 Pi 历史恢复。 | 主分支整合后的 GUI 复测、目录管理、fork/clone/编辑/重试、导入导出与主动分享仍开放。 |
 | #10：P05、P06、P07、P08、P19、P28、P31、P32、P34、D05 / V06、V08 | `9fc89ef`、`bd5d373`、`b576b25` 把固定 Pi 的用户/项目 `settings.json`、生效值来源、信任/离线/会话目录展示在原生设置页；JSON 编辑保留未知字段，用原始字节 SHA、Pi 锁目录及原子替换防并发覆盖。隔离 GUI `D:/Temp/pi-settings-gui4-20260927/pi-settings-gui-report.json` 验证保存、外部改动冲突、未信任项目和固定 Pi 新会话推理，`error=null`、`pageErrors=[]`、`graceful=true`、`forced=[]`、`survivors=[]`；整合后定向测试 10/10 和 Pi 包路径回归 1/1 PASS。 | 主分支整合后的 GUI 复测、全部设置字段与实际在线 provider/OAuth 行为仍待验证。 |
 | #14：D04 / V11 | `8910b33` 的有界 UTF-8 编辑与 SHA 版本冲突保护已在同一次 `green8` 原生 GUI 中验证：未保存草稿切换/重启恢复、外部改动阻断覆盖、用户明确比较后保存。 | 文件引用、更多预览类型和最终包内 GUI 未完成。 |
+| #12：P21、P22、P24、P29、P30、P32 / V08（隔离分支待整合） | 固定 Pi 0.87.0 的公开扩展桥与 `DefaultPackageManager` 已接原生会话资源入口；顺序真实 Pi 测试验证全局 Skill、项目模板与上下文、参数展开、文件版本冲突、system prompt 替换/追加、本地包启停/过滤/卸载，以及临时 Git daemon 固定 tag 包的安装/卸载。没有另建资源加载器；重载后命令目录由 Pi 再读。 | 生产 GUI/原版成对截图尚未运行；真实 npm 包、Git 固定 ref 更新、资源加载错误全类、theme/provider 目录刷新与旧 context 诊断仍需补证；在线 provider/包内/安装器/用户验收独立待验。 |
 
 `660999f` 时主分支 `pnpm run typecheck`、`pnpm run lint`（0 error / 70 既有 warning）、`pnpm run build:bootstrap`、固定 Pi 顺序 127/127、delivery plan、本地测试 7/7 和 `--github` 均通过。#10 整合后定向测试已通过；完整 Pi 顺序、类型/静态、原生 GUI 和最终包内回归须在后续集成后重跑。离线受控模型、在线 provider、实际 GGUF/router、NSIS 安装和用户验收仍是独立结果。
 

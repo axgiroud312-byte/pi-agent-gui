@@ -31,6 +31,10 @@ worktree 父目录：`C:\Users\niilo\AppData\Local\Temp\opencode`。以下提交
 
 跳转后若不产生新消息，Pi 0.87.0 的内存叶子在进程重启时会回到 JSONL 最末条。因此成功跳转后使用公开 `pi.appendEntry` 在当前分支写入不参与模型上下文的自定义导航节点；重启回归验证书签和当前分支都由 Pi JSONL 恢复。固定 Pi 0.87.0 来源为仓库已声明的 `@earendil-works/pi-coding-agent`，版权与许可证沿用 `THIRD_PARTY_NOTICES.md` 的 Pi 声明。受控本地 provider 的测试结果不计在线 provider 或 GUI 视觉验收。
 
+### #12 原生资源管理增量（2026-09-27）
+
+沿用上述 `pi-control` 桥及原生 `SessionPane`、Dialog/Button，没有迁入历史原型的资源界面。固定 Pi `@earendil-works/pi-coding-agent@0.87.0` 的公开根导出 `DefaultPackageManager`、`SettingsManager`、扩展 `pi.getCommands()` / `ctx.getSystemPromptOptions()` / `ctx.reload()` 和 RPC `get_commands` 是实现依据；包的安装、移除、更新与过滤交给 Pi，自身只加版本化控制与文件哈希冲突保护。Pi `config-selector` 的 `+/-` 资源覆盖规则仅作为行为参考，未复制源码。固定来源为 [Pi v0.87.0](https://github.com/earendil-works/pi/tree/16787ad5b2dc748047f314ca1bfe7708f30f54f3/packages/coding-agent)，许可证 MIT，声明仍见 `THIRD_PARTY_NOTICES.md`。临时 Git 测试仓库、受控本地模型和源代码 UI 编译不等于最终桌面 GUI/在线 provider/包内验收。
+
 另有 #2 的 `issue-2-rpc-transport`、`issue-2-renderer`、`issue-2-e2e` 工作树，内容已进入 #31，不重复领取。`integration/first-release` 停在 `46c34f1`，不继续旧批次整合。
 
 ### #7/#8 原生认证与扩展交互移植记录（2026-09-27，隔离分支待整合）

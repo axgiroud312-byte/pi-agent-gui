@@ -8,6 +8,8 @@ import {
 } from "./pi-control-protocol.js";
 
 const PINNED_PI_VERSION = "0.87.0";
+const reloadOperations = new Set<PiControlOperation>(["reload", "package_install", "package_remove",
+  "package_update", "package_filter", "resource_write", "resource_create", "resource_toggle"]);
 
 export class PiControlError extends Error {
   constructor(readonly code: string, message: string, readonly uncertain = false) {
@@ -103,16 +105,19 @@ export class PiControlBridge {
       });
       const [reply] = await Promise.all([control, accepted]);
       if (operation !== "handshake" && (reply.sessionId !== binding?.sessionId ||
-        (operation !== "reload" && reply.generation !== binding?.generation))) {
+        (!reloadOperations.has(operation) && reply.generation !== binding?.generation))) {
         throw new PiControlError("STALE_REPLY", "Pi control reply belongs to a stale session", true);
       }
-      if (operation === "reload" && reply.generation === binding?.generation) {
+      if (reloadOperations.has(operation) && reply.generation === binding?.generation) {
         throw new PiControlError("STALE_REPLY", "Pi reload retained the old bridge generation", true);
       }
       const result = piControlObject(reply.result);
       if (operation === "navigate" && typeof result.cancelled !== "boolean" ||
-        operation === "reload" && result.reloaded !== true ||
-        operation === "refresh_models" && result.modelsRefreshed !== true) {
+        operation === "refresh_models" && result.modelsRefreshed !== true ||
+        operation === "resource_read" &&
+          (typeof piControlObject(result.resource).content !== "string" ||
+            typeof piControlObject(result.resource).hash !== "string") ||
+        reloadOperations.has(operation) && result.reloaded !== true) {
         throw new PiControlError("BAD_REPLY", "Pi control result is incomplete", true);
       }
       return reply;
@@ -137,7 +142,9 @@ export class PiControlBridge {
     const inspected = await this.request("inspect", info);
     const inspection = inspected.result as PiControlInspection | undefined;
     if (!inspection || !Array.isArray(inspection.tools) || !Array.isArray(inspection.activeTools) ||
-      !Array.isArray(inspection.commands) || !inspection.promptOptions) {
+      !Array.isArray(inspection.commands) || !inspection.promptOptions || !Array.isArray(inspection.packages) ||
+      !Array.isArray(inspection.systemPromptFiles) || !Array.isArray(inspection.availableResources) ||
+      !Array.isArray(inspection.diagnostics) || typeof inspection.skillCommandsEnabled !== "boolean") {
       throw new PiControlError("BAD_REPLY", "Pi bridge inspection is incomplete", true);
     }
     const tree = await this.native("get_tree");

@@ -92,6 +92,14 @@
 
 router 协议依据是固定 Pi 0.87.0 上游 MIT `src/extensions/llama/client.ts` 与 `provider.ts`，版本仓库提交 `16787ad5b2dc748047f314ca1bfe7708f30f54f3`；这些 `dist/extensions/llama/*` 文件不在 npm 包公开 exports。Host 的 `pi-llama-router-client.ts` 适配其 HTTP/SSE 协议，认证与模型目录刷新从 Pi 公共扩展 API 取得，推理继续由 Pi 内置 provider 发起。面板不把密钥传给 renderer，并拒绝含 URL userinfo 的地址。加载、下载和卸载有有界等待；超时显示当时 router 状态，用户可再查询和显式取消。取消在尚未返回的 POST 完成后再发 unload，避免常见先卸载后加载竞态。网络中断导致 POST 结果未知时不自动重发；router 若在断线后延迟提交，仍需重新查询确认，不能据本地超时宣称操作已终止。
 
+## #12 Pi 资源入口（开发增量，视觉待验）
+
+| ID | 原生入口/行为 | Pi 产品行为 | 必要性 / 状态 |
+| --- | --- | --- | --- |
+| PI12-R1 | 原生会话 pane 的悬浮操作区和 Dialog/Button 操作路径 | 在现有会话树按钮旁增加“Pi 资源”按钮；同一原生 Dialog 显示 Pi 当前命令、Skill、上下文、system prompt 文件与包来源，提供文件编辑、启停、过滤、安装/卸载/更新和重载 | Pi 的资源有独立作用域与重载语义，需要可见入口。沿用 `SessionPane`/原生组件；固定 Pi 0.87.0 自动测试验证资源及安装结果。生产 GUI、原版同状态截图、双视口/明暗主题和键盘焦点仍待验，不能标为原生视觉通过。 |
+
+资源列表以当前 Pi 进程公开 `get_commands`、`getSystemPromptOptions` 和 Pi 包管理器解析为准。修改后调用同一 Pi 的 `ctx.reload()`，旧 session 历史上下文不会重写。复杂扩展 TUI 交互仍按 #8/#25 单独核对。
+
 ## 用户关卡记录
 
 - 关卡 Issue：[#33](https://github.com/axgiroud312-byte/pi-agent-gui/issues/33)，前置导入 [#32](https://github.com/axgiroud312-byte/pi-agent-gui/issues/32)。
