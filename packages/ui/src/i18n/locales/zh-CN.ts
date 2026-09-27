@@ -4099,6 +4099,9 @@ const zhCN: Record<string, string> = {
   "chat.reasoning.durationSeconds": "持续了 {seconds} 秒",
   "chat.contextUsage": "上下文已用 {used} / 总量 {total}",
   "chat.contextUsage.title": "上下文容量",
+  "chat.contextUsage.piUnknown": "上下文用量未知",
+  "chat.contextUsage.piUnknownDetail":
+    "Pi 尚未报告当前有效上下文的 token 数量；历史累计用量仍单独保留。",
   "chat.contextUsageDescription": "提示词、工具调用和回复都会共享上下文窗口。",
   "chat.contextUsage.cacheHitRate": "平均缓存命中率",
   "chat.contextUsage.breakdown": "上下文来源",

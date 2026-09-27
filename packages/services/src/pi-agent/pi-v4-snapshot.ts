@@ -137,7 +137,8 @@ export function createPiV4Snapshot(
     modelTransition: null,
     usage: {
       contextWindow: typeof context.contextWindow === "number" && context.contextWindow > 0
-        ? { usedTokens: number(context.tokens), maxTokens: context.contextWindow,
+        && typeof context.tokens === "number" && Number.isFinite(context.tokens) && context.tokens >= 0
+        ? { usedTokens: context.tokens, maxTokens: context.contextWindow,
           autoCompactThresholdTokens: null } : null,
       cumulative: { inputTokens: number(tokens.input), outputTokens: number(tokens.output),
         cacheReadTokens: number(tokens.cacheRead), cacheWriteTokens: number(tokens.cacheWrite) },

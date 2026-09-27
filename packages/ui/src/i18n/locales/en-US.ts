@@ -4372,6 +4372,9 @@ const enUS: Record<string, string> = {
   "chat.reasoning.durationSeconds": "{seconds} seconds",
   "chat.contextUsage": "Context usage {used} of {total}",
   "chat.contextUsage.title": "Context windows",
+  "chat.contextUsage.piUnknown": "Context usage unknown",
+  "chat.contextUsage.piUnknownDetail":
+    "Pi has not reported effective context tokens yet; cumulative history usage is kept separately.",
   "chat.contextUsageDescription":
     "Prompt text, tool calls, and responses all share this context window.",
   "chat.contextUsage.cacheHitRate": "Average cache hit rate",

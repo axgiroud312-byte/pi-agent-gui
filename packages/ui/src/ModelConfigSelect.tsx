@@ -13,6 +13,7 @@ import {
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
+import { Input } from "@/components/ui/input.js";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,11 +47,14 @@ import {
 } from "@/lib/pickerFocus.js";
 import { RollingToolbarLabel } from "@/chat-input-toolbar/RollingToolbarLabel.js";
 import { ModelInputCapabilityBadge } from "@/components/ModelInputCapabilityBadge.js";
+import { filterModelSelectGroups } from "@/lib/modelSelectSearch.js";
 
 export interface ModelSelectGroupItem {
   key: string;
   value: string;
   name: string;
+  /** Human-readable model ID when value is an encoded selection key. */
+  searchText?: string;
   badgeLabel?: string;
   supportsVisionInput?: boolean;
 }
@@ -168,6 +172,9 @@ interface ModelConfigSelectProps {
   showProviderLevel?: boolean;
   /** 覆盖 provider 二级模型菜单样式；缺省按内容扩展并保留最小宽度。 */
   providerSubmenuClassName?: string;
+  /** Enables direct model search while retaining the native provider menu at rest. */
+  searchPlaceholder?: string;
+  searchEmptyMessage?: string;
   footerActions?: readonly ModelSelectFooterAction[];
   manageModelsLabel?: string;
   onManageModels?: () => void;
@@ -216,6 +223,8 @@ export const ModelConfigSelect = memo(function ModelConfigSelectComponent({
   formatTriggerLabel,
   showProviderLevel,
   providerSubmenuClassName,
+  searchPlaceholder,
+  searchEmptyMessage,
   footerActions = EMPTY_MODEL_SELECT_FOOTER_ACTIONS,
   manageModelsLabel,
   onManageModels,
@@ -226,9 +235,14 @@ export const ModelConfigSelect = memo(function ModelConfigSelectComponent({
   triggerBadge,
 }: ModelConfigSelectProps) {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const open = controlledOpen ?? uncontrolledOpen;
   const lastOpenRequestKeyRef = useRef(openRequestKey);
   const hasSelectableModel = modelGroups.length > 0;
+  const searchedGroups = searchPlaceholder
+    ? filterModelSelectGroups(modelGroups, searchQuery) : modelGroups;
+  const searchActive = Boolean(searchPlaceholder && searchQuery.trim());
   // 闲时任务白名单只有一层模型值；只要存在 group 就强制展示 provider 层的话，
   // 下方已有的扁平模型分支永远不可达，也无法复用 New Task 模型选择器。
   const shouldShowProviderLevel = showProviderLevel ?? shouldShowModelProviderLevel(modelGroups);
@@ -251,9 +265,13 @@ export const ModelConfigSelect = memo(function ModelConfigSelectComponent({
       if (controlledOpen === undefined) {
         setUncontrolledOpen(nextOpen);
       }
+      if (!nextOpen) setSearchQuery("");
       onOpenChange?.(nextOpen);
+      if (nextOpen && searchPlaceholder) {
+        requestAnimationFrame(() => searchInputRef.current?.focus());
+      }
     },
-    [controlledOpen, onOpenChange],
+    [controlledOpen, onOpenChange, searchPlaceholder],
   );
 
   useEffect(() => {
@@ -568,13 +586,45 @@ export const ModelConfigSelect = memo(function ModelConfigSelectComponent({
             input?.focus();
           }}
         >
-          {leadingItems !== undefined && leadingItems.length > 0 ? (
+          {searchPlaceholder ? (
+            <div className="p-2">
+              <Input
+                ref={searchInputRef}
+                type="search"
+                size="sm"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  // Keep model IDs in the input rather than Radix menu typeahead.
+                  if (event.key !== "ArrowDown" && event.key !== "ArrowUp" && event.key !== "Escape") {
+                    event.stopPropagation();
+                  }
+                }}
+                placeholder={searchPlaceholder}
+                aria-label={searchPlaceholder}
+                data-testid="chat-model-select-search"
+              />
+            </div>
+          ) : null}
+          {searchActive ? searchedGroups.length > 0 ? searchedGroups.map((group) => (
+            <div key={group.key}>
+              <DropdownMenuLabel className="px-2 py-1 text-ui-sm text-foreground-subtle">
+                {group.label}
+              </DropdownMenuLabel>
+              {renderModelItems(group.items)}
+            </div>
+          )) : (
+            <DropdownMenuLabel className="px-2 py-2 text-ui-sm text-foreground-subtle">
+              {searchEmptyMessage ?? "No matching models"}
+            </DropdownMenuLabel>
+          ) : null}
+          {!searchActive && leadingItems !== undefined && leadingItems.length > 0 ? (
             <>
               {renderModelItems(leadingItems)}
               {hasSelectableModel ? <DropdownMenuSeparator /> : null}
             </>
           ) : null}
-          {hasSelectableModel && shouldShowProviderLevel
+          {!searchActive && hasSelectableModel && shouldShowProviderLevel
             ? modelGroups.map((group, index) => {
                 const groupSeparator = shouldRenderModelGroupSeparator(
                   modelGroups[index - 1],
@@ -633,7 +683,7 @@ export const ModelConfigSelect = memo(function ModelConfigSelectComponent({
                   </Fragment>
                 );
               })
-            : hasSelectableModel
+            : !searchActive && hasSelectableModel
               ? renderModelItems(modelGroups[0]?.items ?? [])
               : null}
           {renderedFooterActions.length > 0 ? (

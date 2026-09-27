@@ -51,3 +51,24 @@ test("a settled user-only Pi turn cannot be projected as completed success or ac
   assert.equal(snapshot.control.lastError?.code, "pi.historyUnresolved");
   assert.equal(snapshot.inputRouting.mode, "reject");
 });
+
+test("Pi reports unknown effective context after compaction without inventing zero tokens", () => {
+  const snapshot = conversationSnapshotSchema.parse(createPiV4Snapshot(view, {
+    messageCount: 3,
+    piSessionStats: {
+      tokens: { input: 50, output: 20, cacheRead: 7, cacheWrite: 2 },
+      contextUsage: { tokens: null, contextWindow: 128_000, percent: null },
+    },
+  }, "pi-epoch-after-compact"));
+  assert.equal(snapshot.usage.contextWindow, null);
+  assert.deepEqual(snapshot.usage.cumulative, {
+    inputTokens: 50,
+    outputTokens: 20,
+    cacheReadTokens: 7,
+    cacheWriteTokens: 2,
+  });
+  const knownEmpty = conversationSnapshotSchema.parse(createPiV4Snapshot(view, {
+    piSessionStats: { contextUsage: { tokens: 0, contextWindow: 128_000 } },
+  }, "pi-epoch-empty"));
+  assert.equal(knownEmpty.usage.contextWindow?.usedTokens, 0);
+});

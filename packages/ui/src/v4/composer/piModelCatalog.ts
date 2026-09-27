@@ -56,7 +56,8 @@ export function buildPiModelSelectGroups(catalog: readonly PiModelCandidate[]): 
       groups.set(model.providerId, group);
     }
     group.items.push({ key: `pi-model:${model.providerId}:${model.modelId}`,
-      value: encodeCustomModelValue(model.providerId, model.modelId), name: model.name });
+      value: encodeCustomModelValue(model.providerId, model.modelId), name: model.name,
+      searchText: model.modelId });
   }
   return [...groups.values()];
 }

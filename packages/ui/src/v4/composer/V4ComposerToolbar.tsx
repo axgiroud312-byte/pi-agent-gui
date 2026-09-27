@@ -1033,6 +1033,15 @@ function V4ComposerModelControlsImpl({
         onSendCompressionCommand={onSendCompressionCommand}
         compressionDisabled={disabled || recoveryPending}
       />
+      {piModelCatalog.length > 0 && usage && !usage.contextWindow ? (
+        <span
+          className="px-1 text-ui-xs text-foreground-subtle"
+          data-testid="pi-context-usage-unknown"
+          title={intl.formatMessage({ id: "chat.contextUsage.piUnknownDetail" })}
+        >
+          {intl.formatMessage({ id: "chat.contextUsage.piUnknown" })}
+        </span>
+      ) : null}
       {modelSelectionState.status === "error" && modelSelectionReload ? (
         <Button
           type="button"
@@ -1082,6 +1091,9 @@ function V4ComposerModelControlsImpl({
           triggerIconClassName="inline-flex @sm/composer:hidden group-data-[composer-model-icon=true]/toolbar:inline-flex"
           focusSelectorOnClose={V4_COMPOSER_INPUT_SELECTOR}
           providerSubmenuClassName={providerSubmenuClassName}
+          searchPlaceholder={piModelCatalog.length > 0
+            ? intl.formatMessage({ id: "chat.toolbar.model.searchPlaceholder" }) : undefined}
+          searchEmptyMessage={intl.formatMessage({ id: "chat.toolbar.model.empty" })}
         />
       ) : null}
       {thoughtOption ? (

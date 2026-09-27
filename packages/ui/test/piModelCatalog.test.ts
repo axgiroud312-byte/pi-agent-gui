@@ -21,6 +21,7 @@ test("Pi router catalog supplies the native picker and submission without a ZCod
     [["other", "start"], ["llama.cpp", "gui.gguf"]]);
   assert.deepEqual(buildPiModelSelectGroups(catalog).map(group => [group.label, group.items[0]?.name]),
     [["other", "Start"], ["llama.cpp", "gui.gguf"]]);
+  assert.equal(buildPiModelSelectGroups(catalog)[1]?.items[0]?.searchText, "gui.gguf");
   const selection = { providerId: "llama.cpp", modelId: "gui.gguf", options: { reasoningLevel: "off" } };
   const submission = createComposerSubmissionConfig({ mode: "build", modelSelection: selection },
     { revision: 1, providers: [] }, catalog);
