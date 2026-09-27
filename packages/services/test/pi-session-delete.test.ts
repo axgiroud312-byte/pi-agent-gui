@@ -49,6 +49,34 @@ test('Pi task deletion refuses an unconfirmed or rejected JSONL deletion without
   } finally { service.disposeAll(); }
 });
 
+test('a post-unlink bookmark cleanup error cannot turn a real Pi deletion into a failed result', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'pi-session-delete-cleanup-'));
+  const workspacePath = join(root, 'workspace');
+  const sessionDir = join(root, 'sessions');
+  await mkdir(workspacePath);
+  const cli = SessionManager.create(workspacePath, sessionDir);
+  cli.appendMessage({ role: 'user', content: 'delete after cleanup fault', timestamp: Date.now() });
+  cli.appendMessage({ role: 'assistant', content: [{ type: 'text', text: 'reply' }],
+    timestamp: Date.now() } as Parameters<typeof cli.appendMessage>[0]);
+  const sessionFile = cli.getSessionFile();
+  assert.ok(sessionFile);
+  const service = new PiNativeV4Service(new PiSessionSupervisor({ piEntry: join(root, 'unused'),
+    env: { PI_CODING_AGENT_SESSION_DIR: sessionDir } }), join(root, 'catalog'));
+  try {
+    const target = { workspacePath, sessionId: cli.getSessionId() };
+    const preview = await service.inspectSessionDeletion(target);
+    (service as unknown as { catalog: PiSessionCatalog }).catalog.remove = async () => {
+      throw new Error('simulated bookmark cleanup failure');
+    };
+    await service.deletePersistedSession({ ...target, expectedSessionFile: preview.sessionFile,
+      expectedRevision: preview.revision });
+    await assert.rejects(readFile(sessionFile), { code: 'ENOENT' });
+  } finally {
+    await service.dispose();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('confirmed Pi deletion removes only the exact cold JSONL and cannot silently lose a changed or active session',
   { timeout: 40_000 }, async () => {
     const root = await mkdtemp(join(tmpdir(), 'pi-session-delete-'));

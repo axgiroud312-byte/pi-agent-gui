@@ -268,6 +268,8 @@ export class PiNativeV4Service implements V4Methods {
       throw new Error("Pi session history changed since deletion confirmation");
     }
     const lease = await PiSessionLease.acquire(preview.sessionFile);
+    let deleted = false;
+    let releaseFailure: { error: unknown } | undefined;
     try {
       assertCold();
       const current = await this.inspectSessionDeletion(params);
@@ -275,12 +277,26 @@ export class PiNativeV4Service implements V4Methods {
         throw new Error("Pi session history changed since deletion confirmation");
       }
       await unlink(current.sessionFile);
+      deleted = true;
       if (this.bookmarks.get(params.sessionId)?.workspaceKey === workspaceKey) {
         this.bookmarks.delete(params.sessionId);
       }
-      this.emitIndexRemoval(workspaceKey, params.sessionId);
-      await this.catalog.remove(params.sessionId, workspaceKey, current.sessionFile);
-    } finally { await lease.release(); }
+      try { this.emitIndexRemoval(workspaceKey, params.sessionId); }
+      catch { console.warn("[pi-agent] deleted session index broadcast failed"); }
+      try { await this.catalog.remove(params.sessionId, workspaceKey, current.sessionFile); }
+      catch { console.warn("[pi-agent] deleted session bookmark cleanup failed"); }
+    } finally {
+      try { await lease.release(); }
+      catch (error) {
+        releaseFailure = { error };
+      }
+    }
+    if (releaseFailure) {
+      if (!deleted) throw releaseFailure.error;
+      // The authoritative JSONL is already gone. A cleanup error must not
+      // tell the user deletion failed and encourage a retry against new data.
+      console.warn("[pi-agent] deleted session lease cleanup failed");
+    }
   }
 
   async readPiSettings(params: ZCodeAgentWorkspaceTarget): Promise<PiSettingsSnapshot> {
