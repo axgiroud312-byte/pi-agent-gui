@@ -123,6 +123,30 @@ try {
     item.text.includes(unsentImage.toString('base64')));
   assert(first && second && first.file !== second.file, 'two Pi sessions must own separate original image histories');
   await page.screenshot({ path: join(f.output, 'pi-input-transformed-second.png') });
+  await send('PI_STOP: hold for handled queue');
+  for (let attempt = 0; attempt < 100 && model.held === 0; attempt++) {
+    await page.waitForTimeout(100);
+  }
+  assert(model.held > 0, 'Pi must be running before the GUI chooses follow-up delivery');
+  const handledBefore = model.requests.length;
+  await send('PI_GUI_INPUT_HANDLED_IMAGE', image);
+  await page.getByText('Pi 扩展已立即处理这条输入，没有加入队列。', { exact: true })
+    .waitFor({ timeout: 20_000 });
+  await page.getByText(`PI_GUI_INPUT_HANDLED_IMAGE:image/png:${digest(image)}`, { exact: true })
+    .waitFor({ timeout: 20_000 });
+  await page.waitForFunction(() => !document.querySelector('[data-testid="v4-queue"]'));
+  assert.equal((await composer.innerText()).trim(), '', 'handled input must not remain a retryable draft');
+  assert.equal(await page.locator('[data-composer-attachment-kind="image"]').count(), 0,
+    'the exact image was delivered to Pi handler before the composer clears it');
+  assert.equal(model.requests.length, handledBefore, 'handled follow-up starts no second model request');
+  await page.getByRole('button', { name: '停止生成', exact: true }).click();
+  await send('after handled queue admission');
+  await page.getByText('PI_TEXT_COMPLETE', { exact: true }).last().waitFor({ timeout: 30_000 });
+  assert.equal(model.requests.length, handledBefore + 1,
+    'the same Pi session accepts one next model run after handled queue input');
+  report.immediateHandledQueue = { originalImageDigest: digest(image), queueItems: 0,
+    additionalModelRunsBeforeNextPrompt: 0, nextPromptRuns: 1 };
+  await page.screenshot({ path: join(f.output, 'pi-input-handled-queue-image.png') });
   report.input = { handledNoModel: true, transformedTextVisible: true, originalImageBytesInPiJsonl: true,
     modelImageDigests: [model.requests[0]?.imageDigests?.[0], model.requests[1]?.imageDigests?.[0]],
     reloadGenerationChanged: true, firstSessionId, secondSessionId, separateJsonl: true };
