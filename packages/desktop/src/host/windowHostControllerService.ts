@@ -131,6 +131,31 @@ function liveStatusFromMeta(meta: ZCodeTaskMeta): WindowHostControllerTaskRow["l
   return "idle";
 }
 
+function taskListAddressKey(item: Pick<WindowHostControllerTaskListItem,
+  "taskId" | "workspacePath" | "workspaceIdentity" | "remoteSessionId">): string {
+  return JSON.stringify([item.remoteSessionId ?? null, item.workspaceIdentity ?? null,
+    item.workspacePath, item.taskId]);
+}
+
+function taskRowSourceScope(row: WindowHostControllerTaskRow): WindowHostControllerSourceScope {
+  return row.address.remoteSessionId
+    ? { kind: "remote", remoteSessionId: row.address.remoteSessionId,
+      workspacePath: row.address.workspacePath, workspaceIdentity: row.address.workspaceIdentity! }
+    : { kind: "local", workspacePath: row.address.workspacePath,
+      ...(row.address.workspaceIdentity ? { workspaceIdentity: row.address.workspaceIdentity } : {}) };
+}
+
+function taskRowListItem(row: WindowHostControllerTaskRow): WindowHostControllerTaskListItem {
+  return {
+    ...row.meta,
+    ...(row.address.remoteSessionId ? { remoteSessionId: row.address.remoteSessionId } : {}),
+    sourceAvailability: row.sourceAvailability,
+    liveStatus: row.liveStatus,
+    ...(row.activity ? { activity: row.activity } : {}),
+    ...(row.searchSnippets ? { searchSnippets: row.searchSnippets } : {}),
+  };
+}
+
 /**
  * WindowHostControllerRuntime 是 Local Host 内的聚合权威。它不持久化数据；每次在线查询都从
  * 对应 source 的 tasks-index 重建投影，断连时只冻结最后一次成功的内存快照。
@@ -541,6 +566,25 @@ export function createWindowHostControllerRuntime(options: {
           }),
       );
       items = results.flat();
+      // Legacy full-text search cannot see a Pi CLI JSONL session because it
+      // has no task-index row. Match the live native index title as well, then
+      // keep indexed hits (and their body snippets) when both paths find one.
+      const searchedSources = new Set(resolvedSources
+        .filter(source => source.sourceAvailability === "online" && source.taskService != null)
+        .map(source => sourceKey(source.scope)));
+      const terms = search.toLocaleLowerCase().split(/\s+/u).filter(Boolean);
+      const seen = new Set(items.map(taskListAddressKey));
+      for (const row of projection.getTasks()) {
+        if (row.sourceAvailability !== "online" ||
+          !searchedSources.has(sourceKey(taskRowSourceScope(row))) ||
+          !matchesTaskListMembershipKind(row.membership, query.kind) ||
+          !terms.every(term => row.meta.title.toLocaleLowerCase().includes(term))) continue;
+        const item = taskRowListItem(row);
+        const key = taskListAddressKey(item);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        items.push(item);
+      }
     } else {
       const selectedSources = new Set<string>();
       for (const source of resolvedSources) {
@@ -556,33 +600,12 @@ export function createWindowHostControllerRuntime(options: {
       items = projection
         .getTasks()
         .filter((row) => {
-          const scope: WindowHostControllerSourceScope = row.address.remoteSessionId
-            ? {
-                kind: "remote",
-                remoteSessionId: row.address.remoteSessionId,
-                workspacePath: row.address.workspacePath,
-                workspaceIdentity: row.address.workspaceIdentity!,
-              }
-            : {
-                kind: "local",
-                workspacePath: row.address.workspacePath,
-                ...(row.address.workspaceIdentity
-                  ? { workspaceIdentity: row.address.workspaceIdentity }
-                  : {}),
-              };
           return (
-            selectedSources.has(sourceKey(scope)) &&
+            selectedSources.has(sourceKey(taskRowSourceScope(row))) &&
             matchesTaskListMembershipKind(row.membership, query.kind)
           );
         })
-        .map((row) => ({
-          ...row.meta,
-          ...(row.address.remoteSessionId ? { remoteSessionId: row.address.remoteSessionId } : {}),
-          sourceAvailability: row.sourceAvailability,
-          liveStatus: row.liveStatus,
-          ...(row.activity ? { activity: row.activity } : {}),
-          ...(row.searchSnippets ? { searchSnippets: row.searchSnippets } : {}),
-        }));
+        .map(taskRowListItem);
     }
     items.sort((left, right) => compareItems(left, right, query.sortBy));
     const total = items.length;
