@@ -29,8 +29,12 @@ export default function (pi) {
     oauth: { name: "Fixture OAuth", async login() { throw new Error("No live account"); },
       async refreshToken(value) { return value; }, getApiKey(value) { return value.access; } }
   });
-  pi.registerProvider("anthropic", { name: "Fixture Anthropic Override",
-    baseUrl: "http://127.0.0.1:1/v1", apiKey: "fixture-override-only" });
+  pi.registerCommand("fixture-auth-override", { description: "Register a provider after auth was read",
+    handler: async (_args, ctx) => {
+      pi.registerProvider("anthropic", { name: "Fixture Anthropic Override",
+        baseUrl: "http://127.0.0.1:1/v1", apiKey: "fixture-override-only" });
+      ctx.ui.notify("FIXTURE_AUTH_OVERRIDE_REGISTERED", "info");
+    } });
 }
 `);
     const supervisor = new PiSessionSupervisor({
@@ -44,6 +48,11 @@ export default function (pi) {
     try {
       const noSession = await service.readPiAuth(target);
       assert.equal(noSession.runtimeCatalogStatus, "no-session");
+      const staticOperation = await service.startPiAuth({ ...target, generation: noSession.generation,
+        providerId: "anthropic", action: "login", method: "api_key" });
+      assert.ok(staticOperation, "built-in provider login remains available without a live Pi child");
+      await service.cancelPiAuth({ ...target, generation: noSession.generation,
+        operationId: staticOperation });
       await assert.rejects(readFile(marker, "utf8"), { code: "ENOENT" },
         "opening the auth view must not execute any extension factory");
       const created = await service.sendConversationCommandV4({ ...target, envelope: {
@@ -61,12 +70,26 @@ export default function (pi) {
       assert.equal(extension?.configured, false);
       assert.equal(extension?.methods.find(item => item.type === "oauth")?.canLogin, false);
       assert.equal(first.runtimeCatalogStatus, "ready");
-      const overridden = first.providers.find(item => item.id === "anthropic");
-      assert.equal(overridden?.runtimeOnly, true,
-        "a Pi extension override must hide the built-in auth method for the same provider ID");
+      assert.equal(first.providers.find(item => item.id === "anthropic")?.runtimeOnly, undefined);
+      let registered = false;
+      const onRecord = (id: string, event: Record<string, unknown>) => {
+        if (id === sessionId && event.type === "extension_ui_request" &&
+          event.method === "notify" && event.message === "FIXTURE_AUTH_OVERRIDE_REGISTERED") registered = true;
+      };
+      supervisor.on("record", onRecord);
+      try {
+        await supervisor.command(sessionId, { type: "prompt", message: "/fixture-auth-override" });
+        for (let count = 0; count < 100 && !registered; count++) {
+          await new Promise(resolve => setTimeout(resolve, 20));
+        }
+        assert.equal(registered, true, "the same Pi process must register an override after the first auth read");
+      } finally { supervisor.off("record", onRecord); }
       await assert.rejects(service.startPiAuth({ ...target, generation: first.generation,
         providerId: "anthropic", action: "login", method: "api_key" }),
       /not available in this GUI|不可在 GUI/iu);
+      const overridden = (await service.readPiAuth(target)).providers.find(item => item.id === "anthropic");
+      assert.equal(overridden?.runtimeOnly, true,
+        "an action-time inspect must replace a cached built-in provider after a runtime override");
       await assert.rejects(service.startPiAuth({ ...target, generation: first.generation,
         providerId: "fixture-extension-oauth", action: "login", method: "oauth" }),
       /not available in this GUI|不可在 GUI/iu);
@@ -226,7 +249,71 @@ test("native Pi service manages the exact RPC child's auth directory without a c
   }
 });
 
-test("live Pi child without the public bridge fails closed after credential commit", { timeout: 20_000 }, async () => {
+test("auth actions fail closed while the fixed Pi RPC child is running", { timeout: 20_000 }, async () => {
+  const root = await mkdtemp(join(tmpdir(), "pi-native-auth-busy-child-"));
+  const profile = join(root, "profile");
+  let releaseModel: () => void = () => {};
+  let requestStarted = false;
+  const server = createServer(async (request, response) => {
+    for await (const _ of request) { /* drain */ }
+    requestStarted = true;
+    await new Promise<void>(resolve => { releaseModel = resolve; });
+    response.writeHead(200, { "content-type": "text/event-stream" });
+    response.end(`data: ${JSON.stringify({ id: "auth-busy", object: "chat.completion.chunk", created: 1,
+      model: "busy-model", choices: [{ index: 0, delta: { role: "assistant", content: "DONE" },
+        finish_reason: "stop" }] })}\n\ndata: [DONE]\n\n`);
+  });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  assert(address && typeof address !== "string");
+  await mkdir(profile);
+  await writeFile(join(profile, "models.json"), JSON.stringify({ providers: {
+    "busy-provider": { baseUrl: `http://127.0.0.1:${address.port}/v1`, api: "openai-completions",
+      apiKey: "fixture-local-only", models: [{ id: "busy-model" }] },
+  } }));
+  await writeFile(join(profile, "settings.json"), JSON.stringify({
+    defaultProvider: "busy-provider", defaultModel: "busy-model",
+  }));
+  const supervisor = new PiSessionSupervisor({
+    piEntry: fileURLToPath(import.meta.resolve("@earendil-works/pi-coding-agent/rpc-entry")),
+    env: { PI_CODING_AGENT_DIR: profile, PI_TELEMETRY: "0" },
+    rpcArgs: ["--offline", "--no-extensions", "--no-skills", "--no-prompt-templates", "--no-context-files",
+      "--extension", fileURLToPath(new URL("../src/pi-agent/pi-control-bridge-extension.ts", import.meta.url))],
+  });
+  const service = new PiNativeV4Service(supervisor, join(root, "catalog"));
+  const target = { workspacePath: root };
+  try {
+    const created = await service.sendConversationCommandV4({ ...target, envelope: {
+      commandId: randomUUID(), clientId: "auth-busy-test", sessionId: null, issuedAt: Date.now(),
+      type: "createSession", payload: { workspaceId: root },
+    } });
+    assert.equal(created.result?.type, "createSession");
+    if (created.result?.type !== "createSession") throw new Error("Pi session creation failed");
+    const before = await service.readPiAuth(target);
+    assert.equal(before.runtimeCatalogStatus, "ready");
+    const sent = await service.sendConversationCommandV4({ ...target, envelope: {
+      commandId: randomUUID(), clientId: "auth-busy-test", sessionId: created.result.sessionId,
+      issuedAt: Date.now(), type: "sendText", payload: { text: "HOLD_AUTH" },
+    } });
+    assert.equal(sent.status, "accepted", sent.message);
+    for (let count = 0; count < 100 && !requestStarted; count++) {
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+    assert.equal(requestStarted, true, "the fixed Pi child must have started the model request");
+    assert.equal((await service.readPiAuth(target)).runtimeCatalogStatus, "busy");
+    const authBefore = await readFile(join(profile, "auth.json"), "utf8").catch(() => null);
+    await assert.rejects(service.startPiAuth({ ...target, generation: before.generation,
+      providerId: "anthropic", action: "login", method: "api_key" }), /catalog|目录|available/iu);
+    assert.equal(await readFile(join(profile, "auth.json"), "utf8").catch(() => null), authBefore);
+  } finally {
+    releaseModel();
+    await service.dispose();
+    await new Promise<void>(resolve => server.close(() => resolve()));
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("live Pi child without the public bridge refuses auth before credential commit", { timeout: 20_000 }, async () => {
   const root = await mkdtemp(join(tmpdir(), "pi-native-auth-missing-bridge-"));
   const profile = join(root, "profile");
   await mkdir(profile);
@@ -255,26 +342,12 @@ test("live Pi child without the public bridge fails closed after credential comm
       { commands: Array<{ name: string }> };
     assert(!commands.commands.some(command => command.name === PI_CONTROL_COMMAND));
     const before = await service.readPiAuth(target);
-    const operationId = await service.startPiAuth({ ...target, generation: before.generation,
-      providerId: "anthropic", action: "login", method: "api_key" });
-    let promptId: string | undefined;
-    for (let count = 0; count < 100; count++) {
-      promptId = (await service.readPiAuth(target)).operations.find(op => op.id === operationId)?.prompts[0]?.id;
-      if (promptId) break;
-      await new Promise(resolve => setTimeout(resolve, 20));
-    }
-    assert.ok(promptId);
-    const secret = "fixture-only-missing-bridge-key";
-    await service.answerPiAuth({ ...target, generation: before.generation, operationId, promptId, value: secret });
-    let outcome: string | undefined;
-    for (let count = 0; count < 100; count++) {
-      outcome = (await service.readPiAuth(target)).operations.find(op => op.id === operationId)?.outcome;
-      if (outcome !== "waiting" && outcome !== "running") break;
-      await new Promise(resolve => setTimeout(resolve, 20));
-    }
-    assert.equal(outcome, "committed-sync-failed");
-    assert.ok((await readFile(join(profile, "auth.json"), "utf8")).includes(secret));
-    assert.ok(!JSON.stringify(await service.readPiAuth(target)).includes(secret));
+    assert.equal(before.runtimeCatalogStatus, "unavailable");
+    const authBefore = await readFile(join(profile, "auth.json"), "utf8").catch(() => null);
+    await assert.rejects(service.startPiAuth({ ...target, generation: before.generation,
+      providerId: "anthropic", action: "login", method: "api_key" }), /catalog|目录|available/iu);
+    assert.equal(await readFile(join(profile, "auth.json"), "utf8").catch(() => null), authBefore,
+      "failed inspection must not change the Pi credential file");
     assert.equal(supervisor.getSession(sessionId)?.pid, pid,
       "missing bridge must not silently close or replace the active Pi process");
   } finally {

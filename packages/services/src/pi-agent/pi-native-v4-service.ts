@@ -1133,10 +1133,7 @@ export class PiNativeV4Service implements V4Methods {
     }
     if (event.type === "extension_ui_request" && event.method === "notify" &&
       typeof event.message === "string" && event.message.startsWith(PI_CONTROL_LIFECYCLE_PREFIX)) {
-      this.authRuntimeCatalogs.delete(record.workspaceKey);
-      this.authRuntimeUnavailable.delete(record.workspaceKey);
-      this.authRuntimeEpochs.set(record.workspaceKey,
-        (this.authRuntimeEpochs.get(record.workspaceKey) ?? 0) + 1);
+      this.invalidateAuthRuntimeCatalog(record.workspaceKey);
     }
     if (event.type === "extension_ui_request") {
       const prior = (record.state.piExtensionUi as SessionRecord["snapshot"]["piExtensionUi"] | undefined)
@@ -1425,6 +1422,13 @@ export class PiNativeV4Service implements V4Methods {
     }
   }
 
+  private invalidateAuthRuntimeCatalog(workspaceKey: string): void {
+    this.authRuntimeEpochs.set(workspaceKey, (this.authRuntimeEpochs.get(workspaceKey) ?? 0) + 1);
+    this.authRuntimeCatalogs.delete(workspaceKey);
+    this.authRuntimeUnavailable.delete(workspaceKey);
+    this.authRuntimeReads.delete(workspaceKey);
+  }
+
   private authFor(params: ZCodeAgentWorkspaceTarget): PiAuthManager {
     this.assertWorkspaceOpen(params);
     const agentDir = this.supervisor.getAgentDirectory(params.workspacePath);
@@ -1503,15 +1507,20 @@ export class PiNativeV4Service implements V4Methods {
 
   async refreshPiAuth(params: ZCodeAgentWorkspaceTarget & { generation: string }): Promise<PiAuthView> {
     await this.currentAuth(params).refresh();
-    this.authRuntimeCatalogs.delete(resolveWorkspaceKey(params));
-    this.authRuntimeUnavailable.delete(resolveWorkspaceKey(params));
+    this.invalidateAuthRuntimeCatalog(resolveWorkspaceKey(params));
     return this.readPiAuth(params);
   }
 
   async startPiAuth(params: ZCodeAgentWorkspaceTarget & { generation: string; providerId: string;
     action: PiAuthAction; method?: PiAuthMethod }): Promise<string> {
     const manager = this.currentAuth(params);
+    // Extension registerProvider() takes effect immediately, including after
+    // the last settings read. Reinspect this child before any credential action.
+    this.invalidateAuthRuntimeCatalog(resolveWorkspaceKey(params));
     const view = await this.readPiAuth(params);
+    if (view.runtimeCatalogStatus === "busy" || view.runtimeCatalogStatus === "unavailable") {
+      throw new Error("Pi extension provider catalog is unavailable; authentication cannot start until it can be inspected");
+    }
     if (view.runtimeCatalogTruncated) {
       throw new Error("Pi extension provider catalog is incomplete; authentication is unavailable until the catalog is complete");
     }
