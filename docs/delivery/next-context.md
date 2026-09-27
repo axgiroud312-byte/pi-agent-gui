@@ -10,6 +10,14 @@
 - 不得因用户暂缓验收而伪造 #34 或后续 Issue 的人工通过、关闭 Issue、合并 Draft PR 或正式发布。
 - 缺少在线账号、OAuth 人工回调、真实 llama.cpp/GGUF 或安装权限时，明确记录待最终验收项，但继续所有不依赖这些条件的开发。
 
+## 2026-09-28 07:06 继续开发断点（下方 06:54 等均为历史快照）
+
+- 主目录 `issue-34-native-pi-rpc` 当前代码 HEAD `a0c7d0a` 已普通推送；本文件与 `coverage.md` 正在更新。主树仅受保护的未跟踪 `%SystemDrive%/`、`用`、锁住 `packages/desktop/dist-pi-incremental/` 应保留；`stash@{0}` 与用户旧 `packages/desktop/dist/win-unpacked` 不触碰。PR #39 仍 Draft，需用户最终验收的 Issues 仍 OPEN。
+- #11 `ceb21e8` 修复同一 router 弹窗从会话 A 切到 B 的迟到 `/models` 覆盖：隔离真实 GUI `.../router-red3` 复现 A_STALE 错写，`D:/Temp/pi-agent-gui-router-session-isolation-20260928/test-results/router-green1/pi-llama-gui-report.json` 中 B 保持 B_CURRENT，固定 Pi 0.87.0+受控 loopback router 加载/推理/卸载 1/1/1，页面错误/强杀/残留为零。主树 guard 2/2、typecheck，通过普通推送；#11 技术评论已更新。真实 GGUF/llama.cpp 仍缺。
+- #3/#4/#13/#25 `a0c7d0a` 将无预热首发从被扩展输入阻塞的 `createSession(firstInput)` 改为固定 Pi 空 session ACK→同一意图 `sendText`，使首条弹窗能订阅/Stop；失败/未知投递保留原指针与草稿，门禁禁止再次建 Pi session 自动重发。`D:/Temp/pi-extension-firstinput-final-20260928/pi-extension-stop-gui-report.json` 的原生 GUI 证实首条弹窗 Stop 后 composer 为空、下一精确模型消息在同一 Pi JSONL、重启不重播，两次清洁退出；主树相关 40/40、typecheck 通过。已有会话四类 Stop 见下方 06:54。首条 PNG GUI `D:/Temp/pi-extension-firstimage-green-20260928/pi-extension-stop-gui-report.json` 模型端 SHA/MIME 通过，新增 Pi JSONL 自动断言尚待桌面复跑。
+- #3 `cycle_model` 隔离固定 Pi 红绿 1/1，模型 Pi state 和下一真实 SSE 请求从 first→second；原生 GUI 红测 `D:/Temp/pi-model-cycle-gui-red-20260928/pi-model-cycle-gui-report.json` 证实缺菜单入口，隔离代理正在接原生控件并待绿测/提交。#6/#12 资源/树跨会话隔离代理起点在旧 HEAD 5229ad4，第一资源红测卡在 splash/Host，不算资源缺陷；已让其先引入主树 `3de8356` 的 Host storage-startup bundling 修复再重跑。该代理后续会释放 GUI 给 model-cycle 绿测。首条 PNG JSONL 增强复跑再之后。
+- 最终整合后必须跑主树固定 Pi **全顺序**、typecheck、lint、production build、delivery 本地/7 测试/`--github`、Standards/Spec 审查；之后全新隔离 3.14.1 unpacked/NSIS、包内 GUI/进程清理、受控 3.14.0→3.14.1 升级/卸载。现均未完成，不得把源码 GUI/旧基线冒充。现场 OAuth/动态 provider GUI 登录、真实 GGUF/router、物理 IME、实际 Gist 与用户统一验收独立列界。只在全部可实施工作后给一次 5–15 分钟试用。
+
 ## 2026-09-28 06:54 继续开发断点（下方 06:15 等均为历史快照）
 
 - 主目录 `issue-34-native-pi-rpc` 当前源码 HEAD `3de8356` 已普通推送到 origin，PR #39 仍 Draft，需用户验收的 Issue 仍 OPEN。本文件及 `coverage.md`、`native-ui-parity.md` 正在更新，提交前以 `git status` 为准；受保护未跟踪 `%SystemDrive%/`、`用`、锁住的 `packages/desktop/dist-pi-incremental/`，以及 `stash@{0}` 与用户仍在使用的旧 `packages/desktop/dist/win-unpacked` 均不可清理或覆盖。
