@@ -161,8 +161,8 @@ try {
   await page.getByTestId("settings-back-button").click();
   await page.getByTestId("settings-page").waitFor({ state: "hidden" });
   await page.getByTestId("chat-model-select-trigger").click();
-  await page.getByRole("menuitem", { name: "新供应商", exact: true }).press("ArrowRight");
-  await page.getByText(firstModel, { exact: true }).click();
+  await page.getByTestId("chat-model-select-search").fill(firstModel);
+  await page.getByRole("menuitemradio", { name: new RegExp(firstModel, "i") }).first().click();
   await composer.click();
   await page.keyboard.type("PI_TEXT: establish a fixed Pi session");
   await page.getByTestId("v4-composer-send").filter({ visible: true }).first().click();

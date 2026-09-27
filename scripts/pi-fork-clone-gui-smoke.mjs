@@ -65,9 +65,8 @@ try {
   await page.getByTestId('settings-back-button').click();
   await page.getByTestId('settings-page').waitFor({ state: 'hidden' });
   await page.getByTestId('chat-model-select-trigger').click();
-  await page.getByRole('menuitem', { name: '新供应商', exact: true }).press('ArrowRight');
-  await page.getByText('pi-native-test', { exact: true }).click();
-  await page.keyboard.press('Escape');
+  await page.getByTestId('chat-model-select-search').fill('pi-native-test');
+  await page.getByRole('menuitemradio', { name: /pi-native-test/ }).first().click();
   const composer = page.getByTestId('v4-composer-input').filter({ visible: true }).first();
   const send = async prompt => {
     await composer.click();
