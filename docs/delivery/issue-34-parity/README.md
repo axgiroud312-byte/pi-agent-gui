@@ -1,5 +1,7 @@
 # #34 原生操作对照：已取证，待独立审查
 
+> 本页保留 2026-09-23 历史取证及当时待审标记。2026-09-27 已由独立 reviewer 实际读取固定原版 26 张图、原版/Pi 三阶段滚动六图及本轮 product 48 张图；当前目视复核通过。新的包内运行与最终审查见 [本轮收尾报告](../issue-34-closeout/closeout-2026-09-27.md)，不把本目录旧图冒称本轮构建。
+
 原版证据：[已确认的 #32 原版/产品 26 对基线](../issue-32-parity/index.html)，固定原版 `zai-org/ZCode@872ad960de7ec172591f7e1952f7849229f94521`；#33 用户已确认原生界面。Pi 产品证据：此目录下截图及本地报告 `C:\Users\niilo\AppData\Local\Temp\opencode\pi-34-product-scroll-1280-dark\pi-native-gui-report.json`。产品来自 #34 工作树于 2026-09-23 构建的未签名 Windows x64 包 `pi-34-bundle-interaction/`，通过其实际 `win-unpacked` 可执行文件启动，隔离应用 profile、Pi profile、工作区。此次报告记录模型端点 `http://127.0.0.1:55457/v1`（本次运行的临时端口），`openai-completions` 的本地确定性受控服务；**不是在线真实供应商推理**。模型负责输出工具调用意图，实际 `read` 由固定 Pi 0.87.0 子进程在工作区执行；模型收到了文件内容。固定原版实际滚动补验使用**独立 D: 临时源码归档** `git archive 317d286`（#32 原版实证的固定上游 872ad96 源码）、原版旧 Agent、同一 Electron 41、隔离数据和端点 `http://127.0.0.1:62737/v1` 的可控模型；报告位于 `D:\Temp\pi-34-original-scroll-1280-dark\original-native-scroll-report.json`。原版运行不参与产品 Pi 验收。
 
 | 同一操作面 | 原版入口/截图 | Pi 产品操作及本目录截图 | 已确认事实 / 待复核差异 |

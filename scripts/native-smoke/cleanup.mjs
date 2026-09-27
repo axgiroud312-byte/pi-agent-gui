@@ -91,6 +91,8 @@ export async function closeOwned(application, f) {
     await exec('taskkill.exe', ['/PID', String(p.ProcessId), '/T', '/F'], { env: f.env, windowsHide: true, timeout: 10_000 }).catch(() => {});
   }
   const final = remaining.length ? await processes(f) : [];
+  // `forced` counts only this harness's post-quit taskkill, not the runtime's
+  // own termination fallback. `graceful` means app.quit completed in time.
   return { graceful, owned, forced: remaining.map(p => p.ProcessId),
     survivors: final.filter(p => owned.some(o => o.ProcessId === p.ProcessId && o.CreationDate === p.CreationDate)) };
 }
@@ -98,7 +100,7 @@ export async function closeOwned(application, f) {
 export function assertCleanExit(cleanup, logs, stage) {
   assert(cleanup.owned.length >= 3, `${stage} process inventory must include Electron/Pi descendants`);
   assert.equal(cleanup.graceful, true, `${stage} app quit must wait for Host-owned cleanup`);
-  assert.deepEqual(cleanup.forced, [], `${stage} app quit must not force-kill a Pi owner`);
+  assert.deepEqual(cleanup.forced, [], `${stage} harness must not need post-quit force-kill`);
   assert.deepEqual(cleanup.survivors, [], `${stage} Host and Pi process must exit`);
   assert(!logs.join('').includes('host shutdown phase failed'), `${stage} Host service disposal must succeed`);
 }

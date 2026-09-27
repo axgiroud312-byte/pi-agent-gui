@@ -67,8 +67,15 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
       switch (record.type) {
         case "agent_start":
           if (view.phase !== "retrying") {
-            runtime.hadRunError = false;
-            runtime.persistentRunError = false;
+            // Overflow compaction resumes via agent_start, without a model
+            // auto_retry_end. Clear only the recovered model error; extension
+            // and protocol failures still belong to this run. sendText resets
+            // run ownership when a genuinely new input is admitted.
+            runtime.hadRunError = runtime.persistentRunError;
+            if (!runtime.persistentRunError && view.error === runtime.modelRetryError &&
+              !view.uncertainDelivery && !view.reconciliationRequired) {
+              view.error = undefined;
+            }
             runtime.modelRetryError = undefined;
           }
           view.phase = "running";
@@ -99,6 +106,12 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
           if (record.errorMessage || record.aborted) {
             runtime.hadRunError = true;
             runtime.persistentRunError = true;
+            // Compaction can follow a transient model error. Show its actual
+            // failure, while preserving an independent extension/protocol error.
+            if (!view.error || view.error === runtime.modelRetryError) {
+              view.error = typeof record.errorMessage === "string" && record.errorMessage
+                ? record.errorMessage : record.aborted ? "Pi compaction aborted" : "Pi compaction failed";
+            }
           }
           break;
         case "message_end": {
