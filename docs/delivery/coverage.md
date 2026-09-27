@@ -144,6 +144,15 @@
 
 本增量 `pnpm run build:bootstrap`、`node node_modules/typescript/bin/tsc -b packages/services packages/ui --pretty false`、lint 与差异检查通过。上述受控 loopback 模型的推理不算在线 provider；P16/V10 总表仍为待最终验收。
 
+## 2026-09-28 01:34 主分支整合与固定 Pi GUI 复验（仍非最终验收）
+
+| 能力 / Issue | 本次已验证 | 仍开放 |
+| --- | --- | --- |
+| #13、#26：P27、D03 / V09、V12 | `29a1a9d` 的红测复现：Pi 已确认扩展命令处理完成，原生快照仍把无 Agent 回合的命令标为未完成，输入框变只读。修复后假 Pi 合同和固定 Pi 0.87.0 原生 GUI `D:/Temp/pi-dialog-focus-main-fixed-20260928/pi-dialog-focus-gui-report.json` 通过：四类连续弹窗的焦点与取消语义、命令后 composer 可编辑并获焦点、同一 Pi 会话下一条模型输入成功；`pageErrors=[]`、`graceful=true`、`forced=[]`、`survivors=[]`。首次红色 GUI 留在 `D:/Temp/pi-dialog-focus-main-integrated-20260928/`。 | 原版成对截图、更多第三方扩展和包内 GUI 待验证；复杂 TUI 限制仍依兼容表。 |
+| #4：P07、P08 / V03 | `9d664fa` 加入受控 400 超窗模型 fixture。固定 Pi 合同 1/1 和生产源码入口原生 GUI `D:/Temp/pi-auto-compact-main-20260928/pi-auto-compact-gui-report.json` 通过：第三轮真实 Pi 自动请求摘要，Stop 取消 held summary，没有迟到重试，前两轮及触发超窗的用户历史保留；GUI `pageErrors=[]`、`graceful=true`、`forced=[]`、`survivors=[]`。定向 admission+auto 合计 18/18、typecheck、全仓 lint 0 error/69 既有 warning、production build 均通过。 | 包内 GUI、长时压力及其它运行态矩阵待最终复验；受控模型不等于在线 provider。 |
+| #9：P16 / V10 | `200a51c` 已整合前表的原生 Pi JSONL/HTML 导入导出、复制及明确确认后 secret Gist 分享实现；主分支纯测试 4/4、typecheck、lint、production build 通过。隔离精确源码 GUI 证据仍见前表，源 JSONL 未被改写。 | 主分支整合 GUI、真实 GitHub Gist 发布、包内及人工验收分别待验证。 |
+| #27：D01、D02 / V01 | `9bfbaf2`、`8be4045` 已整合本地诊断预览和独立复制/打开 GitHub 操作；预览只含本地白名单版本，不带主机名、目录、日志、会话 ID 或凭据。隔离固定 Pi GUI `D:/Temp/pi-diagnostics-gui-20260928-b/pi-diagnostics-gui-report.json` 验证剪贴板等于预览（Windows 换行归一化）、只有显式点击才外开，`pageErrors=[]`、`graceful=true`、`forced=[]`、`survivors=[]`。主分支纯测试 4/4、typecheck、lint、production build 通过。 | 主分支整合/包内 GUI、Windows NSIS 实际安装、覆盖升级、卸载和人工验收未完成。 |
+
 ## 回填要求
 
 每项填写实际原生 GUI/Pi 版本、提交、测试命令、结果和证据链接；在线 provider、可控模型、包内运行、实际安装与用户验收分别标明。P27 的限制按 #8/#25 逐类明示，不将复杂 TUI 不支持写为已全面兼容。
