@@ -44,7 +44,7 @@
 
 | ID | 原生入口/行为 | Pi 产品行为 | 必要性 / 状态 |
 | --- | --- | --- | --- |
-| PI06-S1 | 原生会话 pane 的悬浮操作与 Lexical 输入框 | 同一 pane 左上原有悬浮操作区新增会话树按钮；弹窗显示 Pi RPC 的真实树、当前叶子及书签，可跳转并将可恢复文本交给原生 composer，也可重载扩展 | Pi 的树及书签是 #6 明确能力；保留 `SessionPane`、原生 Dialog/Button、composer 草稿通路。固定 Pi 0.87.0 的 bridge/service 自动测试及隔离原生 GUI→Host→Pi 专项操作通过，`D:/Temp/pi-auth-tree-gui-evidence-3/pi-tree-gui-report.json` 记录书签、换代与文本恢复且进程无残留。固定原版成对截图、双视口/明暗主题及键盘焦点仍待完整复验。 |
+| PI06-S1 | 原生会话 pane 的悬浮操作与 Lexical 输入框 | 同一 pane 左上原有悬浮操作区新增会话树按钮；弹窗显示 Pi RPC 的真实树、当前叶子及书签，可跳转并将可恢复文本交给原生 composer，也可重载扩展。树弹窗的异步结果和文本恢复绑定发起时的 Pi 会话，切到 B 时不闪现 A 的书签 | Pi 的树及书签是 #6 明确能力；保留 `SessionPane`、原生 Dialog/Button、composer 草稿通路。固定 Pi 0.87.0 的 bridge/service 自动测试及 `D:/Temp/pi-auth-tree-gui-evidence-3/pi-tree-gui-report.json` 记录书签、换代与文本恢复；`aa14fe4` 的 `D:/Temp/pi-tree-main-aa14fe4-20260928/pi-tree-gui-report.json` 证实主树会话 B `sawOldSession=false`，清洁退出。固定原版成对截图、双视口/明暗主题及键盘焦点仍待完整复验。 |
 
 该入口只在本地桌面活动会话显示。Pi 0.87.0 的公共树跳转不返回图片附件原始草稿；包含图片的用户输入在跳转前明确拒绝，以免形成文本成功而图片丢失。树弹窗是 Pi 特有的必要入口，不代替 #9 的完整历史管理或 fork/clone。
 
@@ -187,7 +187,7 @@ router 协议依据是固定 Pi 0.87.0 上游 MIT `src/extensions/llama/client.t
 
 | ID | 原生入口/行为 | Pi 产品行为 | 必要性 / 状态 |
 | --- | --- | --- | --- |
-| PI12-R1 | 原生会话 pane 的悬浮操作区和 Dialog/Button 操作路径 | 在现有会话树按钮旁增加“Pi 资源”按钮；同一原生 Dialog 显示 Pi 当前命令、Skill、上下文、system prompt 文件与包来源，提供文件编辑、启停、过滤、安装/卸载/更新和重载。包行现在根据 Pi 0.87.0 实际更新语义显示固定 npm 版本、离线禁用或 Git 固定 ref 同步，避免把无操作的更新说成成功。 | Pi 的资源有独立作用域与重载语义，需要可见入口。沿用 `SessionPane`/原生组件；固定 Pi 0.87.0 自动测试 5/5，隔离生产源码 GUI `D:/Temp/pi-resources-update-gui-20260928-a/pi-resources-gui-report.json` 验证模板编辑/停启、本地包安装/过滤/卸载及新增禁用反馈，`pageErrors=[]`、`graceful=true`、`forced=[]`、`survivors=[]`。这不是原版同状态成对截图；双视口/明暗主题和键盘焦点仍待验。 |
+| PI12-R1 | 原生会话 pane 的悬浮操作区和 Dialog/Button 操作路径 | 在现有会话树按钮旁增加“Pi 资源”按钮；同一原生 Dialog 显示 Pi 当前命令、Skill、上下文、system prompt 文件与包来源，提供文件编辑、启停、过滤、安装/卸载/更新和重载。包行按 Pi 0.87.0 实际更新语义显示固定 npm 版本、离线禁用或 Git 固定 ref 同步。切换 Pi 会话时资源视图和未保存编辑器随会话隔离，旧异步回包不能写入新会话 | Pi 的资源有独立作用域与重载语义，需要可见入口。沿用 `SessionPane`/原生组件；固定 Pi 0.87.0 资源合同、`D:/Temp/pi-resources-update-gui-20260928-a/pi-resources-gui-report.json` 的模板/包路径与 `aeee0d4` 的 `D:/Temp/pi-resources-main-aa14fe4-20260928/pi-resources-gui-report.json` 主树 B `leakedEditor=0`、`leakedDraft=false`、清洁退出通过。这不是原版同状态成对截图；双视口/明暗主题和键盘焦点仍待验。 |
 
 资源列表以当前 Pi 进程公开 `get_commands`、`getSystemPromptOptions` 和 Pi 包管理器解析为准。修改后调用同一 Pi 的 `ctx.reload()`，旧 session 历史上下文不会重写。复杂扩展 TUI 交互仍按 #8/#25 单独核对。
 固定 Pi 的 `DefaultPackageManager.update` 会跳过固定 npm 版本，并在 `PI_OFFLINE=1` 时直接返回；新的版本化 bridge 在执行前拒绝这两种无操作更新。固定 Git ref 的“同步”只重取已配置 ref，不自动升到新 ref；本轮按用户保护要求没有实际执行 Git update，因为上游在自管 clone 发生 ref 变化时会运行 `git reset --hard` 与 `git clean -fdx`。更换 ref 应明确安装新 source；真实 npm 在线更新、Git ref 变更、资源加载错误全类及 theme/provider 目录刷新还需独立验证。

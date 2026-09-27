@@ -24,7 +24,7 @@
 | P10 | 源码 GUI 通过 | `D:/Temp/pi-session-rename-gui3-20260927/` 与 `D:/Temp/pi-long-scroll-two-sessions-main-e83956d-20260928/pi-long-scroll-gui-report.json` 证实命名、会话切换与交错输出。 | 最终包待验。 |
 | P11 | 源码 GUI 代表路径通过 | `D:/Temp/pi-cli-live-history-main-1b73705-20260928/pi-session-search-gui-report.json` 热发现 CLI 历史；`D:/Temp/pi-session-delete-gui6-20260927/pi-session-delete-gui-report.json` 证实确认删除。 | 排序/筛选所有组合、外部 CLI 并发窗口及最终包待验。 |
 | P12 | 部分，固定 Pi 图片 fork 有界 | `D:/Temp/pi-fork-clone-gui-20260928-c/pi-fork-clone-gui-report.json` 与 `D:/Temp/pi-history-edit-retry-main-20260928-a/pi-history-edit-retry-gui-report.json` 证实真实 fork/clone、原 JSONL 图片重试与编辑预填。 | Pi 0.87.0 `fork` 只给文字，图片 fork 明确拒绝；未知内容不可用纯文本编辑器，最终包待验。 |
-| P13 | 源码 GUI 代表路径通过 | `66e1763` 的固定 Pi bridge/原生 GUI 证实 tree/entries、书签、跳转；fork/clone 报告证实分支。 | 增量/过滤所有路径及最终包待验。 |
+| P13 | 树/书签与跨会话隔离源码 GUI 通过 | `66e1763` 的固定 Pi bridge/原生 GUI 证实 tree/entries、书签、跳转；fork/clone 报告证实分支。`aa14fe4` 的原生 GUI 红测 B 短暂闪现 A 书签，`D:/Temp/pi-tree-main-aa14fe4-20260928/pi-tree-gui-report.json` 主树复绿为 `sawOldSession=false`，真实 Pi 导航/文本恢复与清洁退出仍通过。 | 增量/过滤所有路径及最终包待验。 |
 | P14 | 源码 GUI 通过，语义有界 | `4d2b80b`、`D:/Temp/pi-context-inspector-main-4d2b80b-20260928/pi-context-gui-report.json` 分开显示原始历史、当前消息、context edits 与空摘要。 | `get_messages` 是当前 Pi 会话投影，不是逐次 provider 请求快照；最终包待验。 |
 | P15 | Pi 用量投影通过 | `06c2365` 与模型 GUI 证实未知费用不抹掉 token/cache；在线 GUI `pi-online-provider-gui-main-20260928-d` 有 Pi JSONL 输出 token。 | 费用值仅 fixture 已证，不能称真实账单；最终包待验。 |
 | P16 | 本地导入/导出通过，远端分享待验 | `200a51c`、`D:/Temp/pi-agent-gui-fork-clone-20260927/test-results/native-parity/product/pi-session-transfer-gui-report.json` 证实复制、JSONL/HTML、预览、导入续接；发布器仅本地假件。 | 未实际创建 Gist/取得真实链接；完整 HTML 需用户主动预览确认，最终包待验。 |
@@ -33,7 +33,7 @@
 | P19 | Pi 内建/本地自定义/动态只读目录通过 | `f44a5d1`、`pi-auth-service.test.ts` 与 `1250163`/`87b77df`/`93aea27` 证实同一 Pi 子进程动态 provider 元数据、覆盖内建 ID、忙/缺桥/超限时拒绝、动作前精确重查；认证源码 GUI 报告见 P18。 | 固定 Pi 0.87.0 无动态 `registerProvider` 的公开 GUI 登录/登出接口；headers/协议的真实在线矩阵与最终包待验。 |
 | P20 | 受控 router 路径及跨会话隔离通过 | `736ea53`、`D:/Temp/pi-llama-main-postresources-20260927/pi-llama-gui-report.json` 证实 HTTP/SSE fixture 加载、经 Pi 推理、卸载；`ceb21e8` 的原生 GUI `D:/Temp/pi-agent-gui-router-session-isolation-20260928/test-results/router-green1/pi-llama-gui-report.json` 红绿复现/修复 A 的迟到模型目录覆盖 B，B 列表保持 `B_CURRENT.gguf`，进程清洁退出。 | 没有真实 llama.cpp+GGUF；下载、取消、断线和实际 GGUF 会话不得称通过，最终包待验。 |
 | P21 | 固定 Pi 资源代表路径通过 | `packages/services/test/pi-resource-control.test.ts` 证实全局/项目 context、system prompt 替换/追加与来源，见下方 #12 增量。 | 来源优先级和错误全类、最终包待验。 |
-| P22 | 源码 GUI 代表路径通过 | `D:/Temp/pi-resources-main-integrated-green2-20260927/pi-resources-gui-report.json` 证实模板编辑/重载、Skill/模板参数展开由固定 Pi 执行。 | 全部资源加载错误与最终包待验。 |
+| P22 | 资源代表路径与跨会话编辑隔离源码 GUI 通过 | `D:/Temp/pi-resources-main-integrated-green2-20260927/pi-resources-gui-report.json` 证实模板编辑/重载、Skill/模板参数展开由固定 Pi 执行。`aeee0d4` 的原生 GUI 红测 B 带出 A 未保存编辑，`D:/Temp/pi-resources-main-aa14fe4-20260928/pi-resources-gui-report.json` 主树复绿为 `leakedEditor=0`、`leakedDraft=false`，编辑/停启/本地包过滤与清洁退出仍通过。 | 全部资源加载错误与最终包待验。 |
 | P23 | 动态及覆盖工具代表路径通过 | `2485cf7` 的动态工具 GUI 与主树 `50f3a52`、`D:/Temp/pi-read-override-main-93aea27-20260928/pi-read-override-gui-report.json` 证实同名 `read` 实际覆盖结果回到原生工具行。 | 全部内建工具逐类、扩展交错及最终包待验。 |
 | P24 | 输入变换等代表路径通过 | `2d01dc7`、`1af76e7` 与 `D:/Temp/pi-input-transform-main-72eae71-20260928/pi-extension-input-transform-gui-report.json` 证实 handled 无模型、两会话不同 PNG 原字节/有效文本进入 Pi JSONL、reload 生效；`d8d61db` 的源码 GUI 证实带图队列 handled 的原始 MIME/SHA 与明确立即处理状态；custom 消息见 P27。 | handled 消息是否持久化由扩展本身负责；动态 provider 认证及完整生命周期/错误矩阵待验，最终包待验。 |
 | P25 | 四类交互与首条/已有会话 Stop 源码 GUI 通过 | `D:/Temp/pi-dialog-focus-main-fixed-20260928/pi-dialog-focus-gui-report.json` 证实 select/confirm/input/editor 连续回答、取消、焦点和后续 Pi 推理；`pi-extension-stop-gui-green5-20260928` 与 `pi-extension-firstinput-final-20260928` 证实已有及首条弹窗 Stop、下一消息可发、重启不复活。 | 两会话并发/超时全部交错时序及最终包待验。 |
@@ -56,10 +56,10 @@
 | V02 | 源码 GUI 代表路径通过，最终包待验 | P01/P04/P06/P23 的 PNG 原字节、thinking、工具图文和错误路径报告。 | 在线图片/工具全类、最终包与用户验收待验。 |
 | V03 | 源码 GUI 队列及首条/已有会话扩展 Stop 代表路径通过 | P02/P03/P07/P08 的 Pi 双队列、停止、重试、压缩报告；`a36584a`/`7160d0f`/`d8d61db` 证实 handled 输入不留悬空运行；`61f83b3` 的固定 Pi 10/10 与 green5 四类弹窗、`a0c7d0a` 的 firstinput-final 首条 Stop/重启均有原生 GUI 证据。 | 长时压力、更多交错时序与最终包待验。 |
 | V04 | 源码 GUI 与自定义存储续接通过 | P10/P11/P17 的两项目两会话、CLI 热发现与草稿恢复报告，`7fe7724` 的 Pi 续写合同及 `pi-custom-session-dir-gui-20260928-g` 的原生 GUI 冷/热 CLI、重启同 JSONL/ID、模型续发报告。 | 临时会话的 JSONL 依赖能力不可用；更多并发修改及最终包待验。 |
-| V05 | 源码 GUI 代表路径通过，有固定 Pi 边界 | P12/P13/P14 的真实树、书签、分支、fork/clone、context edits 和取消路径。 | 图片 fork 不支持；摘要仅在 Pi 实际存在时显示，取消全矩阵和最终包待验。 |
+| V05 | 源码 GUI 树/书签/分支与跨会话隔离通过，有固定 Pi 边界 | P12/P13/P14 的真实树、书签、分支、fork/clone、context edits 和取消路径；`pi-tree-main-aa14fe4-20260928` 证实 B 不闪现 A 书签，原导航/恢复仍绿。 | 图片 fork 不支持；摘要仅在 Pi 实际存在时显示，取消全矩阵和最终包待验。 |
 | V06 | 已有凭据在线推理与动态只读目录通过，现场认证待验 | `D:/Temp/pi-online-provider-main-93aea27-20260928/pi-online-provider-gui-report.json` 有真实 `openai-codex/gpt-5.5` 回复；P05/P18/P19/P31 设置/目录证据。 | 现场登录/登出、动态扩展 provider GUI 认证、所有作用域与最终包待验。 |
 | V07 | 真实环境未完成 | P20 的本地 router fixture 经固定 Pi 推理。 | 真实 llama.cpp+GGUF 下载/加载/推理/卸载未做。 |
-| V08 | 源码 GUI 资源路径通过，包/配置仍部分 | P21/P22/P29 的 Pi 模板/context、本机 npm 真实更新、trust 与 reload 报告。 | Git ref 更新、目录刷新全类、启动 flags、最终包待验。 |
+| V08 | 源码 GUI 资源路径与跨会话编辑隔离通过，包/配置仍部分 | P21/P22/P29 的 Pi 模板/context、本机 npm 真实更新、trust 与 reload 报告；`pi-resources-main-aa14fe4-20260928` 证实 B 不继承 A 的未保存文本/草稿。 | Git ref 更新、目录刷新全类、启动 flags、最终包待验。 |
 | V09 | 声明的代表扩展类别与 Stop 通过 | P23–P27 的四类交互、状态/widget、动态/覆盖工具、输入变换与兼容表；green5/firstinput-final 证实弹窗 Stop 和恢复。 | 复杂 TUI 有明确不支持/受限项；并行/Stop 全矩阵和最终包待验。 |
 | V10 | 本地转移通过，实际分享未做 | P16 的 JSONL/HTML/复制/导入续接 GUI；假发布器证实预览确认字节。 | 未由用户主动创建真实 Gist 和取得链接，最终包待验。 |
 | V11 | 文件代表路径通过 | D04 的真实文件引用进入 Pi、预览、保存冲突与草稿恢复 GUI。 | 工具回链和未知格式的全矩阵、最终包待验。 |

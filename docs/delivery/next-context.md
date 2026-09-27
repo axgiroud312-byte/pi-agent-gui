@@ -10,6 +10,14 @@
 - 不得因用户暂缓验收而伪造 #34 或后续 Issue 的人工通过、关闭 Issue、合并 Draft PR 或正式发布。
 - 缺少在线账号、OAuth 人工回调、真实 llama.cpp/GGUF 或安装权限时，明确记录待最终验收项，但继续所有不依赖这些条件的开发。
 
+## 2026-09-28 07:24 继续开发断点（下方 07:06 等均为历史快照）
+
+- 主目录 `issue-34-native-pi-rpc` 当前代码 HEAD `aa14fe4` 已普通推送；本文件、`coverage.md`、`native-ui-parity.md` 正在更新，实际 Git 状态优先。PR #39 Draft、需用户最终验收的 Issues OPEN；受保护未跟踪 `%SystemDrive%/`、`用`、锁住的 `packages/desktop/dist-pi-incremental/`、`stash@{0}`、用户旧 `packages/desktop/dist/win-unpacked` 均保持原状。
+- 主树模型循环/首条扩展 Stop/首图 JSONL 的合并回归源码 GUI：`D:/Temp/pi-model-cycle-main-bd06de3-20260928/pi-model-cycle-gui-report.json`、`D:/Temp/pi-firstinput-stop-main-bd06de3-20260928/pi-extension-stop-gui-report.json`、`D:/Temp/pi-firstimage-jsonl-main-bd06de3-20260928/pi-extension-stop-gui-report.json`，全部固定 Pi 0.87.0、pageErrors=[]、graceful=true、forced=[]、survivors=[]；Pi first→second 下一真实请求、首条 Stop/重启不重播、首图模型与 Pi JSONL PNG SHA/MIME 同值分别通过。主树 `build:no-runtime-assets`、模型循环 2/2、首条 Stop 相关 40/40、typecheck 通过。
+- #6/#12 `aeee0d4` Resources 和 `aa14fe4` Tree 会话归属修复已普通推送。先在隔离 GUI 红测 B 带出 A 未保存资源文本/旧书签闪现，再在固定 Pi GUI 绿测。主树定向固定 Pi/guard 9/9、typecheck、production build，以及 `D:/Temp/pi-resources-main-aa14fe4-20260928/pi-resources-gui-report.json` 的 `leakedEditor=0`/`leakedDraft=false`、`D:/Temp/pi-tree-main-aa14fe4-20260928/pi-tree-gui-report.json` 的 `sawOldSession=false` 通过；两者旧功能仍绿，页面错误/强杀/残留为零。新原生差异与 coverage 正在记账。
+- 新 Standards/Spec 确定缺口：#11/P20 router cancel 遇 unload HTTP 503 会让原 load waitFor 继续至 10 分钟超时，且 GUI 旧 view 可能误导；独立代理已用 loopback 红测 9/10→修后 10/10，正在补固定 Pi GUI 503→刷新/重试与明确远端未知，未整合。#10/P31/P32/P34 用户可见 Pi 离线/版本检查启动偏好被 `appSettingsSchema` 丢弃、Host 没映射 Pi flags；另一隔离代理已红测，正在做固定 Pi 支持的最小映射和生效范围，未整合。#14/D04 编辑器保存 Promise 期间可继续输入 B，旧保存 ACK 无条件覆盖 B 并清持久草稿，切文件也可跨写；P0 丢草稿，第三隔离代理刚接手先写红测再修，未整合。**不要因为此前 D04 普通保存/冲突 GUI 绿而宣称保存竞态完成。**
+- 最终仍须在这些修复后跑主树固定 Pi **全顺序**、typecheck、lint、production build、delivery 本地/7 测试/`--github` 与 Standards/Spec 复审；全新隔离 3.14.1 unpacked/NSIS、包内 GUI/进程清理、受控 3.14.0→3.14.1 升级/卸载均尚未做。隔离安装基线只读预检 `D:/Temp/pi-agent-gui-install-preflight-20260928.ps1` 已证 3.14.0、146 项无 reparse、owner 当前用户、注册路径匹配、Preview/安装目录进程 0；正式操作前必须带最终安装包再预检。真实 GGUF/router、现场 OAuth/动态 provider GUI 登录、物理 IME、实际 Gist、用户统一验收分别留界；仅全部可实施工作完成后给一次 5–15 分钟试用。
+
 ## 2026-09-28 07:06 继续开发断点（下方 06:54 等均为历史快照）
 
 - 主目录 `issue-34-native-pi-rpc` 当前代码 HEAD `a0c7d0a` 已普通推送；本文件与 `coverage.md` 正在更新。主树仅受保护的未跟踪 `%SystemDrive%/`、`用`、锁住 `packages/desktop/dist-pi-incremental/` 应保留；`stash@{0}` 与用户旧 `packages/desktop/dist/win-unpacked` 不触碰。PR #39 仍 Draft，需用户最终验收的 Issues 仍 OPEN。
