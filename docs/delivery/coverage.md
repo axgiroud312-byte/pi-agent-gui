@@ -119,6 +119,7 @@
 | #10：P05–P08、P19、P28、P31、P32、P34、D05 / V06、V08 | `D:/Temp/pi-settings-main-integrated-20260927/pi-settings-gui-report.json`：主分支原生 GUI Pi 设置保存/外部冲突/未信任与固定 Pi 推理，`error=null`、`pageErrors=[]`、`graceful=true`、`forced=[]`、`survivors=[]`。 | 全字段、在线 provider/OAuth 及包内仍待验。 |
 | #11：P20 / V07 | `736ea53` 把同一 Pi 会话实时模型目录接到原生菜单；`D:/Temp/pi-llama-main-postresources-20260927/pi-llama-gui-report.json`：加载/经固定 Pi 推理/卸载各 1 次，`pageErrors=[]`，进程全部正常清理。 | 本地 HTTP/SSE router fixture 不是实际 llama-server/GGUF；真实模型、下载/断线 GUI 矩阵、包内仍待验。 |
 | #12：P21、P22、P24、P29、P30、P32 / V08 | `1398a6a`、`197e853` 保留 Pi 原生资源与包管理，默认树视图不披露资源内容。`D:/Temp/pi-resources-main-integrated-green2-20260927/pi-resources-gui-report.json`：原生 GUI 模板编辑与重载、停启、本地包安装/过滤/卸载，`pageErrors=[]`、`graceful=true`、`forced=[]`、`survivors=[]`。 | 固定 npm/Git 更新、全部诊断/资源类型、原版成对截图、包内及用户验收仍待测。 |
+| #26：P28、D03、D05 / V12（隔离分支待整合） | IME 候选 Enter、Chromium `keyCode=229` 与 `compositionend` 紧邻 Enter 的红测先失败，修复后定向测试通过；保留原生 Lexical 输入框并只在其 contenteditable 阻断误提交。最终隔离源码 GUI `D:/Temp/pi-ime-gui-20260927-d/pi-ime-gui-report.json`：固定 Pi 0.87.0、1280×800 深色和 1920×1080 浅色，候选 Enter 不发送且草稿保留，随后普通 Enter 与显式按钮各发送中文原文；`pageErrors=[]`、`graceful=true`、`forced=[]`、`survivors=[]`。 | 物理中文 IME、原版成对截图、弹窗焦点、快捷键全路径、长历史/长工具输出/滚动实测、包内与用户验收仍开放。 |
 
 此轮主分支固定 Pi 顺序测试 160/160、typecheck、桌面 production build、交付计划本地/7 项测试/`--github` 均通过；lint 为 0 error / 70 既有 warning。#12 首次 GUI 报告 `pi-resources-main-integrated-20260927` 在异步保存未完成时读旧 generation，修正测试等待后重跑绿色。上述源码 GUI 与本地受控模型证据均不得替代在线 provider、实际 GGUF、包内 GUI、NSIS 安装或用户验收；P/D/V 总表仍为待最终统一验收。
 

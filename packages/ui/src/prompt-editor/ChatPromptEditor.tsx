@@ -26,6 +26,7 @@ import {
   readWorkspaceFileDragPayload,
 } from "@/lib/workspaceFileDrag.js";
 import { appendWorkspaceFileMentionToComposer } from "@/lib/workspaceFileComposer.js";
+import { isImeComposingKeyEvent } from "@/lib/imeComposition.js";
 import { usePromptEditorDragState } from "@/prompt-editor/usePromptEditorDragState.js";
 import { ChatPromptActionMenu } from "@/prompt-editor/ChatPromptActionMenu.js";
 import { useComposerToolbarFit } from "@/prompt-editor/useComposerToolbarFit.js";
@@ -157,6 +158,9 @@ export function ChatPromptEditor({
     useState<HTMLDivElement | null>(null);
   const resolvedTriggerPanelContainer = triggerPanelContainer ?? internalTriggerPanelContainer;
   const latestTextRef = useRef(initialValue ?? "");
+  const compositionActiveRef = useRef(false);
+  const compositionEndAtRef = useRef<number | null>(null);
+  const imeEnterBlockedRef = useRef(false);
   const hasSyncedInitialValueRef = useRef(false);
   const {
     externalFileDragging,
@@ -211,10 +215,60 @@ export function ChatPromptEditor({
   const handleSubmit: FormEventHandler<HTMLFormElement> = useCallback(
     (event) => {
       event.preventDefault();
+      // A contenteditable Enter can also trigger the surrounding form's native
+      // submit path. Keep the same IME gate for that path as for Lexical.
+      if (imeEnterBlockedRef.current) {
+        imeEnterBlockedRef.current = false;
+        return;
+      }
       onSubmit(resolvedInputApiRef.current?.getMarkdown() ?? latestTextRef.current);
     },
     [onSubmit, resolvedInputApiRef],
   );
+
+  const handleKeyDownCapture: KeyboardEventHandler<HTMLFormElement> = useCallback((event) => {
+    const editable =
+      event.target instanceof Element ? event.target.closest('[contenteditable="true"]') : null;
+    if (event.key !== "Enter") {
+      if (
+        !compositionActiveRef.current &&
+        !event.nativeEvent.isComposing &&
+        event.nativeEvent.keyCode !== 229 &&
+        event.key !== "Process"
+      ) {
+        imeEnterBlockedRef.current = false;
+        compositionEndAtRef.current = null;
+      }
+      return;
+    }
+    if (!editable || !event.currentTarget.contains(editable)) {
+      imeEnterBlockedRef.current = false;
+      return;
+    }
+    const imeEnter = isImeComposingKeyEvent({
+      key: event.key,
+      keyCode: event.nativeEvent.keyCode,
+      isComposing: event.nativeEvent.isComposing,
+      compositionActive: compositionActiveRef.current,
+      compositionEndAt: compositionEndAtRef.current,
+      timeStamp: event.timeStamp,
+    });
+    imeEnterBlockedRef.current = imeEnter;
+    if (!imeEnter) {
+      return;
+    }
+    // Let the IME commit its candidate while composition is live. Once it has
+    // ended, consume only the immediate trailing Enter before Lexical sees it.
+    if (
+      !compositionActiveRef.current &&
+      !event.nativeEvent.isComposing &&
+      event.nativeEvent.keyCode !== 229
+    ) {
+      event.preventDefault();
+      compositionEndAtRef.current = null;
+    }
+    event.stopPropagation();
+  }, []);
 
   const handleKeyDown: KeyboardEventHandler<HTMLFormElement> = useCallback(
     (event) => {
@@ -332,7 +386,37 @@ export function ChatPromptEditor({
       : undefined;
 
   return (
-    <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} className={cn("relative", className)}>
+    <form
+      onSubmit={handleSubmit}
+      onKeyDown={handleKeyDown}
+      onKeyDownCapture={handleKeyDownCapture}
+      onCompositionStart={(event) => {
+        if (
+          event.target instanceof Element &&
+          event.currentTarget.contains(event.target.closest('[contenteditable="true"]'))
+        ) {
+          compositionActiveRef.current = true;
+          compositionEndAtRef.current = null;
+        }
+      }}
+      onCompositionEnd={(event) => {
+        if (
+          event.target instanceof Element &&
+          event.currentTarget.contains(event.target.closest('[contenteditable="true"]'))
+        ) {
+          compositionActiveRef.current = false;
+          compositionEndAtRef.current = event.timeStamp;
+        }
+      }}
+      onClickCapture={(event) => {
+        const submitButton =
+          event.target instanceof Element ? event.target.closest('button[type="submit"]') : null;
+        if (submitButton && event.currentTarget.contains(submitButton)) {
+          imeEnterBlockedRef.current = false;
+        }
+      }}
+      className={cn("relative", className)}
+    >
       {triggerPanelContainer ? null : (
         <div
           ref={setInternalTriggerPanelContainer}
