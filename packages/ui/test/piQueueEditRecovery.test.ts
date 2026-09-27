@@ -5,7 +5,8 @@ import { decidePiQueueEditRestore, preparePiQueueEditRecovery,
   readPiQueueEditRecoveries, restorePiQueueEditRecoveryRefs,
   discardPiQueueEditRecovery, forgetPiQueueEditRecoveriesForSession,
   retryPendingPiQueueRecoveryPurges, settlePiQueueEditDelete,
-  shouldDiscardPiQueueRecoveryAfterSend } from "../src/v4/piQueueEditRecovery.js";
+  shouldDiscardPiQueueRecoveryAfterSend, markPiSessionRecoveryDeletionIntent,
+  retryPendingPiQueueRecoveryDeletions } from "../src/v4/piQueueEditRecovery.js";
 
 class MemoryStorage implements Storage {
   private readonly values = new Map<string, string>();
@@ -193,4 +194,23 @@ test("only an accepted send of the exact restored text and image refs can retire
     attachments: [], result: "sent" }), false);
   assert.equal(shouldDiscardPiQueueRecoveryAfterSend(saved, { sessionId: "session-a", text: "exact text",
     attachments: saved.refs, result: "blocked" }), false);
+});
+
+test("session delete intent resolves crash before cleanup without deleting a surviving Pi session", async () => {
+  const storage = new MemoryStorage();
+  await preparePiQueueEditRecovery({ storage, workspaceKey: "workspace-a", sessionId: "session-a",
+    target: { queueItemId: "first", inputKind: "sendText", text: "unsent", attachments: [] },
+    readImage: async () => { throw new Error("unexpected"); },
+  });
+  const target = { workspaceKey: "workspace-a", workspacePath: "C:/workspace-a",
+    sessionId: "session-a" };
+  markPiSessionRecoveryDeletionIntent(storage, target);
+  await retryPendingPiQueueRecoveryDeletions({ storage,
+    sessionExists: async () => true, forgetImages: async () => {} });
+  assert.equal(readPiQueueEditRecoveries(storage, "workspace-a", "session-a").length, 1,
+    "a failed Pi JSONL delete must preserve the only unsent backup");
+  await retryPendingPiQueueRecoveryDeletions({ storage,
+    sessionExists: async () => false, forgetImages: async () => {} });
+  assert.deepEqual(readPiQueueEditRecoveries(storage, "workspace-a", "session-a"), [],
+    "a confirmed missing Pi JSONL retires its private backup after restart");
 });

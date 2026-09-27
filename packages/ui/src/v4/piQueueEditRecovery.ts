@@ -5,6 +5,7 @@ import { forgetComposerImageDraftScope, readComposerImageDrafts, saveComposerIma
 
 const STORAGE_PREFIX = "zcode-v4-pi-queue-edit-recovery:v2:";
 const PURGE_PREFIX = "zcode-v4-pi-queue-edit-recovery-purge:v1:";
+const DELETE_INTENT_PREFIX = "zcode-v4-pi-session-recovery-delete-intent:v1:";
 const IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 
@@ -31,6 +32,23 @@ function storageKey(workspaceKey: string, sessionId: string, queueItemId: string
 
 function purgeKey(workspaceKey: string, sessionId: string, queueItemId: string): string {
   return `${PURGE_PREFIX}${encodeURIComponent(`${workspaceKey}\0${sessionId}\0${queueItemId}`)}`;
+}
+
+function deleteIntentKey(workspaceKey: string, sessionId: string): string {
+  return `${DELETE_INTENT_PREFIX}${encodeURIComponent(`${workspaceKey}\0${sessionId}`)}`;
+}
+
+export interface PiSessionRecoveryDeletionIntent {
+  workspaceKey: string;
+  workspacePath: string;
+  workspaceIdentity?: string;
+  sessionId: string;
+}
+
+/** Persist after human confirmation, before the Pi JSONL delete RPC. */
+export function markPiSessionRecoveryDeletionIntent(storage: Storage,
+  intent: PiSessionRecoveryDeletionIntent): void {
+  storage.setItem(deleteIntentKey(intent.workspaceKey, intent.sessionId), JSON.stringify(intent));
 }
 
 export function piQueueEditRecoveryScope(workspaceKey: string, sessionId: string,
@@ -216,6 +234,39 @@ export function shouldDiscardPiQueueRecoveryAfterSend(
 export async function forgetPiQueueEditRecoveriesForSession(input: Omit<PurgeInput, "queueItemId">): Promise<void> {
   const current = readPiQueueEditRecoveries(input.storage, input.workspaceKey, input.sessionId);
   for (const item of current) await purgeOne({ ...input, queueItemId: item.queueItemId });
+  input.storage.removeItem(deleteIntentKey(input.workspaceKey, input.sessionId));
+}
+
+/** Reconcile the crash window between the Pi delete ACK and local profile cleanup. */
+export async function retryPendingPiQueueRecoveryDeletions(input: {
+  storage: Storage;
+  sessionExists: (intent: PiSessionRecoveryDeletionIntent) => Promise<boolean>;
+  forgetImages?: (scope: string) => Promise<void>;
+}): Promise<void> {
+  const pending: PiSessionRecoveryDeletionIntent[] = [];
+  for (let index = 0; index < input.storage.length; index += 1) {
+    const key = input.storage.key(index);
+    if (!key?.startsWith(DELETE_INTENT_PREFIX)) continue;
+    const value: unknown = JSON.parse(input.storage.getItem(key) ?? "null");
+    if (!isRecord(value) || typeof value.workspaceKey !== "string" ||
+      typeof value.workspacePath !== "string" || typeof value.sessionId !== "string" ||
+      (value.workspaceIdentity !== undefined && typeof value.workspaceIdentity !== "string") ||
+      key !== deleteIntentKey(value.workspaceKey, value.sessionId)) {
+      throw new Error("Pi session recovery deletion intent is damaged");
+    }
+    pending.push(value as unknown as PiSessionRecoveryDeletionIntent);
+  }
+  for (const intent of pending) {
+    if (await input.sessionExists(intent)) {
+      // Pi still owns the JSONL. Keep the marker: deletion may still be in
+      // flight in another window, so a later check must reconcile its ACK.
+      continue;
+    } else {
+      await forgetPiQueueEditRecoveriesForSession({ storage: input.storage,
+        workspaceKey: intent.workspaceKey, sessionId: intent.sessionId,
+        forgetImages: input.forgetImages });
+    }
+  }
 }
 
 /** Retry a purge interrupted after JSONL deletion or by a locked profile database. */

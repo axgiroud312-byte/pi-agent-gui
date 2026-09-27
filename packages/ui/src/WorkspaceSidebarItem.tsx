@@ -72,7 +72,8 @@ import {
 import { useRemotePinnedTaskStore } from "@/store/remotePinnedTaskStore.js";
 import { useRemoteTimelineTaskStore } from "@/store/remoteTimelineTaskStore.js";
 import { logger } from "@/logger.js";
-import { forgetPiQueueEditRecoveriesForSession, readPiQueueEditRecoveries,
+import { forgetPiQueueEditRecoveriesForSession, markPiSessionRecoveryDeletionIntent,
+  readPiQueueEditRecoveries, retryPendingPiQueueRecoveryDeletions,
   retryPendingPiQueueRecoveryPurges } from "@/v4/piQueueEditRecovery.js";
 import {
   RemoteSyncDialogs,
@@ -287,10 +288,24 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
   }, []);
 
   useEffect(() => {
-    void retryPendingPiQueueRecoveryPurges({ storage: window.localStorage }).catch(error => {
-      logger.warn("[WorkspaceSidebarItem] prior Pi queue recovery purge incomplete", error);
-    });
-  }, []);
+    const retry = async () => {
+      try {
+        await retryPendingPiQueueRecoveryDeletions({ storage: window.localStorage,
+          sessionExists: async intent => (await baseServices.zcodeTaskService.getTaskSessionFilePath({
+            taskId: intent.sessionId, workspacePath: intent.workspacePath,
+            ...(intent.workspaceIdentity ? { workspaceIdentity: intent.workspaceIdentity } : {}),
+          })).exists });
+      } catch (error) {
+        logger.warn("[WorkspaceSidebarItem] prior Pi session recovery delete is unresolved", error);
+      }
+      try {
+        await retryPendingPiQueueRecoveryPurges({ storage: window.localStorage });
+      } catch (error) {
+        logger.warn("[WorkspaceSidebarItem] prior Pi queue recovery purge incomplete", error);
+      }
+    };
+    void retry();
+  }, [baseServices.zcodeTaskService]);
 
   const handleWorkspaceOpenChange = useCallback(
     (nextOpen: boolean) => {
@@ -663,6 +678,9 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
         confirmVariant: "destructive",
       });
       if (!confirmed) return;
+      markPiSessionRecoveryDeletionIntent(window.localStorage, { workspaceKey,
+        workspacePath: tab.workspacePath, ...(tab.workspaceIdentity
+          ? { workspaceIdentity: tab.workspaceIdentity } : {}), sessionId: taskId });
       await zcodeTaskService.deleteTask({ ...target, expectedSessionFile: preview.path,
         expectedRevision: preview.revision });
       let recoveryCleanupFailed = false;
