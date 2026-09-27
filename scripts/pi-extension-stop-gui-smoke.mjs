@@ -80,7 +80,16 @@ try {
     const request = await sendPiImage(page, model, f.output);
     const digest = createHash('sha256').update(testImage).digest('hex');
     assert(request.imageDigests.includes(digest), 'first image bytes must reach Pi and the controlled model');
-    report.firstInputImage = { mime: 'image/png', sha256: digest, delivered: true };
+    const session = await bookmark();
+    const entries = (await readFile(session.sessionFile, 'utf8')).trim().split(/\r?\n/u).map(JSON.parse);
+    const imagePart = entries.flatMap(entry => entry.message?.role === 'user' &&
+      Array.isArray(entry.message.content) ? entry.message.content : [])
+      .find(part => part.type === 'image');
+    assert.equal(imagePart?.mimeType, 'image/png', 'Pi JSONL must retain the original image MIME');
+    assert.equal(createHash('sha256').update(Buffer.from(imagePart.data, 'base64')).digest('hex'), digest,
+      'Pi JSONL must retain the exact original image bytes');
+    report.firstInputImage = { mime: 'image/png', sha256: digest,
+      modelDelivered: true, piJsonlPreserved: true };
   } else if (process.env.PI_FIRST_INPUT_PROBE === '1') {
     await composer.click();
     await page.keyboard.insertText('/pi-ui-sequence');
