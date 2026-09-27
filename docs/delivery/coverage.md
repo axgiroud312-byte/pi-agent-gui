@@ -68,6 +68,17 @@
 | V11 | 文件引用、预览、工具文件回链及保存冲突 | #14 | 待最终验收 |
 | V12 | 原生 UI、中文/键盘/长记录、打包及诊断 | #26, #27 | 待最终验收 |
 
+## 2026-09-28 当前主分支增量（HEAD `0e44cad`，非统一验收）
+
+| 能力 / Issue | 当前可核证事实 | 独立未完成项 |
+| --- | --- | --- |
+| P02、P03 / #4 | `d581cc1`、`d1cd064` 令队列撤回编辑先保留 IndexedDB 原图文，拒绝/过期 ACK、草稿冲突、重启或 Pi 接受发送未落盘时不退休唯一副本；`b4693fc`、`0715953` 仅在固定 Pi revision、运行状态、书签、JSONL 与逐文件复核稳定后回收无引用 queue-media。纯测 6/6、会话删除 4/4。主分支原生 GUI `D:/Temp/pi-queue-main-415003e-20260928-b/pi-queue-gui-report.json` 通过两 lane、重排、Stop、立即发送、含图撤回/重启/恢复/精确 SHA；页面错误和进程残留均零。 | 更长压力、扩展等待全部 Stop 状态、最终包内 GUI 与统一用户验收未做；受控离线模型不等于在线 provider。 |
+| P05、P15、P18、P19 / #3、#7 | `06c2365` 令 Pi 未给费用时 token/cache 仍可查；`f44a5d1` 让首次建会话前的模型目录读取固定 Pi ModelRuntime，会话后由 RPC 接管。认证固定 Pi 9/9。在线原生 GUI `D:/Temp/pi-online-provider-gui-main-20260928-d/pi-online-provider-gui-report.json` 经已有 OAuth 隔离副本实际运行 `openai-codex/gpt-5.5`，GUI 有回复、Pi JSONL `stop` / 15 output tokens，凭据副本已删除、无页面错误/残留。 | 用户现场 browser/device/manual OAuth 登录/登出、动态扩展 provider OAuth、真实 API key 账号、费用与最终包内 UI 未据此验收。 |
+| P29 / #12 | `99dfad0` 使用固定 Pi 公开包目录对同身份 user/project 双作用域执行 fail-closed 更新检查。固定 Pi/纯测 9/9，原生 GUI `D:/Temp/pi-package-scope-main-f5a17e5-20260928-b/pi-package-update-scope-gui-report.json` 两行均警告且禁用更新、Pi generation 未变化、无更新调用或进程残留。 | 真实 npm/Git ref 更新、全部来源/重载诊断与包内 GUI 未跑；拒绝危险更新不是“更新成功”。 |
+| D06 / #27 | `f5a17e5` 精确构建期补丁规避 electron-builder 26.8.1 `multiUser.nsh` 本机 `System.dll c0000005`；静态 5/5、typecheck、隔离 3.14.1 unpacked+NSIS 构建通过。诊断版 3.14.0 已在隔离目标实际安装并留下 HKCU Preview 注册。 | 最终源码 3.14.1 的包内 GUI、安装、覆盖升级、卸载、数据保留及用户验收都未跑。 |
+
+固定 Pi 0.87.0 主分支顺序全套初跑 `D:/Temp/pi-agent-gui-pi-suite-main-20260928.log` 为 **223/228**：#4 GC 后过时的删除测试断言已更新并单测 4/4；其余 4 个控制桥/耐久 admission/扩展/历史重试用例在隔离树已聚焦修正并 cherry-pick 为 `0e44cad`，仍须重跑整套。typecheck 与生产源码 build 已通过；完整 lint、delivery plan 本地/测试/`--github` 与最终 HEAD 回归后补。各 P/D/V 表的“待验收”指尚未由用户对最终统一版本验收，不否认本节局部工程证据。
+
 ## 2026-09-27 增量验证（局部证据，均非最终验收）
 
 | 能力 / 场景 | 目前实测 | 未完成 / 不得宣称 |
