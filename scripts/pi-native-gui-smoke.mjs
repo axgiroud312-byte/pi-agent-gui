@@ -284,6 +284,30 @@ try {
   }
   assert(report.readFileChipClickable && report.readPreviewMarkerVisible,
     'Native Read card must open the same workspace file that Pi executed');
+  const readmePane = reopenedPage.getByTestId('preview-pane').filter({ visible: true }).first();
+  const readmePath = join(f.workspace, 'README.md');
+  const originalReadme = await readFile(readmePath, 'utf8');
+  const editedReadme = `${originalReadme}\nPI_EDITOR_DRAFT_中文\n`;
+  await readmePane.getByRole('button', { name: '编辑文件' }).click();
+  await readmePane.getByRole('textbox', { name: '文件内容' }).fill(editedReadme);
+  await readmePane.getByText('未保存；草稿会在重启后恢复').waitFor();
+  await readmePane.getByRole('button', { name: '返回预览，草稿会保留' }).click();
+  await readmePane.getByRole('button', { name: '编辑文件' }).click();
+  assert.equal(await readmePane.getByRole('textbox', { name: '文件内容' }).inputValue(), editedReadme,
+    'Native Side Pane must restore the unsaved draft after closing and reopening the editor');
+  const externalReadme = `${originalReadme}\nEXTERNAL_DISK_CHANGE\n`;
+  await writeFile(readmePath, externalReadme);
+  await readmePane.getByRole('button', { name: '保存', exact: true }).click();
+  await readmePane.getByTestId('pi-file-save-conflict').waitFor();
+  assert.equal(await readFile(readmePath, 'utf8'), externalReadme,
+    'A Pi or external file change must not be overwritten by a stale editor snapshot');
+  await reopenedPage.screenshot({ path: join(f.output, 'pi-native-file-save-conflict.png') });
+  await readmePane.getByRole('button', { name: '已比较，继续用草稿编辑' }).click();
+  await readmePane.getByRole('button', { name: '保存', exact: true }).click();
+  assert.equal(await readFile(readmePath, 'utf8'), editedReadme);
+  report.fileEditor = { draftRecoveredOnReopen: true, externalSaveConflict: true,
+    explicitRebaseSaved: true, finalContent: editedReadme };
+  await reopenedPage.screenshot({ path: join(f.output, 'pi-native-file-edit-saved.png') });
   const reopenedSend = async text => {
     const composer = reopenedPage.getByTestId('v4-composer-input').filter({ visible: true }).first();
     await composer.click(); await reopenedPage.keyboard.type(text);
@@ -393,6 +417,22 @@ try {
     await reopenedPage.screenshot({ path: join(f.output, 'pi-native-conversation-split-unavailable.png') });
     await reopenedPage.keyboard.press('Escape');
   }
+  await reopenedPage.locator('[data-testid^="task-item-"]')
+    .filter({ hasText: 'PI_TEXT: give me a short response' }).first().click();
+  const draftReadTurn = reopenedPage.locator('section[data-turn-id]')
+    .filter({ hasText: 'PI_READ: read the workspace README.md' }).first();
+  const draftReadCard = draftReadTurn.locator('[data-testid^="chat-tool-call-block"]').filter({ visible: true }).first();
+  if (!await draftReadCard.isVisible()) {
+    await draftReadTurn.locator('[data-testid^="chat-assistant-history-trigger"]').first().click();
+  }
+  await draftReadCard.getByRole('button', { name: 'README.md', exact: true }).click();
+  const draftPane = reopenedPage.getByTestId('preview-pane').filter({ visible: true }).first();
+  await draftPane.getByRole('button', { name: '编辑文件' }).click();
+  const restartDraft = `${editedReadme}\nPI_EDITOR_RESTART_DRAFT\n`;
+  await draftPane.getByRole('textbox', { name: '文件内容' }).fill(restartDraft);
+  assert.equal(await readFile(readmePath, 'utf8'), editedReadme,
+    'Unsaved editor changes must stay out of the workspace file');
+  const modelRequestsBeforeEditorRestart = model.requests.length;
   await reopenedPage.getByText('新建任务', { exact: true }).first().click();
   await reopenedPage.locator('[data-testid^="v4-session-pane"]').filter({ visible: true }).first()
     .and(reopenedPage.locator('[data-session-id="draft"]')).waitFor();
@@ -400,6 +440,7 @@ try {
   if (!packagedExecutable) await writeFile(pickedImagePath, image);
   const requestsBeforeRootRestart = model.requests.length;
   report.secondCleanup = await closeOwned(app, f);
+  report.fileEditor.restartCleanup = report.secondCleanup;
   assertCleanExit(report.secondCleanup, logs, 'Second');
   app = await f.playwright._electron.launch({ executablePath: f.electronPath,
     args: launchArgs, cwd: f.root, env: f.env, timeout: 60_000 });
@@ -419,6 +460,22 @@ try {
   }
   assert.equal(model.requests.length, requestsBeforeRootRestart, 'Restored root draft must not auto-send');
   report.rootUnsentImageRestored = await verifyRestoredRootUnsentPiImage(rootReopenedPage, model, f.output);
+  await rootReopenedPage.locator('[data-testid^="task-item-"]')
+    .filter({ hasText: 'PI_TEXT: give me a short response' }).first().click();
+  const restoredDraftTurn = rootReopenedPage.locator('section[data-turn-id]')
+    .filter({ hasText: 'PI_READ: read the workspace README.md' }).first();
+  const restoredDraftCard = restoredDraftTurn.locator('[data-testid^="chat-tool-call-block"]').filter({ visible: true }).first();
+  if (!await restoredDraftCard.isVisible()) {
+    await restoredDraftTurn.locator('[data-testid^="chat-assistant-history-trigger"]').first().click();
+  }
+  await restoredDraftCard.getByRole('button', { name: 'README.md', exact: true }).click();
+  const restoredDraftPane = rootReopenedPage.getByTestId('preview-pane').filter({ visible: true }).first();
+  await restoredDraftPane.getByRole('button', { name: '编辑文件' }).click();
+  assert.equal(await restoredDraftPane.getByRole('textbox', { name: '文件内容' }).inputValue(), restartDraft);
+  assert.equal(await readFile(readmePath, 'utf8'), editedReadme);
+  assert.equal(model.requests.length, modelRequestsBeforeEditorRestart);
+  report.fileEditor.draftRecoveredAfterRestart = true;
+  await rootReopenedPage.screenshot({ path: join(f.output, 'pi-native-file-draft-after-restart.png') });
   await verifyPiPackageCleanup(f);
   report.piPrivatePackageCleanupVerified = true;
   const boundaries = (await readFile(f.env.NATIVE_SMOKE_BOUNDARY_LOG, 'utf8'))
