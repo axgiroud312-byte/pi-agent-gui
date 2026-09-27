@@ -380,6 +380,12 @@ try {
     'Recovered Pi queue text must return to the original composer');
   await page.locator('[data-composer-attachment-kind="image"][data-upload-status="ready"]')
     .filter({ visible: true }).first().waitFor();
+  await editRecovery(page).locator(`[data-queue-recovery-id="${withdrawnId}"]`)
+    .getByRole('button', { name: '删除备份' }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: '删除备份' }).click();
+  assert((await editRecoveryEntries(page)).some(entry => entry.queueItemId === withdrawnId),
+    'A restored composer image cannot lose its only durable backup before send');
+  await page.getByText('为防止重启后丢图', { exact: false }).first().waitFor();
   const requestsBeforeRecoveredSend = model.requests.length;
   await sendButton(page).click();
   await until(() => model.requests.slice(requestsBeforeRecoveredSend).some(request =>
@@ -387,7 +393,8 @@ try {
   'The fixed Pi model request must receive the exact restarted image bytes');
   await until(async () => (await editRecoveryEntries(page)).every(entry => entry.queueItemId !== withdrawnId),
     'An exact accepted Pi send must retire the private recovery copy');
-  report.stages.withdrawnAfterRestart = { restored: true, exactImageSent: true, backupRetired: true };
+  report.stages.withdrawnAfterRestart = { restored: true, prematureDiscardBlocked: true,
+    exactImageSent: true, backupRetired: true };
   await page.screenshot({ path: join(f.output, 'pi-queue-withdrawal-recovered-and-sent.png') });
 
   await verifyPiPackageCleanup(f);

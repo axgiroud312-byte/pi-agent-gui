@@ -27,14 +27,15 @@ export const PiQueueEditRecoveryBanner = memo(function PiQueueEditRecoveryBanner
       return <div key={entry.queueItemId} data-queue-recovery-id={entry.queueItemId}
         className="flex flex-wrap items-center gap-2">
         <p className="min-w-0 flex-1 break-words">
-          {stillQueued ? intl.formatMessage({ id: "chat.queue.recoveryStillQueued" })
+          {entry.state === "preparing" ? intl.formatMessage({ id: "chat.queue.recoveryIncomplete" })
+            : stillQueued ? intl.formatMessage({ id: "chat.queue.recoveryStillQueued" })
             : entry.state === "restored" ? intl.formatMessage({ id: "chat.queue.recoveryAlreadyRestored" })
             : entry.state === "withdrawn" ? intl.formatMessage({ id: "chat.queue.recoveryWithdrawn" })
             : intl.formatMessage({ id: "chat.queue.recoveryAvailable" })}
           {` ${entry.text.slice(0, 100)}`}
           {entry.attachments.length ? ` · ${entry.attachments.length} ${intl.formatMessage({ id: "chat.queue.recoveryImages" })}` : ""}
         </p>
-        {!stillQueued && <button type="button" data-testid="pi-queue-recovery-restore"
+        {!stillQueued && entry.state !== "preparing" && <button type="button" data-testid="pi-queue-recovery-restore"
           className="shrink-0 rounded-md bg-primary px-2.5 py-1 text-primary-foreground hover:bg-primary/80 disabled:opacity-50"
           disabled={busyQueueItemId !== null} onClick={() => onRestore(entry)}>
           {intl.formatMessage({ id: "chat.queue.recoveryRestore" })}

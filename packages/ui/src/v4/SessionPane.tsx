@@ -134,7 +134,8 @@ import { PiResourcesDialog } from "@/v4/PiResourcesDialog.js";
 import { PiShellDialog } from "@/v4/PiShellDialog.js";
 import { ConversationQueuePanel } from "@/v4/ConversationQueuePanel.js";
 import { PiQueueEditRecoveryBanner } from "@/v4/PiQueueEditRecoveryBanner.js";
-import { decidePiQueueEditRestore, discardPiQueueEditRecovery, preparePiQueueEditRecovery,
+import { canDiscardPiQueueEditRecovery, decidePiQueueEditRestore,
+  discardPiQueueEditRecovery, preparePiQueueEditRecovery,
   markPiQueueEditRecoveryState, readPiQueueEditRecoveries, restorePiQueueEditRecoveryRefs,
   settlePiQueueEditDelete, shouldDiscardPiQueueRecoveryAfterSend,
   type PiQueueEditRecovery } from "@/v4/piQueueEditRecovery.js";
@@ -3375,8 +3376,16 @@ export function SessionPane({
 
   const handleDiscardQueueRecovery = useCallback((entry: PiQueueEditRecovery) => {
     if (!sessionId || entry.sessionId !== sessionId) return;
+    if (queueEditOperationRef.current ||
+      !canDiscardPiQueueEditRecovery(composerDraftStateRef.current)) {
+      toast(intl.formatMessage({ id: "chat.queue.recoveryDiscardDraftConflict" }));
+      return;
+    }
     void discardPiQueueEditRecovery({ storage: window.localStorage, workspaceKey, sessionId,
       queueItemId: entry.queueItemId }).then(() => {
+      if (activeQueueRecoveryRef.current?.queueItemId === entry.queueItemId) {
+        activeQueueRecoveryRef.current = null;
+      }
       setQueueRecoveryVersion(value => value + 1);
     }).catch(error => {
       logger.warn("[v4-pane] Pi queued edit recovery discard failed", error);
@@ -3416,10 +3425,8 @@ export function SessionPane({
         setQueueRecoveryVersion(value => value + 1);
         if (decidePiQueueEditRestore("accepted", recovery, composerBindingRef.current,
           composerDraftStateRef.current.hasContent || composerDraftStateRef.current.busy) !== "restore") {
-          // The queue still owns the item; a switch during the copy never triggers deletion.
-          await discardPiQueueEditRecovery({ storage: window.localStorage,
-            workspaceKey, sessionId, queueItemId });
-          setQueueRecoveryVersion(value => value + 1);
+          // Another window may remove the Pi item during this copy. Keep the
+          // durable image even though this pane never sent a delete command.
           toast(intl.formatMessage({ id: "chat.queue.recoveryConflict" }));
           clearQueueEditOperation();
           return;
@@ -3431,13 +3438,13 @@ export function SessionPane({
           restoreTarget.baseRevision,
         );
         if (!shouldRestoreQueuedComposerFromAck(ack.status)) {
-          // An explicit non-accepting Pi ACK has not deleted this item. Retire
-          // the prepared copy so a later retry can take a fresh Pi snapshot.
+          // Stale/noop/rejected may mean another window already removed this
+          // item. Pi's new snapshot, not this ACK, decides what is still queued.
           await settlePiQueueEditDelete({ storage: window.localStorage, workspaceKey,
             sessionId, queueItemId, status: ack.status });
           setQueueRecoveryVersion(value => value + 1);
           logger.warn(`[v4-pane] queue 撤回编辑被拒绝: ${ack.status} ${ack.reasonCode ?? ""}`);
-          toast(intl.formatMessage({ id: "chat.queue.editRestoreFailed" }));
+          toast(intl.formatMessage({ id: "chat.queue.recoveryRetainedAfterReject" }));
           clearQueueEditOperation();
           return;
         }

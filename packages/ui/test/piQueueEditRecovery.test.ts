@@ -6,7 +6,7 @@ import { decidePiQueueEditRestore, preparePiQueueEditRecovery,
   discardPiQueueEditRecovery, forgetPiQueueEditRecoveriesForSession,
   retryPendingPiQueueRecoveryPurges, settlePiQueueEditDelete,
   shouldDiscardPiQueueRecoveryAfterSend, markPiSessionRecoveryDeletionIntent,
-  retryPendingPiQueueRecoveryDeletions } from "../src/v4/piQueueEditRecovery.js";
+  retryPendingPiQueueRecoveryDeletions, canDiscardPiQueueEditRecovery } from "../src/v4/piQueueEditRecovery.js";
 
 class MemoryStorage implements Storage {
   private readonly values = new Map<string, string>();
@@ -64,7 +64,39 @@ test("a failed durable image write prevents queue deletion admission", async () 
   };
   await assert.rejects(edit(), /IndexedDB unavailable/);
   assert.equal(deletes, 0);
+  assert.equal(readPiQueueEditRecoveries(storage, "workspace-a", "session-a")[0]?.state,
+    "preparing", "an interrupted copy remains indexed for later cleanup");
+});
+
+test("a partial multi-image copy remains indexed and is reclaimed with its Pi session", async () => {
+  const storage = new MemoryStorage();
+  const saved: string[] = [];
+  const forgotten: string[] = [];
+  await assert.rejects(preparePiQueueEditRecovery({ storage, workspaceKey: "workspace-a",
+    sessionId: "session-a", target: { queueItemId: "partial", inputKind: "sendText",
+      text: "unsent", attachments: [1, 2].map(index => ({ ref: `ref-${index}`,
+        fileName: `${index}.png`, mime: "image/png", bytes: 1 })) },
+    readImage: async () => ({ bytes: Uint8Array.from([1]), mediaType: "image/png" }),
+    saveImage: async (scope) => {
+      if (saved.length) throw new Error("second image write failed");
+      saved.push(scope);
+    },
+  }), /second image write failed/);
+  const pending = readPiQueueEditRecoveries(storage, "workspace-a", "session-a")[0]!;
+  assert.equal(pending.state, "preparing");
+  assert.deepEqual(pending.attachments, []);
+  await assert.rejects(restorePiQueueEditRecoveryRefs({ entry: pending, workspaceKey: "workspace-a",
+    upload: async () => ({ ref: "unexpected" }) }), /incomplete|preparing/);
+  await forgetPiQueueEditRecoveriesForSession({ storage, workspaceKey: "workspace-a",
+    sessionId: "session-a", forgetImages: async scope => { forgotten.push(scope); } });
+  assert.deepEqual(forgotten, saved);
   assert.deepEqual(readPiQueueEditRecoveries(storage, "workspace-a", "session-a"), []);
+});
+
+test("a composer draft or pending restore blocks manual deletion of its only image backup", () => {
+  assert.equal(canDiscardPiQueueEditRecovery({ hasContent: true, busy: false }), false);
+  assert.equal(canDiscardPiQueueEditRecovery({ hasContent: false, busy: true }), false);
+  assert.equal(canDiscardPiQueueEditRecovery({ hasContent: false, busy: false }), true);
 });
 
 test("late ACK never overwrites another session or a newly entered draft", () => {
@@ -189,7 +221,7 @@ test("confirmed Pi session deletion purges only its copies and retries failed pr
   assert.equal(readPiQueueEditRecoveries(storage, "workspace-a", "session-b").length, 1);
 });
 
-test("explicit delete rejection retires prepared copy and allows safe retry; uncertain ACK retains it", async () => {
+test("stale, noop and rejected Pi delete ACKs keep the only copy after another window removes the item", async () => {
   const storage = new MemoryStorage();
   const target = { queueItemId: "first", inputKind: "sendText" as const, text: "original",
     attachments: [] };
@@ -199,10 +231,13 @@ test("explicit delete rejection retires prepared copy and allows safe retry; unc
   assert.equal(readPiQueueEditRecoveries(storage, "workspace-a", "session-a")[0]?.state, "prepared");
   // A missing/failed ACK intentionally does not settle the backup.
   assert.equal(readPiQueueEditRecoveries(storage, "workspace-a", "session-a").length, 1);
-  await settlePiQueueEditDelete({ storage, workspaceKey: "workspace-a", sessionId: "session-a",
-    queueItemId: "first", status: "rejected", forgetImages: async () => {} });
-  assert.deepEqual(readPiQueueEditRecoveries(storage, "workspace-a", "session-a"), []);
-  await prepare();
+  for (const status of ["stale", "noop", "rejected"]) {
+    await settlePiQueueEditDelete({ storage, workspaceKey: "workspace-a", sessionId: "session-a",
+      queueItemId: "first", status, forgetImages: async () => {} });
+    assert.equal(readPiQueueEditRecoveries(storage, "workspace-a", "session-a")[0]?.state, "prepared",
+      `${status} does not prove that Pi still owns the item after a second window acts`);
+  }
+  await assert.rejects(prepare(), /already exists/, "a second copy must not replace the original bytes");
   await settlePiQueueEditDelete({ storage, workspaceKey: "workspace-a", sessionId: "session-a",
     queueItemId: "first", status: "accepted", forgetImages: async () => {} });
   assert.equal(readPiQueueEditRecoveries(storage, "workspace-a", "session-a")[0]?.state, "withdrawn");

@@ -25,8 +25,8 @@ export interface PiQueueEditRecovery {
   attachments: Array<AttachmentRef & { draftId: string; sha256: string }>;
   config?: ComposerRestoreRequest["config"];
   savedAt: number;
-  /** Prepared may mean an ACK was lost; only Pi confirms removal. */
-  state: "prepared" | "withdrawn" | "restored";
+  /** Preparing indexes a partial IDB copy before any byte is written. */
+  state: "preparing" | "prepared" | "withdrawn" | "restored";
 }
 
 function sessionStoragePrefix(workspaceKey: string, sessionId: string): string {
@@ -82,7 +82,8 @@ export function readPiQueueEditRecoveries(storage: Storage, workspaceKey: string
       item.sessionId !== sessionId || item.workspaceKey !== workspaceKey ||
       (item.inputKind !== "sendText" && item.inputKind !== "sendGoalCommand") ||
       typeof item.text !== "string" || !Number.isSafeInteger(item.savedAt) ||
-      (item.state !== "prepared" && item.state !== "withdrawn" && item.state !== "restored") ||
+      (item.state !== "preparing" && item.state !== "prepared" &&
+        item.state !== "withdrawn" && item.state !== "restored") ||
       !Array.isArray(item.attachments) || item.attachments.length > 8 ||
       !item.attachments.every(attachment => isRecord(attachment) &&
         typeof attachment.ref === "string" && typeof attachment.fileName === "string" &&
@@ -99,7 +100,7 @@ export function readPiQueueEditRecoveries(storage: Storage, workspaceKey: string
   return values.sort((left, right) => left.savedAt - right.savedAt);
 }
 
-/** Save every image in profile IDB, then atomically publish its text and image IDs. */
+/** Index the scope first so even a partial IDB copy can be reclaimed after a crash. */
 export async function preparePiQueueEditRecovery(input: {
   storage: Storage;
   workspaceKey: string;
@@ -115,12 +116,21 @@ export async function preparePiQueueEditRecovery(input: {
     throw new Error("A durable recovery copy already exists for this Pi queue item");
   }
   if (target.attachments.length > 8) throw new Error("Pi queue edit exceeds the image draft limit");
-  const scope = piQueueEditRecoveryScope(workspaceKey, sessionId, target.queueItemId);
-  const attachments: PiQueueEditRecovery["attachments"] = [];
-  for (const [index, attachment] of target.attachments.entries()) {
+  for (const attachment of target.attachments) {
     if (!IMAGE_TYPES.has(attachment.mime) || attachment.bytes <= 0 || attachment.bytes > MAX_IMAGE_BYTES) {
       throw new Error("Pi queued attachment cannot be saved losslessly as an image draft");
     }
+  }
+  const scope = piQueueEditRecoveryScope(workspaceKey, sessionId, target.queueItemId);
+  const key = storageKey(workspaceKey, sessionId, target.queueItemId);
+  const preparing: PiQueueEditRecovery = { queueItemId: target.queueItemId, sessionId, workspaceKey,
+    inputKind: target.inputKind, text: target.text, attachments: [],
+    ...(target.config ? { config: target.config } : {}), savedAt: Date.now(), state: "preparing" };
+  // A failed index write prevents all IDB writes and leaves Pi's item untouched.
+  // This marker also prevents another window from preparing the same item.
+  storage.setItem(key, JSON.stringify(preparing));
+  const attachments: PiQueueEditRecovery["attachments"] = [];
+  for (const [index, attachment] of target.attachments.entries()) {
     const read = await input.readImage(attachment, index);
     if (read.mediaType !== attachment.mime || read.bytes.byteLength !== attachment.bytes) {
       throw new Error("Pi queued image changed during durable recovery preparation");
@@ -132,13 +142,16 @@ export async function preparePiQueueEditRecovery(input: {
       id, fileName: image.name, mimeType: image.type, file: image })))(scope, draftId, file);
     attachments.push({ ...attachment, draftId, sha256 });
   }
-  const entry: PiQueueEditRecovery = { queueItemId: target.queueItemId, sessionId, workspaceKey,
-    inputKind: target.inputKind, text: target.text, attachments,
-    ...(target.config ? { config: target.config } : {}), savedAt: Date.now(), state: "prepared" };
-  // A failed localStorage write leaves Pi untouched. Unindexed IDB bytes are inert.
-  // One key per Pi item prevents two renderer windows from overwriting distinct copies.
-  storage.setItem(storageKey(workspaceKey, sessionId, target.queueItemId), JSON.stringify(entry));
+  const entry: PiQueueEditRecovery = { ...preparing, attachments, state: "prepared" };
+  // A failed final index write leaves the indexed partial copy available for cleanup;
+  // the caller never sends Pi's delete RPC until this prepared entry is returned.
+  storage.setItem(key, JSON.stringify(entry));
   return entry;
+}
+
+/** A composer-only image reference needs its durable queue backup until the draft is gone. */
+export function canDiscardPiQueueEditRecovery(draft: { hasContent: boolean; busy: boolean }): boolean {
+  return !draft.hasContent && !draft.busy;
 }
 
 export function decidePiQueueEditRestore(status: string,
@@ -159,6 +172,7 @@ export async function restorePiQueueEditRecoveryRefs(input: {
   upload: (input: { sessionId: string; file: File }) => Promise<{ ref: string }>;
 }): Promise<AttachmentRef[]> {
   const { entry } = input;
+  if (entry.state === "preparing") throw new Error("Pi queued image backup is incomplete; cannot restore");
   const scope = piQueueEditRecoveryScope(input.workspaceKey, entry.sessionId, entry.queueItemId);
   const saved = await (input.readFiles ?? readComposerImageDrafts)(scope);
   const files = entry.attachments.map(attachment => {
@@ -219,19 +233,18 @@ export function markPiQueueEditRecoveryState(input: Omit<PurgeInput, "forgetImag
   const current = readPiQueueEditRecoveries(input.storage, input.workspaceKey, input.sessionId);
   const entry = current.find(item => item.queueItemId === input.queueItemId);
   if (!entry) throw new Error("Pi queue edit recovery copy is missing");
+  if (entry.state === "preparing") throw new Error("Pi queue edit recovery copy is incomplete");
   const next = { ...entry, state: input.state };
   input.storage.setItem(storageKey(input.workspaceKey, input.sessionId, input.queueItemId),
     JSON.stringify(next));
   return next;
 }
 
-/** An explicit non-accepting Pi ACK leaves the item under Pi ownership. */
+/** A non-accepting ACK cannot prove another window has not removed the Pi item. */
 export async function settlePiQueueEditDelete(input: PurgeInput & { status: string }): Promise<void> {
   if (input.status === "accepted" || input.status === "duplicate") {
     markPiQueueEditRecoveryState({ ...input, state: "withdrawn" });
-    return;
   }
-  await discardPiQueueEditRecovery(input);
 }
 
 export function shouldDiscardPiQueueRecoveryAfterSend(
