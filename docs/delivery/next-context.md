@@ -10,6 +10,15 @@
 - 不得因用户暂缓验收而伪造 #34 或后续 Issue 的人工通过、关闭 Issue、合并 Draft PR 或正式发布。
 - 缺少在线账号、OAuth 人工回调、真实 llama.cpp/GGUF 或安装权限时，明确记录待最终验收项，但继续所有不依赖这些条件的开发。
 
+## 2026-09-28 05:38 继续开发断点（下方 05:00 等为历史快照）
+
+- 主目录分支 `issue-34-native-pi-rpc`，实际 HEAD `1af76e7` 已普通推送；PR #39 Draft、需人工验收的 Issue OPEN。主树无已知跟踪文件改动；未跟踪 `%SystemDrive%/`、`用`、锁住的 `packages/desktop/dist-pi-incremental/`、`stash@{0}` 和用户旧 `packages/desktop/dist/win-unpacked` 仍须保护。接手先以实时 Git 状态为准。
+- #3/#9 P14 `4d2b80b` 主树固定 Pi/纯合同 4/4、typecheck、源码 build、原生 GUI `D:/Temp/pi-context-inspector-main-4d2b80b-20260928/pi-context-gui-report.json` PASS；原始历史、当前有效消息、context edits、压缩前空摘要明确区分，页面错误/强杀/残留为零。`get_messages` 是 Pi 当前会话投影，不等于逐次 provider 请求快照。Issue #3/#9 已作技术评论并普通推送。
+- #13 P24 `2d01dc7` 与可靠书签 `1af76e7`、#12 P29 `72eae71` 已主树合入、普通推送。固定 Pi 补丁 `pnpm install --offline --frozen-lockfile --ignore-scripts` 重装验证，实包 0.87.0 的 `rpc-mode.js` 含 Pi 权威 `disposition/effectiveTextHash`。主树定向 Pi 11/11 加 admission/输入 20/20、typecheck、完整源码 build PASS。#13 GUI `D:/Temp/pi-input-transform-main-72eae71-20260928/pi-extension-input-transform-gui-report.json`：handled 无模型且继续可发、两会话不同 PNG 原字节与变换文字分别入 Pi JSONL/模型、reload 生效；#12 GUI `D:/Temp/pi-npm-package-update-main-72eae71-20260928/pi-npm-package-update-gui-report.json`：本机 npm registry 1.0.0→1.1.0、实际模板推理、重复更新无重载、卸载。均 `pageErrors=[]`、正常退出、无强杀/残留。#12/#13 技术评论已更新。Git ref 更新未跑：固定 Pi 更新自管 clone 会用用户禁用的 `reset --hard`/`clean`；本机 registry 不冒充公共 npm/在线账号。
+- #7 动态扩展 provider 安全只读目录已在隔离提交 `11bf361` + `d8e1885`：同一 Pi RPC 子进程公开 ModelRegistry 元数据，不重复执行扩展 factory；登录动作强制重查，忙/不可用/截断拒绝；固定 Pi 14/14、typecheck/lint/build 通过。隔离 GUI 的认证/动态目录均通过，但最新完整脚本后段 `/pi-ui-sequence` 在 Pi control inspect 中存在、Lexical slash 菜单却显示无匹配并禁用发送，**完整 GUI 仍红**，代理定位中；不可报 #7 全绿。固定 Pi 0.87.0 无扩展动态 provider GUI 登录/登出公开接口，Pi CLI `/login` 为明确边界。
+- #13 代理在隔离树继续 P23 同名 `read` 工具覆盖固定 Pi/GUI 代表样例；真实 Pi 红绿已证明覆盖工具实际执行且内建 read 未读取哨兵，待提交/GUI。#27 安装器只读预审发现 electron-builder 同名进程 `taskkill /IM` 回退可能结束旧用户 unpacked；隔离代理正在用红绿 makensis 合同补精确构建期拒绝/路径边界，绝不运行正式安装器或触碰旧目录。诊断 3.14.0 安装基线仍在 `D:/Temp/pi-agent-gui-installer-20260928-a/diagnostic-install-3`，升级前重查无 junction/同名进程；最终源码包、包内 GUI、升级与卸载尚未做。
+- 下一步：审查并 cherry-pick #7 两提交及其 GUI 诊断修复、#13 P23、#27 安装器安全补丁；主树固定 Pi 全顺序、typecheck、lint、delivery local/7 tests/`--github` 与相应原生 GUI；最终 Standards/Spec、coverage P01–P34/D01–D06/V01–V12 逐行审查；**新隔离输出目录**完整 Windows unpacked+NSIS、包内 GUI、预检后的诊断基线覆盖升级/卸载；更新 Issue/PR、推送后只请求一次 5–15 分钟统一用户验收。旧全套 223/228 已由聚焦修复和隔离 224/224 加主树删除 4/4 补足，最终主树整套仍须重跑。
+
 ## 2026-09-28 05:00 继续开发断点（下方 04:25 等均为历史快照）
 
 - 主目录 `issue-34-native-pi-rpc` 截至代码 HEAD `d625cba`，普通推送已到 `e83956d`；本文件及 `coverage.md` 正在更新，随后应聚焦提交并普通推送。主目录只应有这两份跟踪文档的本次改动和受保护未跟踪 `%SystemDrive%/`、`用`、锁住的 `packages/desktop/dist-pi-incremental/`；`stash@{0}` 与用户独立运行的旧 `packages/desktop/dist/win-unpacked` 绝不清理、覆盖或结束。PR #39 Draft、需人工验收的 Issue OPEN。
