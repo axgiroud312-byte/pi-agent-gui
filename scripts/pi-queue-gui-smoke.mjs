@@ -201,48 +201,91 @@ try {
 
   await setInteractionBehavior(page, '引导');
   await send(page, 'PI_IMAGE: steering queued input', image);
-  await queueCount(page, 2);
+  await queueCount(page, 3);
   await page.locator('[data-v4-pending-guide-list="true"]')
     .filter({ hasText: 'PI_IMAGE: steering queued input' }).waitFor();
   stored = await recovery(f, 3);
   const steer = stored.find(item => item.text === 'PI_IMAGE: steering queued input');
   assert(steer && steer.lane === 'steering', 'GUI guide mode must enter the real Pi steering lane');
   await assertMedia(steer, image);
+  assert.equal(await row(page, steer.id).getAttribute('data-queue-lane'), 'guide');
+  assert(await page.getByTestId(`v4-queue-item-edit-${steer.id}`).isVisible());
+  assert(await page.getByTestId(`v4-queue-item-send-now-${steer.id}`).isVisible());
   assert.deepEqual(stored.map(item => item.id), [steer.id, second.id, edited.id]);
-  report.stages.doubleLane = stored.map(item => ({ id: item.id, lane: item.lane }));
   await page.screenshot({ path: join(f.output, 'pi-queue-steering-follow-up.png') });
+
+  await page.getByTestId(`v4-queue-item-edit-${steer.id}`).click();
+  await until(async () => (await composer(page).innerText()).includes('PI_IMAGE: steering queued input'),
+    'The pinned Pi steering item must be taken back into the composer');
+  await page.locator('[data-composer-attachment-kind="image"][data-upload-status="ready"]')
+    .filter({ visible: true }).first().waitFor();
+  await queueCount(page, 2);
+  assert.deepEqual((await recovery(f, 2)).map(item => item.id), [second.id, edited.id]);
+  await composer(page).click();
+  await composer(page).press('ControlOrMeta+A');
+  await composer(page).press('Backspace');
+  await page.keyboard.type('PI_IMAGE: edited steering input');
+  await sendButton(page).click();
+  await queueCount(page, 3);
+  stored = await recovery(f, 3);
+  const editedSteer = stored.find(item => item.text === 'PI_IMAGE: edited steering input');
+  assert(editedSteer && editedSteer.lane === 'steering' && editedSteer.id !== steer.id);
+  await assertMedia(editedSteer, image);
+  report.stages.steeringEditRetainedImage = editedSteer.id;
+
+  await send(page, 'PI_IMAGE: second steering input', unsentImage);
+  await queueCount(page, 4);
+  stored = await recovery(f, 4);
+  const secondSteer = stored.find(item => item.text === 'PI_IMAGE: second steering input');
+  assert(secondSteer && secondSteer.lane === 'steering');
+  await assertMedia(secondSteer, unsentImage);
+  const earlierHandle = row(page, editedSteer.id).locator('[data-v4-queue-drag-handle]');
+  const laterHandle = row(page, secondSteer.id).locator('[data-v4-queue-drag-handle]');
+  const earlierBox = await earlierHandle.boundingBox(), laterBox = await laterHandle.boundingBox();
+  assert(earlierBox && laterBox, 'Both Pi steering drag handles must be visible');
+  await drag(page, laterHandle, 0, earlierBox.y - laterBox.y - 8);
+  stored = await until(async () => {
+    const value = await recovery(f, 4);
+    return value[0].id === secondSteer.id ? value : null;
+  }, 'Drag must reorder the authoritative Pi steering lane');
+  assert.deepEqual(stored.map(item => item.id), [secondSteer.id, editedSteer.id, second.id, edited.id]);
+  report.stages.doubleLane = stored.map(item => ({ id: item.id, lane: item.lane }));
+  await page.screenshot({ path: join(f.output, 'pi-queue-both-lanes-reordered.png') });
 
   await page.getByRole('button', { name: '停止生成', exact: true }).click();
   await page.getByRole('button', { name: '停止生成', exact: true }).waitFor({ state: 'hidden', timeout: 30_000 });
   await until(() => model.held === 0, 'Stop must close the real Pi provider stream');
-  await queueCount(page, 2);
+  await queueCount(page, 4);
   assert.equal(await queue(page).getAttribute('data-queue-auto-drain'), 'false');
   await page.getByTestId('v4-queue-paused-banner').waitFor();
-  report.stages.stopPreserved = (await recovery(f, 3)).map(item => item.id);
+  report.stages.stopPreserved = (await recovery(f, 4)).map(item => item.id);
   await page.screenshot({ path: join(f.output, 'pi-queue-stopped-preserved.png') });
 
   const requestsBeforePromotion = model.requests.length;
-  await page.getByTestId(`v4-queue-item-send-now-${second.id}`).click();
+  await page.getByTestId(`v4-queue-item-send-now-${secondSteer.id}`).click();
   await until(() => model.requests.length > requestsBeforePromotion,
     'Send now must dispatch the selected Pi item to the controlled provider');
-  await queueCount(page, 1);
+  await queueCount(page, 3);
   assert(model.requests.slice(requestsBeforePromotion).some(request =>
-    request.promptText.includes(duplicate) && request.imageDigests.includes(digest(unsentImage))),
+    request.promptText.includes('PI_IMAGE: second steering input') &&
+      request.imageDigests.includes(digest(unsentImage))),
   'Send now must deliver the selected text and exact image bytes through pinned Pi');
-  assert.deepEqual((await recovery(f, 2)).map(item => item.id), [steer.id, edited.id]);
-  report.stages.sendNow = second.id;
+  assert.deepEqual((await recovery(f, 3)).map(item => item.id), [editedSteer.id, second.id, edited.id]);
+  report.stages.sendNow = secondSteer.id;
   await page.screenshot({ path: join(f.output, 'pi-queue-send-now.png') });
 
   const requestsBeforeResume = model.requests.length;
   await page.getByTestId('v4-queue-resume').click();
   await queueCount(page, 0);
   await until(() => model.requests.slice(requestsBeforeResume).some(request =>
-    request.promptText.includes('PI_IMAGE: steering queued input') && request.imageDigests.includes(digest(image))) &&
+    request.promptText.includes('PI_IMAGE: edited steering input') && request.imageDigests.includes(digest(image))) &&
+    model.requests.slice(requestsBeforeResume).some(request =>
+      request.promptText.includes(duplicate) && request.imageDigests.includes(digest(unsentImage))) &&
     model.requests.slice(requestsBeforeResume).some(request =>
       request.promptText.includes('PI_IMAGE: edited queued input') && request.imageDigests.includes(digest(image))),
   'Resume must drain Pi steering and follow-up lanes with exact image bytes');
   await page.getByRole('button', { name: '停止生成', exact: true }).waitFor({ state: 'hidden', timeout: 30_000 });
-  report.stages.resumeDrained = [steer.id, edited.id];
+  report.stages.resumeDrained = [editedSteer.id, second.id, edited.id];
   await page.screenshot({ path: join(f.output, 'pi-queue-resumed.png') });
 
   await setInteractionBehavior(page, '队列');

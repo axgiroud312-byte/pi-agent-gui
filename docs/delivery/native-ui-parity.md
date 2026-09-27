@@ -60,8 +60,8 @@
 
 | ID | 原生入口/行为 | Pi 产品行为 | 必要性 / 状态 |
 | --- | --- | --- | --- |
-| PI04-S1 | 输入区运行时有草稿时，原控制簇显示“发送/加入队列”，Stop 按钮被替换 | 在同一原生控制簇并排显示 Stop 和发送，不用丢弃图片草稿才可停止 | Pi 0.87.0 队列 API 仅回传文本；拒绝图片入队后必须保持 Stop 可达。产品侧真实 GUI→Host→Pi 截图 `test-results/native-parity/product/pi-native-busy-image-refused.png`；固定原版同状态截图与用户感受尚未复核。关联 #3/#4。 |
-| PI04-S2 | 原生队列可单项编辑、删除、拖拽与继续 | Pi 队列按真实 `queue_update` 显示文本；缺少无损附件/逐项修改协议时不呈现虚假的按钮；Stop 后 `clear_queue` 返回文本只读提示、不暗中续发 | 固定 Pi 的 `queue_update`/`clear_queue` 仅返回文本。产品侧队列、停止后、重启后截图见同一 `test-results/native-parity/product/pi-native-{queued-text,stopped-queue}.png`；这些是限制说明，不是 #4 队列功能验收。 |
+| PI04-S1 | 输入区运行时有草稿时，原控制簇显示“发送/加入队列”，Stop 按钮被替换 | 在同一原生控制簇并排显示 Stop 和发送；图文入队由固定 Pi 0.87.0 的版本化队列兼容补丁处理，不以清空草稿换取 Stop | 旧截图 `test-results/native-parity/product/pi-native-busy-image-refused.png` 是补丁前的防丢失状态，不代表当前验收。新生产入口 GUI 脚本 `scripts/pi-queue-gui-smoke.mjs` 已写，仍待独占运行和原版同状态对照。关联 #3/#4。 |
+| PI04-S2 | 原生队列可单项编辑、删除、拖拽与继续 | 保留原生队列面板；Pi steering 和 followUp 的同一权威快照都在面板中提供编辑、删除、立即发送及各 lane 内重排。steering 仍在时间线显示待引导状态；面板行加“引导/队列”标识，跨 lane 拖拽不暗中改变发送语义。Stop 在 Pi 内暂停，重启后只保留图文恢复证据，不伪装为可执行队列 | `packages/ui/test/{pendingGuideProjection,queueReorder}.test.ts` 的红绿测试及固定 Pi 服务队列测试验证投影与队列协议；生产 GUI、原版同状态视觉和最终用户试用仍待验。旧只读队列截图是补丁前历史证据。 |
 
 ## #5 未发送图片草稿恢复差异（开发增量，未最终验收）
 

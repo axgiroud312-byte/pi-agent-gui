@@ -4057,6 +4057,8 @@ const zhCN: Record<string, string> = {
   "chat.promptEnhance.errorWithDetail": "提示词增强失败：{error}",
   "chat.queue.enqueue": "加入队列",
   "chat.queue.title": "待发送消息（{count}）",
+  "chat.queue.lane.steering": "引导",
+  "chat.queue.lane.followUp": "队列",
   "chat.queue.drag": "拖拽排序",
   "chat.queue.sendNow": "立即",
   // compact 队列项曾单独显示“立即执行”，与同一队列中的即时动作文案不一致。

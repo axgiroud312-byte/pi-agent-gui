@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { runUserAction, runUserActionAsync } from "@/lib/userActionTelemetry.js";
+import { resolveQueueReorderAnchor } from "@/v4/queueReorder.js";
 
 interface ConversationQueuePanelProps {
   queue: QueueState;
@@ -47,44 +48,6 @@ interface ConversationQueuePanelProps {
 }
 
 type QueueItem = QueueState["items"][number];
-
-interface V4QueueReorderAnchor {
-  beforeQueueItemId: string | null;
-  queueItemId: string;
-}
-
-function resolveV4QueueReorderAnchor(
-  items: readonly QueueItem[],
-  activeQueueItemId: string,
-  overQueueItemId: string,
-): V4QueueReorderAnchor | null {
-  if (activeQueueItemId === overQueueItemId) {
-    return null;
-  }
-
-  const fromIndex = items.findIndex((item) => item.queueItemId === activeQueueItemId);
-  const overIndex = items.findIndex((item) => item.queueItemId === overQueueItemId);
-  if (fromIndex < 0 || overIndex < 0) {
-    return null;
-  }
-
-  if (fromIndex < overIndex) {
-    const itemsAfterRemoval = items.filter((item) => item.queueItemId !== activeQueueItemId);
-    const overIndexAfterRemoval = itemsAfterRemoval.findIndex(
-      (item) => item.queueItemId === overQueueItemId,
-    );
-    const nextItem = itemsAfterRemoval[overIndexAfterRemoval + 1];
-    return {
-      beforeQueueItemId: nextItem?.queueItemId ?? null,
-      queueItemId: activeQueueItemId,
-    };
-  }
-
-  return {
-    beforeQueueItemId: overQueueItemId,
-    queueItemId: activeQueueItemId,
-  };
-}
 
 const restrictQueueDragToPanel: Modifier = ({
   transform,
@@ -173,6 +136,7 @@ const QueueRow = memo(function QueueRow({
       data-queue-item-id={item.queueItemId}
       data-index={index}
       data-kind={item.kind}
+      data-queue-lane={item.delivery.admitted}
       data-dispatch-state={item.dispatch.state}
       data-edit-pending={editPending ? "true" : "false"}
       className={cn(
@@ -206,6 +170,10 @@ const QueueRow = memo(function QueueRow({
         )}
         title={item.text}
       >
+        <span className="shrink-0 rounded-md bg-hover/50 px-1.5 py-0.5 text-ui-xs text-foreground-subtle">
+          {intl.formatMessage({ id: item.delivery.admitted === "guide"
+            ? "chat.queue.lane.steering" : "chat.queue.lane.followUp" })}
+        </span>
         <span className="truncate">{isCompact ? "/compact" : item.text}</span>
         {item.attachments.length > 0 ? <span className="inline-flex shrink-0 items-center gap-0.5 text-foreground-subtlest"
           title={item.attachments.map(attachment => attachment.fileName).join(", ")}>
@@ -300,7 +268,7 @@ function ConversationQueuePanelImpl({
     (event: DragEndEvent) => {
       const overId = event.over?.id;
       if (!overId) return;
-      const anchor = resolveV4QueueReorderAnchor(
+      const anchor = resolveQueueReorderAnchor(
         queue.items,
         String(event.active.id),
         String(overId),

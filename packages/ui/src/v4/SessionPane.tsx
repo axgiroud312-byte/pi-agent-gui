@@ -4540,7 +4540,7 @@ export function SessionPane({
       {sessionId && snapshot ? (
         <ConversationQueuePanel
           key="conversation-queue"
-          queue={pendingGuideProjection?.visibleQueue ?? snapshot.queue}
+          queue={pendingGuideProjection?.controlQueue ?? snapshot.queue}
           onDeleteItem={snapshot.availability.queueEdit.allowed ? handleDeleteQueueItem : undefined}
           onEditItem={snapshot.availability.queueEdit.allowed ? handleEditQueueItem : undefined}
           pendingEditQueueItemId={
