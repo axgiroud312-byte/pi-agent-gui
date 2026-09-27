@@ -43,10 +43,18 @@ const launch = async () => {
 };
 const dismissOnboarding = async page => {
   const candidates = [/^(使用 API key|Use API key)$/, /^(暂时跳过|Skip for now)$/,
-    /^(退出引导|Exit onboarding)$/, /^(跳过|Skip)$/];
+    /^(退出引导|Exit onboarding)$/];
   for (let attempt = 0; attempt < 60; attempt++) {
+    // On restart the underlying task list may already exist behind the full-
+    // screen onboarding page. Its count/visibility is not proof of access.
+    if (await page.getByTestId('onboarding-page').isVisible()) {
+      await page.getByTestId('onboarding-page').getByRole('button',
+        { name: /^(跳过|Skip)$/, exact: true }).click();
+      await page.waitForTimeout(1000);
+      continue;
+    }
     if (await page.getByRole('button', { name: '添加项目', exact: true }).isVisible() ||
-      await page.locator('[data-testid^="task-item-"]').count() > 0) return;
+      await page.locator('[data-testid^="task-item-"]:visible').count() > 0) return;
     for (const name of candidates) {
       const button = page.getByRole('button', { name, exact: true });
       if (await button.isVisible()) { await button.click(); break; }
