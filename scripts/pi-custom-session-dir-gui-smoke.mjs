@@ -131,7 +131,8 @@ try {
   const sessionId = await page.locator('[data-testid^="v4-session-pane"]').filter({ visible: true }).first()
     .getAttribute('data-session-id');
   assert.ok(sessionId && sessionId !== 'draft');
-  const guiFile = (await historyFiles()).find(file => file !== cold.file && file !== hot.file);
+  const guiFile = (await historyFiles()).find(file => file !== cold.file && file !== hot.file &&
+    SessionManager.open(file).getSessionId() === sessionId);
   assert.ok(guiFile, 'GUI-created Pi JSONL must be in project sessionDir');
   assert.equal(SessionManager.open(guiFile).getSessionId(), sessionId);
   const beforeRestart = await readFile(guiFile);
