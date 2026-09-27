@@ -54,6 +54,32 @@ test("Pi stream and final history produce native text/tool rows with cumulative 
   assert.equal(restored.find(row => row.kind === "toolCall")?.output?.text, "ok\n");
 });
 
+test("Pi read tool rows expose actual plain and rich results even for a same-name override", () => {
+  const image = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC";
+  const user = { role: "user", content: [{ type: "text", text: "call read" }], timestamp: 1 };
+  const assistant = { role: "assistant", content: [{ type: "toolCall", id: "override-read",
+    name: "read", arguments: { path: "sentinel.txt" } }], timestamp: 2 };
+  const plain = { role: "toolResult", toolCallId: "override-read", isError: false,
+    content: [{ type: "text", text: "EXTENSION_READ_OVERRIDE_MARKER" }], timestamp: 3 };
+  const plainRows = new PiMessageRows().restore([user, assistant, plain]);
+  const plainRead = plainRows.find(row => row.kind === "toolCall");
+  assert(plainRead && plainRead.kind === "toolCall");
+  assert.deepEqual(plainRead.piResult?.parts, [{ type: "text", text: "EXTENSION_READ_OVERRIDE_MARKER" }]);
+  const rich = { ...plain, isError: true,
+    content: [{ type: "text", text: "Pi extension read failed" },
+      { type: "image", mimeType: "image/png", data: image },
+      { type: "text", text: "keep details" }], details: { source: "extension" } };
+  const richRows = new PiMessageRows().restore([user, assistant, rich]);
+  const richRead = richRows.find(row => row.kind === "toolCall");
+  assert(richRead && richRead.kind === "toolCall");
+  assert.equal(richRead.status, "error");
+  assert.match(richRead.error?.message ?? "", /Pi extension read failed/u);
+  assert.deepEqual(richRead.piResult?.parts.map(part => part.type), ["text", "image", "text"]);
+  assert.deepEqual(richRead.piResult?.details, { source: "extension" });
+  assert.equal(new PiMessageRows().restore([user, assistant, rich]).find(row => row.kind === "toolCall")?.status,
+    "error", "cold restoration must retain Pi's error status");
+});
+
 test("a delayed Stop projection only interrupts its captured command, never a subsequent turn", () => {
   const projection = new PiMessageRows();
   const input = (commandId: string) => {

@@ -11,6 +11,10 @@
 - `PI_GUI_INPUT_TRANSFORM`：作为普通输入发送，可附一张 PNG。Pi 的 `input` 事件把文字变成 `PI_IMAGE transformed by Pi GUI compatibility extension`，图片沿同一次 Pi 输入进入模型与 JSONL。
 - `PI_GUI_INPUT_HANDLED`：作为普通输入发送。Pi 扩展显示 `PI_GUI_INPUT_HANDLED_BY_EXTENSION` 通知并返回 `handled`；不请求模型、不创建用户消息，输入区在 Pi 确认处理后可继续使用。
 
+`tool-override.ts` 是单独的同名工具代表样例，只有显式加载才覆盖 Pi 内建 `read`。
+它按 Pi 公开 `registerTool()` 注册 `read`，执行时返回 `EXTENSION_READ_OVERRIDE_MARKER`，
+用于证明模型调用进入扩展而没有读取目标文件；不要把它作为日常文件读取扩展启用。
+
 样例不会自行请求在线模型，也不创建第二个 Pi 会话。`registerMessageRenderer()` 仅影响 Pi 交互式 TUI 的呈现；GUI 必须按原始 custom message 内容显示，不能因缺少这个 renderer 丢弃消息。`ctx.hasUI` 在 RPC 下也是 `true`，因此扩展应以 `ctx.mode === "tui"` 守卫组件、直接终端输入及其它 TUI 专属调用。
 
 固定 Pi 合同测试：
@@ -19,7 +23,9 @@
 node node_modules/tsx/dist/cli.mjs --test packages/services/test/pi-extension-compat-sample.test.ts
 node node_modules/tsx/dist/cli.mjs --test packages/services/test/pi-extension-rich-tool.test.ts
 node node_modules/tsx/dist/cli.mjs --test packages/services/test/pi-extension-input-transform.test.ts
+node node_modules/tsx/dist/cli.mjs --test packages/services/test/pi-extension-tool-override.test.ts
 node scripts/pi-extension-input-transform-gui-smoke.mjs --output D:/Temp/pi-input-transform-gui-20260928-b
+node scripts/pi-extension-tool-override-gui-smoke.mjs --output D:/Temp/pi-read-override-gui-20260928-c
 ```
 
-这些测试在真实 Pi RPC 子进程内验证四类回答、取消、原始 custom message、status/widget 清理、复杂 TUI 的无 RPC 请求边界，以及工具图文/details 的 JSONL、冷恢复和图片读取。`pi-extension-message-service.test.ts` 另验证原生服务的 custom 图片引用和工作区隔离。原生 GUI 的受控模型结果见 `D:/Temp/pi-rich-tool-gui-20260928-c/pi-rich-tool-gui-report.json` 与 `D:/Temp/pi-input-transform-gui-20260928-b/pi-extension-input-transform-gui-report.json`；在线 provider、包内运行与人工验收仍未验证。GUI 当前可见类别及待实现项见 [`兼容表`](../../docs/delivery/pi-extension-ui-compatibility.md)。
+这些测试在真实 Pi RPC 子进程内验证四类回答、取消、原始 custom message、status/widget 清理、复杂 TUI 的无 RPC 请求边界，以及工具图文/details 的 JSONL、冷恢复和图片读取。`pi-extension-message-service.test.ts` 另验证原生服务的 custom 图片引用和工作区隔离。原生 GUI 的受控模型结果见 `D:/Temp/pi-rich-tool-gui-20260928-c/pi-rich-tool-gui-report.json`、`D:/Temp/pi-input-transform-gui-20260928-b/pi-extension-input-transform-gui-report.json` 与 `D:/Temp/pi-read-override-gui-20260928-c/pi-read-override-gui-report.json`；在线 provider、包内运行与人工验收仍未验证。GUI 当前可见类别及待实现项见 [`兼容表`](../../docs/delivery/pi-extension-ui-compatibility.md)。

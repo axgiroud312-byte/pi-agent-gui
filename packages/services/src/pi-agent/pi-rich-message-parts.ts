@@ -30,9 +30,11 @@ export function piRichMessageParts(message: Data, messageIndex: number, imageNam
     ...(message.details !== undefined ? { details: message.details } : {}) };
 }
 
-/** Plain text uses the existing native tool output; rich data needs ordered blocks. */
-export function piToolRichResult(message: Data, messageIndex: number): ToolCallRow["piResult"] {
+/** Native read cards hide output; keep their Pi text alongside every rich result. */
+export function piToolRichResult(message: Data, messageIndex: number,
+  includePlainText = false): ToolCallRow["piResult"] {
   const result = piRichMessageParts(message, messageIndex, "tool-image");
-  return result.attachments?.length || result.details !== undefined || result.parts.some(part => part.type === "unknown")
+  return (includePlainText && result.parts.length > 0) || result.attachments?.length || result.details !== undefined ||
+    result.parts.some(part => part.type === "unknown")
     ? result : undefined;
 }

@@ -73,6 +73,7 @@
 | PI10-S1 | 原生 Settings 的两栏导航、Pi 设置 JSON 编辑器与生效值详情 | 生效值按嵌套叶子路径分别显示“用户/项目”来源；Pi 0.87.0 只从用户设置读取的 `cacheWarming`、`defaultProjectTrust`、`httpProxy` 若出现在项目文件则提示未生效，原始 JSON 仍保留 | #10/P31/P32；固定版本源代码和纯合同测试已核对。此增量的生产入口 GUI、固定 Pi 子进程、成对截图和包内运行待顺序复验，不据此签署视觉或全字段验收。 |
 | PI08-S1 | 原生 v4 userInput 弹窗 | Pi 扩展的选择、确认、单行输入和多行编辑复用同一原生弹窗路径，按交互 ID 重建、显示正文/占位符/预填，Stop/取消由 Pi 请求与会话状态决定 | #8/#13/#25/P27；固定 Pi 0.87.0 的同 PID 顺序合同通过，原生 GUI、包内与键盘/焦点待验。其余 UI 类别逐项见 [兼容表](pi-extension-ui-compatibility.md) |
 | PI13-S1 | 原生会话底部信息区和既有会话树弹窗 | Pi RPC 的通知、状态、文本 widget、终端标题投影到同一 pane；扩展建议输入需显式应用，复用现有空草稿门禁。树弹窗增加真实 Pi 工具目录和启用状态的复选入口 | #13/P23/P26；固定 Pi 0.87.0 服务合同和隔离源码原生 GUI `D:/Temp/pi-extension-state-gui-20260927-d/pi-extension-state-gui-report.json` 通过，退出无进程残留。包内及原版成对截图未跑。组件 factory 等复杂 TUI 无 RPC 可序列化合同，边界见 [兼容表](pi-extension-ui-compatibility.md) |
+| PI13-S2 | 原生 Read 文件 chip 与工具组 | 固定 Pi 同名扩展 `read` 覆盖时，保留原生文件 chip；在同一工具行加默认折叠的 Pi 真实结果，展开后显示扩展文字、图片、details 与错误，不把普通内建读取正文自动铺满时间线。 | #13/P23；固定 Pi/服务/UI 合同与 `D:/Temp/pi-read-override-gui-20260928-c/pi-read-override-gui-report.json` 通过；原版同状态成对截图、其他同名工具和包内 GUI 待验。 |
 
 这些是 Pi 语义需要的内容替换或输入类别扩展，仍须按本页方法做同状态原版/产品截图与操作复核；不能仅凭单侧产品图签署最终 UI 一致性。
 

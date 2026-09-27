@@ -391,7 +391,7 @@ export class PiMessageRows {
           // Wait for Pi's completed message before exposing its image refs.
           // Live and cold rows then share the same JSONL-backed identity.
           if (this.activeMessageIndex !== messageIndex) {
-            const piResult = piToolRichResult(message, messageIndex);
+            const piResult = piToolRichResult(message, messageIndex, call.toolName === "read");
             if (piResult) call.piResult = piResult;
           }
         }

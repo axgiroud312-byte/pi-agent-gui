@@ -73,8 +73,11 @@ export async function startPiModel({ holdAfterRequests = Infinity, failFirstRequ
       });
       return;
     }
-    const ownReadResult = toolResults.some(result => text(result.content).includes(
-      scenario === 'PI_HELLO' ? 'Native parity file content' : 'NATIVE_PARITY_PREVIEW'));
+    const ownReadResult = toolResults.some(result => {
+      const content = text(result.content);
+      return content.includes('EXTENSION_READ_OVERRIDE_MARKER') || content.includes(
+        scenario === 'PI_HELLO' ? 'Native parity file content' : 'NATIVE_PARITY_PREVIEW');
+    });
     if ((scenario === 'PI_READ' || scenario === 'PI_HELLO') && !ownReadResult) {
       send({ tool_calls: [{ index: 0, id: 'pi-native-tool', type: 'function', function: {
         name: 'read', arguments: JSON.stringify({ path: scenario === 'PI_HELLO' ? 'hello.txt' : 'README.md' }),

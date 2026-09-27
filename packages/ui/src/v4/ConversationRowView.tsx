@@ -2023,12 +2023,25 @@ const ToolCallRowView = memo(function ToolCallRowView({
           workflowRun={workflowRun}
           workflowDraft={context.workflowDraftByToolCallId?.get(row.toolCallId)}
         />
-        {row.piResult ? <div data-pi-tool-result={row.toolName}
-          className="mt-2 max-w-xl space-y-2 rounded-lg border border-border bg-surface p-3 text-ui-sm">
-          <PiRichParts parts={row.piResult.parts} attachments={row.piResult.attachments}
-            details={row.piResult.details} detailsLabel="原始工具详情"
-            rowId={row.rowId} entityId={row.entityId} context={context} />
-        </div> : null}
+        {row.piResult ? row.toolName === "read"
+          // The native Read card is a file-preview chip with no output toggle.
+          // Keep its familiar shell, but reveal Pi's actual result on demand.
+          // Ordinary file reads must not fill the timeline with file contents.
+          ? <details data-pi-tool-result={row.toolName}
+            className="mt-2 max-w-xl rounded-lg border border-border bg-surface p-3 text-ui-sm">
+            <summary className="cursor-pointer select-none">Pi 工具结果</summary>
+            <div className="mt-2 max-h-72 space-y-2 overflow-auto">
+              <PiRichParts parts={row.piResult.parts} attachments={row.piResult.attachments}
+                details={row.piResult.details} detailsLabel="原始工具详情"
+                rowId={row.rowId} entityId={row.entityId} context={context} />
+            </div>
+          </details>
+          : <div data-pi-tool-result={row.toolName}
+            className="mt-2 max-w-xl space-y-2 rounded-lg border border-border bg-surface p-3 text-ui-sm">
+            <PiRichParts parts={row.piResult.parts} attachments={row.piResult.attachments}
+              details={row.piResult.details} detailsLabel="原始工具详情"
+              rowId={row.rowId} entityId={row.entityId} context={context} />
+          </div> : null}
       </div>
     </RowShell>
   );

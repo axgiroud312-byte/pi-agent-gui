@@ -41,6 +41,16 @@
 运行中控制仍受 Pi idle 与会话 generation 门禁约束。覆盖工具、输入变换、provider 和错误边界
 须按具体代表扩展继续验证，不能仅凭本切片声称 P23/P24 全部完成。
 
+P23 同名覆盖的独立样例在 `examples/pi-gui-compat/tool-override.ts`：仅显式加载时用
+Pi `registerTool({ name: "read" })` 覆盖内建 `read`。固定 Pi 合同确认模型工具目录与
+原生工具选择器只列一个 `read`，其描述来自扩展，实际工具回合和 Pi JSONL/原生行
+包含扩展 marker，目标文件的内建读取 marker 不出现。原生 Read 文件 chip 保留，
+真实 Pi 结果在同一行的“Pi 工具结果”中默认折叠，用户展开后可读文字、图片、details
+及错误；普通内建 read 不会自动铺满时间线。隔离 GUI 报告
+`D:/Temp/pi-read-override-gui-20260928-c/pi-read-override-gui-report.json` 验证目录、
+工具执行、展开、JSONL 与正常进程退出；在线 provider、包内 GUI 和其他同名工具仍待验。
+该样例只作验证，不作为默认扩展。
+
 服务不建立第二个 Agent loop 或请求队列。Pi 的 `extension_ui_request`、
 `extension_ui_response` 与会话运行状态仍是唯一事实来源；原生 dialog 只是单次回答入口。
 
