@@ -163,9 +163,10 @@ router 协议依据是固定 Pi 0.87.0 上游 MIT `src/extensions/llama/client.t
 
 | ID | 原生入口/行为 | Pi 产品行为 | 必要性 / 状态 |
 | --- | --- | --- | --- |
-| PI12-R1 | 原生会话 pane 的悬浮操作区和 Dialog/Button 操作路径 | 在现有会话树按钮旁增加“Pi 资源”按钮；同一原生 Dialog 显示 Pi 当前命令、Skill、上下文、system prompt 文件与包来源，提供文件编辑、启停、过滤、安装/卸载/更新和重载 | Pi 的资源有独立作用域与重载语义，需要可见入口。沿用 `SessionPane`/原生组件；固定 Pi 0.87.0 自动测试验证资源及安装结果。生产 GUI、原版同状态截图、双视口/明暗主题和键盘焦点仍待验，不能标为原生视觉通过。 |
+| PI12-R1 | 原生会话 pane 的悬浮操作区和 Dialog/Button 操作路径 | 在现有会话树按钮旁增加“Pi 资源”按钮；同一原生 Dialog 显示 Pi 当前命令、Skill、上下文、system prompt 文件与包来源，提供文件编辑、启停、过滤、安装/卸载/更新和重载。包行现在根据 Pi 0.87.0 实际更新语义显示固定 npm 版本、离线禁用或 Git 固定 ref 同步，避免把无操作的更新说成成功。 | Pi 的资源有独立作用域与重载语义，需要可见入口。沿用 `SessionPane`/原生组件；固定 Pi 0.87.0 自动测试 5/5，隔离生产源码 GUI `D:/Temp/pi-resources-update-gui-20260928-a/pi-resources-gui-report.json` 验证模板编辑/停启、本地包安装/过滤/卸载及新增禁用反馈，`pageErrors=[]`、`graceful=true`、`forced=[]`、`survivors=[]`。这不是原版同状态成对截图；双视口/明暗主题和键盘焦点仍待验。 |
 
 资源列表以当前 Pi 进程公开 `get_commands`、`getSystemPromptOptions` 和 Pi 包管理器解析为准。修改后调用同一 Pi 的 `ctx.reload()`，旧 session 历史上下文不会重写。复杂扩展 TUI 交互仍按 #8/#25 单独核对。
+固定 Pi 的 `DefaultPackageManager.update` 会跳过固定 npm 版本，并在 `PI_OFFLINE=1` 时直接返回；新的版本化 bridge 在执行前拒绝这两种无操作更新。固定 Git ref 的“同步”只重取已配置 ref，不自动升到新 ref；本轮按用户保护要求没有实际执行 Git update，因为上游在自管 clone 发生 ref 变化时会运行 `git reset --hard` 与 `git clean -fdx`。更换 ref 应明确安装新 source；真实 npm 在线更新、Git ref 变更、资源加载错误全类及 theme/provider 目录刷新还需独立验证。
 
 ## #25 Pi 扩展原始消息行（开发增量，视觉待验）
 

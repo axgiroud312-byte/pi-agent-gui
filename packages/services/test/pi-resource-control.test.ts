@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import { PiRpcClient } from "../src/pi-agent/pi-rpc-client.js";
 import { PiControlBridge } from "../src/pi-agent/pi-control-bridge.js";
-import { piControlIntent, piControlView } from "../src/pi-agent/pi-control-protocol.js";
+import { piControlIntent, piControlView, piPackageUpdateState } from "../src/pi-agent/pi-control-protocol.js";
 
 const fullPiControlView = (snapshot: Parameters<typeof piControlView>[0]) => piControlView(snapshot, true);
 
@@ -19,6 +19,16 @@ test("Pi resource control rejects credential URLs and invalid package filters be
     source: "npm:fixture", scope: "user", filters: [] }));
   assert.throws(() => piControlIntent({ operation: "package_filter",
     source: "npm:fixture", scope: "user", filters: { prompts: [42] } }));
+});
+
+test("Pi update availability distinguishes fixed npm versions, offline mode and Git refs", () => {
+  assert.equal(piPackageUpdateState("npm:@scope/resource@1.2.3", false), "pinned-npm");
+  assert.equal(piPackageUpdateState("npm:resource@1.2.3-rc.1+meta", false), "pinned-npm");
+  assert.equal(piPackageUpdateState("npm:@scope/resource@^1.2.3", false), "update");
+  assert.equal(piPackageUpdateState("npm:resource", true), "offline");
+  assert.equal(piPackageUpdateState("git:github.com/org/resource@v1", false), "git-ref");
+  assert.equal(piPackageUpdateState("git:github.com/org/resource@v1", true), "offline");
+  assert.equal(piPackageUpdateState("./resource", false), "local");
 });
 
 test("pinned Pi owns loaded resources and local package install/filter/remove across reloads", { timeout: 90_000 }, async () => {
@@ -260,5 +270,43 @@ test("pinned Pi installs and removes a pinned Git package from an isolated repos
       catch { daemon.kill(); }
     } else daemon?.kill();
     await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  }
+});
+
+test("offline Pi package update reports that nothing changed", { timeout: 45_000 }, async () => {
+  const root = await mkdtemp(join(tmpdir(), "pi-offline-package-update-"));
+  const workspace = join(root, "workspace");
+  const profile = join(root, "profile");
+  let client: PiRpcClient | undefined;
+  let bridge: PiControlBridge | undefined;
+  try {
+    await mkdir(workspace);
+    await mkdir(profile);
+    await writeFile(join(profile, "settings.json"), JSON.stringify({
+      defaultProjectTrust: "always", packages: ["npm:pi-resource-update-fixture",
+        "npm:pi-resource-fixed-fixture@1.2.3"],
+    }));
+    client = new PiRpcClient({ executable: process.execPath,
+      args: [fileURLToPath(import.meta.resolve("@earendil-works/pi-coding-agent/rpc-entry")), "--offline",
+        "--extension", fileURLToPath(new URL("../src/pi-agent/pi-control-bridge-extension.ts", import.meta.url))],
+      cwd: workspace, env: { PI_CODING_AGENT_DIR: profile, PI_TELEMETRY: "0", PI_OFFLINE: "1" } });
+    await client.start();
+    bridge = new PiControlBridge(client);
+    const before = fullPiControlView(await bridge.refresh());
+    assert(before.resources.packages.some(pkg => pkg.source === "npm:pi-resource-update-fixture"));
+    assert.equal(before.resources.packages.find(pkg => pkg.source ===
+      "npm:pi-resource-update-fixture")?.updateState, "offline");
+    assert.equal(before.resources.packages.find(pkg => pkg.source ===
+      "npm:pi-resource-fixed-fixture@1.2.3")?.updateState, "pinned-npm");
+    await assert.rejects(bridge.act({ operation: "package_update", source: "npm:pi-resource-update-fixture",
+      scope: "user", sessionId: before.info.sessionId, generation: before.info.generation }),
+    /offline|离线/i);
+    const after = fullPiControlView(await bridge.refresh());
+    assert.equal(after.info.generation, before.info.generation,
+      "a skipped update must not pretend to reload Pi resources");
+  } finally {
+    bridge?.dispose();
+    await client?.dispose();
+    await rm(root, { recursive: true, force: true });
   }
 });

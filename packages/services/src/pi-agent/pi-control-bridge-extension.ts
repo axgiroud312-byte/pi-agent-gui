@@ -7,6 +7,7 @@ import {
   PI_CONTROL_COMMAND, PI_CONTROL_DESCRIPTION, PI_CONTROL_LIFECYCLE_PREFIX,
   PI_CONTROL_OPERATIONS, PI_CONTROL_PREFIX,
   PI_CONTROL_PROTOCOL, PI_CONTROL_VERSION, piControlIntent, piControlObject,
+  piPackageUpdateFailure, piPackageUpdateState,
   type PiControlInfo, type PiControlIntent, type PiControlReply, type PiControlRequest,
   type PiAvailableResource, type PiResourcePackage,
 } from "./pi-control-protocol.js";
@@ -31,13 +32,13 @@ async function resourceSettingsFor(ctx: ExtensionCommandContext): Promise<{
 }> {
   const settings = SettingsManager.create(ctx.cwd, getAgentDir(), { projectTrusted: ctx.isProjectTrusted() });
   const manager = new DefaultPackageManager({ cwd: ctx.cwd, agentDir: getAgentDir(), settingsManager: settings });
-  const global = settings.getGlobalSettings().packages ?? [];
-  const project = settings.getProjectSettings().packages ?? [];
+  const global = settings.getGlobalSettings().packages ?? [], project = settings.getProjectSettings().packages ?? [];
   const diagnostics = settings.drainErrors().map(item => `${item.scope}: ${item.error.message}`);
   const packages = manager.listConfiguredPackages().map(pkg => {
     const list = pkg.scope === "project" ? project : global;
     const configuration = list.find(entry => (typeof entry === "string" ? entry : entry.source) === pkg.source);
-    return { ...pkg, configuration: configuration ?? pkg.source };
+    return { ...pkg, configuration: configuration ?? pkg.source,
+      updateState: piPackageUpdateState(pkg.source, piPackageOffline()) };
   });
   const availableResources: PiAvailableResource[] = [];
   try {
@@ -53,6 +54,8 @@ async function resourceSettingsFor(ctx: ExtensionCommandContext): Promise<{
   }
   return { packages, availableResources, diagnostics, skillCommandsEnabled: settings.getEnableSkillCommands() };
 }
+
+const piPackageOffline = () => /^(?:1|true|yes)$/i.test(process.env.PI_OFFLINE ?? "");
 
 async function toggleResource(ctx: ExtensionCommandContext,
   intent: Extract<PiControlIntent, { operation: "resource_toggle" }>): Promise<void> {
@@ -156,7 +159,11 @@ async function managePackage(ctx: ExtensionCommandContext,
       }
       break;
     }
-    case "package_update": await manager.update(intent.source); break;
+    case "package_update": {
+      const failure = piPackageUpdateFailure(intent.source, piPackageOffline());
+      if (failure) throw new ControlError(failure.code, failure.message);
+      await manager.update(intent.source); break;
+    }
     case "package_filter": {
       const entries = intent.scope === "project" ? settings.getProjectSettings().packages ?? [] :
         settings.getGlobalSettings().packages ?? [];

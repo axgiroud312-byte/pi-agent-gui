@@ -2,7 +2,7 @@ import type { ExtensionAPI, ExtensionCommandContext, PackageSource, SessionEntry
   SourceInfo } from "@earendil-works/pi-coding-agent";
 
 export const PI_CONTROL_PROTOCOL = 1;
-export const PI_CONTROL_VERSION = "1.3.0";
+export const PI_CONTROL_VERSION = "1.4.0";
 export const PI_CONTROL_COMMAND = "pi-ide-control-v1";
 export const PI_CONTROL_DESCRIPTION = "Pi Agent IDE public control bridge v1";
 export const PI_CONTROL_PREFIX = "pi-ide-control:";
@@ -15,8 +15,39 @@ export type PiControlOperation = typeof PI_CONTROL_OPERATIONS[number];
 
 export type PiPackageScope = "user" | "project";
 export type PiPackageFilters = Omit<Extract<PackageSource, object>, "source">;
+export type PiPackageUpdateState = "update" | "pinned-npm" | "offline" | "git-ref" | "local";
+/** Mirrors Pi 0.87.0 package update admission; Pi still owns the operation itself. */
+export function piPackageUpdateState(source: string, offline: boolean): PiPackageUpdateState {
+  if (source.startsWith("npm:")) {
+    const spec = source.slice(4);
+    const versionAt = spec.lastIndexOf("@");
+    // The initial @ in a scoped package is part of the name, not a version.
+    const version = versionAt > 0 ? spec.slice(versionAt + 1) : "";
+    if (/^v?(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[\da-z-]+(?:\.[\da-z-]+)*)?(?:\+[\da-z-]+(?:\.[\da-z-]+)*)?$/i.test(version)) {
+      return "pinned-npm";
+    }
+    return offline ? "offline" : "update";
+  }
+  if (/^(?:git:|https?:\/\/|ssh:\/\/)/i.test(source)) {
+    if (offline) return "offline";
+    const refAt = source.lastIndexOf("@");
+    return refAt > source.lastIndexOf("/") ? "git-ref" : "update";
+  }
+  return "local";
+}
+export function piPackageUpdateFailure(source: string, offline: boolean):
+  { code: string; message: string } | undefined {
+  switch (piPackageUpdateState(source, offline)) {
+    case "offline": return { code: "PACKAGE_OFFLINE", message: "Pi is offline; the package was not updated" };
+    case "pinned-npm": return { code: "PACKAGE_PINNED",
+      message: "Pi keeps this npm version fixed; install a new version explicitly" };
+    case "local": return { code: "PACKAGE_LOCAL",
+      message: "Local packages follow their files; reload Pi resources instead" };
+    default: return undefined;
+  }
+}
 export interface PiResourcePackage { source: string; scope: PiPackageScope; filtered: boolean;
-  installedPath?: string; configuration: PackageSource }
+  installedPath?: string; configuration: PackageSource; updateState: PiPackageUpdateState }
 export interface PiAvailableResource { kind: "extension" | "skill" | "prompt" | "theme";
   path: string; enabled: boolean; sourceInfo: SourceInfo }
 export interface PiResourceCatalog {

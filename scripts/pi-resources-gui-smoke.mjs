@@ -14,7 +14,8 @@ const model = await startPiModel();
 await configurePiProfile(f, { url: model.url, modelId: 'pi-native-test', apiKey: 'fixture-not-a-secret' });
 const profileSettings = join(f.sandbox, 'pi-profile', 'settings.json');
 await writeFile(profileSettings, JSON.stringify({ ...JSON.parse(await readFile(profileSettings, 'utf8')),
-  defaultProjectTrust: 'always' }));
+  defaultProjectTrust: 'always', packages: ['npm:pi-resource-update-fixture',
+    'npm:pi-resource-fixed-fixture@1.2.3'] }));
 const projectPrompts = join(f.workspace, '.pi', 'prompts');
 await mkdir(projectPrompts, { recursive: true });
 await writeFile(join(projectPrompts, 'gui-template.md'),
@@ -80,6 +81,14 @@ try {
   await command('gui-template').waitFor();
   const firstGeneration = await dialog.getAttribute('data-generation');
   assert(firstGeneration);
+  const unpinnedNpm = dialog.getByTestId('pi-resource-package-row')
+    .filter({ hasText: 'npm:pi-resource-update-fixture' });
+  const pinnedNpm = dialog.getByTestId('pi-resource-package-row')
+    .filter({ hasText: 'npm:pi-resource-fixed-fixture@1.2.3' });
+  await unpinnedNpm.getByRole('button', { name: '离线不可更新' }).waitFor();
+  assert(await unpinnedNpm.getByRole('button', { name: '离线不可更新' }).isDisabled());
+  await pinnedNpm.getByRole('button', { name: '固定版本' }).waitFor();
+  assert(await pinnedNpm.getByRole('button', { name: '固定版本' }).isDisabled());
   await command('gui-template').getByRole('button', { name: '编辑' }).click();
   const editor = dialog.getByTestId('pi-resource-editor');
   await editor.getByRole('textbox', { name: 'Pi 资源内容' }).fill(
@@ -110,7 +119,8 @@ try {
   assert.deepEqual(packageSettings.packages ?? [], []);
   await page.screenshot({ path: join(f.output, 'pi-resources-dialog.png') });
   report.resources = { generationChanged: firstGeneration !== secondGeneration,
-    templateEdited: true, templateDisabledAndEnabled: true, localPackageInstalledFilteredRemoved: true };
+    templateEdited: true, templateDisabledAndEnabled: true, localPackageInstalledFilteredRemoved: true,
+    offlineUpdateBlocked: true, pinnedNpmUpdateExplained: true };
   await verifyPiPackageCleanup(f);
   assert.deepEqual(report.pageErrors, []);
 } catch (error) {

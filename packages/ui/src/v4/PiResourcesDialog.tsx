@@ -18,6 +18,16 @@ function filtersText(configuration: ResourceView["resources"]["packages"][number
   return JSON.stringify(filters, null, 2);
 }
 
+function packageUpdateLabel(state: ResourceView["resources"]["packages"][number]["updateState"]): string {
+  switch (state) {
+    case "pinned-npm": return "固定版本";
+    case "offline": return "离线不可更新";
+    case "git-ref": return "同步固定 ref";
+    case "local": return "本地文件";
+    default: return "更新";
+  }
+}
+
 export function PiResourcesDialog({ sessionId, workspacePath, workspaceIdentity }: {
   sessionId: string;
   workspacePath: string;
@@ -206,8 +216,12 @@ export function PiResourcesDialog({ sessionId, workspacePath, workspaceIdentity 
                 <Button type="button" variant="outline" size="sm" disabled={busy}
                   onClick={() => { setFilterSource(`${pkg.scope}:${pkg.source}`); setFilterDraft(filtersText(pkg.configuration)); }}>过滤</Button>
                 <Button type="button" variant="outline" size="sm" disabled={busy ||
-                  !/^(?:npm:|git:|https?:\/\/|ssh:\/\/)/.test(pkg.source)}
-                  onClick={() => void act({ operation: "package_update", source: pkg.source, scope: pkg.scope })}>更新</Button>
+                  pkg.updateState === "pinned-npm" || pkg.updateState === "offline" || pkg.updateState === "local"}
+                  title={pkg.updateState === "pinned-npm" ? "Pi 固定 npm 版本不会自动更新；要升级请安装明确的新版本" :
+                    pkg.updateState === "offline" ? "Pi 当前为离线模式；包未更新" :
+                    pkg.updateState === "git-ref" ? "Pi 只同步已配置的 Git ref；更换 ref 请重新安装" : undefined}
+                  onClick={() => void act({ operation: "package_update", source: pkg.source, scope: pkg.scope })}>
+                  {packageUpdateLabel(pkg.updateState)}</Button>
                 <Button type="button" variant="outline" size="sm" disabled={busy}
                   onClick={() => void act({ operation: "package_remove", source: pkg.source, scope: pkg.scope })}>卸载</Button></div>
               {filterSource === `${pkg.scope}:${pkg.source}` ? <div className="space-y-2">
