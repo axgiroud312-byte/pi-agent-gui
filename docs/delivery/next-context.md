@@ -1,6 +1,6 @@
 # 当前入口：继续完成剩余 Pi-first 范围，统一后再请用户验收
 
-更新时间：2026-09-27。开始前读取 [产品目标](../product-goal.md)、[ADR 0001](../adr/0001-native-zcode-base.md)、[Pi-first 范围](pi-first-scope.md)、[完整开发计划](full-development.md)、[任务账本](tickets.json)、[复用清单](reuse-inventory.md) 和 [本次预览证据](pi-capability-preview-2026-09-27.md)，再核对 GitHub 最新 Issue/PR 与本地 Git 状态。
+更新时间：2026-09-28。开始前读取 [产品目标](../product-goal.md)、[ADR 0001](../adr/0001-native-zcode-base.md)、[Pi-first 范围](pi-first-scope.md)、[完整开发计划](full-development.md)、[任务账本](tickets.json)、[复用清单](reuse-inventory.md) 和 [本次预览证据](pi-capability-preview-2026-09-27.md)，再核对 GitHub 最新 Issue/PR 与本地 Git 状态。
 
 ## 用户最新决定
 
@@ -9,6 +9,19 @@
 - 开发期间仍必须执行代理可完成的本地自动测试、受控真实 Pi、桌面宿主、包内启动和回归验证；“暂缓用户测试”不等于暂缓工程验证。
 - 不得因用户暂缓验收而伪造 #34 或后续 Issue 的人工通过、关闭 Issue、合并 Draft PR 或正式发布。
 - 缺少在线账号、OAuth 人工回调、真实 llama.cpp/GGUF 或安装权限时，明确记录待最终验收项，但继续所有不依赖这些条件的开发。
+
+## 2026-09-28 00:05 继续开发断点（优先于下方历史快照）
+
+- 主目录 `issue-34-native-pi-rpc` HEAD `7fe92bb` 已普通推送到 origin，Draft PR #39 保持 OPEN/Draft，#34 及能力 Issue 均未代签验收。`b41a48c` 是 #4 手动压缩 Stop；`7fe92bb` 是 #26 内层长工具输出滚动修复。#4 原生 GUI `D:/Temp/pi-manual-compact-main-20260927/pi-manual-compact-gui-report.json`、#26 隔离最终源码 GUI `D:/Temp/pi-long-scroll-gui-20260927-e/pi-long-scroll-gui-report.json` 均 PASS，Pi 0.87.0、离线受控模型与进程清理分开记录。#26 cherry-pick 后主目录滚动定向测试 2/2 PASS；完整主分支 Pi 顺序、typecheck/lint/delivery 尚需在更多整合后重跑。
+- 主目录当前未提交：`scripts/native-smoke/pi-model.mjs` 增加可控首 N 次 503，仅供 #4 retry Stop GUI；未跟踪 `packages/services/test/pi-retry-stop-fixed.test.ts`、`scripts/pi-retry-stop-gui-smoke.mjs` 是待运行的真实 Pi/GUI 回归脚本。脚本语法及 diff --check 已通过，固定 Pi 与 GUI 因桌面时隙尚未运行。`docs/delivery/next-context.md` 是本次账本改动。主目录另外仅有受保护的 `%SystemDrive%/`、`用`、`packages/desktop/dist-pi-incremental/` 未跟踪，`stash@{0}` 未触碰；旧 `packages/desktop/dist/win-unpacked` 用户进程仍不可结束/覆盖。
+- #9 fork/clone 隔离树 `D:/Temp/pi-agent-gui-fork-clone-20260927`：固定 Pi 合同 1/1、build:bootstrap、typecheck、lint 已 PASS；原生 GUI 已证实真实 fork 与不改源 JSONL，随后发现切子会话时 Pi 返回的原输入被草稿恢复覆盖，代理已写红测并修复中。当前桌面时隙由 #9 独占。#14 `D:/Temp/pi-agent-gui-files-20260927` 已证实文件引用/预览 GUI，但又红测发现引用 snapshot 尾注泄入会话标题并修复、增加缺失引用反馈；完整固定 Pi/exact-source GUI 待 #9 释放桌面后重跑，再给主目录 #4 retry Stop GUI。#26 焦点/快捷键下一切片仍在隔离树，先红测发现模态弹窗时 Ctrl+M 穿透，尚未完成 GUI。
+- 三个代理只在各自隔离 worktree 写源码，主目录仅根代理写。后续审查聚焦 SHA 后逐项整合；继续 #3/#4/#9–#14/#25–#28 和 #27 隔离打包/安装，最后只给一次统一用户试用，不因任一票或缺账号停下。
+
+## 2026-09-28 00:22 主目录最新断点（优先于下方 00:05 快照）
+
+- 主目录 HEAD `82eb531`，已普通推送到 origin；Draft PR #39 仍 OPEN/Draft，Issues 保持 OPEN。近期新增：#26 模态快捷键 `29d6e9c`（主分支 UI tsconfig 定向 1/1 PASS）、#9 真实 fork/clone `a528e4f` + 子草稿修复 `c1a45a1`（主分支草稿 5/5 PASS，隔离 GUI `D:/Temp/pi-fork-clone-gui-20260928-c/pi-fork-clone-gui-report.json` PASS）、#4 自动 retry Stop 合同 `9086a34`（固定 Pi 1/1 PASS，主分支桌面 build PASS，GUI `D:/Temp/pi-retry-stop-main-20260928-a/pi-retry-stop-gui-report.json` PASS）、#14 文件引用/预览与拒绝草稿回滚 `82eb531`（隔离固定 Pi 1/1、最终 GUI `D:/Temp/pi-file-reference-gui-20260928-h/pi-file-reference-gui-report.json` PASS，主分支纯测试 8/8 PASS）。离线受控模型不是在线 provider；包内/安装/用户验收仍独立待做。
+- `82eb531` cherry-pick 与 #9 的 `pi-native-v4-service.ts` catch 分支唯一冲突已人工合并：未知投递优先失败闭锁，其次保留文件引用结构化 reasonCode。整合后主分支完整 Pi 顺序、typecheck、lint、delivery 本地/测试/--github 和集成 GUI 尚未重跑，必须在最终包前做。
+- 主目录当前未提交仅 `docs/delivery/{coverage,next-context}.md` 技术账本；受保护未跟踪 `%SystemDrive%/`、`用`、`packages/desktop/dist-pi-incremental/`、`stash@{0}` 原样保留，用户使用中的 `packages/desktop/dist/win-unpacked` 仍不可覆盖/结束。#26 下一弹窗焦点红测在隔离树独占 GUI；#9 导入/导出/用户主动分享在其隔离树做静态实现；#27 已从 `9086a34` 建新隔离树 `D:/Temp/pi-agent-gui-diagnostics-20260928` 做诊断/恢复，不占 GUI。完成各聚焦 SHA 后主目录审查整合。
 
 ## 2026-09-27 23:45 主目录继续开发断点（以下历史快照以此为准）
 

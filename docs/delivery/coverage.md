@@ -132,6 +132,7 @@
 | #9：P11 / V04 | `a33a4a0`、`4d54ba4` 让原生侧栏对冷 Pi JSONL 做真实确认删除，删除后非关键清理失败不误报未删除。隔离最终源码 GUI `D:/Temp/pi-session-delete-gui6-20260927/pi-session-delete-gui-report.json` 验证取消/活动保护、仅删除选中 JSONL、重启不复活、三次进程退出无残留；主分支定向固定 Pi/删除测试 8/8 通过。 | 主分支整合后 GUI 与包内复测、外部 CLI 与最终 unlink 的极短竞争窗、fork/clone/导入导出/主动分享及用户验收仍开放。 |
 | #13、#25：P23–P27 / V09 | `2485cf7`、`7b5c8ce` 已整合 Pi 扩展状态/widget/标题/动态工具和原始 custom 消息、图片/details、shell 历史行；合并时保留资源隐私过滤。整合后定向固定 Pi 测试 14/14、typecheck、相关 lint 通过；隔离 GUI `D:/Temp/pi-extension-state-gui-20260927-d/pi-extension-state-gui-report.json` 通过且无页面错误/进程残留。 | 主分支与包内 GUI、工具图片/details、扩展多会话交错/Stop、复杂 TUI 逐类最终验收仍开放；复杂 TUI 不宣称零适配。 |
 | #26：P28、D03、D05 / V12 | `6dc84e7` 已整合 Lexical 中文 IME 提交保护；隔离最终源码 GUI `D:/Temp/pi-ime-gui-20260927-d/pi-ime-gui-report.json` 在 1280×800 深色/1920×1080 浅色与固定 Pi 下验证候选 Enter 不发送、普通 Enter/按钮发送中文原文；`pageErrors=[]`、`forced=[]`、`survivors=[]`。 | 物理 IME、主分支/包内 GUI、滚动/长历史/焦点矩阵、原版同状态截图和用户验收仍开放。 |
+| #14：D03、D04 / V11 | `82eb531` 将原生文件 mention 的工作区内有界 UTF-8、图片与目录快照加入同一次 Pi prompt；图片原字节与 MIME、引用文本、JSONL 历史均由固定 Pi 保存，发送后磁盘变动不篡改历史。缺失/越界/超大/不支持引用在投递前给本地化失败横幅，乐观清空失败后 Lexical 草稿恢复；会话标题不包含内部 snapshot 尾注。隔离最终源码 GUI `D:/Temp/pi-file-reference-gui-20260928-h/pi-file-reference-gui-report.json` 含真实 Pi、冷重启、预览、错误草稿保留，`pageErrors=[]`、两轮 `graceful=true`、`forced=[]`、`survivors=[]`；隔离固定 Pi 1/1、主分支纯测试 8/8 PASS。 | 原版成对截图、Office/其它媒体与未知格式外开、主分支/包内 GUI、用户验收仍开放。 |
 
 这些技术证据仍是源代码与离线受控模型验证，不能替代在线 provider、真实 GGUF/router、安装器或最终人工验收。后续整合须重跑完整 Pi 顺序、typecheck、lint、delivery 校验和生产包验证。
 
