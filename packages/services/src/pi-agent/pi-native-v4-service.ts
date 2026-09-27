@@ -67,6 +67,7 @@ import { assertPiPromptRecordFits, readPiPromptImages } from "./pi-prompt-images
 import { retryablePiHistoryContent } from "./pi-history-entry.js";
 import { PiFileReferenceError, piFilePromptTitle, snapshotPiFileMentions } from "./pi-file-references.js";
 import { PiImageUploads } from "./pi-image-upload.js";
+import { isPiForkImageRef, piForkImageFromEntries, piForkImageRef } from "./pi-fork-image.js";
 import { piControlView, type PiControlAction, type PiControlView } from "./pi-control-protocol.js";
 import { PiQueueMediaStore } from "./pi-queue-media-store.js";
 import { readPiSettingsDocuments, savePiSettingsDocument,
@@ -1487,6 +1488,22 @@ export class PiNativeV4Service implements V4Methods {
       ...(params.target ? { target: params.target } : {}),
       ...(params.attachmentIndex !== undefined ? { attachmentIndex: params.attachmentIndex } : {}),
     });
+    if (isPiForkImageRef(ref)) {
+      if (target !== undefined || attachmentIndex !== undefined) {
+        throw new Error("Pi fork image reference cannot use a history row target");
+      }
+      // Fork replaces the source Pi process with its child. Reopen the indexed
+      // source JSONL through Pi before resolving the exact entry on any branch.
+      await this.loadSession(params, params.sessionId);
+      const entries = await this.supervisor.command(params.sessionId, { type: "get_entries" }) as
+        { entries?: unknown };
+      const image = piForkImageFromEntries(entries.entries, ref);
+      if (offset > image.bytes.length) throw new Error("Pi fork image read is out of bounds");
+      const end = Math.min(offset + limit, image.bytes.length);
+      return { dataBase64: image.bytes.subarray(offset, end).toString("base64"),
+        mediaType: image.mimeType, totalBytes: image.bytes.length,
+        nextOffset: end < image.bytes.length ? end : null };
+    }
     const record = this.recordFor(params, params.sessionId);
     if (queueItemId !== undefined) {
       const catalog = await this.supervisor.getQueueCatalog(record.view.sessionId);
@@ -1694,6 +1711,8 @@ export class PiNativeV4Service implements V4Methods {
           ? (envelope.payload as { entryId: string }).entryId : undefined;
         this.treeOperations.add(operationKey);
         try {
+          const restoredImages: Array<{ ref: string; fileName: string; mimeType:
+            "image/png" | "image/jpeg" | "image/gif" | "image/webp"; bytes: number; sha256: string }> = [];
           if (entryId) {
             const available = await this.supervisor.command(sourceId, { type: "get_fork_messages" }) as {
               messages?: Array<{ entryId?: string }> };
@@ -1702,15 +1721,36 @@ export class PiNativeV4Service implements V4Methods {
                 record.snapshot.revision);
             }
             const history = await this.supervisor.command(sourceId, { type: "get_entries" }) as {
-              entries?: Array<{ id?: string; type?: string; message?: { content?: unknown } }> };
+              entries?: Array<{ id?: string; type?: string; message?: { role?: string; content?: unknown } }> };
             const sourceEntry = history.entries?.find(item => item.id === entryId && item.type === "message");
-            if (!sourceEntry) return failure(commandId, "pi.forkEntryUnavailable",
+            if (!sourceEntry || sourceEntry.message?.role !== "user") return failure(commandId, "pi.forkEntryUnavailable",
               "Pi fork entry changed before admission", record.snapshot.revision);
-            if (Array.isArray(sourceEntry.message?.content) && sourceEntry.message.content.some(part =>
-              part && typeof part === "object" && "type" in part && part.type === "image")) {
-              return failure(commandId, "pi.forkImageUnsupported",
-                "Pi 0.87.0 fork returns text without the selected image; source session is unchanged",
+            const parts = sourceEntry.message.content;
+            if (Array.isArray(parts)) {
+              if (parts.length > 64 || parts.some(part => !part || typeof part !== "object" ||
+                !("type" in part) || !["text", "image"].includes(String(part.type)))) {
+                return failure(commandId, "pi.forkContentUnsupported",
+                  "Selected Pi input contains an unknown content block; source session is unchanged",
+                  record.snapshot.revision);
+              }
+              const images = parts.filter((part): part is { type: "image"; mimeType: string; data: string } =>
+                part.type === "image");
+              if (images.length > 8) return failure(commandId, "pi.forkImageLimit",
+                "Selected Pi input has more than eight images; source session is unchanged",
                 record.snapshot.revision);
+              for (const [partIndex, image] of parts.entries()) {
+                if (!image || typeof image !== "object" || image.type !== "image") continue;
+                try {
+                  const ref = piForkImageRef(entryId, partIndex);
+                  const source = piForkImageFromEntries(history.entries, ref);
+                  restoredImages.push({ ref, fileName: source.fileName,
+                    mimeType: source.mimeType, bytes: source.bytes.length, sha256: source.sha256 });
+                } catch {
+                  return failure(commandId, "pi.forkImageUnavailable",
+                    "Selected Pi image is not intact in its exact JSONL entry; source session is unchanged",
+                    record.snapshot.revision);
+                }
+              }
             }
           }
           if (!await this.persist(record)) throw new Error("Cannot persist Pi source before branching");
@@ -1739,7 +1779,8 @@ export class PiNativeV4Service implements V4Methods {
           this.emitIndex(workspaceKey, child);
           return { commandId, status: "accepted", revisionAtDecision: record.snapshot.revision,
             result: { type: "forkAssistant", sessionId: view.sessionId,
-              ...(branch.restoredText !== undefined ? { restoredText: branch.restoredText } : {}) } };
+              ...(branch.restoredText !== undefined ? { restoredText: branch.restoredText } : {}),
+              ...(restoredImages.length ? { restoredImages } : {}) } };
         } finally { this.treeOperations.delete(operationKey); }
       }
       if (envelope.type === "retryPiEntry") {

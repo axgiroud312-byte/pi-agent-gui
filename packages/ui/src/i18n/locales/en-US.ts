@@ -1555,6 +1555,7 @@ const enUS: Record<string, string> = {
   "taskList.deletePiRecoveryCleanupPending": "Pi session deleted; cleanup of local recovery copies is incomplete and will retry when the app starts again.",
   "taskList.deletePiActive": "The open Pi session cannot be deleted. Switch to another session first.",
   "taskList.deletePiFailed": "Deletion failed. Check whether the session is running or its history file changed.",
+  "taskList.deletePiDraftCleanupFailed": "Pi session deleted, but local draft cleanup failed. Check the app data store.",
   "taskList.pin": "Pin task",
   "taskList.unpin": "Unpin task",
   "taskList.rename": "Rename task",

@@ -11,6 +11,133 @@ import { PiNativeV4Service } from "../src/pi-agent/pi-native-v4-service.js";
 import { decodePiHtmlSessionData } from "../src/pi-agent/pi-session-share.js";
 import { PiSessionSupervisor } from "../src/pi-agent/pi-session-supervisor.js";
 
+test("image fork returns source-bound bytes for a durable child composer", { timeout: 120_000 }, async () => {
+  const workspacePath = await mkdtemp(join(tmpdir(), "pi-image-fork-"));
+  const profile = join(workspacePath, "profile");
+  const model = createServer(async (request, response) => {
+    for await (const _ of request) { /* drain */ }
+    response.writeHead(200, { "content-type": "text/event-stream" });
+    response.end(`data: ${JSON.stringify({ id: "image-fork-test", object: "chat.completion.chunk", created: 1,
+      model: "image-fork-test", choices: [{ index: 0, delta: { role: "assistant", content: "IMAGE_FORK_ANSWER" },
+        finish_reason: "stop" }] })}\n\ndata: [DONE]\n\n`);
+  });
+  await new Promise<void>(resolve => model.listen(0, "127.0.0.1", resolve));
+  const address = model.address();
+  assert(address && typeof address !== "string");
+  await mkdir(profile);
+  await writeFile(join(profile, "models.json"), JSON.stringify({ providers: { "image-fork-provider": {
+    baseUrl: `http://127.0.0.1:${address.port}/v1`, api: "openai-completions", apiKey: "local-only",
+    models: [{ id: "image-fork-test", reasoning: false, input: ["text", "image"] }],
+  } } }));
+  await writeFile(join(profile, "settings.json"), JSON.stringify({
+    defaultProvider: "image-fork-provider", defaultModel: "image-fork-test",
+  }));
+  const controlExtension = fileURLToPath(new URL("../src/pi-agent/pi-control-bridge-extension.ts", import.meta.url));
+  const supervisor = new PiSessionSupervisor({
+    piEntry: fileURLToPath(import.meta.resolve("@earendil-works/pi-coding-agent/rpc-entry")),
+    env: { PI_CODING_AGENT_DIR: profile, PI_TELEMETRY: "0" },
+    rpcArgs: ["--offline", "--no-extensions", "--no-skills", "--no-prompt-templates", "--no-context-files",
+      "--extension", controlExtension],
+  });
+  const service = new PiNativeV4Service(supervisor, join(workspacePath, "catalog"));
+  const command = (sessionId: string | null, type: string, payload: object,
+    revision?: number, epoch?: string) => ({ workspacePath, envelope: {
+      commandId: randomUUID(), clientId: "image-fork-test", sessionId, issuedAt: Date.now(), type, payload,
+      ...(revision !== undefined ? { baseRevision: revision } : {}),
+      ...(epoch ? { baseLogEpoch: epoch } : {}),
+  } });
+  try {
+    const created = await service.sendConversationCommandV4(command(null, "createSession", { workspaceId: workspacePath }) as never);
+    assert(created.result?.type === "createSession");
+    const sourceId = created.result.sessionId;
+    const preludeSettled = (async () => {
+      for await (const [id, event] of on(supervisor, "record", { signal: AbortSignal.timeout(20_000) })) {
+        if (id === sourceId && event.type === "agent_settled") return;
+      }
+    })();
+    const prelude = await service.sendConversationCommandV4(command(sourceId, "sendText", { text: "first turn before image" }) as never);
+    assert.equal(prelude.status, "accepted", prelude.message);
+    await preludeSettled;
+    await (service as unknown as { reconciliations: Map<string, Promise<void>> }).reconciliations.get(sourceId);
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC", "base64");
+    const imagePath = join(workspacePath, "fork-image.png");
+    await writeFile(imagePath, png);
+    const settled = (async () => {
+      for await (const [id, event] of on(supervisor, "record", { signal: AbortSignal.timeout(20_000) })) {
+        if (id === sourceId && event.type === "agent_settled") return;
+      }
+    })();
+    const sent = await service.sendConversationCommandV4(command(sourceId, "sendText", { text: "fork with original image",
+      attachments: [{ ref: imagePath, fileName: "fork-image.png", mime: "image/png", bytes: png.length }] }) as never);
+    assert.equal(sent.status, "accepted", sent.message);
+    await settled;
+    await (service as unknown as { reconciliations: Map<string, Promise<void>> }).reconciliations.get(sourceId);
+    const duplicateSettled = (async () => {
+      for await (const [id, event] of on(supervisor, "record", { signal: AbortSignal.timeout(20_000) })) {
+        if (id === sourceId && event.type === "agent_settled") return;
+      }
+    })();
+    const duplicate = await service.sendConversationCommandV4(command(sourceId, "sendText", {
+      text: "selected duplicate image turn",
+      attachments: [{ ref: imagePath, fileName: "fork-image.png", mime: "image/png", bytes: png.length }],
+    }) as never);
+    assert.equal(duplicate.status, "accepted", duplicate.message);
+    await duplicateSettled;
+    await (service as unknown as { reconciliations: Map<string, Promise<void>> }).reconciliations.get(sourceId);
+    const sourceView = supervisor.getSession(sourceId);
+    assert(sourceView);
+    const entries = await supervisor.command(sourceId, { type: "get_entries" }) as {
+      entries: Array<{ id: string; type: string; message?: { role?: string; content?: unknown } }> };
+    const users = entries.entries.filter(entry => entry.type === "message" && entry.message?.role === "user");
+    const user = users.at(-1);
+    assert(user);
+    const tree = await service.readPiControlTree({ workspacePath, sessionId: sourceId });
+    const navigated = await service.runPiControlTree({ workspacePath, sessionId: sourceId,
+      action: { operation: "navigate", targetId: users[0]!.id, summarize: false,
+        generation: tree.info.generation, sessionId: sourceId } });
+    assert.equal(navigated.result?.editorText, "first turn before image");
+    assert(navigated.entries.some(entry => entry.id === user.id),
+      "Pi must retain the old image branch after navigating elsewhere");
+    const sourceJsonl = await readFile(sourceView.sessionFile);
+    const range = await service.conversationRowsRangeV4({ workspacePath, sessionId: sourceId, limit: 100 });
+    assert(!range.rows.some(row => row.kind === "userInput" && row.text === "selected duplicate image turn"),
+      "selected image entry is now off the active projection");
+    const fork = await service.sendConversationCommandV4(command(sourceId, "forkPiEntry",
+      { entryId: user.id }, range.atRevision, range.atLogEpoch) as never);
+    assert.equal(fork.status, "accepted", fork.message);
+    assert(fork.result?.type === "forkAssistant");
+    const images = (fork.result as { restoredImages?: Array<{ ref: string; mimeType: string;
+      fileName: string; bytes: number; sha256: string }> }).restoredImages;
+    assert.equal(images?.length, 1, "Pi's text-only fork must not silently drop the selected image");
+    const image = images[0]!;
+    assert.equal(image.mimeType, "image/png");
+    assert.equal(image.bytes, png.length);
+    assert.equal(image.ref, `pi-entry-image:${user.id}:1`,
+      "identical bytes in an earlier entry must not authorize that entry's ref");
+    const read = await service.attachmentReadV4({ workspacePath, sessionId: sourceId,
+      ref: image.ref, offset: 0, limit: png.length });
+    assert.deepEqual(Buffer.from(read.dataBase64, "base64"), png,
+      "the child composer must copy original bytes from the selected source entry on another branch");
+    await assert.rejects(service.attachmentReadV4({ workspacePath, sessionId: sourceId,
+      ref: `pi-entry-image:${user.id}:2`, offset: 0, limit: png.length }), /unavailable/i,
+    "a forged block index cannot fall back to an earlier image");
+    await assert.rejects(service.attachmentReadV4({ workspacePath, sessionId: fork.result.sessionId,
+      ref: image.ref, offset: 0, limit: png.length }), /unavailable/i,
+    "the same entry handle cannot read bytes from a different Pi session");
+    await assert.rejects(service.attachmentReadV4({ workspacePath, sessionId: sourceId,
+      ref: image.ref, target: { rowId: 1, entityId: "forged" }, attachmentIndex: 0,
+      offset: 0, limit: png.length }), /cannot use a history row target/i);
+    assert.deepEqual(await readFile(sourceView.sessionFile), sourceJsonl);
+    assert.notEqual(fork.result.sessionId, sourceId);
+    assert(supervisor.getSession(fork.result.sessionId));
+  } finally {
+    await service.dispose();
+    model.closeAllConnections();
+    await new Promise<void>(resolve => model.close(() => resolve()));
+    await rm(workspacePath, { recursive: true, force: true });
+  }
+});
+
 test("native fork and clone use real Pi entries and preserve source JSONL", { timeout: 240_000 }, async () => {
   const workspacePath = await mkdtemp(join(tmpdir(), "pi-fork-clone-"));
   const profile = join(workspacePath, "profile");
@@ -89,10 +216,6 @@ test("native fork and clone use real Pi entries and preserve source JSONL", { ti
     const users = entries.entries.filter(entry => entry.type === "message" && entry.message?.role === "user");
     assert.equal(users.length, 3);
     const range = await service.conversationRowsRangeV4({ workspacePath, sessionId: sourceId, limit: 100 });
-    const imageFork = await service.sendConversationCommandV4(command(sourceId, "forkPiEntry",
-      { entryId: users[2]!.id }, range.atRevision, range.atLogEpoch) as never);
-    assert.equal(imageFork.status, "failed");
-    assert.equal(imageFork.reasonCode, "pi.forkImageUnsupported");
     assert.equal(await readFile(sourceView.sessionFile, "utf8"), original);
     const stale = await service.sendConversationCommandV4(command(sourceId, "forkPiEntry",
       { entryId: users[1]!.id }, range.atRevision + 1, range.atLogEpoch) as never);

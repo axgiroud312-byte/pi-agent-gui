@@ -102,6 +102,19 @@ export function listComposerImageDraftIds(scopeKey: string): string[] {
   return readManifest(scopeKey).ids;
 }
 
+/** Reserve every forked image before restoring text or copying bytes.
+ * A crash mid-copy leaves failed chips that block sending a text-only fork. */
+export function reserveComposerImageDrafts(scopeKey: string, ids: readonly string[]): void {
+  if (ids.length === 0 || ids.length > MAX_IMAGES_PER_SCOPE ||
+    ids.some(id => !id.trim()) || new Set(ids).size !== ids.length) {
+    throw new Error("Invalid Pi fork image draft reservation");
+  }
+  if (readManifest(scopeKey).ids.length > 0) {
+    throw new Error("Pi fork child already has saved image drafts");
+  }
+  writeManifest(scopeKey, ids);
+}
+
 function writeManifest(scopeKey: string, ids: readonly string[]): void {
   if (ids.length > MAX_IMAGES_PER_SCOPE) throw new Error("Too many saved image drafts");
   const key = manifestKey(scopeKey);

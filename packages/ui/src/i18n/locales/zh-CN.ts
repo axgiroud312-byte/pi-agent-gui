@@ -1460,6 +1460,7 @@ const zhCN: Record<string, string> = {
   "taskList.deletePiRecoveryCleanupPending": "Pi 会话已删除；本地恢复副本清理未完成，应用下次启动会重试。",
   "taskList.deletePiActive": "当前打开的 Pi 会话不能删除。请先切换到另一会话。",
   "taskList.deletePiFailed": "删除失败；请检查会话是否仍在运行，或历史文件是否已被修改。",
+  "taskList.deletePiDraftCleanupFailed": "Pi 会话已删除，但本地草稿清理失败；请检查应用数据存储。",
   "taskList.pin": "置顶任务",
   "taskList.unpin": "取消置顶任务",
   "taskList.rename": "重命名任务",

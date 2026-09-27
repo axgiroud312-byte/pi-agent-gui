@@ -92,6 +92,7 @@ import {
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
 import { toast } from "@/components/ui/toast.js";
 import { removeTaskFromTaskCaches } from "@/lib/taskListMetaSync.js";
+import { cleanupConfirmedPiSessionDraft } from "@/v4/composer/composerSessionCleanup.js";
 
 export type SortableBindings = Pick<ReturnType<typeof useSortable>, "attributes" | "listeners">;
 
@@ -674,11 +675,19 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
           taskId, message: error instanceof Error ? error.message : String(error),
         });
       }
+      const draftCleanupErrors = await cleanupConfirmedPiSessionDraft(tab.workspacePath,
+        tab.workspaceIdentity, taskId);
       removeTaskFromTaskCaches({ workspacePath: tab.workspacePath,
         workspaceIdentity: tab.workspaceIdentity, taskId });
       removeOptimisticTaskListItem(tab.workspacePath, taskId, tab.workspaceIdentity);
       removeTaskState(tab.workspacePath, taskId, tab.workspaceIdentity);
       if (recoveryCleanupFailed) toast(intl.formatMessage({ id: "taskList.deletePiRecoveryCleanupPending" }));
+      if (draftCleanupErrors.length) {
+        logger.error("[WorkspaceSidebarItem] deleted Pi session left local draft bytes", {
+          taskId, errors: draftCleanupErrors,
+        });
+        toast(intl.formatMessage({ id: "taskList.deletePiDraftCleanupFailed" }));
+      }
     } catch (error) {
       logger.error("[WorkspaceSidebarItem] Pi session deletion failed", {
         taskId, message: error instanceof Error ? error.message : String(error),

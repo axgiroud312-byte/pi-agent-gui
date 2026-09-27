@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { test } from "node:test";
 import {
   beginComposerImageDraftPromotion,
@@ -12,6 +12,9 @@ import {
   readComposerImageDrafts,
   saveComposerImageDraft,
 } from "../src/v4/composer/composerImageDraftStorage.js";
+import { persistV4ComposerDraft, readV4ComposerDraft } from "../src/v4/composer/composerDraftStore.js";
+import { cleanupConfirmedPiSessionDraft } from "../src/v4/composer/composerSessionCleanup.js";
+import { restorePiForkComposerDraft } from "../src/v4/composer/piForkComposerRestore.js";
 
 class MemoryStorage implements Storage {
   private readonly entries = new Map<string, string>();
@@ -219,4 +222,68 @@ test("removing a failed target chip cannot delete still-owned source bytes", asy
   await forgetComposerImageDrafts(target, ["source-owned"]);
   assert.equal("error" in (await readComposerImageDrafts(source))[0]!, false);
   assert.equal(rows.has("source-owned"), true);
+});
+
+test("Pi fork copies exact historical image bytes into the child IndexedDB scope", async () => {
+  rows.clear();
+  window.localStorage.clear();
+  const workspacePath = `C:\\fixture-${randomUUID()}`;
+  const original = Uint8Array.from([137, 80, 78, 71, 1, 2, 3, 4]);
+  const image = { ref: "pi-entry-image:abc12345:1", fileName: "image-2.png", mimeType: "image/png" as const,
+    bytes: original.length, sha256: createHash("sha256").update(original).digest("hex") };
+  await restorePiForkComposerDraft({ workspacePath, sourceSessionId: "parent", childSessionId: "child",
+    restoredText: "original image turn", images: [image], readImage: async request => {
+      assert.deepEqual(request, { sessionId: "parent", ref: image.ref, mediaType: image.mimeType });
+      return { bytes: original, mediaType: image.mimeType };
+    } });
+  assert.equal(readV4ComposerDraft(workspacePath, undefined, "child")?.text, "original image turn");
+  assert.equal(readV4ComposerDraft(workspacePath, undefined, "parent"), null);
+  const restored = await readComposerImageDrafts(`${workspacePath}\0child`);
+  assert.equal(restored.length, 1);
+  assert.equal("error" in restored[0]!, false);
+  if ("error" in restored[0]!) throw new Error(restored[0]!.error);
+  assert.deepEqual(new Uint8Array(await restored[0]!.file.arrayBuffer()), original);
+});
+
+test("Pi fork image mismatch leaves a blocking child chip and intact source scope", async () => {
+  rows.clear();
+  window.localStorage.clear();
+  const workspacePath = `C:\\fixture-${randomUUID()}`;
+  const original = Uint8Array.from([1, 2, 3]);
+  const image = { ref: "pi-entry-image:abc12345:1", fileName: "image-2.png", mimeType: "image/png" as const,
+    bytes: original.length, sha256: createHash("sha256").update(original).digest("hex") };
+  await assert.rejects(restorePiForkComposerDraft({ workspacePath, sourceSessionId: "parent",
+    childSessionId: "child", restoredText: "do not send without image", images: [image],
+    readImage: async () => ({ bytes: Uint8Array.from([3, 2, 1]), mediaType: image.mimeType }),
+  }), /differs from.*JSONL/);
+  assert.equal(readV4ComposerDraft(workspacePath, undefined, "child")?.text,
+    "do not send without image");
+  const restored = await readComposerImageDrafts(`${workspacePath}\0child`);
+  assert.equal(restored.length, 1);
+  assert.equal("error" in restored[0]!, true,
+    "an interrupted or mismatched copy must block a text-only submission after restart");
+  assert.equal(readV4ComposerDraft(workspacePath, undefined, "parent"), null);
+});
+
+test("confirmed cold Pi child deletion clears only that child's persisted image and text", async () => {
+  rows.clear();
+  window.localStorage.clear();
+  const workspacePath = `C:\\fixture-${randomUUID()}`;
+  for (const sessionId of ["child", "other"]) {
+    assert.equal(persistV4ComposerDraft(workspacePath, undefined, sessionId, {
+      text: `${sessionId} unsent text`,
+    }), true);
+    await saveComposerImageDraft(`${workspacePath}\0${sessionId}`, { id: sessionId,
+      fileName: `${sessionId}.png`, mimeType: "image/png",
+      file: new File([Uint8Array.from([1, 2, 3])], `${sessionId}.png`, { type: "image/png" }) });
+  }
+  assert.equal((await readComposerImageDrafts(`${workspacePath}\0child`)).length, 1);
+  const errors = await cleanupConfirmedPiSessionDraft(workspacePath, undefined, "child");
+  assert.deepEqual(errors, []);
+  assert.deepEqual(await readComposerImageDrafts(`${workspacePath}\0child`), []);
+  assert.equal(readV4ComposerDraft(workspacePath, undefined, "child"), null);
+  assert.equal(rows.has("child"), false);
+  assert.equal((await readComposerImageDrafts(`${workspacePath}\0other`)).length, 1);
+  assert.equal(readV4ComposerDraft(workspacePath, undefined, "other")?.text, "other unsent text");
+  assert.equal(rows.has("other"), true);
 });

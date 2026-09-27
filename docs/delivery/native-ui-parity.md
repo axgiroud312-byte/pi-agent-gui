@@ -124,15 +124,15 @@ PI14-F2 继续使用原生 `WorkspaceFileTree`、`PreviewPane`、`MentionPlugin`
 
 | ID | 原生入口/行为 | Pi 产品行为 | 必要性 / 状态 |
 | --- | --- | --- | --- |
-| PI09-D1 | 原生任务侧栏右键菜单和现有破坏性确认弹窗 | 在右键菜单加入“删除 Pi 会话…”；弹窗显示 Pi JSONL 当前名称、真实 session ID、工作区与文件路径。取消不写历史；活动会话拒绝；确认仅删除同一工作区、同一文件版本的冷会话 JSONL，保留其他工作区文件 | Pi 原生历史就是 JSONL，旧 task-index 软删除会在 CLI 中留下原文件并造成假删除。隔离原生 GUI `D:/Temp/pi-session-delete-gui4-20260927/pi-session-delete-gui-report.json` 验证取消、活动保护、真实删除、重启不复活与三次完整进程清理；固定原版同状态成对截图和最终人工验收仍待做。 |
+| PI09-D1 | 原生任务侧栏右键菜单和现有破坏性确认弹窗 | 在右键菜单加入“删除 Pi 会话…”；弹窗显示 Pi JSONL 当前名称、真实 session ID、工作区与文件路径。取消不写历史；活动会话拒绝；确认仅删除同一工作区、同一文件版本的冷会话 JSONL，保留其他工作区文件；成功后清理该 session 的本地文字和 IndexedDB 图片草稿 | Pi 原生历史就是 JSONL，旧 task-index 软删除会在 CLI 中留下原文件并造成假删除。隔离原生 GUI `D:/Temp/pi-session-delete-gui4-20260927/pi-session-delete-gui-report.json` 验证取消、活动保护、真实删除、重启不复活与三次完整进程清理；草稿清理的隔离单元合同已通过。固定原版同状态成对截图和最终人工验收仍待做。 |
 
-## #9 Pi 原生分支与克隆（开发增量，GUI 待验）
+## #9 Pi 原生分支与克隆（开发增量，源码 GUI 已测）
 
 | ID | 原生入口/行为 | Pi 产品行为 | 必要性 / 状态 |
 | --- | --- | --- | --- |
-| PI09-F1 | 原生会话 pane 的会话树 Dialog/Button、原生会话切换及 Lexical 输入区 | 在真实 Pi 树选择用户 entry 后执行 RPC `fork(entryId)`；另有 `clone()` 复制当前活动分支。成功时 Pi 生成新 session ID/JSONL，Host 等旧 Pi 进程与文件租约释放后重新租赁新会话，原生 pane 切到 child；fork 返回的原输入回填到 child composer。扩展取消时显示取消且保持原会话。 | Pi 的分支文件身份与取消语义无法由前端行复制代替。固定 Pi 0.87.0 红绿合同通过；`scripts/pi-fork-clone-gui-smoke.mjs` 待生产入口 GUI。原版同状态截图、双视口/主题和人工验收仍待统一复验。 |
+| PI09-F1 | 原生会话 pane 的会话树 Dialog/Button、原生会话切换及 Lexical 输入区 | 在真实 Pi 树选择用户 entry 后执行 RPC `fork(entryId)`；另有 `clone()` 复制当前活动分支。成功时 Pi 生成新 session ID/JSONL，Host 等旧 Pi 进程与文件租约释放后重新租赁新会话，原生 pane 切到 child；fork 的文字和选中 entry 的图片字节恢复到 child 持久草稿，由用户显式发送。扩展取消时显示取消且保持原会话。 | Pi 的分支文件身份与取消语义无法由前端行复制代替。固定 Pi 0.87.0 重复图片及离开当前分支的 entry 合同通过；原生 GUI `D:/Temp/pi-image-fork-gui-20260928-c/pi-fork-clone-gui-report.json` 验证原图、重启恢复、再次发送与进程清理。原版同状态截图、双视口/主题和人工验收仍待统一复验。 |
 
-固定 Pi 0.87.0 的 `fork` 仅返回选中用户消息的文字。若该条包含图片，Host 会在命令入 Pi 前拒绝并保留原会话，避免把无图的 child 当成无损分支。图片分支恢复仍待后续实现和验收。
+固定 Pi 0.87.0 的 `fork` 仅返回文字；Host 在 Pi 分支前按选中 `entryId` 验证原 JSONL 图片并返回受限 `pi-entry-image:entryId:partIndex` 引用和 SHA-256，不在命令回执中携带原图。新 child 先持久登记图片草稿；复制中断或字节不符时，重启后保留可见失败 chip，阻止只发送文字。源会话 JSONL 保留；删除 child 时才回收其本地草稿。图片超过 8 张、单张超过 20 MiB、未知内容块或受损 base64 会在 Pi 分支前拒绝。原版同状态视觉对照仍待统一验收。
 
 ## #9 Pi 历史编辑与重试（开发增量，源码 GUI 已测）
 

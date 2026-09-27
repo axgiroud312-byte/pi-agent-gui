@@ -378,6 +378,14 @@ export const commandResultSchema = z.discriminatedUnion("type", [
     type: z.enum(["createSession", "createSelectionSideSession", "forkAssistant"]),
     sessionId: z.string(),
     restoredText: z.string().optional(),
+    /** Exact Pi source-entry handles. The fork ACK never carries image bytes. */
+    restoredImages: z.array(z.object({
+      ref: z.string().regex(/^pi-entry-image:[A-Za-z0-9._-]{1,256}:(0|[1-9]\d*)$/u),
+      fileName: z.string().min(1),
+      mimeType: z.enum(["image/png", "image/jpeg", "image/gif", "image/webp"]),
+      bytes: z.number().int().positive().max(20 * 1024 * 1024),
+      sha256: z.string().regex(/^[a-f0-9]{64}$/u),
+    })).max(8).optional(),
     input: z
       .object({
         delivery: z.enum(["startNow", "queue", "guide"]),

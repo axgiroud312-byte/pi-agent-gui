@@ -97,7 +97,7 @@ import {
   type ComposerSubmissionConfig,
 } from "@/v4/composer/composerSubmissionConfig.js";
 import { useDraftSessionPrewarm } from "@/v4/composer/useDraftSessionPrewarm.js";
-import { seedPiForkComposerDraft } from "@/v4/composer/composerDraftStore.js";
+import { restorePiForkComposerDraft } from "@/v4/composer/piForkComposerRestore.js";
 import { projectSessionConfigToTaskConfigOptions } from "@/v4/composer/sessionConfigTaskCache.js";
 import { useDraftRuntimeRebuildGate } from "@/v4/composer/useDraftRuntimeRebuildGate.js";
 import { useDraftModelReadinessGate } from "@/v4/composer/useDraftModelReadinessGate.js";
@@ -3189,16 +3189,19 @@ export function SessionPane({
       throw new Error(ack.message ?? `Pi ${operation} failed: ${ack.reasonCode ?? ack.status}`);
     }
     if (operation === "fork") {
-      const seeded = seedPiForkComposerDraft(workspacePath, workspaceIdentity,
-        ack.result.sessionId, ack.result.restoredText ?? "");
-      if (seeded !== "stored") {
-        throw new Error(`Pi 已创建子会话 ${ack.result.sessionId}，但恢复文字${seeded === "conflict" ?
-          "与现有草稿冲突" : "未能保存"}。原会话历史保留；请在侧栏打开原会话复制该消息。`);
+      try {
+        await restorePiForkComposerDraft({ workspacePath, workspaceIdentity,
+          sourceSessionId: sessionId, childSessionId: ack.result.sessionId,
+          restoredText: ack.result.restoredText ?? "", images: ack.result.restoredImages ?? [],
+          readImage: attachmentRead });
+      } catch (error) {
+        throw new Error(`Pi 已创建子会话 ${ack.result.sessionId}，但输入草稿未完整恢复：${String(error)}。` +
+          "原会话 JSONL 保留；请在侧栏打开原会话恢复该输入，不要把子会话当作完整副本。");
       }
     }
     onSessionCreated?.(ack.result.sessionId);
     return true;
-  }, [dispatchCommand, onSessionCreated, sessionId, workspaceIdentity, workspacePath]);
+  }, [attachmentRead, dispatchCommand, onSessionCreated, sessionId, workspaceIdentity, workspacePath]);
 
   const handlePiRetryEntry = useCallback(async (entryId: string): Promise<boolean> => {
     const current = snapshotRef.current;

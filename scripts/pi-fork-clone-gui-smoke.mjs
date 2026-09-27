@@ -1,5 +1,6 @@
 // Native production renderer -> Host -> pinned Pi 0.87.0 entry fork/clone.
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFile, readdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -7,6 +8,7 @@ import { fixture } from './native-smoke/fixture.mjs';
 import { closeOwned, assertCleanExit } from './native-smoke/cleanup.mjs';
 import { startPiModel } from './native-smoke/pi-model.mjs';
 import { configurePiProfile, isolatePiPackage, verifyPiPackageCleanup } from './native-smoke/pi-package.mjs';
+import { image } from './native-smoke/pi-image.mjs';
 
 const f = await fixture();
 await isolatePiPackage(f);
@@ -110,6 +112,71 @@ try {
   assert((await readFile(cloneFile, 'utf8')).includes('PI_READ: first branch turn'));
   report.clone = { parentPreserved: true, childJsonl: cloneFile, childContainsEarlierTurn: true };
   await page.screenshot({ path: join(f.output, 'pi-clone-child.png') });
+  const imagePrompt = 'PI_IMAGE: historical image branch';
+  await composer.click();
+  await page.keyboard.type(imagePrompt);
+  await page.locator('.chat-composer-region input[type="file"]').first()
+    .setInputFiles({ name: 'fork-source.png', mimeType: 'image/png', buffer: image });
+  await page.locator('[data-composer-attachment-kind="image"][data-upload-status="ready"]')
+    .filter({ visible: true }).first().waitFor({ timeout: 20_000 });
+  await page.getByTestId('v4-composer-send').filter({ visible: true }).first().click();
+  await page.getByText('PI_IMAGE_COMPLETE', { exact: true }).waitFor({ timeout: 30_000 });
+  const imageDigest = createHash('sha256').update(image).digest('hex');
+  assert(model.requests.some(request => request.scenario === 'PI_IMAGE' &&
+    request.imageDigests.includes(imageDigest)), 'source image must reach the fixed Pi provider');
+  const imageSourceJsonl = await readFile(cloneFile);
+  await page.getByTestId('pi-tree-open').click();
+  const imageTree = page.getByTestId('pi-tree-dialog');
+  await imageTree.getByRole('treeitem').filter({ hasText: `user: ${imagePrompt}` }).first().click();
+  await imageTree.getByTestId('pi-tree-fork').click();
+  await imageTree.waitFor({ state: 'hidden', timeout: 30_000 });
+  await composer.filter({ hasText: imagePrompt }).waitFor({ timeout: 20_000 });
+  const imageChip = page.locator('[data-composer-attachment-kind="image"][data-upload-status="ready"]')
+    .filter({ visible: true }).first();
+  await imageChip.waitFor({ timeout: 20_000 });
+  assert(await imageChip.locator('img').evaluate(img => img.complete && img.naturalWidth > 0),
+    'forked image draft must decode in the native composer');
+  assert.deepEqual(await readFile(cloneFile), imageSourceJsonl, 'image fork cannot rewrite source Pi JSONL');
+  const imageForkFiles = await jsonls();
+  const imageChildFile = imageForkFiles.find(path => !cloneFiles.includes(path));
+  assert(imageChildFile, 'image fork must create a distinct Pi child JSONL');
+  const imageChildId = JSON.parse((await readFile(imageChildFile, 'utf8')).split('\n')[0]).id;
+  report.imageFork = { sourcePreserved: true, childJsonl: imageChildFile, textRestored: await composer.innerText(),
+    imageReady: true, sourceRequestDigest: imageDigest };
+  await page.screenshot({ path: join(f.output, 'pi-image-fork-child-composer.png') });
+  const requestsBeforeRestart = model.requests.length;
+  report.firstCleanup = await closeOwned(app, f);
+  assertCleanExit(report.firstCleanup, logs, 'Pi image fork first GUI exit');
+  app = await f.playwright._electron.launch({ executablePath: f.electronPath,
+    args: [fileURLToPath(new URL('./native-smoke/bootstrap.cjs', import.meta.url)), '--lang=zh-CN'],
+    cwd: f.root, env: f.env, timeout: 60_000 });
+  app.process().stdout?.on('data', chunk => logs.push(String(chunk)));
+  app.process().stderr?.on('data', chunk => logs.push(String(chunk)));
+  const reopenedPage = await app.firstWindow();
+  reopenedPage.setDefaultTimeout(15_000);
+  reopenedPage.on('pageerror', error => report.pageErrors.push(error.stack || error.message));
+  await reopenedPage.waitForTimeout(5000);
+  for (const name of [/^(使用 API key|Use API key)$/, /^(暂时跳过|Skip for now)$/, /^(退出引导|Exit onboarding)$/]) {
+    const button = reopenedPage.getByRole('button', { name, exact: true });
+    if (await button.isVisible()) { await button.click(); await reopenedPage.waitForTimeout(1200); }
+  }
+  await reopenedPage.getByTestId(`task-item-${imageChildId}`).click();
+  const reopenedComposer = reopenedPage.getByTestId('v4-composer-input').filter({ visible: true }).first();
+  await reopenedComposer.filter({ hasText: imagePrompt }).waitFor({ timeout: 25_000 });
+  const reopenedChip = reopenedPage.locator('[data-composer-attachment-kind="image"][data-upload-status="ready"]')
+    .filter({ visible: true }).first();
+  await reopenedChip.waitFor({ timeout: 25_000 });
+  assert(await reopenedChip.locator('img').evaluate(img => img.complete && img.naturalWidth > 0),
+    'forked image draft must decode after full app restart');
+  assert.equal(model.requests.length, requestsBeforeRestart, 'restoring a fork draft must not auto-send');
+  await reopenedPage.screenshot({ path: join(f.output, 'pi-image-fork-restored-after-restart.png') });
+  await reopenedPage.getByTestId('v4-composer-send').filter({ visible: true }).first().click();
+  await reopenedPage.getByText('PI_IMAGE_COMPLETE', { exact: true }).waitFor({ timeout: 30_000 });
+  const resumedRequest = model.requests.slice(requestsBeforeRestart).find(request => request.scenario === 'PI_IMAGE' &&
+    request.imageDigests.includes(imageDigest));
+  assert(resumedRequest, 'sending the restored child draft must deliver original image bytes to fixed Pi');
+  report.imageFork.restoredAfterRestart = true;
+  report.imageFork.sentOriginalBytesAfterRestart = true;
   await verifyPiPackageCleanup(f);
   assert.deepEqual(report.pageErrors, []);
 } catch (error) {
