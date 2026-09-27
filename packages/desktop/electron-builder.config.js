@@ -71,6 +71,10 @@ import {
   patchNsisMultiUserFile,
   restoreNsisMultiUserFileSync,
 } from "./scripts/patch-nsis-multi-user.mjs";
+import {
+  patchNsisProcessCheckFile,
+  restoreNsisProcessCheckFileSync,
+} from "./scripts/patch-nsis-process-check.mjs";
 
 const buildMetadata = getBuildMetadata();
 const targetPlatform = getTargetPlatform();
@@ -107,6 +111,8 @@ let nsisInstallSectionOriginalSource = null;
 let nsisInstallSectionPath = null;
 let nsisMultiUserOriginalSource = null;
 let nsisMultiUserPath = null;
+let nsisProcessCheckOriginalSource = null;
+let nsisProcessCheckPath = null;
 const desktopElectronVersion = requireFromConfig("./package.json").devDependencies.electron;
 const asarCliPath = resolve(
   dirname(requireFromConfig.resolve("@electron/asar/package.json")),
@@ -523,7 +529,15 @@ export default {
     );
     nsisInstallSectionPath = resolve(nsisTemplateRoot, "installSection.nsh");
     nsisMultiUserPath = resolve(nsisTemplateRoot, "multiUser.nsh");
+    nsisProcessCheckPath = resolve(nsisTemplateRoot, "include", "allowOnlyOneInstallerInstance.nsh");
     const restoreNsisTemplates = () => {
+      if (nsisProcessCheckPath) {
+        restoreNsisProcessCheckFileSync({
+          filePath: nsisProcessCheckPath,
+          originalSource: nsisProcessCheckOriginalSource,
+        });
+        nsisProcessCheckOriginalSource = null;
+      }
       if (nsisMultiUserPath) {
         restoreNsisMultiUserFileSync({
           filePath: nsisMultiUserPath,
@@ -549,9 +563,13 @@ export default {
         patchNsisMultiUserFile(nsisMultiUserPath),
       );
       nsisMultiUserOriginalSource = multiUserPatch.originalSource;
+      const processCheckPatch = await runTimedAsync("beforePack:patchNsisProcessCheck", () =>
+        patchNsisProcessCheckFile(nsisProcessCheckPath),
+      );
+      nsisProcessCheckOriginalSource = processCheckPatch.originalSource;
       nsisTemplatesPatched = true;
 
-      // electron-builder 之后才编译 NSIS；进程结束时恢复两份上游模板。
+      // electron-builder 之后才编译 NSIS；进程结束时恢复三份上游模板。
       process.once("exit", restoreNsisTemplates);
     } catch (error) {
       restoreNsisTemplates();
