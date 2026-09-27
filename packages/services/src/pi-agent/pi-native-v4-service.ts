@@ -847,21 +847,51 @@ export class PiNativeV4Service implements V4Methods {
   }
 
   private async synchronizePiAuthSessions(agentDir: string): Promise<void> {
-    const records = [...this.sessions.values()].filter(record =>
-      this.supervisor.getAgentDirectory(record.view.workspacePath) === agentDir);
+    // Service bookmarks can outlive a Pi child (for example, native task
+    // prewarming followed by task replacement). Only a currently leased child
+    // can observe refreshed credentials. Do not turn this into a bypass for a
+    // live child's reconciliation or public bridge checks below.
+    const records = [...this.sessions.values()].filter(record => {
+      const active = this.supervisor.getSession(record.view.sessionId);
+      return active?.pid === record.view.pid && active.sessionFile === record.view.sessionFile &&
+        this.supervisor.getAgentDirectory(record.view.workspacePath) === agentDir;
+    });
     for (const record of records) {
       const sessionId = record.view.sessionId;
       const key = `${record.workspaceKey}:${sessionId}`;
-      if (this.treeOperations.has(key) || this.sessionAdmissions.has(key) || record.state.piPendingIntent ||
-        !["idle", "settled", "stopped"].includes(record.view.phase)) {
-        throw new Error("Pi session must be idle before synchronizing provider authentication");
-      }
+      if (this.treeOperations.has(key)) throw new Error("Pi control is busy; refresh providers when idle");
       this.treeOperations.add(key);
+      let stage = "admission";
       try {
+        // A GUI ACK can finish after the Pi result is visible. Fence new input,
+        // then let the prior admitted command finish before reading Pi state.
+        const admission = this.sessionAdmissions.get(key);
+        if (admission) {
+          let timer: ReturnType<typeof setTimeout> | undefined;
+          try {
+            await Promise.race([admission.catch(() => undefined), new Promise<never>((_resolve, reject) => {
+              timer = setTimeout(() => reject(new Error("Pi command admission is still active")), 10_000);
+            })]);
+          } finally { clearTimeout(timer); }
+        }
+        if (record.state.piPendingIntent || !["idle", "settled", "stopped"].includes(record.view.phase)) {
+          throw new Error("Pi session must be idle before synchronizing provider authentication");
+        }
+        stage = "bridge-inspection";
         const current = await this.supervisor.readControlBridge(sessionId);
+        stage = "model-refresh";
         await this.supervisor.runControlBridge(sessionId, { operation: "refresh_models",
           sessionId, generation: current.info.generation });
+        stage = "runtime-facts";
         await this.refreshRuntimeFacts(record);
+      } catch (error) {
+        const code = error && typeof error === "object" && "code" in error && typeof error.code === "string"
+          ? error.code : error instanceof Error ? error.name : "unknown";
+        console.warn("[pi-auth] active Pi model refresh failed", code, stage, {
+          phase: record.view.phase, pendingIntent: Boolean(record.state.piPendingIntent),
+          admission: this.sessionAdmissions.has(key),
+        });
+        throw error;
       } finally { this.treeOperations.delete(key); }
     }
   }

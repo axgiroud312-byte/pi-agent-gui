@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -8,10 +9,29 @@ import { test } from "node:test";
 import { ProxyChannel } from "@zcode/rpc";
 import { PiSessionSupervisor } from "../src/pi-agent/pi-session-supervisor.js";
 import { PiNativeV4Service } from "../src/pi-agent/pi-native-v4-service.js";
+import { PI_CONTROL_COMMAND } from "../src/pi-agent/pi-control-protocol.js";
 
 test("native Pi service manages the exact RPC child's auth directory without a chat prompt", { timeout: 30_000 }, async () => {
   const root = await mkdtemp(join(tmpdir(), "pi-native-auth-service-"));
   const profile = join(root, "profile");
+  const server = createServer(async (request, response) => {
+    for await (const _ of request) { /* drain */ }
+    response.writeHead(200, { "content-type": "text/event-stream" });
+    response.end(`data: ${JSON.stringify({ id: "auth-service", object: "chat.completion.chunk", created: 1,
+      model: "test-local-model", choices: [{ index: 0,
+        delta: { role: "assistant", content: "AUTH_TEST_REPLY" }, finish_reason: "stop" }] })}\n\ndata: [DONE]\n\n`);
+  });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  assert(address && typeof address !== "string");
+  await mkdir(profile);
+  await writeFile(join(profile, "models.json"), JSON.stringify({ providers: {
+    "test-local-provider": { baseUrl: `http://127.0.0.1:${address.port}/v1`, api: "openai-completions",
+      apiKey: "local-test-only", models: [{ id: "test-local-model" }] },
+  } }));
+  await writeFile(join(profile, "settings.json"), JSON.stringify({
+    defaultProvider: "test-local-provider", defaultModel: "test-local-model",
+  }));
   const extension = fileURLToPath(new URL("../src/pi-agent/pi-control-bridge-extension.ts", import.meta.url));
   const supervisor = new PiSessionSupervisor({
     piEntry: fileURLToPath(import.meta.resolve("@earendil-works/pi-coding-agent/rpc-entry")),
@@ -31,8 +51,51 @@ test("native Pi service manages the exact RPC child's auth directory without a c
     if (created.result?.type !== "createSession") throw new Error("Pi session creation failed");
     const sessionId = created.result.sessionId;
     const pid = supervisor.getSession(sessionId)?.pid;
+    const settled = new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => { supervisor.off("record", listener); reject(new Error("Pi did not settle")); }, 10_000);
+      const listener = (id: string, event: Record<string, unknown>) => {
+        if (id === sessionId && event.type === "agent_settled") {
+          clearTimeout(timer); supervisor.off("record", listener); resolve();
+        }
+      };
+      supervisor.on("record", listener);
+    });
+    const sent = await service.sendConversationCommandV4({ workspacePath: root, envelope: {
+      commandId: randomUUID(), clientId: "auth-test", sessionId, issuedAt: Date.now(),
+      type: "sendText", payload: { text: "Verify existing Pi session before auth" },
+    } });
+    assert.equal(sent.status, "accepted", sent.message);
+    await settled;
     const availableBefore = await supervisor.command(sessionId, { type: "get_available_models" }) as
       { models: Array<{ provider: string; id: string }> };
+    const commands = await supervisor.command(sessionId, { type: "get_commands" }) as
+      { commands: Array<{ name: string; source: string }> };
+    assert(commands.commands.some(command => command.name === PI_CONTROL_COMMAND && command.source === "extension"),
+      "the live Pi RPC child must have registered the public bridge");
+    const bridgeBefore = await supervisor.readControlBridge(sessionId);
+    assert.equal(bridgeBefore.info.piVersion, "0.87.0");
+    assert(bridgeBefore.info.operations.includes("refresh_models"));
+    // The native task UI may prewarm a Pi child and then abandon that task
+    // while another session remains selected. Its service bookmark survives
+    // after the supervisor closes the child; auth must refresh only live Pi.
+    const abandoned = await service.sendConversationCommandV4({ workspacePath: root, envelope: {
+      commandId: randomUUID(), clientId: "auth-test", sessionId: null, issuedAt: Date.now(),
+      type: "createSession", payload: { workspaceId: root },
+    } });
+    assert.equal(abandoned.result?.type, "createSession");
+    if (abandoned.result?.type !== "createSession") throw new Error("Pi abandoned session creation failed");
+    const abandonedId = abandoned.result.sessionId;
+    assert.ok(supervisor.getSession(abandonedId));
+    await supervisor.closeSession(abandonedId);
+    assert.equal(supervisor.getSession(abandonedId), undefined);
+    assert.ok((service as unknown as { sessions: Map<string, unknown> }).sessions.has(abandonedId),
+      "the persisted service bookmark must still exist for regression coverage");
+    const admissionKey = `${root}:${sessionId}`;
+    const admissions = (service as unknown as { sessionAdmissions: Map<string, Promise<unknown>> }).sessionAdmissions;
+    let finishAdmission!: () => void;
+    const delayedAdmission = new Promise<void>(resolve => { finishAdmission = resolve; });
+    admissions.set(admissionKey, delayedAdmission);
+    void delayedAdmission.finally(() => admissions.delete(admissionKey));
     const before = await channel.call<Awaited<ReturnType<typeof service.readPiAuth>>>("host", "readPiAuth", [target]);
     assert.equal(before.agentDir, profile);
     assert.equal(before.providers.find(provider => provider.id === "anthropic")?.configured, false);
@@ -46,7 +109,11 @@ test("native Pi service manages the exact RPC child's auth directory without a c
     }
     assert.ok(promptId);
     const secret = "fixture-only-anthropic-key";
-    service.answerPiAuth({ ...target, generation: before.generation, operationId, promptId, value: secret });
+    await service.answerPiAuth({ ...target, generation: before.generation, operationId, promptId, value: secret });
+    await new Promise(resolve => setTimeout(resolve, 50));
+    assert.equal((await service.readPiAuth(target)).operations.find(op => op.id === operationId)?.outcome,
+      "running", "the auth result must wait for the earlier accepted GUI command");
+    finishAdmission();
     let outcome: string | undefined;
     for (let count = 0; count < 100; count++) {
       outcome = (await service.readPiAuth(target)).operations.find(op => op.id === operationId)?.outcome;
@@ -79,5 +146,67 @@ test("native Pi service manages the exact RPC child's auth directory without a c
       availableBefore.models.some(model => model.provider === "anthropic"),
       "same-session model availability must return to its previous credential source");
     assert.equal(supervisor.getSession(sessionId)?.pid, pid);
-  } finally { await service.dispose(); await rm(root, { recursive: true, force: true }); }
+  } finally {
+    await service.dispose();
+    server.closeAllConnections();
+    await new Promise<void>(resolve => server.close(() => resolve()));
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("live Pi child without the public bridge fails closed after credential commit", { timeout: 20_000 }, async () => {
+  const root = await mkdtemp(join(tmpdir(), "pi-native-auth-missing-bridge-"));
+  const profile = join(root, "profile");
+  await mkdir(profile);
+  await writeFile(join(profile, "models.json"), JSON.stringify({ providers: {
+    "local-test-provider": { baseUrl: "http://127.0.0.1:1/v1", api: "openai-completions",
+      apiKey: "local-test-only", models: [{ id: "local-test-model" }] },
+  } }));
+  const supervisor = new PiSessionSupervisor({
+    piEntry: fileURLToPath(import.meta.resolve("@earendil-works/pi-coding-agent/rpc-entry")),
+    env: { PI_CODING_AGENT_DIR: profile, PI_TELEMETRY: "0" },
+    rpcArgs: ["--offline", "--no-extensions", "--no-skills", "--no-prompt-templates", "--no-context-files"],
+  });
+  const service = new PiNativeV4Service(supervisor, join(root, "catalog"));
+  const target = { workspacePath: root };
+  try {
+    const created = await service.sendConversationCommandV4({ workspacePath: root, envelope: {
+      commandId: randomUUID(), clientId: "auth-test", sessionId: null, issuedAt: Date.now(),
+      type: "createSession", payload: { workspaceId: root },
+    } });
+    assert.equal(created.result?.type, "createSession");
+    if (created.result?.type !== "createSession") throw new Error("Pi session creation failed");
+    const sessionId = created.result.sessionId;
+    const pid = supervisor.getSession(sessionId)?.pid;
+    assert.ok(pid, "the no-bridge session must still be an active Pi child");
+    const commands = await supervisor.command(sessionId, { type: "get_commands" }) as
+      { commands: Array<{ name: string }> };
+    assert(!commands.commands.some(command => command.name === PI_CONTROL_COMMAND));
+    const before = await service.readPiAuth(target);
+    const operationId = await service.startPiAuth({ ...target, generation: before.generation,
+      providerId: "anthropic", action: "login", method: "api_key" });
+    let promptId: string | undefined;
+    for (let count = 0; count < 100; count++) {
+      promptId = (await service.readPiAuth(target)).operations.find(op => op.id === operationId)?.prompts[0]?.id;
+      if (promptId) break;
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+    assert.ok(promptId);
+    const secret = "fixture-only-missing-bridge-key";
+    await service.answerPiAuth({ ...target, generation: before.generation, operationId, promptId, value: secret });
+    let outcome: string | undefined;
+    for (let count = 0; count < 100; count++) {
+      outcome = (await service.readPiAuth(target)).operations.find(op => op.id === operationId)?.outcome;
+      if (outcome !== "waiting" && outcome !== "running") break;
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+    assert.equal(outcome, "committed-sync-failed");
+    assert.ok((await readFile(join(profile, "auth.json"), "utf8")).includes(secret));
+    assert.ok(!JSON.stringify(await service.readPiAuth(target)).includes(secret));
+    assert.equal(supervisor.getSession(sessionId)?.pid, pid,
+      "missing bridge must not silently close or replace the active Pi process");
+  } finally {
+    await service.dispose();
+    await rm(root, { recursive: true, force: true });
+  }
 });
