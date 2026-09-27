@@ -121,11 +121,29 @@ test('pinned Pi new-session JSONL and cold CLI index follow settings, env and fl
             `${scenario.name}: native cold index discovers the CLI-updated JSONL`);
           assert.deepEqual(await readFile(sessionFile!), original,
             `${scenario.name}: discovery does not rewrite Pi history`);
+          if (scenario.name === 'project setting before trust gate') {
+            const resumed = await coldSupervisor.resumeSession(workspace, sessionFile!, sessionId!);
+            assert.equal(resumed.sessionId, sessionId, 'restart retains the fixed Pi session identity');
+            assert.equal(resumed.sessionFile, sessionFile, 'restart resumes the exact custom JSONL');
+            const settled = (async () => {
+              for await (const [id, record] of on(coldSupervisor, 'record',
+                { signal: AbortSignal.timeout(20_000) })) {
+                if (id === sessionId && record.type === 'agent_settled') return;
+              }
+            })();
+            assert.equal(await coldSupervisor.sendText(sessionId!, 'DIRECTORY_RESTART_CONTINUATION'), 'run');
+            await settled;
+            assert.ok((await readFile(sessionFile!)).subarray(0, original.length).equals(original),
+              'restart appends to the Pi-owned JSONL without replacing its original bytes');
+            assert.equal(SessionManager.open(sessionFile!).getSessionId(), sessionId,
+              'Pi CLI opens the same session after restart continuation');
+          }
         } finally {
           await service.dispose();
         }
       }
-      assert.equal(modelCalls, scenarios.length, 'one real fixed Pi inference per storage source');
+      assert.equal(modelCalls, scenarios.length + 1,
+        'one real fixed Pi inference per storage source plus one restart continuation');
     } finally {
       model.closeAllConnections();
       await new Promise<void>(resolve => model.close(() => resolve()));
