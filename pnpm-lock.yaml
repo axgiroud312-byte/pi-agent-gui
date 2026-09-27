@@ -961,7 +961,7 @@ importers:
     dependencies:
       '@earendil-works/pi-coding-agent':
         specifier: 0.87.0
-        version: 0.87.0(@modelcontextprotocol/sdk@1.29.0(zod@4.6.5))(ws@8.20.0)(zod@4.6.5)
+        version: 0.87.0(patch_hash=77c2356801775fde2a60d552d0e64454cfbeaa6b7b309ecdce831be220ffb0d9)(@modelcontextprotocol/sdk@1.29.0(zod@4.6.5))(ws@8.20.0)(zod@4.6.5)
       '@zcode/provider':
         specifier: workspace:*
         version: link:../provider
