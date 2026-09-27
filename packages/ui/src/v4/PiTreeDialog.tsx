@@ -15,7 +15,10 @@ function entryTitle(node: TreeNode): string {
     const content = "content" in entry.message ? entry.message.content : undefined;
     const text = typeof content === "string" ? content : Array.isArray(content)
       ? content.filter(part => part.type === "text").map(part => part.text).join("") : "";
-    return `${entry.message.role}: ${text.trim().slice(0, 100) || "(empty)"}`;
+    const images = Array.isArray(content) ? content.filter(part => part.type === "image").length : 0;
+    const title = text.trim().slice(0, 100);
+    return `${entry.message.role}: ${title || (images ? `图片 ×${images}` : "(empty)")}` +
+      (title && images ? ` · 图片 ×${images}` : "");
   }
   return `${entry.type} · ${entry.id.slice(0, 8)}`;
 }

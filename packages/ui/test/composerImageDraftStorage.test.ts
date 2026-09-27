@@ -245,6 +245,23 @@ test("Pi fork copies exact historical image bytes into the child IndexedDB scope
   assert.deepEqual(new Uint8Array(await restored[0]!.file.arrayBuffer()), original);
 });
 
+test("Pi image-only fork leaves an unsent image draft without inventing text", async () => {
+  rows.clear();
+  window.localStorage.clear();
+  const workspacePath = `C:\\fixture-${randomUUID()}`;
+  const bytes = Uint8Array.from([137, 80, 78, 71, 7, 8]);
+  const image = { ref: "pi-entry-image:abc12345:0", fileName: "image-1.png", mimeType: "image/png" as const,
+    bytes: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") };
+  await restorePiForkComposerDraft({ workspacePath, sourceSessionId: "parent", childSessionId: "child",
+    restoredText: "", images: [image], readImage: async () => ({ bytes, mediaType: "image/png" }) });
+  assert.equal(readV4ComposerDraft(workspacePath, undefined, "child"), null);
+  const restored = await readComposerImageDrafts(`${workspacePath}\0child`);
+  assert.equal(restored.length, 1);
+  assert.equal("error" in restored[0]!, false);
+  if ("error" in restored[0]!) throw new Error(restored[0]!.error);
+  assert.deepEqual(new Uint8Array(await restored[0]!.file.arrayBuffer()), bytes);
+});
+
 test("Pi fork image mismatch leaves a blocking child chip and intact source scope", async () => {
   rows.clear();
   window.localStorage.clear();

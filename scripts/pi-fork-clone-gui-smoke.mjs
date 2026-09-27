@@ -177,6 +177,40 @@ try {
   assert(resumedRequest, 'sending the restored child draft must deliver original image bytes to fixed Pi');
   report.imageFork.restoredAfterRestart = true;
   report.imageFork.sentOriginalBytesAfterRestart = true;
+
+  const imageOnlyRequestStart = model.requests.length;
+  await reopenedPage.locator('.chat-composer-region input[type="file"]').first()
+    .setInputFiles({ name: 'image-only-source.png', mimeType: 'image/png', buffer: image });
+  await reopenedPage.locator('.chat-composer-region [data-composer-attachment-kind="image"][data-upload-status="ready"]')
+    .first().waitFor({ timeout: 20_000 });
+  assert.equal((await reopenedComposer.innerText()).trim(), '', 'image-only source must have no invented text');
+  await reopenedPage.getByTestId('v4-composer-send').filter({ visible: true }).first().click();
+  await reopenedPage.getByText('PI_TEXT_COMPLETE', { exact: true }).last().waitFor({ timeout: 30_000 });
+  assert(model.requests.slice(imageOnlyRequestStart).some(request =>
+    request.promptText === '' && request.imageDigests.includes(imageDigest)),
+  'image-only source must reach fixed Pi with original bytes');
+  const imageOnlySourceJsonl = await readFile(imageChildFile);
+  await reopenedPage.getByTestId('pi-tree-open').click();
+  const imageOnlyTree = reopenedPage.getByTestId('pi-tree-dialog');
+  await imageOnlyTree.getByRole('treeitem', { name: /user: 图片 ×1/u }).last().click();
+  const imageOnlyRequestsBeforeFork = model.requests.length;
+  await imageOnlyTree.getByTestId('pi-tree-fork').click();
+  await imageOnlyTree.waitFor({ state: 'hidden', timeout: 30_000 });
+  const imageOnlyChip = reopenedPage.locator('.chat-composer-region '
+    + '[data-composer-attachment-kind="image"][data-upload-status="ready"]').first();
+  await imageOnlyChip.waitFor({ timeout: 20_000 });
+  assert(await imageOnlyChip.locator('img').evaluate(img => img.complete && img.naturalWidth > 0));
+  assert.equal((await reopenedComposer.innerText()).trim(), '', 'Pi image-only fork must not invent text');
+  assert.equal(model.requests.length, imageOnlyRequestsBeforeFork, 'image-only fork must not auto-send');
+  assert.deepEqual(await readFile(imageChildFile), imageOnlySourceJsonl);
+  await reopenedPage.screenshot({ path: join(f.output, 'pi-image-only-fork-child.png') });
+  await reopenedPage.getByTestId('v4-composer-send').filter({ visible: true }).first().click();
+  await reopenedPage.getByText('PI_TEXT_COMPLETE', { exact: true }).last().waitFor({ timeout: 30_000 });
+  assert(model.requests.slice(imageOnlyRequestsBeforeFork).some(request =>
+    request.promptText === '' && request.imageDigests.includes(imageDigest)),
+  'image-only fork child must explicitly send the same original bytes to fixed Pi');
+  report.imageOnlyFork = { sourcePreserved: true, restoredWithoutText: true,
+    sentOriginalBytes: true, imageDigest };
   await verifyPiPackageCleanup(f);
   assert.deepEqual(report.pageErrors, []);
 } catch (error) {

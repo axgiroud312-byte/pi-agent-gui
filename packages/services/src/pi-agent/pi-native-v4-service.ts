@@ -1733,17 +1733,33 @@ export class PiNativeV4Service implements V4Methods {
           const restoredImages: Array<{ ref: string; fileName: string; mimeType:
             "image/png" | "image/jpeg" | "image/gif" | "image/webp"; bytes: number; sha256: string }> = [];
           if (entryId) {
-            const available = await this.supervisor.command(sourceId, { type: "get_fork_messages" }) as {
-              messages?: Array<{ entryId?: string }> };
-            if (!available.messages?.some(message => message.entryId === entryId)) {
-              return failure(commandId, "pi.forkEntryUnavailable", "Select a user entry on Pi's active branch",
-                record.snapshot.revision);
-            }
             const history = await this.supervisor.command(sourceId, { type: "get_entries" }) as {
-              entries?: Array<{ id?: string; type?: string; message?: { role?: string; content?: unknown } }> };
-            const sourceEntry = history.entries?.find(item => item.id === entryId && item.type === "message");
-            if (!sourceEntry || sourceEntry.message?.role !== "user") return failure(commandId, "pi.forkEntryUnavailable",
-              "Pi fork entry changed before admission", record.snapshot.revision);
+              entries?: Array<{ id?: string; parentId?: string | null; type?: string;
+                message?: { role?: string; content?: unknown } }> };
+            const matchingEntries = history.entries?.filter(item => item.id === entryId) ?? [];
+            const sourceEntry = matchingEntries.length === 1 ? matchingEntries[0] : undefined;
+            if (!sourceEntry || sourceEntry.type !== "message" || sourceEntry.message?.role !== "user") {
+              return failure(commandId, "pi.forkEntryUnavailable",
+              "Select one exact Pi user entry in this session", record.snapshot.revision);
+            }
+            const byId = new Map(history.entries?.map(item => [item.id, item]) ?? []);
+            const visited = new Set<string>();
+            let ancestorId = sourceEntry.parentId;
+            let hasAssistantAncestor = false;
+            while (typeof ancestorId === "string" && !visited.has(ancestorId)) {
+              visited.add(ancestorId);
+              const ancestor = byId.get(ancestorId);
+              if (!ancestor) break;
+              if (ancestor.type === "message" && ancestor.message?.role === "assistant") {
+                hasAssistantAncestor = true;
+              }
+              ancestorId = ancestor.parentId;
+            }
+            if (ancestorId !== null) return failure(commandId, "pi.forkEntryUnavailable",
+              "Pi fork entry has an incomplete parent chain", record.snapshot.revision);
+            if (!hasAssistantAncestor) return failure(commandId, "pi.forkBeforeFirstAssistant",
+              "Pi 0.87.0 cannot persist a fork before the branch has an assistant message",
+              record.snapshot.revision);
             const parts = sourceEntry.message.content;
             if (Array.isArray(parts)) {
               if (parts.length > 64 || parts.some(part => !part || typeof part !== "object" ||

@@ -57,7 +57,7 @@ Pi 的 MIT 来源及固定版本见 `THIRD_PARTY_NOTICES.md` 与
 
 ### #9 Pi fork/clone 原生纵向切片（2026-09-27，隔离分支待整合）
 
-沿用原生 `SessionPane`、`PiTreeDialog` 和 V4 命令/会话选择，不迁入旧原型的会话列表或 Agent 状态。固定 Pi 0.87.0 公开 RPC 的 `get_fork_messages`、`fork(entryId)`、`clone()`、`get_state` 与 Pi JSONL 是分支事实；Host 只维护原生命令回执、进程及文件租约。Pi 成功替换会话后，旧 RPC 进程完整退出再恢复新会话，防止同一进程写着 child 却仍用父会话身份。取消返回 `noop`，不创建 child；不确定的交付阻止自动重试。Pi 来源与 MIT 声明见固定上游参考及 `THIRD_PARTY_NOTICES.md`。
+沿用原生 `SessionPane`、`PiTreeDialog` 和 V4 命令/会话选择，不迁入旧原型的会话列表或 Agent 状态。固定 Pi 0.87.0 公开 RPC 的 `get_entries`、`fork(entryId)`、`clone()`、`get_state` 与 Pi JSONL 是分支事实；Host 只维护原生命令回执、进程及文件租约。`get_fork_messages` 只列有文字的用户输入，不能作为纯图片 entry 的授权门槛。Pi 成功替换会话后，旧 RPC 进程完整退出再恢复新会话，防止同一进程写着 child 却仍用父会话身份。取消返回 `noop`，不创建 child；不确定的交付阻止自动重试。Pi 来源与 MIT 声明见固定上游参考及 `THIRD_PARTY_NOTICES.md`。
 
 图片 fork 沿用同一原生会话树和 Lexical composer：Pi 仍独占分支事实；Host 从固定 Pi 的 `get_entries` 按用户选中的 `entryId` 和图片块序号取原 JSONL 字节，经带同源会话身份的分块引用恢复到 child 的现有 IndexedDB 草稿。没有搬入旧原型附件系统，也没有增加 Agent 队列。重复图片及 off-branch entry 必须按精确 entry ID 读取，不能按图片字节搜索当前行；重启和显式发送由原生 GUI 验证。冷 Pi session 确认删除后，清理的仍是现有本地文字与图片草稿存储。
 

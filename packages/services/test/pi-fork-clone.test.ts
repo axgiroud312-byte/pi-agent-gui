@@ -130,6 +130,79 @@ test("image fork returns source-bound bytes for a durable child composer", { tim
     assert.deepEqual(await readFile(sourceView.sessionFile), sourceJsonl);
     assert.notEqual(fork.result.sessionId, sourceId);
     assert(supervisor.getSession(fork.result.sessionId));
+
+    await service.getPiSessionSummary({ workspacePath, sessionId: sourceId });
+    const imageOnlySettled = (async () => {
+      for await (const [id, event] of on(supervisor, "record", { signal: AbortSignal.timeout(20_000) })) {
+        if (id === sourceId && event.type === "agent_settled") return;
+      }
+    })();
+    const imageOnlySend = await service.sendConversationCommandV4(command(sourceId, "sendText", {
+      text: "", attachments: [{ ref: imagePath, fileName: "fork-image.png",
+        mime: "image/png", bytes: png.length }],
+    }) as never);
+    assert.equal(imageOnlySend.status, "accepted", imageOnlySend.message);
+    await imageOnlySettled;
+    await (service as unknown as { reconciliations: Map<string, Promise<void>> }).reconciliations.get(sourceId);
+    const imageOnlyEntries = await supervisor.command(sourceId, { type: "get_entries" }) as typeof entries;
+    const imageOnly = imageOnlyEntries.entries.filter(entry => entry.type === "message" &&
+      entry.message?.role === "user").at(-1);
+    assert(imageOnly && Array.isArray(imageOnly.message?.content));
+    assert(imageOnly.message.content.some((part: { type?: string }) => part.type === "image"));
+    assert(!imageOnly.message.content.some((part: { type?: string; text?: string }) =>
+      part.type === "text" && part.text?.trim()));
+    const listed = await supervisor.command(sourceId, { type: "get_fork_messages" }) as
+      { messages?: Array<{ entryId?: string }> };
+    assert(!listed.messages?.some(item => item.entryId === imageOnly.id),
+      "pinned Pi's text-only selector omits image-only inputs, even though fork(entryId) accepts them");
+    const beforeUnsafeFork = await readFile(sourceView.sessionFile);
+    const beforeUnsafeLeaf = (await supervisor.command(sourceId, { type: "get_entries" }) as
+      { leafId?: string }).leafId;
+    const beforeUnsafeRange = await service.conversationRowsRangeV4({ workspacePath, sessionId: sourceId, limit: 100 });
+    const refused = await service.sendConversationCommandV4(command(sourceId, "forkPiEntry",
+      { entryId: imageOnly.id }, beforeUnsafeRange.atRevision, beforeUnsafeRange.atLogEpoch) as never);
+    assert.equal(refused.status, "failed");
+    assert.equal(refused.reasonCode, "pi.forkBeforeFirstAssistant",
+      "Pi does not persist a child JSONL if the selected entry has no assistant ancestor");
+    assert.deepEqual(await readFile(sourceView.sessionFile), beforeUnsafeFork);
+    assert.equal(supervisor.getSession(sourceId)?.sessionId, sourceId,
+      "preflight refusal must leave the source Pi process and identity untouched");
+    assert.equal((await supervisor.command(sourceId, { type: "get_entries" }) as
+      { leafId?: string }).leafId, beforeUnsafeLeaf,
+    "preflight refusal must not move Pi's current leaf");
+    const laterImageSettled = (async () => {
+      for await (const [id, event] of on(supervisor, "record", { signal: AbortSignal.timeout(20_000) })) {
+        if (id === sourceId && event.type === "agent_settled") return;
+      }
+    })();
+    const laterImage = await service.sendConversationCommandV4(command(sourceId, "sendText", {
+      text: "", attachments: [{ ref: imagePath, fileName: "fork-image.png",
+        mime: "image/png", bytes: png.length }],
+    }) as never);
+    assert.equal(laterImage.status, "accepted", laterImage.message);
+    await laterImageSettled;
+    await (service as unknown as { reconciliations: Map<string, Promise<void>> }).reconciliations.get(sourceId);
+    const laterEntries = await supervisor.command(sourceId, { type: "get_entries" }) as typeof entries;
+    const laterImageEntry = laterEntries.entries.filter(entry => entry.type === "message" &&
+      entry.message?.role === "user").at(-1);
+    assert(laterImageEntry && laterImageEntry.id !== imageOnly.id);
+    const imageOnlySource = await readFile(sourceView.sessionFile);
+    const imageOnlyRange = await service.conversationRowsRangeV4({ workspacePath, sessionId: sourceId, limit: 100 });
+    const imageOnlyFork = await service.sendConversationCommandV4(command(sourceId, "forkPiEntry",
+      { entryId: laterImageEntry.id }, imageOnlyRange.atRevision, imageOnlyRange.atLogEpoch) as never);
+    assert.equal(imageOnlyFork.status, "accepted", imageOnlyFork.message);
+    assert(imageOnlyFork.result?.type === "forkAssistant");
+    assert.equal(imageOnlyFork.result.restoredText ?? "", "");
+    const imageOnlyRestored = imageOnlyFork.result.restoredImages;
+    assert.equal(imageOnlyRestored?.length, 1);
+    const imagePartIndex = Array.isArray(laterImageEntry.message?.content)
+      ? laterImageEntry.message.content.findIndex((part: { type?: string }) => part.type === "image") : -1;
+    assert(imagePartIndex >= 0);
+    assert.equal(imageOnlyRestored[0]?.ref, `pi-entry-image:${laterImageEntry.id}:${imagePartIndex}`);
+    const imageOnlyBytes = await service.attachmentReadV4({ workspacePath, sessionId: sourceId,
+      ref: imageOnlyRestored[0]!.ref, offset: 0, limit: png.length });
+    assert.deepEqual(Buffer.from(imageOnlyBytes.dataBase64, "base64"), png);
+    assert.deepEqual(await readFile(sourceView.sessionFile), imageOnlySource);
   } finally {
     await service.dispose();
     model.closeAllConnections();

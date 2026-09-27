@@ -134,6 +134,10 @@ PI14-F2 继续使用原生 `WorkspaceFileTree`、`PreviewPane`、`MentionPlugin`
 
 固定 Pi 0.87.0 的 `fork` 仅返回文字；Host 在 Pi 分支前按选中 `entryId` 验证原 JSONL 图片并返回受限 `pi-entry-image:entryId:partIndex` 引用和 SHA-256，不在命令回执中携带原图。新 child 先持久登记图片草稿；复制中断或字节不符时，重启后保留可见失败 chip，阻止只发送文字。源会话 JSONL 保留；删除 child 时才回收其本地草稿。图片超过 8 张、单张超过 20 MiB、未知内容块或受损 base64 会在 Pi 分支前拒绝。原版同状态视觉对照仍待统一验收。
 
+Pi 的 `get_fork_messages` 文字列表不包含纯图片输入，但固定 Pi `fork(entryId)` 支持该用户 entry。Host 以 `get_entries` 的精确用户 entry 验证和读取，因此纯图片也作为未发送图片草稿恢复，不合成文字；原生树节点显示图片数量，方便区分原本都显示为“(empty)”的纯图片输入。
+
+Pi 0.87.0 在 fork 目标的父链没有 assistant 消息时会返回 child 身份，却延迟写 child JSONL 到首次 assistant 回复。GUI 的未发送草稿不能依赖尚不存在的文件恢复；Host 在调用 Pi fork 前核对精确父链并拒绝此情形，保持源会话不变。已有 assistant 的父链可 fork 纯图片输入；首回合直接分支仍是固定 Pi 的产品边界。
+
 ## #9 Pi 历史编辑与重试（开发增量，源码 GUI 已测）
 
 | ID | 原生入口/行为 | Pi 产品行为 | 必要性 / 状态 |
