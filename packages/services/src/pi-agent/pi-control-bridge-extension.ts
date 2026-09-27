@@ -55,6 +55,18 @@ async function resourceSettingsFor(ctx: ExtensionCommandContext): Promise<{ pack
 
 const piPackageOffline = () => /^(?:1|true|yes)$/i.test(process.env.PI_OFFLINE ?? "");
 
+async function installedNpmVersion(manager: DefaultPackageManager, source: string,
+  scope: "user" | "project"): Promise<string | undefined> {
+  const installedPath = manager.getInstalledPath(source, scope);
+  if (!installedPath) return undefined;
+  try {
+    const manifest = JSON.parse(await readFile(resolve(installedPath, "package.json"), "utf8")) as {
+      version?: unknown;
+    };
+    return typeof manifest.version === "string" ? manifest.version : undefined;
+  } catch { return undefined; }
+}
+
 async function toggleResource(ctx: ExtensionCommandContext,
   intent: Extract<PiControlIntent, { operation: "resource_toggle" }>): Promise<void> {
   const settings = SettingsManager.create(ctx.cwd, getAgentDir(), { projectTrusted: ctx.isProjectTrusted() });
@@ -163,7 +175,17 @@ async function managePackage(ctx: ExtensionCommandContext,
           "Pi cannot update only this package row; remove duplicate settings or refresh an unclear source");
       const failure = piPackageUpdateFailure(intent.source, piPackageOffline());
       if (failure) throw new ControlError(failure.code, failure.message);
-      await manager.update(intent.source); break;
+      const npmSource = intent.source.startsWith("npm:");
+      const beforeVersion = npmSource ? await installedNpmVersion(manager, intent.source, intent.scope) : undefined;
+      await manager.update(intent.source);
+      if (npmSource) {
+        const afterVersion = await installedNpmVersion(manager, intent.source, intent.scope);
+        if (!afterVersion) throw new ControlError("PACKAGE_UNVERIFIED",
+          "Pi npm 更新后无法核实已安装版本；请刷新并检查扩展包");
+        if (beforeVersion === afterVersion) throw new ControlError("PACKAGE_UNCHANGED",
+          "Pi npm 包已是当前安装版本，资源未更新");
+      }
+      break;
     }
     case "package_filter": {
       const entries = intent.scope === "project" ? settings.getProjectSettings().packages ?? [] :
