@@ -547,6 +547,58 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
     return response.data;
   }
 
+  /** Pi replaces its active JSONL in-place on fork/clone; stop that process before leasing the child. */
+  async branchSession(sessionId: string, operation: "fork" | "clone", entryId?: string): Promise<{
+    cancelled: boolean; view?: PiSessionView; restoredText?: string;
+  }> {
+    const runtime = this.requireSession(sessionId);
+    if (operation === "fork" && (!entryId || entryId.length > 256)) throw new Error("Invalid Pi fork entry ID");
+    if (runtime.view.uncertainDelivery || runtime.view.reconciliationRequired ||
+      runtime.pendingExtensionRequests.size > 0 || !["idle", "settled", "stopped"].includes(runtime.view.phase)) {
+      throw new Error("Pi session must be settled before branching");
+    }
+    const before = await this.getState(sessionId);
+    if (before.isStreaming || before.isCompacting || Number(before.pendingMessageCount) !== 0) {
+      throw new Error("Pi session has active or queued work; finish it before branching");
+    }
+    let acknowledged = false;
+    try {
+      const response = await runtime.client.request(operation === "fork"
+        ? { type: "fork", entryId } : { type: "clone" });
+      if (!response.success) throw new Error(response.error ?? `Pi ${operation} failed`);
+      acknowledged = true;
+      const result = object(response.data);
+      if (typeof result.cancelled !== "boolean") throw new Error(`Pi ${operation} omitted cancelled state`);
+      const stateResponse = await runtime.client.request({ type: "get_state" });
+      if (!stateResponse.success) throw new Error(stateResponse.error ?? "Pi get_state after branch failed");
+      const after = object(stateResponse.data);
+      if (result.cancelled) {
+        if (after.sessionId !== sessionId || after.sessionFile !== runtime.view.sessionFile) {
+          throw new Error("Pi cancelled a branch but changed the active session");
+        }
+        return { cancelled: true };
+      }
+      if (typeof after.sessionId !== "string" || !after.sessionId || after.sessionId === sessionId ||
+        typeof after.sessionFile !== "string" || !isAbsolute(after.sessionFile) ||
+        after.sessionFile === runtime.view.sessionFile || !(await stat(after.sessionFile)).isFile()) {
+        throw new Error("Pi branch did not create a distinct session identity and JSONL file");
+      }
+      const childFile = await realpath(after.sessionFile);
+      const childId = after.sessionId;
+      const workspacePath = runtime.view.workspacePath;
+      // The old Pi runtime has already switched files. Dispose and verify its
+      // process tree before releasing the old file lease and resuming the child.
+      await this.closeSession(sessionId);
+      const view = await this.resumeSession(workspacePath, childFile, childId);
+      return { cancelled: false, view,
+        ...(operation === "fork" && typeof result.text === "string" ? { restoredText: result.text } : {}) };
+    } catch (error) {
+      if (!acknowledged) throw error;
+      throw Object.assign(new Error("Pi acknowledged a branch but its final session identity is uncertain; inspect Pi history before retrying"),
+        { delivery: "unknown" as const, cause: error });
+    }
+  }
+
   /** Refuse queue editing unless the exact pinned Pi compatibility protocol is live. */
   async requireQueueCompatibility(sessionId: string): Promise<void> {
     const capabilities = object(await this.command(sessionId, { type: "pi_gui_queue_capabilities_v1" }));

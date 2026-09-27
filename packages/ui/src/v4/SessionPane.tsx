@@ -3093,6 +3093,23 @@ export function SessionPane({
     [dispatchCommand, onSessionCreated, sessionId],
   );
 
+  const handlePiBranch = useCallback(async (operation: "fork" | "clone", entryId?: string): Promise<boolean> => {
+    const current = snapshotRef.current;
+    if (!sessionId || !current) throw new Error("当前 Pi 会话已关闭");
+    const ack = await dispatchCommand(operation === "fork" ? "forkPiEntry" : "clonePiSession",
+      operation === "fork" ? { entryId: entryId! } : {}, sessionId, current.revision, current.logEpoch);
+    if (ack.status === "noop" && ack.reasonCode === "pi.branchCancelled") return false;
+    if ((ack.status !== "accepted" && ack.status !== "duplicate") || ack.result?.type !== "forkAssistant") {
+      throw new Error(ack.message ?? `Pi ${operation} failed: ${ack.reasonCode ?? ack.status}`);
+    }
+    if (ack.result.restoredText) {
+      setComposerRestoreRequest({ requestId: nextComposerRestoreRequestIdRef.current++, sessionId: ack.result.sessionId,
+        workspaceKey, inputKind: "sendText", text: ack.result.restoredText, attachments: [] });
+    }
+    onSessionCreated?.(ack.result.sessionId);
+    return true;
+  }, [dispatchCommand, onSessionCreated, sessionId, workspaceKey]);
+
   const handleEdit = useCallback(
     async (
       target: ConversationRowTarget,
@@ -4686,7 +4703,8 @@ export function SessionPane({
             workspaceIdentity={workspaceIdentity} />
           <PiTreeDialog sessionId={sessionId} workspacePath={workspacePath}
             workspaceIdentity={workspaceIdentity} remoteSessionId={remoteSessionId}
-            beforeNavigate={beforePiTreeNavigate} onRestoredText={restorePiTreeEditor} />
+            beforeNavigate={beforePiTreeNavigate} onRestoredText={restorePiTreeEditor}
+            onBranch={handlePiBranch} />
         </> : undefined}
       />
 

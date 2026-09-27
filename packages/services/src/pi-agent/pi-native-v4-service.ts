@@ -573,7 +573,7 @@ export class PiNativeV4Service implements V4Methods {
   private async loadSession(params: ZCodeAgentWorkspaceTarget, sessionId: string): Promise<void> {
     await this.loadWorkspace(params);
     const current = this.sessions.get(sessionId);
-    if (current && current.view.phase !== "exited") {
+    if (current && current.view.phase !== "exited" && this.supervisor.getSession(sessionId)) {
       if (current.state.piOfflinePending !== true || !await sessionFileExists(current.view.sessionFile)) return;
       this.sessions.delete(sessionId);
     }
@@ -1344,7 +1344,7 @@ export class PiNativeV4Service implements V4Methods {
 
   private dispatchSerialized(params: ZCodeAgentConversationCommandParams,
     envelope: ZCodeAgentConversationCommandParams["envelope"]): Promise<CommandAck> {
-    if (!envelope.sessionId || !["sendText", "deleteSession", "stop", "sendQueuedNow",
+    if (!envelope.sessionId || !["sendText", "deleteSession", "stop", "forkPiEntry", "clonePiSession", "sendQueuedNow",
       "editQueueItem", "reorderQueueItem", "deleteQueueItem", "setAutoDrain"].includes(envelope.type)) {
       return this.dispatch(params, envelope);
     }
@@ -1439,6 +1439,70 @@ export class PiNativeV4Service implements V4Methods {
       if (!envelope.sessionId) return failure(commandId, "pi.sessionRequired");
       await this.loadSession(params, envelope.sessionId);
       record = this.recordFor(params, envelope.sessionId);
+      if (envelope.type === "forkPiEntry" || envelope.type === "clonePiSession") {
+        if (envelope.baseRevision !== record.snapshot.revision ||
+          envelope.baseLogEpoch !== record.snapshot.logEpoch) return {
+          commandId, status: "stale", reasonCode: "pi.branchSnapshotChanged",
+          revisionAtDecision: record.snapshot.revision,
+        };
+        const sourceId = record.view.sessionId;
+        const operationKey = `${record.workspaceKey}:${sourceId}`;
+        if (this.treeOperations.has(operationKey) || record.state.piPendingIntent ||
+          !["idle", "settled", "stopped"].includes(record.view.phase)) {
+          return failure(commandId, "pi.branchBusy", "Finish current Pi work before branching", record.snapshot.revision);
+        }
+        const entryId = envelope.type === "forkPiEntry"
+          ? (envelope.payload as { entryId: string }).entryId : undefined;
+        this.treeOperations.add(operationKey);
+        try {
+          if (entryId) {
+            const available = await this.supervisor.command(sourceId, { type: "get_fork_messages" }) as {
+              messages?: Array<{ entryId?: string }> };
+            if (!available.messages?.some(message => message.entryId === entryId)) {
+              return failure(commandId, "pi.forkEntryUnavailable", "Select a user entry on Pi's active branch",
+                record.snapshot.revision);
+            }
+            const history = await this.supervisor.command(sourceId, { type: "get_entries" }) as {
+              entries?: Array<{ id?: string; type?: string; message?: { content?: unknown } }> };
+            const sourceEntry = history.entries?.find(item => item.id === entryId && item.type === "message");
+            if (!sourceEntry) return failure(commandId, "pi.forkEntryUnavailable",
+              "Pi fork entry changed before admission", record.snapshot.revision);
+            if (Array.isArray(sourceEntry.message?.content) && sourceEntry.message.content.some(part =>
+              part && typeof part === "object" && "type" in part && part.type === "image")) {
+              return failure(commandId, "pi.forkImageUnsupported",
+                "Pi 0.87.0 fork returns text without the selected image; source session is unchanged",
+                record.snapshot.revision);
+            }
+          }
+          if (!await this.persist(record)) throw new Error("Cannot persist Pi source before branching");
+          const branch = await this.supervisor.branchSession(sourceId,
+            entryId ? "fork" : "clone", entryId);
+          if (branch.cancelled) return { commandId, status: "noop", reasonCode: "pi.branchCancelled",
+            revisionAtDecision: record.snapshot.revision };
+          const view = branch.view!;
+          const [state, messages] = await Promise.all([
+            this.supervisor.getState(view.sessionId), this.supervisor.getHistoryMessages(view.sessionId),
+          ]);
+          state.piExtensionUi = this.pendingExtensionUi.get(view.sessionId) ?? emptyPiExtensionUiState();
+          this.pendingExtensionUi.delete(view.sessionId);
+          const projection = new PiMessageRows(params.workspacePath);
+          const rows = projection.restore(messages);
+          state.messageCount = messages.length;
+          const now = Date.now();
+          const child: SessionRecord = { workspaceKey, workspaceId: record.workspaceId, view, state, projection,
+            snapshot: conversationSnapshotSchema.parse({ ...createPiV4Snapshot(view, state, randomUUID()),
+              rows: { window: rows, totalCount: rows.length, firstRowId: rows[0]?.rowId ?? null } }),
+            admissionGeneration: 0, createdAt: now, lastActivityAt: now };
+          this.sessions.set(view.sessionId, child);
+          await this.refreshRuntimeFacts(child);
+          if (!await this.persist(child)) throw new Error("Cannot persist Pi child after branching");
+          this.refreshWorkspaceConfig(workspaceKey);
+          this.emitIndex(workspaceKey, child);
+          return { commandId, status: "accepted", revisionAtDecision: record.snapshot.revision,
+            result: { type: "forkAssistant", sessionId: view.sessionId,
+              ...(branch.restoredText !== undefined ? { restoredText: branch.restoredText } : {}) } };
+        } finally { this.treeOperations.delete(operationKey); }
+      }
       if (envelope.type === "sendText") {
         if (this.treeOperations.has(`${record.workspaceKey}:${record.view.sessionId}`)) {
           return failure(commandId, "pi.treeControlBusy", "Pi tree control is active", record.snapshot.revision);
@@ -1675,6 +1739,12 @@ export class PiNativeV4Service implements V4Methods {
       }
       return unsupported(commandId, envelope.type, record.snapshot.revision);
     } catch (error) {
+      const deliveryUnknown = error instanceof Error && "delivery" in error && error.delivery === "unknown";
+      if (record && deliveryUnknown) {
+        record.view.uncertainDelivery = true;
+        record.view.reconciliationRequired = true;
+        record.view.phase = "error";
+      }
       if (createdSessionId && (!record || !firstPromptAttempted)) {
         await this.supervisor.closeSession(createdSessionId);
         if (record) {
@@ -1684,7 +1754,7 @@ export class PiNativeV4Service implements V4Methods {
         }
       }
       if (record?.view.uncertainDelivery || record?.view.reconciliationRequired) await this.safelyPersist(record);
-      return failure(commandId, record?.view.uncertainDelivery ? "pi.deliveryUnknown" : "pi.commandFailed",
+      return failure(commandId, record?.view.uncertainDelivery || deliveryUnknown ? "pi.deliveryUnknown" : "pi.commandFailed",
         error instanceof Error ? error.message : String(error), record?.snapshot.revision ?? 0);
     }
   }

@@ -147,6 +147,8 @@ export const commandPayloadSchemas = {
   compact: z.object({}),
   // running 时对稳定 assistant row 可用。
   forkAssistant: z.object({ target: conversationRowTargetSchema }),
+  forkPiEntry: z.object({ entryId: z.string().min(1) }),
+  clonePiSession: z.object({}),
   applyFileRewind: z.object({ target: conversationRowTargetSchema }),
   editUserQuery: z.object({
     target: conversationRowTargetSchema,
@@ -293,6 +295,8 @@ export const BACKGROUND_WORK_CANCEL_REJECTED_FAULT_PREFIX =
 export const COMMANDS_REQUIRING_BASE_REVISION: ReadonlySet<CommandType> = new Set([
   "applyFileRewind",
   "forkAssistant",
+  "forkPiEntry",
+  "clonePiSession",
   "editUserQuery",
   "retryTurn",
   "setAssistantFeedback",
@@ -311,6 +315,8 @@ export const COMMANDS_REQUIRING_BASE_REVISION: ReadonlySet<CommandType> = new Se
 export const ROW_TARGETING_COMMANDS: ReadonlySet<CommandType> = new Set([
   "applyFileRewind",
   "forkAssistant",
+  "forkPiEntry",
+  "clonePiSession",
   "editUserQuery",
   "retryTurn",
   "setAssistantFeedback",
@@ -368,6 +374,7 @@ export const commandResultSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.enum(["createSession", "createSelectionSideSession", "forkAssistant"]),
     sessionId: z.string(),
+    restoredText: z.string().optional(),
     input: z
       .object({
         delivery: z.enum(["startNow", "queue", "guide"]),

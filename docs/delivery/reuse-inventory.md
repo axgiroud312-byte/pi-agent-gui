@@ -53,6 +53,10 @@ worktree 父目录：`C:\Users\niilo\AppData\Local\Temp\opencode`。以下提交
 Pi 的 MIT 来源及固定版本见 `THIRD_PARTY_NOTICES.md` 与
 [上游参考](../references/upstream-and-ui.md)，原生组件来自当前 ZCode 底座。
 
+### #9 Pi fork/clone 原生纵向切片（2026-09-27，隔离分支待整合）
+
+沿用原生 `SessionPane`、`PiTreeDialog` 和 V4 命令/会话选择，不迁入旧原型的会话列表或 Agent 状态。固定 Pi 0.87.0 公开 RPC 的 `get_fork_messages`、`fork(entryId)`、`clone()`、`get_state` 与 Pi JSONL 是分支事实；Host 只维护原生命令回执、进程及文件租约。Pi 成功替换会话后，旧 RPC 进程完整退出再恢复新会话，防止同一进程写着 child 却仍用父会话身份。取消返回 `noop`，不创建 child；不确定的交付阻止自动重试。Pi 来源与 MIT 声明见固定上游参考及 `THIRD_PARTY_NOTICES.md`。
+
 ## 已知外部验收差额
 
 - 旧主线真实 `openai-codex/gpt-5.5` 文本成功（449 tokens）；`aio-codex/gpt-5.4-mini` 为 Connection error，未通过。

@@ -25,13 +25,14 @@ function flatten(nodes: TreeView["tree"], depth = 0): Array<{ node: TreeNode; de
 }
 
 export function PiTreeDialog({ sessionId, workspacePath, workspaceIdentity, remoteSessionId,
-  beforeNavigate, onRestoredText }: {
+  beforeNavigate, onRestoredText, onBranch }: {
   sessionId: string;
   workspacePath: string;
   workspaceIdentity?: string;
   remoteSessionId?: string | null;
   beforeNavigate(): void;
   onRestoredText(text: string): void;
+  onBranch(operation: "fork" | "clone", entryId?: string): Promise<boolean>;
 }) {
   const { zcodeAgentService } = useServices();
   const [open, setOpen] = useState(false);
@@ -39,7 +40,7 @@ export function PiTreeDialog({ sessionId, workspacePath, workspaceIdentity, remo
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [label, setLabel] = useState("");
   const [summarize, setSummarize] = useState(false);
-  const [busy, setBusy] = useState<"load" | "navigate" | "label" | "reload" | "set_tools" | null>(null);
+  const [busy, setBusy] = useState<"load" | "navigate" | "label" | "reload" | "set_tools" | "branch" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pendingText, setPendingText] = useState<string | null>(null);
   const [selectedTools, setSelectedTools] = useState<string[]>([]);
@@ -91,18 +92,30 @@ export function PiTreeDialog({ sessionId, workspacePath, workspaceIdentity, remo
     } finally { setBusy(null); }
   };
 
+  const branch = async (operation: "fork" | "clone") => {
+    if (!view || busy || (operation === "fork" && !selectedId)) return;
+    try {
+      beforeNavigate();
+      setBusy("branch"); setError(null);
+      const created = await onBranch(operation, operation === "fork" ? selectedId! : undefined);
+      if (created) setOpen(false);
+      else setError("Pi 扩展取消了分支操作；原会话保持不变。");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
+    finally { setBusy(null); }
+  };
+
   return <>
     <Button type="button" variant="outline" size="icon-md" title="Pi 会话树" aria-label="Pi 会话树"
       className="pointer-events-auto bg-[var(--color-popover)] shadow-md"
       onClick={() => setOpen(true)} data-testid="pi-tree-open">
       <GitBranch className="size-4" />
     </Button>
-    <Dialog open={open} onOpenChange={next => { if (!next && busy === "navigate") return; setOpen(next); }}>
+    <Dialog open={open} onOpenChange={next => { if (!next && (busy === "navigate" || busy === "branch")) return; setOpen(next); }}>
       <DialogContent data-testid="pi-tree-dialog" data-generation={view?.info.generation ?? ""}
         className="max-h-[85vh] max-w-[min(56rem,calc(100vw-2rem))] overflow-hidden">
         <DialogHeader>
           <DialogTitle>Pi 会话树</DialogTitle>
-          <DialogDescription>读取当前 Pi 会话的真实历史；选择节点后可跳转、设置书签或重载扩展。</DialogDescription>
+          <DialogDescription>读取当前 Pi 会话的真实历史；选择节点后可跳转、分支、设置书签或重载扩展。</DialogDescription>
         </DialogHeader>
         <div className="flex items-center gap-2 text-xs text-foreground-subtle">
           <span>Pi {view?.info.piVersion ?? "…"} · Bridge {view?.info.bridgeVersion ?? "…"}</span>
@@ -156,6 +169,11 @@ export function PiTreeDialog({ sessionId, workspacePath, workspaceIdentity, remo
             onChange={event => setSummarize(event.target.checked)} disabled={busy !== null} />跳转时总结上下文</label>
           {busy === "navigate" ? <Button type="button" variant="outline" size="sm"
             onClick={() => void zcodeAgentService.cancelPiTreeNavigation(target).catch(cause => setError(String(cause)))}>停止跳转</Button> : null}
+          <Button type="button" variant="outline" disabled={busy !== null || !view?.leafId}
+            data-testid="pi-tree-clone" onClick={() => void branch("clone")}>克隆当前分支</Button>
+          <Button type="button" variant="outline" disabled={busy !== null || selected?.entry.type !== "message" ||
+            selected.entry.message.role !== "user"} data-testid="pi-tree-fork"
+          onClick={() => void branch("fork")}>从此用户消息分支</Button>
           <Button type="button" disabled={!selected || busy !== null} onClick={() => void action("navigate")}>跳转到节点</Button>
         </div>
       </DialogContent>
