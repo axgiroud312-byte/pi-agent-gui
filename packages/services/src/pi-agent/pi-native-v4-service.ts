@@ -400,8 +400,11 @@ export class PiNativeV4Service implements V4Methods {
         this.sessions.set(sessionId, { workspaceKey: entry.workspaceKey, workspaceId: entry.workspaceId,
           view, state, projection, snapshot, admissionGeneration: entry.pendingIntent?.generation ?? 0,
           createdAt: entry.createdAt, lastActivityAt: entry.lastActivityAt });
-        if (safeToContinue) await this.safelyPersist(this.sessions.get(sessionId)!);
-        this.emitIndex(entry.workspaceKey, this.sessions.get(sessionId)!);
+        const loaded = this.sessions.get(sessionId)!;
+        await this.refreshRuntimeFacts(loaded);
+        this.refreshWorkspaceConfig(entry.workspaceKey);
+        if (safeToContinue) await this.safelyPersist(loaded);
+        this.emitIndex(entry.workspaceKey, loaded);
       } catch (error) {
         if (view) await this.supervisor.closeSession(sessionId);
         throw error;
@@ -815,6 +818,7 @@ export class PiNativeV4Service implements V4Methods {
         };
         this.sessions.set(view.sessionId, record);
         await this.refreshRuntimeFacts(record);
+        this.refreshWorkspaceConfig(workspaceKey);
         this.emitIndex(workspaceKey, record);
         if (payload.firstInput) {
           record.admissionGeneration++;
@@ -1127,6 +1131,14 @@ export class PiNativeV4Service implements V4Methods {
     const sub = this.subscription(key, workspaceConfigTopic(key));
     queueMicrotask(() => { void this.sendConfigSnapshot(sub, "initial"); });
     return { ack: { subscriptionId: sub.id, mode: "snapshot", logEpoch: key } };
+  }
+
+  private refreshWorkspaceConfig(workspaceKey: string): void {
+    for (const sub of this.subscriptions.values()) {
+      if (sub.workspaceKey === workspaceKey && sub.topic === workspaceConfigTopic(workspaceKey)) {
+        void this.sendConfigSnapshot(sub, "recovery");
+      }
+    }
   }
 
   private async sendConfigSnapshot(sub: Subscription, deliveryKind: "initial" | "recovery"): Promise<void> {

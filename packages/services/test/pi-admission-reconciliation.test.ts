@@ -5,7 +5,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { conversationTopicWireFrameSchema } from '@zcode/shared/zcode-protocol-v4';
+import { conversationTopicWireFrameSchema, workspaceConfigTopicWireFrameSchema } from '@zcode/shared/zcode-protocol-v4';
 import { PiRpcClient, PiRpcError } from '../src/pi-agent/pi-rpc-client.js';
 import { PiSessionSupervisor } from '../src/pi-agent/pi-session-supervisor.js';
 import { PiNativeV4Service } from '../src/pi-agent/pi-native-v4-service.js';
@@ -63,7 +63,12 @@ async function fixture() {
           model: this.model, thinkingLevel: this.thinkingLevel,
           isStreaming: this.streaming, isCompacting: false, pendingMessageCount: 0 }
         : command.type === 'get_entries' ? { entries: [], leafId: null }
-        : command.type === 'get_messages' ? { messages: this.messages } : {} };
+        : command.type === 'get_messages' ? { messages: this.messages }
+        : command.type === 'get_available_thinking_levels' ? { levels: ['off', 'medium'] }
+        : command.type === 'get_session_stats' ? { tokens: { input: 1, output: 2 }, contextUsage: { tokens: 3, contextWindow: 100 } }
+        : command.type === 'get_available_models' ? { models: [{ provider: 'test', id: 'model', name: 'Test Model', input: ['text', 'image'] }] }
+        : command.type === 'get_commands' ? { commands: [{ name: 'skill-command', description: 'A Pi resource command', source: 'skill' }] }
+        : {} };
     }
   }
   const client = new ControlledPi();
@@ -183,6 +188,26 @@ test('unsupported permissions and execution constraints fail before any Pi side 
     assert.equal(f.client.prompts, 0);
     assert.deepEqual(f.client.calls.slice(-2), ['follow_up', 'steer']);
   } finally { await f.close(); }
+});
+
+test('workspace config projects Pi model and resource command catalogs', async () => {
+  const f = await fixture();
+  const frames: unknown[] = [];
+  const listener = f.service.onDynamicWorkspaceConfigFrame(f.target)(frame => frames.push(frame));
+  try {
+    await f.service.sendConversationCommandV4({ ...f.target, envelope: {
+      commandId: randomUUID(), clientId: 'catalog', sessionId: null, type: 'createSession',
+      issuedAt: Date.now(), payload: { workspaceId: f.root },
+    } });
+    const subscription = await f.service.subscribeWorkspaceConfigV4(f.target);
+    await new Promise(resolve => setImmediate(resolve));
+    const wire = workspaceConfigTopicWireFrameSchema.parse(frames.at(-1));
+    assert.equal(wire.kind, 'complete');
+    if (wire.kind !== 'complete' || wire.frame.payload.kind !== 'snapshot') throw Error('missing config snapshot');
+    assert.equal(wire.frame.payload.snapshot.config.configOptions[0]?.options?.[0]?.value, 'test/model');
+    assert.equal(wire.frame.payload.snapshot.config.slashCommands[0]?.name, 'skill-command');
+    await f.service.unsubscribeWorkspaceConfigV4({ ...f.target, subscriptionId: subscription.ack.subscriptionId });
+  } finally { listener.dispose(); await f.close(); }
 });
 
 test('blocking extension UI is projected for the native dialog and explicitly resolved back to Pi', async () => {
