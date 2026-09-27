@@ -92,6 +92,16 @@ try {
   assert.equal(persisted.defaultThinkingLevel, 'medium');
   assert.deepEqual(persisted.futureSetting, { keep: 'unchanged' });
   report.saved = true;
+  const beforeInvalid = await readFile(settingsPath, 'utf8');
+  await editor.fill(JSON.stringify({ ...persisted, compaction: { reserveTokens: -1 } }, null, 2));
+  await settings.getByRole('button', { name: '保存 Pi 设置' }).click();
+  await settings.getByText(/Invalid compaction\.reserveTokens/u).waitFor();
+  assert.equal(await readFile(settingsPath, 'utf8'), beforeInvalid,
+    'a Pi-rejected value must not replace the only settings document');
+  report.invalidPiValueRejected = true;
+  await settings.getByRole('button', { name: '放弃修改并重新读取' }).click();
+  await page.waitForFunction(() => document.querySelector('[data-testid="pi-settings-json"]')
+    ?.value.includes('"defaultThinkingLevel": "medium"'));
   const external = { ...persisted, cacheWarming: 'off' };
   await writeFile(settingsPath, JSON.stringify(external));
   await editor.fill(JSON.stringify({ ...edited, defaultThinkingLevel: 'high' }, null, 2));

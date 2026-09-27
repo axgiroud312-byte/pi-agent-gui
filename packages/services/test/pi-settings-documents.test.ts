@@ -198,3 +198,26 @@ test("native session path follows Pi settings with CLI and environment precedenc
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("advanced Pi settings reject a value that fixed Pi cannot use before replacing the document", async () => {
+  const root = await mkdtemp(join(tmpdir(), "pi-settings-invalid-value-"));
+  const agentDir = join(root, "agent");
+  try {
+    await mkdir(agentDir);
+    const path = join(agentDir, "settings.json");
+    const original = '{"compaction":{"reserveTokens":16384},"futureKey":"keep"}';
+    await writeFile(path, original);
+    const before = await readPiSettingsDocuments(root, { PI_CODING_AGENT_DIR: agentDir });
+    await assert.rejects(savePiSettingsDocument(root, { PI_CODING_AGENT_DIR: agentDir }, {
+      scope: "user", expectedRevision: before.user.revision,
+      text: '{"compaction":{"reserveTokens":-1},"futureKey":"keep"}',
+    }), /Invalid compaction\.reserveTokens/iu);
+    await assert.rejects(savePiSettingsDocument(root, { PI_CODING_AGENT_DIR: agentDir }, {
+      scope: "user", expectedRevision: before.user.revision,
+      text: '{"compaction":{"modelOverrides":{"fixture/model":{"keepRecentTokens":-1}}}}',
+    }), /Invalid compaction\.modelOverrides/iu);
+    assert.equal(await readFile(path, "utf8"), original);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

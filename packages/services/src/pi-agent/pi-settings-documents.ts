@@ -53,6 +53,26 @@ function parseObject(text: string): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
+/** Check values whose pinned Pi getters can reject before replacing the only settings file. */
+function validatePiReadableSettings(text: string, scope: PiSettingsScope): void {
+  const piScope = scope === "user" ? "global" : "project";
+  const storage: Parameters<typeof SettingsManager.fromStorage>[0] = {
+    withLock(readScope, read) { read(readScope === piScope ? text : undefined); },
+  };
+  const manager = SettingsManager.fromStorage(storage, { projectTrusted: true });
+  const loadError = manager.drainErrors()[0];
+  if (loadError) throw loadError.error;
+  manager.getCompactionSettings();
+  manager.getHttpIdleTimeoutMs();
+  manager.getWebSocketConnectTimeoutMs();
+  const document = scope === "user" ? manager.getGlobalSettings() : manager.getProjectSettings();
+  for (const key of Object.keys(document.compaction?.modelOverrides ?? {})) {
+    const separator = key.indexOf("/");
+    if (separator < 1 || separator === key.length - 1) continue;
+    manager.getCompactionSettings({ provider: key.slice(0, separator), id: key.slice(separator + 1) });
+  }
+}
+
 async function readDocument(scope: PiSettingsScope, path: string): Promise<PiSettingsDocument> {
   let bytes: Buffer;
   try {
@@ -164,6 +184,7 @@ export async function savePiSettingsDocument(
 ): Promise<PiSettingsSnapshot> {
   if (request.scope !== "user" && request.scope !== "project") throw new Error("Invalid Pi settings scope");
   parseObject(request.text);
+  validatePiReadableSettings(request.text, request.scope);
   if (Buffer.byteLength(request.text, "utf8") > 1024 * 1024) throw new Error("Pi settings exceed the 1 MiB editor limit");
   const before = await readPiSettingsDocuments(workspacePath, env, request.rpcArgs);
   const path = before[request.scope].path;
