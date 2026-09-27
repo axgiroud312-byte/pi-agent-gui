@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { isAbsolute, resolve } from "node:path";
 import type { ConversationDelta, ConversationRow } from "@zcode/shared/zcode-protocol-v4";
 import { piFileSnapshotEpilogueStart } from "./pi-file-references.js";
+import { diffPiMessageRows, serializePiValue } from "./pi-message-row-diff.js";
 
 type Data = Record<string, unknown>;
 
@@ -27,10 +28,6 @@ function timestamp(value: unknown): number { return typeof value === "number" &&
 function resultText(value: unknown): string {
   const result = object(value);
   return text(result.content);
-}
-
-function serialize(value: unknown): string {
-  try { return JSON.stringify(value) ?? ""; } catch { return "[unserializable Pi value]"; }
 }
 
 interface ToolState {
@@ -131,7 +128,7 @@ export class PiMessageRows {
       }
     }
     const next = this.buildRows();
-    const deltas = this.diff(this.rows, next);
+    const deltas = diffPiMessageRows(this.rows, next);
     this.rows = next;
     return deltas;
   }
@@ -208,7 +205,7 @@ export class PiMessageRows {
         return [];
     }
     const next = this.buildRows();
-    const deltas = this.diff(this.rows, next);
+    const deltas = diffPiMessageRows(this.rows, next);
     this.rows = next;
     return deltas;
   }
@@ -232,7 +229,7 @@ export class PiMessageRows {
     // asynchronous abort/persistence. A subsequent run may already have begun.
     this.turnStates.set(`pi-turn-${entry[0]}`, "completedInterrupted");
     const next = this.buildRows();
-    const deltas = this.diff(this.rows, next);
+    const deltas = diffPiMessageRows(this.rows, next);
     this.rows = next;
     return deltas;
   }
@@ -376,7 +373,7 @@ export class PiMessageRows {
             const toolCallId = typeof part.id === "string" ? part.id : `pi-tool-${messageIndex}-${partIndex}`;
             const tool = this.tools.get(toolCallId);
             const rowId = this.rowId(`${messageIndex}:tool:${partIndex}`);
-            const inputText = part.arguments === undefined ? String(part.partialArguments ?? "") : serialize(part.arguments);
+            const inputText = part.arguments === undefined ? String(part.partialArguments ?? "") : serializePiValue(part.arguments);
             const argumentsValue = object(part.arguments);
             // Pi executes a relative read path against the session cwd. The
             // native Read chip opens a file, so point it at that same target,
@@ -415,29 +412,4 @@ export class PiMessageRows {
     return rows;
   }
 
-  private diff(previous: ConversationRow[], next: ConversationRow[]): ConversationDelta[] {
-    const deltas: ConversationDelta[] = [];
-    for (let index = 0; index < next.length; index++) {
-      const row = next[index]!;
-      const old = previous[index];
-      if (!old) { deltas.push({ op: "row.appended", row }); continue; }
-      if (old.rowId !== row.rowId) {
-        deltas.push({ op: "row.removed", fromRowId: old.rowId });
-        for (const tail of next.slice(index)) deltas.push({ op: "row.appended", row: tail });
-        return deltas;
-      }
-      if (serialize(old) === serialize(row)) continue;
-      if (old.kind === "assistantText" && row.kind === "assistantText" &&
-        old.state === "streaming" && row.state === "streaming" && row.text.startsWith(old.text)) {
-        deltas.push({ op: "row.delta", rowId: row.rowId, path: "text", append: row.text.slice(old.text.length) });
-      } else if (old.kind === "reasoning" && row.kind === "reasoning" &&
-        old.state === "streaming" && row.state === "streaming" && row.text.startsWith(old.text)) {
-        deltas.push({ op: "row.delta", rowId: row.rowId, path: "text", append: row.text.slice(old.text.length) });
-      } else {
-        deltas.push({ op: "row.upserted", row });
-      }
-    }
-    if (next.length < previous.length) deltas.push({ op: "row.removed", fromRowId: previous[next.length]!.rowId });
-    return deltas;
-  }
 }
