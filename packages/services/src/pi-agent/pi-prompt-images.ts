@@ -1,6 +1,7 @@
 import { open, realpath, stat } from "node:fs/promises";
 import { isAbsolute } from "node:path";
 import type { AttachmentRef } from "@zcode/shared/zcode-protocol-v4";
+import { RPC_LIMITS } from "./pi-rpc-client.js";
 
 export interface PiPromptImage {
   type: "image";
@@ -9,10 +10,11 @@ export interface PiPromptImage {
 }
 
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
+const PROMPT_RECORD_HEADROOM_BYTES = 1024 * 1024;
 
 /** Materialize trusted desktop local-path image refs immediately before RPC delivery. */
 export async function readPiPromptImages(attachments: readonly AttachmentRef[] = []): Promise<PiPromptImage[]> {
-  return Promise.all(attachments.map(async attachment => {
+  const prepared = await Promise.all(attachments.map(async attachment => {
     if (!attachment.mime.startsWith("image/")) {
       throw new Error(`Pi prompt attachment is not an image: ${attachment.fileName}`);
     }
@@ -29,6 +31,15 @@ export async function readPiPromptImages(attachments: readonly AttachmentRef[] =
     if (attachment.bytes > 0 && attachment.bytes !== before.size) {
       throw new Error(`Pi prompt attachment changed before send: ${attachment.fileName}`);
     }
+    return { attachment, canonical, before };
+  }));
+  // Pi 0.87.0 accepts one JSONL prompt record. Base64 expansion is accounted
+  // before loading bytes, leaving room for text, IDs and JSON framing.
+  const encodedBytes = prepared.reduce((total, item) => total + Math.ceil(item.before.size / 3) * 4, 0);
+  if (encodedBytes > RPC_LIMITS.maxRecordBytes - PROMPT_RECORD_HEADROOM_BYTES) {
+    throw new Error("Pi prompt images exceed the aggregate JSONL record limit; send fewer or smaller images");
+  }
+  return Promise.all(prepared.map(async ({ attachment, canonical, before }) => {
     const handle = await open(canonical, "r");
     try {
       const data = await handle.readFile();

@@ -293,6 +293,13 @@ test('outbound byte limit and queue bound reject overload without killing an oth
   assert.equal((await client.request({ type: 'get_state' })).success, true);
 });
 
+test('a maximum-size Pi image survives the actual JSONL stdin boundary', { timeout: 30_000 }, async (t) => {
+  const { client } = await running(t);
+  const base64 = Buffer.alloc(20 * 1024 * 1024, 0x7f).toString('base64');
+  const response = await client.request({ type: 'test_blob', payload: base64 });
+  assert.deepEqual(response.data, { length: base64.length });
+});
+
 test('pending request count is bounded even when stdin has room and no responses arrive', testOptions, async (t) => {
   const { client } = await running(t);
   const pending = Array.from({ length: RPC_LIMITS.maxPendingRequests }, () =>

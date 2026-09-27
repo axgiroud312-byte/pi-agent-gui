@@ -21,3 +21,17 @@ test("local image attachments become exact Pi image blocks and reject stale meta
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("aggregate image bytes must fit one bounded Pi JSONL prompt record", { timeout: 30_000 }, async () => {
+  const root = await mkdtemp(join(tmpdir(), "pi-images-limit-"));
+  const bytes = Buffer.alloc(13 * 1024 * 1024, 0x7f);
+  const paths = [join(root, "first.png"), join(root, "second.png")];
+  try {
+    await Promise.all(paths.map(path => writeFile(path, bytes)));
+    await assert.rejects(readPiPromptImages(paths.map(path => ({
+      ref: path, fileName: path, mime: "image/png", bytes: bytes.length,
+    }))), /aggregate.*JSONL/i);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

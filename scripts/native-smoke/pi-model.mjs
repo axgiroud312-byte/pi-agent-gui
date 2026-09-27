@@ -1,4 +1,5 @@
 import { createServer } from 'node:http';
+import { createHash } from 'node:crypto';
 
 // External OpenAI Chat Completions boundary; Pi (not this server) executes tools.
 export async function startPiModel() {
@@ -28,6 +29,10 @@ export async function startPiModel() {
       .filter(part => part.type === 'image_url').map(part => part.image_url?.url) ?? [];
     const request = { scenario, tools: body.tools?.map(tool => tool.function?.name),
       imageMimeTypes: imageUrls.map(url => /^data:([^;]+);base64,/u.exec(url)?.[1] ?? 'unknown'),
+      imageDigests: imageUrls.map(url => {
+        const encoded = /^data:[^;]+;base64,(.*)$/u.exec(url)?.[1];
+        return encoded ? createHash('sha256').update(Buffer.from(encoded, 'base64')).digest('hex') : null;
+      }),
       toolResults: toolResults.map(message => text(message.content)), stream: body.stream, closed: false };
     requests.push(request);
     res.on('close', () => { request.closed = true; });

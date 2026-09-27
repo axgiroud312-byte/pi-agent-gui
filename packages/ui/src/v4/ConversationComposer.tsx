@@ -1757,6 +1757,7 @@ function ConversationComposerImpl({
                           : "file"
                   }
                   data-testid={testId(TID_V4_ATTACHMENT, attachment.id)}
+                  title={attachment.filename}
                   data-upload-status={attachment.uploadStatus}
                   className={
                     isMediaAttachment

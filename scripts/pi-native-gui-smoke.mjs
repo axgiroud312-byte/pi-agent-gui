@@ -1,3 +1,4 @@
+/* oxlint-disable eslint(max-lines) -- One isolated GUI lifecycle keeps its restart and process evidence together. */
 // Isolated production-entry GUI probe for Issue #34. No renderer state injection.
 import assert from 'node:assert/strict';
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
@@ -6,7 +7,9 @@ import { fileURLToPath } from 'node:url';
 import { fixture } from './native-smoke/fixture.mjs';
 import { assertCleanExit, closeOwned } from './native-smoke/cleanup.mjs';
 import { startPiModel } from './native-smoke/pi-model.mjs';
-import { sendPiImage, verifyRestoredPiImage } from './native-smoke/pi-image.mjs';
+import { image, unsentImage, probeImageAdmissionRace, sendPiImage, stageRootUnsentPiImage,
+  stageUnsentPiImage, verifyRestoredPiImage,
+  verifyRestoredRootUnsentPiImage, verifyRestoredUnsentPiImage } from './native-smoke/pi-image.mjs';
 import { probeBusyImageAndQueue, verifyStoppedQueue } from './native-smoke/pi-queue.mjs';
 import { drag } from './native-smoke/panels.mjs';
 import { resizeNativeWindow } from './native-smoke/evidence.mjs';
@@ -26,6 +29,11 @@ if (packagedExecutable) {
   delete f.env.NODE_OPTIONS;
 }
 const launchArgs = packagedExecutable ? [] : [fileURLToPath(new URL('./native-smoke/bootstrap.cjs', import.meta.url)), '--lang=zh-CN'];
+const pickedImagePath = join(f.workspace, 'root-unsent.png');
+if (!packagedExecutable) {
+  await writeFile(pickedImagePath, unsentImage);
+  f.env.NATIVE_SMOKE_PICKED_IMAGE = pickedImagePath;
+}
 await isolatePiPackage(f);
 const model = await startPiModel();
 // Target-side Pi identity stays separate from native application metadata.
@@ -181,6 +189,7 @@ try {
   for (let i = 0; i < 100 && model.held > 0; i++) await page.waitForTimeout(100);
   report.piStop = model.held === 0;
   report.returnedQueueVisible = await verifyStoppedQueue(page, report.queuedText, f.output);
+  report.imageAdmissionRaceBlocked = await probeImageAdmissionRace(page, model);
   report.modelRequests = model.requests;
   report.afterStop = (await page.locator('body').innerText()).slice(-4500);
   await page.screenshot({ path: join(f.output, 'pi-native-stopped.png') });
@@ -188,6 +197,7 @@ try {
   const catalog = join(f.home, '.zcode', 'v2', 'pi-sessions');
   report.bookmarks = (await readdir(catalog)).filter(name => name.endsWith('.json'));
   assert.equal(report.bookmarks.length, 1, 'Only the prompted Pi session is indexed, not empty drafts');
+  await stageUnsentPiImage(page, f.output);
   const requestsBeforeRestart = model.requests.length;
   report.firstCleanup = await closeOwned(app, f);
   assertCleanExit(report.firstCleanup, logs, 'First');
@@ -229,6 +239,7 @@ try {
   assert.equal(report.restartReplayed, false, 'Restoring Pi history must never replay a prompt');
   assert(report.nativeToolCardVisible && report.restoredToolCardVisible && report.restoredToolStatus === 'completed',
     'Pi read tool card must be visibly rendered live and after restart');
+  report.unsentImageRestored = await verifyRestoredUnsentPiImage(reopenedPage, model, f.output);
   report.layoutMatrix = [];
   for (const size of [{ width: 1280, height: 800 }, { width: 1920, height: 1080 }]) {
     await resizeNativeWindow(app, reopenedPage, size);
@@ -380,6 +391,32 @@ try {
     await reopenedPage.screenshot({ path: join(f.output, 'pi-native-conversation-split-unavailable.png') });
     await reopenedPage.keyboard.press('Escape');
   }
+  await reopenedPage.getByText('新建任务', { exact: true }).first().click();
+  await reopenedPage.locator('[data-testid^="v4-session-pane"]').filter({ visible: true }).first()
+    .and(reopenedPage.locator('[data-session-id="draft"]')).waitFor();
+  await stageRootUnsentPiImage(reopenedPage, f.output, !packagedExecutable);
+  if (!packagedExecutable) await writeFile(pickedImagePath, image);
+  const requestsBeforeRootRestart = model.requests.length;
+  report.secondCleanup = await closeOwned(app, f);
+  assertCleanExit(report.secondCleanup, logs, 'Second');
+  app = await f.playwright._electron.launch({ executablePath: f.electronPath,
+    args: launchArgs, cwd: f.root, env: f.env, timeout: 60_000 });
+  app.process().stdout?.on('data', chunk => logs.push(String(chunk)));
+  app.process().stderr?.on('data', chunk => logs.push(String(chunk)));
+  const rootReopenedPage = await app.firstWindow();
+  rootReopenedPage.setDefaultTimeout(15_000);
+  rootReopenedPage.on('pageerror', error => report.pageErrors.push(error.stack || error.message));
+  await rootReopenedPage.waitForTimeout(5000);
+  for (const name of [/^(使用 API key|Use API key)$/, /^(暂时跳过|Skip for now)$/, /^(退出引导|Exit onboarding)$/]) {
+    const button = rootReopenedPage.getByRole('button', { name, exact: true });
+    if (await button.isVisible()) { await button.click(); await rootReopenedPage.waitForTimeout(1200); }
+  }
+  if (!packagedExecutable && await rootReopenedPage.getByRole('button', { name: '添加项目', exact: true }).isVisible()) {
+    await rootReopenedPage.getByRole('button', { name: '添加项目', exact: true }).click();
+    await rootReopenedPage.getByRole('menuitem', { name: '打开文件夹', exact: true }).click();
+  }
+  assert.equal(model.requests.length, requestsBeforeRootRestart, 'Restored root draft must not auto-send');
+  report.rootUnsentImageRestored = await verifyRestoredRootUnsentPiImage(rootReopenedPage, model, f.output);
   await verifyPiPackageCleanup(f);
   report.piPrivatePackageCleanupVerified = true;
   const boundaries = (await readFile(f.env.NATIVE_SMOKE_BOUNDARY_LOG, 'utf8'))

@@ -6,8 +6,8 @@
 // 语义：scope = sessionId（draft 态 = "__draft__"）；保存 text + editorStateJson，外部预填在
 // Lexical 尚未挂载时额外保存 mention（保证重挂载不降级为纯文本）。
 // mode/modelSelection 与正文同 scope 保存；发送只清内容，显式清理才删除整个 scope。
-// 附件不入草稿（objectUrl/File 不可序列化，localPath 附件重启后归属难校验——
-// 与「v4 composer 不做附件草稿持久化」的裁决一致）。
+// 图片字节由 composerImageDraftStorage 独立保存在 profile 的 IndexedDB，本文字草稿
+// 只保存可同步序列化的输入与配置；发送后按同一 scope 清理两处草稿。
 import { logger } from "@/logger.js";
 import { modelSelectionSchema, type ModelSelection } from "@zcode/shared";
 import { submissionModeSchema, type SubmissionMode } from "@zcode/shared/zcode-protocol-v4";

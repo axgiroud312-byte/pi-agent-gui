@@ -40,7 +40,8 @@ interface ComposerAttachmentUploadStoreState {
 }
 
 /**
- * renderer 内存态：File/object URL 不落盘，但 task/composer 切换或局部卸载不会丢失。
+ * renderer 运行态：File/object URL 不进 Zustand 持久化；未发送图片的原始字节
+ * 由 composerImageDraftStorage 按 workspace/session scope 单独保存并在重启后水合。
  * 上传控制器仍由发起该 operation 的 hook 闭包持有，relay/main 不保存业务状态。
  */
 export const useComposerAttachmentUploadStore = create<ComposerAttachmentUploadStoreState>()(

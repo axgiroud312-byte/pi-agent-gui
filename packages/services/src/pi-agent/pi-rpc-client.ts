@@ -61,7 +61,9 @@ export class PiRpcError extends Error {
 
 /** Byte limits include JSON syntax; outbound record size also includes the LF. */
 export const RPC_LIMITS = Object.freeze({
-  maxRecordBytes: 16 * 1024 * 1024,
+  // A 20 MiB image becomes about 26.7 MiB after base64 encoding in Pi's
+  // single-line prompt command. Keep the complete record bounded at 32 MiB.
+  maxRecordBytes: 32 * 1024 * 1024,
   maxQueuedBytes: 32 * 1024 * 1024,
   maxPendingRequests: 1024,
   maxQueuedRecords: 1024,
