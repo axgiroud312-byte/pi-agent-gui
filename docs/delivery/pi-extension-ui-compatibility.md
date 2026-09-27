@@ -84,7 +84,7 @@ reload/Stop、包内运行和用户验收尚需与 #13 集成后验证。
 按会话/工作区读取。预览继续遵守现有 20 MiB 单图上限；更大的 Pi 原始数据仍在 JSONL，
 GUI 的预览会明确失败。`pi-extension-rich-tool.test.ts` 的固定 Pi 0.87.0 合同验证工具注册与执行、Pi JSONL 的图文/details、冷投影和工作区/行范围图片读取；
 `D:/Temp/pi-rich-tool-gui-20260928-c/pi-rich-tool-gui-report.json` 的生产源码原生 GUI 验证模型第二请求确实收到 PNG、展开原生工具组后图文/details 可见，且 `pageErrors=[]`、`graceful=true`、`forced=[]`、`survivors=[]`。
-外发分享遇到这些原始 custom/tool 行先拒绝，避免未经审查的 details 或本地引用泄漏。
+旧公共会话分享投影遇到这些原始 custom/tool 行先拒绝，避免未经审查的 details 或本地引用泄漏。#9 的 Pi Gist 分享是另一条路径：它导出完整 Pi HTML，会在外发前展示原文并要求用户显式确认；原始 details 和会话内容仍可能随 HTML 发布，不能把公共投影的拒绝保证套用到 Gist。
 固定来源：
 [`Pi 上游提交`](https://github.com/earendil-works/pi/tree/16787ad5b2dc748047f314ca1bfe7708f30f54f3/packages/coding-agent)
 MIT，npm 0.87.0 的 `dist/modes/rpc/rpc-mode.js`、`rpc-types.d.ts`、`core/extensions/types.d.ts`；

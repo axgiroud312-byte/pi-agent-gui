@@ -10,6 +10,22 @@
 - 不得因用户暂缓验收而伪造 #34 或后续 Issue 的人工通过、关闭 Issue、合并 Draft PR 或正式发布。
 - 缺少在线账号、OAuth 人工回调、真实 llama.cpp/GGUF 或安装权限时，明确记录待最终验收项，但继续所有不依赖这些条件的开发。
 
+## 2026-09-28 02:26 最新断点（02:18 与更早章节为历史快照）
+
+- 主分支 `issue-34-native-pi-rpc` 代码 HEAD `2dac7d1`，相比已推送 `75318d5` 领先 10 个源码提交：#25 `1c78fd6`、#10 `ecd801b`、#3 `802c8e2`/`3708feb`/`046da9b`/`5b2891b`/`ac39e4b`/`b6f431c`/`28b4871`、#4/#9 队列缓存删除 `2dac7d1`。本文件与 `coverage.md`、扩展兼容表的文字更正未提交。仅受保护未跟踪 `%SystemDrive%/`、`用`、锁定 `packages/desktop/dist-pi-incremental/`；`stash@{0}` 和用户正在使用的旧 unpacked 未动。PR #39 Draft，Issues OPEN，未代签用户验收。
+- #3 隔离固定 Pi 原生 GUI `D:/Temp/pi-model-thinking-gui-20260928-e/pi-model-thinking-gui-report.json` PASS：完整搜索、reasoning 模型选定后 Pi thinking levels `off/minimal/low/medium/high`、Ctrl+T 到 minimal 且下一请求 `reasoning_effort=minimal`，无页面错误/强制清理/残留。主分支服务 22/22、UI 4/4、typecheck、lint 0 error/69 既有 warning及 `pnpm --dir packages/desktop build` PASS。选模后目录未刷新的红测与修复在 `b6f431c`；完整 build 的 bootstrap `piExtensionUi` 初始化修复在 `046da9b`。
+- 独立只读 Standards/Spec 审查在 `1c78fd6` 查出 #4 两项确定丢输入风险：撤回编辑先删除 Pi 队列项，ACK 后若切会话/出现新草稿，原图文无法恢复；即使当时恢复，图片只在 Zustand 内存，没有 IndexedDB 持久副本，重启后丢失。#9 编辑/重试代理已接手隔离红绿修复，当前不得称 #4 无损取回完成。另一个发现是 `queue-media` 图片副本无删除清理：主分支 `pi-session-delete.test.ts` 先红后绿，`2dac7d1` 在确认删除冷 Pi JSONL 前清理同 session 的自有缓存，保留其他会话；3/3、定向 lint、typecheck PASS。编辑草稿仍引用的缓存不能在队列项消失时直接清理，后续须结合 #4 持久草稿修复确定 GC 点。
+- #9 隔离历史编辑/重试固定 Pi 0.87.0 合同与原生 GUI `D:/Temp/pi-history-edit-retry-gui-20260928-a/pi-history-edit-retry-gui-report.json` 已 PASS：重试原 JSONL 图片，旧分支不改；编辑仅预填，再由用户发送；页面错误/强制清理/残留均空。聚焦提交 `a2be2b9` 尚未 cherry-pick；fork 图片仍显式拒绝，需独立无损实现。独立只读审查还更正 #25 分享文案：旧公共投影拒富结果，而 Pi Gist 会在用户完整预览确认后发布，兼容表文字已修正未提交。
+- 下一步：先完成 #4 取回编辑两项红绿与桌面回归，再整合 #9 `a2be2b9` 和后续 #4 提交；主分支跑 #3/#10/#25/#9 GUI、固定 Pi 全套顺序、delivery 校验及最终 Standards/Spec。新隔离 Windows unpacked+NSIS、包内 GUI/退出、实际安装/覆盖升级/卸载、在线 provider、真实 GGUF/router、物理 IME 和用户统一验收仍分别未完成。当前 `D:/Temp` 的隔离证据不能充作最终 HEAD 的包内结果。
+
+## 2026-09-28 02:18 继续开发断点（下方 01:36 为历史快照）
+
+- 主目录 `issue-34-native-pi-rpc` 已普通推送到 `75318d5`；#4/#9/#13/#26/#27 技术评论和 Draft PR #39 正文已按该版本更新。此后聚焦整合 `1c78fd6`（#25 富扩展工具结果）及 `ecd801b`（#10 设置来源与并发冲突），目前较 origin 领先两个源码提交，本节文档正在提交，尚需后续普通推送和 #10/#25 Issue/PR 更新。仅受保护的 `%SystemDrive%/`、`用`、锁定 `packages/desktop/dist-pi-incremental/` 未跟踪；`stash@{0}` 和用户正在运行的旧 `packages/desktop/dist/win-unpacked` 未动。#34、其它需人工验收的 Issue 均 OPEN，PR #39 保持 Draft。
+- #25 隔离树 `b99501d` 的固定 Pi 0.87.0 新合同 1/1、代表扩展 4/4 与原生 GUI `D:/Temp/pi-rich-tool-gui-20260928-c/pi-rich-tool-gui-report.json` PASS：Pi 真实工具返回有序图文和 details，模型收到 PNG，GUI DOM 解码图片；`pageErrors=[]`、`graceful=true`、`forced=[]`、`survivors=[]`。最终单张截图只拍到展开的详情，不能单独证明三者同屏。主分支 cherry-pick 为 `1c78fd6`，纯投影 9/9、UI 3/3、typecheck、lint 0 error/69 既有 warning、delivery plan 本地 PASS；主分支整合 GUI 和包内仍待跑。
+- #10 隔离树 `89e610c` 的定向 13/13、`build:bootstrap` 和原生 GUI `D:/Temp/pi-settings-scope-gui-20260928-b/pi-settings-gui-report.json` PASS：固定 Pi RPC、来源/未知字段/并发冲突/不受信项目均观察到，页面无异常、退出无残留。首轮隔离树缺 Electron binary，经复制现有 gitignored 运行资产后重跑通过；两条非强制 tree-cleanup 日志所指 PID 复查不存在。主分支 cherry-pick `ecd801b`，新增纯测试 3/3、typecheck PASS；主分支整合 GUI 和包内待跑。
+- #3 隔离树已定位真实缺陷：选择 reasoning 模型后 Pi JSONL 已切模，但 Host 没有刷新 `readPiModelCatalog`/thinking levels/原生 config，菜单仍只有 `off`。代理先写服务红测，再修复并在当前独占桌面时段用固定 Pi GUI 复验；尚未整合。#9 历史编辑/重试在另一个隔离树做 Pi 公开树与无损图片合同，未整合。另有独立只读 Standards/Spec reviewer 在隔离工作树审查当前增量，不代替最终 HEAD 审查。
+- 下一步：等 #3 完成并释放桌面后，顺序整合及复验 #3、#9，再跑当前主分支 #10/#25/#9/#27 的 GUI 与固定 Pi 全套顺序。最终隔离构建 Windows unpacked+NSIS、包内 GUI/进程清理、实际安装覆盖升级卸载、同状态原版对照和 Standards/Spec 复审均未完成。在线 provider、人工 OAuth、实际 GGUF/router、物理 IME 与用户统一验收各自单列，不能互相冒充。`node scripts/check-delivery-plan.mjs --github` 与 7 项测试在 `75318d5` 已 PASS，新增提交后最终仍需重跑。
+
 ## 2026-09-28 01:36 继续开发断点（优先于下方历史快照）
 
 - 主目录分支 `issue-34-native-pi-rpc` HEAD `9d664fa`，尚领先 origin 5 个提交：`200a51c` #9 导入导出主动分享、`9bfbaf2`/`8be4045` #27 隐私诊断、`29a1a9d` #13/#26 扩展命令后原生输入恢复、`9d664fa` #4 自动超窗压缩 Stop 测试。Draft PR #39、#34 及需用户验收的 Issue 均保持 OPEN；此轮提交尚需普通推送和技术进度评论。主目录仅 `docs/delivery/coverage.md` 与本文件正在更新；受保护未跟踪 `%SystemDrive%/`、`用`、锁定 `packages/desktop/dist-pi-incremental/`、`stash@{0}`、用户正在使用的旧 `packages/desktop/dist/win-unpacked` 都未动。
