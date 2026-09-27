@@ -246,6 +246,9 @@ export default defineConfig([
       "@zcode/shared",
       "@zcode/rpc",
       "@zcode/services",
+      // The subpath export points at TypeScript source. Exact package noExternal
+      // does not include it, leaving an unresolved #src/*.js import in Electron.
+      "@zcode/services/storage-startup",
       "@zcode/client",
       "@zcode/provider",
       "@zcode/provider-node",
