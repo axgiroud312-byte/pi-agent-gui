@@ -20,6 +20,8 @@ interface V4UserInputDialogProps {
   }) => Promise<boolean>;
   onCaptureReturnFocus: () => void;
   onRestoreReturnFocus: () => void;
+  /** Stop the owned Pi execution, distinct from cancelling only this dialog. */
+  onStop?: () => void;
 }
 
 /** v4 userInput 交互最小弹窗（竖切）。 */
@@ -28,6 +30,7 @@ export function V4UserInputDialog({
   onSubmit,
   onCaptureReturnFocus,
   onRestoreReturnFocus,
+  onStop,
 }: V4UserInputDialogProps) {
   const [freeText, setFreeText] = useState(model.prefill ?? "");
   const [responding, setResponding] = useState(false);
@@ -129,16 +132,24 @@ export function V4UserInputDialog({
           </div>
         ) : null}
         {model.method ? (
-          <Button
-            type="button"
-            variant="ghost"
-            disabled={responding}
-            onClick={() => {
-              void submit({ action: "cancel" });
-            }}
-          >
-            取消
-          </Button>
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={responding}
+              onClick={() => {
+                void submit({ action: "cancel" });
+              }}
+            >
+              取消
+            </Button>
+            {onStop ? (
+              <Button type="button" variant="outline" disabled={responding}
+                data-testid="pi-extension-stop" onClick={onStop}>
+                停止 Pi 运行
+              </Button>
+            ) : null}
+          </div>
         ) : null}
         {failed ? (
           <p role="alert" className="text-ui-sm text-[var(--color-destructive)]">

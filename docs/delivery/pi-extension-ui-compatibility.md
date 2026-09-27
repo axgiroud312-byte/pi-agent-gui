@@ -20,7 +20,16 @@
 固定 Pi 真实会话测试 `packages/services/test/pi-extension-native-interaction.test.ts`
 覆盖同一 PID 的连续四种请求、非法回答、Stop、取消及公开桥 reload 后拒绝旧回答。
 `packages/ui/test/piExtensionProjection.test.ts` 覆盖方法、placeholder、正文和 prefill
-投影。上述不是原生 GUI 目视或包内运行证据；两项证据须独立补充。
+投影。新增服务合同先复现再修复了 Stop 被 pending `sendText` 串行阻塞、Pi 已停止而
+弹窗未清除、slash 扩展无 user JSONL 时 composer 永久禁用；Stop 现在等待 Pi prompt
+结束并核对历史，无新 user 条目才清除这条 slash 待核意图。取消中的迟到回答被拒绝，
+其后同一 Pi PID 能再次发起四种请求。隔离源码原生 GUI 证据为
+`D:/Temp/pi-extension-stop-gui-green5-20260928/pi-extension-stop-gui-report.json`：
+四类弹窗各自 Stop 后关闭且不复活，普通模型消息仍可发送；重启后绑定同一 Pi JSONL，
+不重放弹窗或模型请求；两次退出均 `graceful=true`、`forced=[]`、`survivors=[]`，
+`pageErrors=[]`。包内 GUI 与最终用户验收仍须独立验证。已有会话中的扩展请求是
+这份证据的范围；在 `createSession(firstInput)` 等待首条扩展命令回执期间，前端尚无
+可操作的 session ID，首条扩展输入的 Stop/弹窗路径尚未获得等价保证。
 
 #13 增量以固定 Pi 0.87.0 的 `extension_ui_request` 为唯一状态来源；公开控制桥 1.2.0
 在 `session_start` / `session_shutdown` 发出内部生命周期标记。Host 在初始 `get_state`

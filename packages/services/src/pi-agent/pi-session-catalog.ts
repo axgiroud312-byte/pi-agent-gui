@@ -26,7 +26,8 @@ export interface PiSessionBookmark {
   commandAnchors?: { textHash: string; commandId: string }[];
   rowIds?: Record<string, number>;
   uncertainDelivery?: boolean;
-  pendingIntent?: { textHash: string; commandId: string; priorUserCount: number; generation?: number };
+  pendingIntent?: { textHash: string; commandId: string; priorUserCount: number; generation?: number;
+    slashCommand?: true };
   returnedQueue?: { steering: string[]; followUp: string[] };
   /** Recovery evidence only. Never an executable Host queue. */
   queueRecovery?: PiQueueRecoveryEntry[];
@@ -61,6 +62,8 @@ function bookmark(value: unknown): value is PiSessionBookmark {
       typeof (row.pendingIntent as Record<string, unknown>).commandId === "string" &&
       Number.isSafeInteger((row.pendingIntent as Record<string, unknown>).priorUserCount) &&
       Number((row.pendingIntent as Record<string, unknown>).priorUserCount) >= 0 &&
+      ((row.pendingIntent as Record<string, unknown>).slashCommand === undefined ||
+        (row.pendingIntent as Record<string, unknown>).slashCommand === true) &&
       ((row.pendingIntent as Record<string, unknown>).generation === undefined ||
         (Number.isSafeInteger((row.pendingIntent as Record<string, unknown>).generation) &&
           Number((row.pendingIntent as Record<string, unknown>).generation) >= 0)))) &&

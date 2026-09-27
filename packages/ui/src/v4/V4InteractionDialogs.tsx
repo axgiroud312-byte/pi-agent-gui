@@ -36,6 +36,7 @@ interface V4InteractionDialogsProps {
   snapshot: ConversationSnapshot | null;
   onCommandSettled?: (commandId: string) => void;
   onPlanInteractionAccepted?: (interactionId: string) => void;
+  onStop?: () => void;
 }
 
 function getCurrentSessionInteractionSnapshot(
@@ -88,6 +89,7 @@ export function V4InteractionDialogs({
   snapshot,
   onCommandSettled,
   onPlanInteractionAccepted,
+  onStop,
 }: V4InteractionDialogsProps) {
   const { sendCommand } = useV4Conversation();
   const connectWorkspaceHookCommands = useWorkspaceHookReviewStore((state) => state.connect);
@@ -401,6 +403,7 @@ export function V4InteractionDialogs({
       onSubmit={(answer) => resolveInteraction(pending.interactionId, answer)}
       onCaptureReturnFocus={captureUserInputReturnFocus}
       onRestoreReturnFocus={restoreUserInputReturnFocus}
+      onStop={model.method && currentSnapshot?.control.canStop ? onStop : undefined}
     />
   );
 }

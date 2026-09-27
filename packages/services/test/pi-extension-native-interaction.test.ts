@@ -2,11 +2,19 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import { PiSessionSupervisor } from "../src/pi-agent/pi-session-supervisor.js";
 import { PiNativeV4Service } from "../src/pi-agent/pi-native-v4-service.js";
+
+async function removeOwnedTestRoot(root: string): Promise<void> {
+  const absolute = resolve(root);
+  assert(absolute.startsWith(`${resolve(tmpdir())}${sep}`) &&
+    basename(absolute).startsWith("pi-native-extension-"),
+  "Only an owned extension test fixture inside the OS temporary directory may be removed");
+  await rm(absolute, { recursive: true, force: true });
+}
 
 test("pinned Pi extension answers select, confirm, blank input and multiline editor in the owned session",
   { timeout: 30_000 }, async () => {
@@ -70,7 +78,7 @@ test("pinned Pi extension answers select, confirm, blank input and multiline edi
       });
     } finally {
       await service.dispose();
-      await rm(root, { recursive: true, force: true });
+      await removeOwnedTestRoot(root);
     }
   });
 
@@ -99,8 +107,90 @@ test("Stop cancels a pending pinned Pi extension input and retires its request",
     await assert.rejects(supervisor.respondExtension(session.sessionId, requestId, { value: "alpha" }),
       /no longer pending/);
     assert.equal(supervisor.getSession(session.sessionId)?.pid, session.pid);
-  } finally { await supervisor.dispose(); await rm(root, { recursive: true, force: true }); }
+  } finally { await supervisor.dispose(); await removeOwnedTestRoot(root); }
 });
+
+test("native Stop overtakes a sendText command waiting for Pi extension input",
+  { timeout: 30_000 }, async () => {
+    const root = await mkdtemp(join(tmpdir(), "pi-native-extension-stop-service-"));
+    const supervisor = new PiSessionSupervisor({
+      piEntry: fileURLToPath(import.meta.resolve("@earendil-works/pi-coding-agent/rpc-entry")),
+      env: { PI_CODING_AGENT_DIR: join(root, "profile"), PI_TELEMETRY: "0" },
+      rpcArgs: ["--offline", "--no-extensions", "-e",
+        fileURLToPath(new URL("./fixtures/pi-ui-sequence.ts", import.meta.url)),
+        "--no-skills", "--no-prompt-templates", "--no-context-files"],
+    });
+    const service = new PiNativeV4Service(supervisor, join(root, "catalog"));
+    try {
+      const created = await service.sendConversationCommandV4({ workspacePath: root, envelope: {
+        commandId: randomUUID(), clientId: "stop-test", sessionId: null, issuedAt: Date.now(),
+        type: "createSession", payload: { workspaceId: root },
+      } });
+      assert.equal(created.result?.type, "createSession");
+      if (created.result?.type !== "createSession") throw new Error("session not created");
+      const sessionId = created.result.sessionId;
+      const send = service.sendConversationCommandV4({ workspacePath: root, envelope: {
+        commandId: randomUUID(), clientId: "stop-test", sessionId, issuedAt: Date.now(),
+        type: "sendText", payload: { text: "/pi-ui-sequence", requestedDelivery: "startNow" },
+      } });
+      void send.catch(() => {});
+      let interactionId: string | undefined;
+      for (let count = 0; count < 200; count++) {
+        const sessions = (service as unknown as { sessions: Map<string, { snapshot: {
+          pendingInteractions: Array<{ interactionId: string }> } }> }).sessions;
+        interactionId = sessions.get(sessionId)?.snapshot.pendingInteractions[0]?.interactionId;
+        if (interactionId) break;
+        await new Promise(resolve => setTimeout(resolve, 20));
+      }
+      assert.ok(interactionId, "Pi select dialog must be pending before Stop");
+      const executionId = supervisor.getSession(sessionId)?.foregroundExecutionId;
+      assert.ok(executionId);
+      const stop = service.sendConversationCommandV4({ workspacePath: root, envelope: {
+        commandId: randomUUID(), clientId: "stop-test", sessionId, issuedAt: Date.now(),
+        type: "stop", payload: { expectedForegroundExecutionId: executionId },
+      } });
+      const stopped = await Promise.race([
+        stop,
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error(
+          "native Stop was serialized behind the pending extension input")), 3_000)),
+      ]);
+      assert.equal(stopped.status, "accepted", stopped.message);
+      assert.equal((await send).status, "accepted");
+      const sessions = (service as unknown as { sessions: Map<string, { snapshot: {
+        pendingInteractions: Array<{ interactionId: string }>;
+        inputRouting: { mode: string };
+      }; state: { piPendingIntent?: unknown } }> }).sessions;
+      assert.deepEqual(sessions.get(sessionId)?.snapshot.pendingInteractions, [],
+        "native Stop must project dialog removal to the GUI");
+      assert.equal(sessions.get(sessionId)?.snapshot.inputRouting.mode, "startNow",
+        "stopped extension command must not block the next Pi input");
+      const late = await service.sendConversationCommandV4({ workspacePath: root, envelope: {
+        commandId: randomUUID(), clientId: "stop-test", sessionId, issuedAt: Date.now(),
+        type: "resolveInteraction", payload: { interactionId, answer: { optionId: "alpha" } },
+      } });
+      assert.equal(late.status, "noop", "stopped dialog must not accept a late answer");
+      assert.equal(supervisor.getSession(sessionId)?.phase, "stopped");
+      const pid = supervisor.getSession(sessionId)?.pid;
+      const seen: string[] = [];
+      supervisor.on("record", (id, event) => {
+        if (id !== sessionId || event.type !== "extension_ui_request" || typeof event.id !== "string" ||
+          !["select", "confirm", "input", "editor"].includes(String(event.method))) return;
+        seen.push(String(event.method));
+        void supervisor.respondExtension(id, event.id,
+          event.method === "confirm" ? { confirmed: false } : { value: "alpha" }).catch(() => {});
+      });
+      const next = await service.sendConversationCommandV4({ workspacePath: root, envelope: {
+        commandId: randomUUID(), clientId: "stop-test", sessionId, issuedAt: Date.now(),
+        type: "sendText", payload: { text: "/pi-ui-sequence", requestedDelivery: "startNow" },
+      } });
+      assert.equal(next.status, "accepted", next.message);
+      assert.deepEqual(seen, ["select", "confirm", "input", "editor"]);
+      assert.equal(supervisor.getSession(sessionId)?.pid, pid);
+    } finally {
+      await service.dispose();
+      await removeOwnedTestRoot(root);
+    }
+  });
 
 for (const method of ["select", "confirm", "input", "editor"] as const) {
   test(`Stop rejects a ${method} answer arriving while Pi cancellation is being sent`,
@@ -161,7 +251,7 @@ for (const method of ["select", "confirm", "input", "editor"] as const) {
       } finally {
         releaseCancel();
         await supervisor.dispose();
-        await rm(root, { recursive: true, force: true });
+        await removeOwnedTestRoot(root);
       }
     });
 }
@@ -205,7 +295,7 @@ test("Stop drains later Pi dialogs before reporting stopped and the next command
       assert.deepEqual(seen.slice(1), ["select", "confirm", "input", "editor"]);
     } finally {
       await supervisor.dispose();
-      await rm(root, { recursive: true, force: true });
+      await removeOwnedTestRoot(root);
     }
   });
 
@@ -270,7 +360,7 @@ test("Stop holds newly arrived extension requests until Pi queue pause is confir
     } finally {
       releasePause();
       await supervisor.dispose();
-      await rm(root, { recursive: true, force: true });
+      await removeOwnedTestRoot(root);
     }
   });
 
@@ -311,5 +401,5 @@ test("cancelled Pi UI prompt cannot receive a stale answer after public bridge r
     assert.equal(supervisor.getSession(session.sessionId)?.pid, session.pid);
     await assert.rejects(supervisor.respondExtension(session.sessionId, cancelledId, { value: "beta" }),
       /no longer pending/);
-  } finally { await supervisor.dispose(); await rm(root, { recursive: true, force: true }); }
+  } finally { await supervisor.dispose(); await removeOwnedTestRoot(root); }
 });

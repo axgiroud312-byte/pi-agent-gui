@@ -1344,6 +1344,9 @@ export class PiNativeV4Service implements V4Methods {
       patch.piExtensionUi = record.state.piExtensionUi as SessionRecord["snapshot"]["piExtensionUi"];
     }
     if (JSON.stringify(projected.control) !== JSON.stringify(record.snapshot.control)) patch.control = projected.control;
+    if (JSON.stringify(projected.pendingInteractions) !== JSON.stringify(record.snapshot.pendingInteractions)) {
+      patch.pendingInteractions = projected.pendingInteractions;
+    }
     if (JSON.stringify(projected.inputRouting) !== JSON.stringify(record.snapshot.inputRouting)) patch.inputRouting = projected.inputRouting;
     if (JSON.stringify(projected.queue) !== JSON.stringify(record.snapshot.queue)) patch.queue = projected.queue;
     if (Object.keys(patch).length > 0) {
@@ -1877,7 +1880,9 @@ export class PiNativeV4Service implements V4Methods {
 
   private dispatchSerialized(params: ZCodeAgentConversationCommandParams,
     envelope: ZCodeAgentConversationCommandParams["envelope"]): Promise<CommandAck> {
-    if (!envelope.sessionId || !["sendText", "deleteSession", "stop", "forkPiEntry", "clonePiSession", "retryPiEntry", "sendQueuedNow",
+    // Stop must overtake an in-flight sendText whose Pi extension is waiting
+    // for UI input. Its execution-id guard is checked by PiSessionSupervisor.
+    if (!envelope.sessionId || !["sendText", "deleteSession", "forkPiEntry", "clonePiSession", "retryPiEntry", "sendQueuedNow",
       "editQueueItem", "reorderQueueItem", "deleteQueueItem", "setAutoDrain"].includes(envelope.type)) {
       return this.dispatch(params, envelope);
     }
@@ -2222,7 +2227,8 @@ export class PiNativeV4Service implements V4Methods {
         record.projection.expectUserCommand(commandId);
         record.state.piPendingIntent = { textHash: createHash("sha256").update(prompt.text).digest("hex"),
           commandId, priorUserCount: record.projection.getRows().filter(row => row.kind === "userInput").length,
-          generation: record.admissionGeneration };
+          generation: record.admissionGeneration,
+          ...(prompt.text.startsWith("/") && images.length === 0 ? { slashCommand: true as const } : {}) };
         try {
           const saved = await this.persist(record);
           if (!saved) throw new Error("Cannot persist Pi input correlation before delivery");
@@ -2423,6 +2429,21 @@ export class PiNativeV4Service implements V4Methods {
           commandId, status: outcome === "stale" ? "stale" : "noop",
           reasonCode: `pi.stop.${outcome}`, revisionAtDecision: record.snapshot.revision,
         };
+        const pending = record.state.piPendingIntent as PendingIntent | undefined;
+        if (pending?.slashCommand) {
+          // Pi extension commands can finish without a user JSONL entry. Stop
+          // has waited for that prompt RPC to settle; confirm Pi history has
+          // no new user input before releasing the next composer admission.
+          const messages = await this.supervisor.getHistoryMessages(record.view.sessionId);
+          const userCount = messages.filter(message => typeof message === "object" && message !== null &&
+            (message as Record<string, unknown>).role === "user").length;
+          if (userCount <= pending.priorUserCount) {
+            record.projection.cancelExpectedUserCommand(pending.commandId);
+            delete record.state.piPendingIntent;
+            record.state.piIncompleteTurn = record.projection.hasIncompleteTurn();
+            this.onPiChange(record.view);
+          }
+        }
         record.state.piStoppedCommandId = stoppedCommandId;
         this.emitConversation(record, record.projection.markStopped(stoppedCommandId));
         await this.safelyPersist(record, true);

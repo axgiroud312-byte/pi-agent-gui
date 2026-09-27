@@ -3856,7 +3856,13 @@ export function SessionPane({
         "stop",
         foregroundExecutionId ? { expectedForegroundExecutionId: foregroundExecutionId } : {},
         sessionId,
-      ).catch((error) => {
+      ).then((ack) => {
+        logger.lifecycle.info("[v4-pane] stop 命令结果", {
+          sessionId,
+          status: ack.status,
+          reasonCode: ack.reasonCode ?? "",
+        });
+      }).catch((error) => {
         logger.lifecycle.warn(`[v4-pane] stop 失败: ${String(error)}`);
       });
     },
@@ -4860,6 +4866,7 @@ export function SessionPane({
           remoteSessionId={remoteSessionId ?? undefined}
           provider={provider}
           snapshot={snapshot}
+          onStop={handleStopFromButton}
         />
       ) : null}
       {sessionId && snapshot ? <PiExtensionUiPanel state={snapshot.piExtensionUi} placement="aboveEditor"
