@@ -476,6 +476,9 @@ export class PiNativeV4Service implements V4Methods {
       if (current.sessionFile !== preview.sessionFile || current.revision !== params.expectedRevision) {
         throw new Error("Pi session history changed since deletion confirmation");
       }
+      // The queue is Pi-owned, but its image readback is a private Host cache.
+      // Fail before unlinking JSONL if those bytes cannot be removed safely.
+      await this.queueMedia.removeSession(params.sessionId);
       await unlink(current.sessionFile);
       deleted = true;
       if (this.bookmarks.get(params.sessionId)?.workspaceKey === workspaceKey) {

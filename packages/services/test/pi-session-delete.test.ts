@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { SessionManager } from '@earendil-works/pi-coding-agent';
 import { PiNativeV4Service } from '../src/pi-agent/pi-native-v4-service.js';
+import { PiQueueMediaStore } from '../src/pi-agent/pi-queue-media-store.js';
 import { PiSessionCatalog } from '../src/pi-agent/pi-session-catalog.js';
 import { PiSessionSupervisor } from '../src/pi-agent/pi-session-supervisor.js';
 import { createZCodeTaskServiceAdapter } from '../src/zcode-agent/zcodeTaskServiceAdapter.js';
@@ -99,6 +100,13 @@ test('confirmed Pi deletion removes only the exact cold JSONL and cannot silentl
     const otherFile = other.getSessionFile();
     assert.ok(firstFile && otherFile);
     const originalOther = await readFile(otherFile);
+    const media = new PiQueueMediaStore(join(catalogDir, 'queue-media'));
+    const image = { type: 'image' as const, data: Buffer.from('session image').toString('base64'),
+      mimeType: 'image/png' };
+    const firstMedia = (await media.materialize(first.getSessionId(),
+      { id: 'first-queue-image', text: 'former queue input', images: [image] }))[0]!.ref;
+    const otherMedia = (await media.materialize(other.getSessionId(),
+      { id: 'other-queue-image', text: 'other input', images: [image] }))[0]!.ref;
     const supervisor = new PiSessionSupervisor({
       piEntry: fileURLToPath(import.meta.resolve('@earendil-works/pi-coding-agent/rpc-entry')),
       env: { PI_CODING_AGENT_SESSION_DIR: sessionDir, PI_CODING_AGENT_DIR: join(root, 'profile'), PI_TELEMETRY: '0' },
@@ -116,6 +124,7 @@ test('confirmed Pi deletion removes only the exact cold JSONL and cannot silentl
       await assert.rejects(service.deletePersistedSession({ ...target, expectedSessionFile: otherFile,
         expectedRevision: preview.revision }), /changed|match/i);
       assert.equal(SessionManager.open(firstFile).getSessionId(), first.getSessionId());
+      assert.deepEqual(await readFile(firstMedia), Buffer.from('session image'));
 
       // A Pi CLI write after confirmation preview invalidates that confirmation.
       first.appendSessionInfo('Externally changed after preview');
@@ -126,6 +135,7 @@ test('confirmed Pi deletion removes only the exact cold JSONL and cannot silentl
       await assert.rejects(service.deletePersistedSession({ ...target,
         expectedSessionFile: current.sessionFile, expectedRevision: current.revision }), /active/i);
       assert.equal(SessionManager.open(firstFile).getSessionId(), first.getSessionId());
+      assert.deepEqual(await readFile(firstMedia), Buffer.from('session image'));
 
       await service.dispose();
       service = new PiNativeV4Service(new PiSessionSupervisor({
@@ -137,6 +147,10 @@ test('confirmed Pi deletion removes only the exact cold JSONL and cannot silentl
       await service.deletePersistedSession({ ...target, expectedSessionFile: confirmed.sessionFile,
         expectedRevision: confirmed.revision });
       await assert.rejects(readFile(firstFile), { code: 'ENOENT' });
+      await assert.rejects(readFile(firstMedia), { code: 'ENOENT' },
+        'confirmed Pi history deletion must remove its private queue-image cache');
+      assert.deepEqual(await readFile(otherMedia), Buffer.from('session image'),
+        'another Pi session must keep its own recovery image');
       assert.equal((await SessionManager.list(firstWorkspace, sessionDir)).length, 0);
       assert.deepEqual(await readFile(otherFile), originalOther);
       assert.equal((await SessionManager.list(secondWorkspace, sessionDir))[0]?.id, other.getSessionId());
