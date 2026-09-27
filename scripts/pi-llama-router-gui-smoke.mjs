@@ -15,6 +15,8 @@ await isolatePiPackage(f);
 const fallback = await startPiModel();
 await configurePiProfile(f, { url: fallback.url, modelId: 'pi-native-test', apiKey: 'fixture-not-a-secret' });
 let status = 'unloaded';
+let holdNextLoad = false;
+let failNextUnload = false;
 let routerCatalogId = 'gui.gguf';
 let holdNextCatalogRead = false;
 let releaseHeldCatalogRead;
@@ -44,9 +46,14 @@ const router = createServer(async (request, response) => {
     response.end(JSON.stringify({ chat_template: 'chatml', models_autoload: false })); return;
   }
   if (request.url === '/models/load' && request.method === 'POST') {
-    status = 'loaded'; response.writeHead(200, { 'content-type': 'application/json' }); response.end('{}'); return;
+    status = holdNextLoad ? 'loading' : 'loaded'; holdNextLoad = false;
+    response.writeHead(200, { 'content-type': 'application/json' }); response.end('{}'); return;
   }
   if (request.url === '/models/unload' && request.method === 'POST') {
+    if (failNextUnload) {
+      response.writeHead(503, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({ error: { message: 'router unload unavailable' } })); return;
+    }
     status = 'unloaded'; response.writeHead(200, { 'content-type': 'application/json' }); response.end('{}'); return;
   }
   if (request.url === '/v1/chat/completions' && request.method === 'POST') {
@@ -134,6 +141,26 @@ try {
   await dialog.locator('[data-model-id="gui.gguf"]').getByRole('button', { name: '卸载' }).click();
   await dialog.locator('[data-model-id="gui.gguf"]').getByText('未加载', { exact: false }).waitFor();
   await page.screenshot({ path: join(f.output, 'pi-llama-unloaded.png') });
+  holdNextLoad = true;
+  failNextUnload = true;
+  await model.getByRole('button', { name: '加载' }).click();
+  await dialog.getByRole('button', { name: '取消操作' }).waitFor();
+  await dialog.getByRole('button', { name: '取消操作' }).click();
+  await dialog.getByRole('alert').getByText(/remote unload|router state is unknown|无法确认/u)
+    .waitFor({ timeout: 15_000 });
+  await model.locator('[data-status="loading"]').waitFor({ timeout: 10_000 });
+  report.cancelFailed = { remoteStatus: status,
+    visibleStatus: await model.locator('[data-status]').getAttribute('data-status'),
+    alert: await dialog.getByRole('alert').innerText() };
+  assert.equal(report.cancelFailed.remoteStatus, 'loading');
+  assert.equal(report.cancelFailed.visibleStatus, 'loading');
+  failNextUnload = false;
+  await model.getByRole('button', { name: '取消', exact: true }).click();
+  await model.locator('[data-status="unloaded"]').waitFor({ timeout: 15_000 });
+  report.cancelRetried = { remoteStatus: status,
+    visibleStatus: await model.locator('[data-status]').getAttribute('data-status') };
+  assert.equal(report.cancelRetried.remoteStatus, 'unloaded');
+  assert.equal(report.cancelRetried.visibleStatus, 'unloaded');
   const firstSessionId = await page.locator('[data-testid^="v4-session-pane"]').filter({ visible: true }).first()
     .getAttribute('data-session-id');
   assert.ok(firstSessionId && firstSessionId !== 'draft');

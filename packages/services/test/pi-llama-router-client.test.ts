@@ -240,3 +240,59 @@ test("cancel waits for an in-flight load POST before sending the router unload",
     assert.equal(status, "unloaded");
   } finally { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); }
 });
+
+test("failed router unload stops the local load wait without claiming remote cancellation", async () => {
+  let status = "unloaded";
+  let rejectUnload = true;
+  let sawLoadingPoll!: () => void;
+  const loadingPolled = new Promise<void>(resolve => { sawLoadingPoll = resolve; });
+  const server = createServer(async (req, res) => {
+    for await (const _ of req) { /* drain */ }
+    if (req.url === "/models/sse") {
+      res.writeHead(503); res.end(); return;
+    }
+    if (req.url === "/models" && req.method === "GET") {
+      if (status === "loading") sawLoadingPoll();
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ data: [{ id: "test.gguf", status: { value: status } }] })); return;
+    }
+    if (req.url === "/models/load") {
+      status = "loading";
+      res.writeHead(200, { "content-type": "application/json" }); res.end("{}"); return;
+    }
+    if (req.url === "/models/unload") {
+      if (rejectUnload) {
+        res.writeHead(503, { "content-type": "application/json" });
+        res.end(JSON.stringify({ error: { message: "router unload unavailable" } })); return;
+      }
+      status = "unloaded";
+      res.writeHead(200, { "content-type": "application/json" }); res.end("{}"); return;
+    }
+    res.writeHead(404); res.end();
+  });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address(); assert(address && typeof address !== "string");
+  try {
+    const client = new PiLlamaRouterClient(`http://127.0.0.1:${address.port}`, undefined,
+      { pollIntervalMs: 20, loadTimeoutMs: 1_000 });
+    const running = client.load("test.gguf", () => {}).then(
+      () => "resolved", error => error instanceof Error ? error.message : String(error));
+    await loadingPolled;
+    await assert.rejects(client.cancel("test.gguf"), /router unload unavailable|remote|unknown/i);
+    const immediate = await Promise.race([running,
+      new Promise<string>(resolve => setTimeout(() => resolve("still waiting"), 350))]);
+    const outcome = await running;
+    assert.notEqual(immediate, "still waiting", "cancel failure must end the local wait promptly");
+    assert.match(outcome, /remote|unknown|refresh|cancel/i);
+    assert.doesNotMatch(outcome, /timed out|timeout/i);
+    assert.equal((await client.list())[0]?.status.value, "loading",
+      "the router remains authoritative after an unverified unload");
+    rejectUnload = false;
+    await client.cancel("test.gguf");
+    assert.equal((await client.list())[0]?.status.value, "unloaded",
+      "the user can refresh and explicitly retry router cancellation");
+  } finally {
+    server.closeAllConnections();
+    await new Promise<void>(resolve => server.close(() => resolve()));
+  }
+});

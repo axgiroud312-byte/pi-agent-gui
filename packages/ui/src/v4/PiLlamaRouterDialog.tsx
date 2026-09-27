@@ -122,6 +122,14 @@ export function PiLlamaRouterDialog({ sessionId, workspacePath, workspaceIdentit
       }
     } catch (cause) {
       write(ticket, current => ({ ...current, error: cause instanceof Error ? cause.message : String(cause) }));
+      try {
+        const next = await zcodeAgentService.readPiLlamaRouter(cancelTarget);
+        write(ticket, current => ({ ...current, view: next }));
+      } catch {
+        // The previous view may say "unloaded" while the router is still
+        // loading. Hide it until an explicit refresh can read the real state.
+        write(ticket, current => ({ ...current, view: null }));
+      }
     } finally { write(ticket, current => ({ ...current, busy: null, progress: null })); }
   };
 
@@ -138,6 +146,10 @@ export function PiLlamaRouterDialog({ sessionId, workspacePath, workspaceIdentit
       }
     } catch (cause) {
       write(ticket, current => ({ ...current, error: cause instanceof Error ? cause.message : String(cause) }));
+      try {
+        const next = await zcodeAgentService.readPiLlamaRouter(cancelTarget);
+        write(ticket, current => ({ ...current, view: next }));
+      } catch { write(ticket, current => ({ ...current, view: null })); }
     } finally { write(ticket, current => ({ ...current, busy: null })); }
   };
 
@@ -162,7 +174,8 @@ export function PiLlamaRouterDialog({ sessionId, workspacePath, workspaceIdentit
           <DialogDescription>由 Pi 0.87.0 的 llama.cpp provider 负责认证、模型目录与推理。这里显示 router 的实时状态。</DialogDescription>
         </DialogHeader>
         <div className="flex items-center gap-2 text-xs text-foreground-subtle">
-          <span className="min-w-0 truncate" title={view?.serverUrl}>{view?.serverUrl ?? "请先配置 Pi llama.cpp 登录或 LLAMA_BASE_URL"}</span>
+          <span className="min-w-0 truncate" title={view?.serverUrl}>{view?.serverUrl ??
+            (error ? "router 状态未知，请刷新" : "请先配置 Pi llama.cpp 登录或 LLAMA_BASE_URL")}</span>
           <Button type="button" variant="outline" size="sm" disabled={busy !== null} onClick={() => void refresh()}>
             <RefreshCw className="size-3" />刷新</Button>
         </div>

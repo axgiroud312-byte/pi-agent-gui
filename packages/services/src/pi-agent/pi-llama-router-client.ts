@@ -286,8 +286,18 @@ export class PiLlamaRouterClient {
       active.cancelRequested = true;
       active.cancelPromise = (async () => {
         await active.postSettled;
-        if (active.postOutcome === "accepted" || active.postOutcome === "uncertain") await this.unload(model);
-        active.controller.abort(new Error("Cancelled llama.cpp operation"));
+        try {
+          if (active.postOutcome === "accepted" || active.postOutcome === "uncertain") await this.unload(model);
+          active.controller.abort(new Error("Cancelled llama.cpp operation"));
+        } catch (error) {
+          // The router may still be loading. Stop only this local wait, retain
+          // the remote status as unknown, and let an explicit refresh/retry
+          // perform another unload after this operation settles.
+          const failure = new Error(`llama.cpp cancellation could not verify remote unload; ` +
+            `router state is unknown. Refresh and retry cancellation: ${detail(error)}`);
+          active.controller.abort(failure);
+          throw failure;
+        }
       })();
       return active.cancelPromise;
     }
