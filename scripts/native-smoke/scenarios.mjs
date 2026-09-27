@@ -119,9 +119,13 @@ export async function scenarios(page, f, e) {
     await send(page, 'PARITY_ERROR');
     await page.getByText(/PARITY_CONTROLLED_ERROR/).first().waitFor({ timeout: 25_000 });
     await e.matrix('error', async () => assert(await page.getByText(/PARITY_CONTROLLED_ERROR/).first().isVisible()));
-    if (f.baseline === 'product') await e.action('Error feedback opens GitHub without auto-transferring diagnostics', async () => {
+    if (f.baseline === 'product') await e.action('Error feedback previews diagnostics before explicit GitHub action', async () => {
       await page.getByRole('button', { name: '反馈问题', exact: true }).last().click();
-      await page.getByText(/GitHub.*手动/).first().waitFor();
+      await page.getByTestId('pi-diagnostics-preview-dialog').waitFor();
+      assert.match(await page.getByTestId('pi-diagnostics-preview').innerText(), /Pi runtime:/u);
+      const before = (await readFile(f.env.NATIVE_SMOKE_BOUNDARY_LOG, 'utf8')).trim().split('\n').filter(Boolean).map(JSON.parse);
+      assert.equal(before.filter(entry => entry.type === 'open-external-intercepted').length, 0);
+      await page.getByTestId('pi-diagnostics-open-issue').click();
       const boundaries = (await readFile(f.env.NATIVE_SMOKE_BOUNDARY_LOG, 'utf8')).trim().split('\n').map(JSON.parse);
       const opened = boundaries.filter(entry => entry.type === 'open-external-intercepted').at(-1);
       assert.equal(opened?.detail.url, 'https://github.com/axgiroud312-byte/pi-agent-gui/issues/new');
