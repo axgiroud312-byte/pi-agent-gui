@@ -52,7 +52,8 @@
 
 | ID | 原生入口/行为 | Pi 产品行为 | 必要性 / 状态 |
 | --- | --- | --- | --- |
-| PI09-T1 | 原生 ZCode 新任务 pane 的悬浮操作区、同一 Lexical 输入与会话列表 | 新任务悬浮操作区增加“临时会话”切换；首条消息仍走原生 composer 与 Pi RPC，但固定 Pi 0.87.0 以 `--no-session` 运行，活动会话在同一区域标记“临时 · 历史不落盘”。关闭后从会话列表移除，不能续接、导出或主动分享；未发送草稿仍遵循普通草稿保存规则 | #9/P17。隔离原生 GUI `D:/Temp/pi-temporary-session-gui-20260928-c/pi-temporary-session-gui-report.json` 完成真实模型一回合、零 JSONL、重启不恢复与两次无残留退出；`temporary-draft-selected.png`、`temporary-run.png` 为产品单侧截图。自定义存储、同状态原版成对截图、包内运行与最终人工验收待做。 |
+| PI09-T1 | 原生 ZCode 新任务 pane 的悬浮操作区、同一 Lexical 输入与会话列表 | 新任务悬浮操作区增加“临时会话”切换；首条消息仍走原生 composer 与 Pi RPC，但固定 Pi 0.87.0 以 `--no-session` 运行，活动会话在同一区域标记“临时 · 历史不落盘”。关闭后从会话列表移除，不能续接、导出或主动分享；未发送草稿仍遵循普通草稿保存规则 | #9/P17。隔离原生 GUI `D:/Temp/pi-temporary-session-gui-20260928-c/pi-temporary-session-gui-report.json` 完成真实模型一回合、零 JSONL、重启不恢复与两次无残留退出；`temporary-draft-selected.png`、`temporary-run.png` 为产品单侧截图。同状态原版成对截图、包内运行与最终人工验收待做。 |
+| PI09-T2 | 原生会话列表、搜索和同一 Settings 页 | 项目 `sessionDir` 仅改变固定 Pi 0.87.0 自有 JSONL 的目录；CLI 冷/热历史仍进入原生会话列表，GUI 新会话与重启续接保持同一 session ID/文件。设置页显示实际生效目录，不建宿主第二历史库。 | #9/#10/P17/P34。`D:/Temp/pi-custom-session-dir-gui-20260928-g/pi-custom-session-dir-gui-report.json` 的原生 GUI→Host→固定 Pi 和公开 CLI `SessionManager` 证实项目目录、冷/热发现、新会话、重启续接、原字节前缀不变；两次退出 `graceful=true`、`forced=[]`、`survivors=[]`。原版同状态成对截图、其它启动 flag、最终包与用户验收待做。 |
 
 保留原生 `SessionPane`、悬浮操作区和 composer；新增的是 Pi 特有存储选择与状态标识。临时会话的 Pi 历史只归固定 Pi 进程所有，不建立宿主代理消息历史或第二队列。Pi 退出后输入路由改为不可继续发送，并从会话索引移除。临时 Pi 会话不支持需要持久 JSONL 的 fork/clone、导出和分享；当前会话树按钮仍可查看进程内条目，触发保存型分支会由服务明确拒绝。未改变原版源码或引入旧自建界面。
 
@@ -60,7 +61,7 @@
 
 | ID | 原生入口/行为 | Pi 产品行为 | 必要性 / 状态 |
 | --- | --- | --- | --- |
-| PI03-M1 | 保留原生 ZCode `ModelConfigSelect` 的触发器、供应商分组、快捷键和关闭后焦点路径 | Pi 目录非空时在同一菜单顶部增设搜索框；按供应商、显示名和真实 model ID 过滤，不另存模型目录。模型目录仍取同一 Pi RPC `get_available_models`，选中模型与 thinking 等级仍取 Pi 当前会话；Pi 在压缩后报告有效上下文 token 为 `null` 时显示“未知”，不伪装为 0。相邻原生 Popover 显示 Pi 历史累计 token/cache 与估计 USD，费用不冒充供应商账单 | #3/P05/P06/P14/P15；复用仓库原生控件，未移植旧 `issue-3-rich-conversation` 界面。搜索、`null`/`0` 与费用投影红绿合同已过；`scripts/pi-model-thinking-gui-smoke.mjs` 的固定 Pi、1280×800 深色/1920×1080 浅色 GUI 尚待独占时段运行。原版同状态成对截图、在线 provider、包内运行及用户验收未完成。 |
+| PI03-M1 | 保留原生 ZCode `ModelConfigSelect` 的触发器、供应商分组、快捷键和关闭后焦点路径 | Pi 目录非空时在同一菜单顶部增设搜索框；按供应商、显示名和真实 model ID 过滤，不另存模型目录。模型目录仍取同一 Pi RPC `get_available_models`，选中模型与 thinking 等级仍取 Pi 当前会话；Pi 在压缩后报告有效上下文 token 为 `null` 时显示“未知”，不伪装为 0。相邻原生 Popover 显示 Pi 历史累计 token/cache 与估计 USD，费用不冒充供应商账单 | #3/P05/P06/P14/P15；复用仓库原生控件，未移植旧 `issue-3-rich-conversation` 界面。`D:/Temp/pi-model-thinking-gui-20260928-e/pi-model-thinking-gui-report.json` 已以固定 Pi 原生 GUI 验证搜索、选模、真实请求和 thinking 档位；Pi 权威 `cycle_model` 入口仍在开发中。原版同状态成对截图、在线 provider、包内运行及用户验收未完成。 |
 
 2026-09-28 费用未知回归：Pi 未提供 `costUSD` 时，原实现连同已知 token/cache 一起隐藏整个用量入口；现在仍显示同一 Popover，费用明确标为未知。隔离 React 渲染测试先红后绿，原版同状态对照、固定 Pi GUI 和包内运行仍由最终统一版本复验。
 

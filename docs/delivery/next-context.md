@@ -10,6 +10,14 @@
 - 不得因用户暂缓验收而伪造 #34 或后续 Issue 的人工通过、关闭 Issue、合并 Draft PR 或正式发布。
 - 缺少在线账号、OAuth 人工回调、真实 llama.cpp/GGUF 或安装权限时，明确记录待最终验收项，但继续所有不依赖这些条件的开发。
 
+## 2026-09-28 06:54 继续开发断点（下方 06:15 等均为历史快照）
+
+- 主目录 `issue-34-native-pi-rpc` 当前源码 HEAD `3de8356` 已普通推送到 origin，PR #39 仍 Draft，需用户验收的 Issue 仍 OPEN。本文件及 `coverage.md`、`native-ui-parity.md` 正在更新，提交前以 `git status` 为准；受保护未跟踪 `%SystemDrive%/`、`用`、锁住的 `packages/desktop/dist-pi-incremental/`，以及 `stash@{0}` 与用户仍在使用的旧 `packages/desktop/dist/win-unpacked` 均不可清理或覆盖。
+- #4 `d8d61db` 的 `D:/Temp/pi-queue-handled-gui-20260928-c/pi-extension-input-transform-gui-report.json` 证实 handled PNG 保留 MIME/SHA、立即处理、两条 Pi 队列为 0、下一请求与 Stop 正常；#3/#4/#13/#25 `61f83b3` 的固定 Pi 10/10 和 `D:/Temp/pi-extension-stop-gui-green5-20260928/pi-extension-stop-gui-report.json` 证实已有会话 select/confirm/input/editor 各自 Stop、后续推理、重启同 Pi JSONL 无重播、无页面错误/强杀/残留。首条 `createSession(firstInput)` 扩展等待在 `D:/Temp/pi-extension-firstinput-red-20260928/pi-extension-stop-gui-report.json` 仍红，隔离代理正在用空 Pi session ACK 后同一发送意图的修复做固定 Pi/GUI 红绿；**不将已有会话结果冒充首条通过**。
+- #9/#10 `8761dc4`、`7fe7724`、`972f06c`、`7848bcf` 的自定义 `sessionDir` 固定 Pi 优先级、重启原 JSONL 原字节前缀与再次模型推理合同通过。Host production bundle 曾把 `storage-startup` 子路径外部化，隔离产物红测发生 `ERR_MODULE_NOT_FOUND`；`3de8356` 显式 bundling 后主树 `build:no-runtime-assets` 和产物测试 1/1 通过。完整原生 GUI `D:/Temp/pi-custom-session-dir-gui-20260928-g/pi-custom-session-dir-gui-report.json` 绿：CLI 冷/热会话发现、项目自定义路径的新 Pi JSONL、公开 CLI 同 ID、重启同文件续写、页面错误/强杀/残留为零。
+- #26/#27 `d17c6ca` 把不支持的主动分享提示改成产品名，UI 测试先红后绿 1/1，typecheck/lint 通过。隔离代理另在 `D:/Temp/pi-agent-gui-model-cycle-20260928` 做 #3 Pi 权威 `cycle_model` 的固定 Pi/GUI 红绿；`D:/Temp/pi-agent-gui-router-session-isolation-20260928` 做 #11 router 异步 A→B 会话跨写以及 #6/#12 resources/tree 同类隔离，二者尚未整合。GUI 桌面测试依次占槽，不能并行操作共享桌面。
+- 当前主树最终固定 Pi **全顺序**、typecheck、lint、production build、delivery 本地/7 测试/`--github`、Standards/Spec 最终审查仍须在新代码整合后重跑。最终源码对应的全新隔离 3.14.1 unpacked/NSIS 包、包内 GUI/进程清理、实际受控 3.14.0→3.14.1 升级/卸载也尚未做；旧基线与源码 GUI 不能代替。真实 GGUF/router、现场 OAuth/动态 provider 登录、物理 IME、真实 Gist、人工统一验收分别记录边界。下一步先收三条隔离修复的固定 Pi/GUI/审查证据，聚焦整合并推送，再做最终主树回归与打包安装；仅最后给一次 5–15 分钟用户试用。
+
 ## 2026-09-28 06:15 继续开发断点（下方 05:38 等均为历史快照）
 
 - 主目录 `issue-34-native-pi-rpc` 当前 HEAD `7160d0f`，普通远程推送仍到 `af4749d`，随后应推送本批。PR #39 Draft、需人工验收的 Issue OPEN。主树无已知跟踪文件改动；未跟踪 `%SystemDrive%/`、`用`、锁定的 `packages/desktop/dist-pi-incremental/`、`stash@{0}` 和用户旧 `packages/desktop/dist/win-unpacked` 原样保护。实际 Git 状态优先于本行。
