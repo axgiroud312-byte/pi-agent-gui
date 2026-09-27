@@ -166,6 +166,7 @@ import {
 } from "./zcodeConfigOptions.js";
 import type { CuaProductMcpServerResolver } from "#src/cua-permission-broker/index.js";
 import { registerMemoryDiagnosticsProvider } from "#src/memoryDiagnostics.js";
+import { isPiSessionNotFoundError } from "#src/pi-agent/pi-session-errors.js";
 
 interface TaskOverlay {
   archived?: boolean;
@@ -2815,7 +2816,13 @@ export function createZCodeTaskServiceAdapter(
     async getTaskSessionFilePath(params) {
       if (options.piHistoryAuthoritative) {
         if (!options.piSessionDeletionPreview) throw new Error("Pi deletion preview is unavailable");
-        const preview = await options.piSessionDeletionPreview({ ...params, sessionId: params.taskId });
+        let preview: Awaited<ReturnType<NonNullable<typeof options.piSessionDeletionPreview>>>;
+        try {
+          preview = await options.piSessionDeletionPreview({ ...params, sessionId: params.taskId });
+        } catch (error) {
+          if (isPiSessionNotFoundError(error)) return { path: "", exists: false };
+          throw error;
+        }
         return { path: preview.sessionFile, exists: true, revision: preview.revision,
           title: preview.title };
       }

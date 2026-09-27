@@ -1,7 +1,7 @@
 /* eslint-disable max-lines -- The v4 subscription registry and command admission share one Pi session ownership map. */
 import { createHash, randomUUID } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { lstat, mkdtemp, readFile, realpath, rm, stat, unlink, writeFile } from "node:fs/promises";
+import { lstat, mkdtemp, readFile, readdir, realpath, rm, stat, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
@@ -55,6 +55,7 @@ import { PiCommandLedger } from "./pi-command-ledger.js";
 import { PiMessageRows } from "./pi-message-rows.js";
 import { PiSessionCatalog, type PiQueueRecoveryEntry, type PiSessionBookmark } from "./pi-session-catalog.js";
 import { PiSessionLease } from "./pi-session-lease.js";
+import { PiSessionNotFoundError } from "./pi-session-errors.js";
 import { PiSessionSupervisor, type PiSessionView } from "./pi-session-supervisor.js";
 import { assertPiImportSourceUnchanged, copyPiExport, piExportDestination, readPiImportSource,
   type PiSessionExportFormat, type PiSessionExportResult, type PiSessionTransferPreview } from "./pi-session-transfer.js";
@@ -430,10 +431,28 @@ export class PiNativeV4Service implements V4Methods {
     this.assertWorkspaceOpen(params);
     const directory = await realpath(await this.supervisor.sessionDirectory(params.workspacePath));
     const workspacePath = await realpath(params.workspacePath);
-    const candidates = (await SessionManager.list(params.workspacePath, directory))
+    // Pi 0.87.0 discovery silently skips unreadable JSONL and directory errors.
+    // Before reporting absence, verify that every physical JSONL was discovered.
+    const files = (await readdir(directory)).filter(name => name.endsWith(".jsonl"))
+      .map(name => resolve(directory, name).toLowerCase());
+    const sessions = await SessionManager.listAll(directory);
+    const discovered = new Set(sessions.map(session => resolve(session.path).toLowerCase()));
+    if (sessions.length !== files.length || discovered.size !== files.length ||
+      files.some(file => !discovered.has(file)) ||
+      sessions.some(session => typeof session.id !== "string" || !session.id ||
+        typeof session.cwd !== "string" || !session.cwd)) {
+      throw new Error("Pi session discovery is incomplete; cannot verify session deletion");
+    }
+    const candidates = sessions
       .filter(session => session.id === params.sessionId &&
         resolve(session.cwd).toLowerCase() === resolve(workspacePath).toLowerCase());
-    if (candidates.length !== 1) throw new Error("Pi session not found in this workspace or identity is ambiguous");
+    if (candidates.length === 0) {
+      if (sessions.some(session => session.id === params.sessionId)) {
+        throw new Error("Pi session identity exists in another workspace");
+      }
+      throw new PiSessionNotFoundError();
+    }
+    if (candidates.length !== 1) throw new Error("Pi session identity is ambiguous in this workspace");
     const session = candidates[0]!;
     const sessionFile = await realpath(session.path);
     if (resolve(dirname(sessionFile)).toLowerCase() !== resolve(directory).toLowerCase() ||

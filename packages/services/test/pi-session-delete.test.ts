@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -47,6 +47,33 @@ test('Pi task deletion refuses an unconfirmed or rejected JSONL deletion without
     rejectDeletion = false;
     await service.deleteTask(confirmed);
     assert.deepEqual(calls, ['pi-delete', 'pi-delete'], 'no legacy index mutation can masquerade as Pi deletion');
+  } finally { service.disposeAll(); }
+});
+
+test('Pi session path reports only its explicit not-found code as absent', async () => {
+  type Options = Parameters<typeof createZCodeTaskServiceAdapter>[0];
+  let previewError: Error = Object.assign(new Error('Pi session is absent'),
+    { code: 'PI_SESSION_NOT_FOUND' });
+  const service = createZCodeTaskServiceAdapter({
+    piHistoryAuthoritative: true,
+    piSessionDeletionPreview: async () => { throw previewError; },
+    zcodeAgentService: { disposeAll() {} } as unknown as Options['zcodeAgentService'],
+    taskIndexSyncer: {
+      onSessionTerminalEvent: () => ({ dispose() {} }),
+      onSessionReadyEvent: () => ({ dispose() {} }),
+      emitWorkspaceTaskListChanged() {},
+      disposeAll() {},
+    } as unknown as Options['taskIndexSyncer'],
+  } as Options);
+  const target = { taskId: 'missing-pi-session', workspacePath: 'C:/pi' };
+  try {
+    assert.deepEqual(await service.getTaskSessionFilePath(target), { path: '', exists: false });
+    previewError = Object.assign(new Error('Pi session history is ambiguous'), { code: 'PI_SESSION_AMBIGUOUS' });
+    await assert.rejects(service.getTaskSessionFilePath(target), /ambiguous/);
+    previewError = Object.assign(new Error('Session directory is unavailable'), { code: 'ENOENT' });
+    await assert.rejects(service.getTaskSessionFilePath(target), /directory is unavailable/);
+    previewError = new Error('Pi session not found while reading its directory');
+    await assert.rejects(service.getTaskSessionFilePath(target), /not found while reading/);
   } finally { service.disposeAll(); }
 });
 
@@ -120,7 +147,7 @@ test('confirmed Pi deletion removes only the exact cold JSONL and cannot silentl
       assert.equal(preview.title, 'Pi delete target');
       assert.equal(preview.sessionId, first.getSessionId());
       await assert.rejects(service.inspectSessionDeletion({ workspacePath: secondWorkspace,
-        sessionId: first.getSessionId() }), /not found in this workspace/i);
+        sessionId: first.getSessionId() }), /another workspace/i);
       await assert.rejects(service.deletePersistedSession({ ...target, expectedSessionFile: otherFile,
         expectedRevision: preview.revision }), /changed|match/i);
       assert.equal(SessionManager.open(firstFile).getSessionId(), first.getSessionId());
@@ -158,7 +185,13 @@ test('confirmed Pi deletion removes only the exact cold JSONL and cannot silentl
       await service.dispose();
       service = new PiNativeV4Service(new PiSessionSupervisor({ piEntry: join(root, 'unused'),
         env: { PI_CODING_AGENT_SESSION_DIR: sessionDir } }), catalogDir);
-      await assert.rejects(service.inspectSessionDeletion(target), /not found/i,
+      const unreadable = join(sessionDir, 'unreadable.jsonl');
+      await writeFile(unreadable, '{not a Pi JSONL header}\n');
+      await assert.rejects(service.inspectSessionDeletion(target), /discovery is incomplete/i,
+        'Pi 0.87.0 silently skips invalid JSONL; do not purge a recovery copy on that basis');
+      await unlink(unreadable);
+      await assert.rejects(service.inspectSessionDeletion(target), error =>
+        error instanceof Error && (error as Error & { code?: string }).code === 'PI_SESSION_NOT_FOUND',
         'a deleted Pi JSONL must not reappear from an app bookmark after restart');
     } finally {
       await service?.dispose();
