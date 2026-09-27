@@ -287,6 +287,34 @@ try {
     "Model menu Escape must return focus to composer",
   );
   await page.screenshot({ path: join(f.output, "pi-long-tool-light-focus.png") });
+
+  // Two independent Pi sessions must keep streaming and navigation facts apart.
+  const visiblePane = () => page.locator('[data-testid^="v4-session-pane"]').filter({ visible: true }).first();
+  const firstSessionId = await visiblePane().getAttribute("data-session-id");
+  const framesBeforeInterleave = model.scrollFrames;
+  await send(page, "PI_SCROLL: first session streams while another session answers");
+  await until(() => model.scrollFrames > framesBeforeInterleave,
+    "First Pi session did not begin its long stream");
+  await page.getByText("新建任务", { exact: true }).first().click();
+  await send(page, "PI_TEXT: second session during first stream");
+  await page.getByText("PI_TEXT_COMPLETE", { exact: true }).last().waitFor({ timeout: 30_000 });
+  const secondSessionId = await visiblePane().getAttribute("data-session-id");
+  assert(firstSessionId && secondSessionId && firstSessionId !== secondSessionId,
+    "Interleaved run must use two actual Pi session IDs");
+  const requestsBeforeReturn = model.requests.length;
+  await page.locator('[data-testid^="task-item-"]')
+    .filter({ hasText: "PI_TEXT: history item 0" }).first().click();
+  await page.getByText("PI_SCROLL_FRAME_18", { exact: false }).last().waitFor({ timeout: 30_000 });
+  assert.equal(await visiblePane().getAttribute("data-session-id"), firstSessionId);
+  assert.equal(model.requests.length, requestsBeforeReturn,
+    "Returning to the first Pi session must not replay either request");
+  report.stages.interleavedSessions = { firstSessionId, secondSessionId,
+    firstStreamFrames: model.scrollFrames - framesBeforeInterleave,
+    secondPromptSeen: model.requests.some(request => request.scenario === "PI_TEXT" &&
+      request.promptText.includes("second session during first stream")), noReplay: true };
+  assert(report.stages.interleavedSessions.secondPromptSeen,
+    "The second Pi session must send its own prompt while the first session streams");
+  await page.screenshot({ path: join(f.output, "pi-long-history-two-sessions.png") });
   await verifyPiPackageCleanup(f);
   assert.deepEqual(report.pageErrors, []);
 } catch (error) {
