@@ -100,7 +100,46 @@
       GetFullPathName $R2 "$INSTDIR\$R1"
       StrCmp $R2 "$INSTDIR\$R1" 0 zcodeManifestRead
 
+      ; GetFullPathName 只做词法规范化；Delete 会穿过 $INSTDIR 下的 junction。
+      ; 升级清理前逐级检查安装根目录和相对路径的父目录，绝不跨 reparse point。
+      StrCpy $R3 "$INSTDIR"
+      StrCpy $R5 0
+    zcodeManifestCheckComponent:
+      System::Call 'kernel32::GetFileAttributesW(w R3)i .R4'
+      ; 无法验证属性时停止升级，避免后续解包也穿过未知目录。
+      StrCmp $R4 -1 zcodeManifestAttributesUnavailable
+      IntOp $R4 $R4 & 0x400
+      StrCmp $R4 0 zcodeManifestFindSeparator
+      StrCpy $R8 "reparse-point"
+      Goto zcodeManifestUnsafePath
+
+    zcodeManifestAttributesUnavailable:
+      StrCpy $R8 "attribute-unavailable"
+      Goto zcodeManifestUnsafePath
+
+    zcodeManifestFindSeparator:
+      StrCpy $R6 $R1 1 $R5
+      StrCmp $R6 "" zcodeManifestDelete
+      StrCmp $R6 "\" zcodeManifestCheckPrefix
+      IntOp $R5 $R5 + 1
+      Goto zcodeManifestFindSeparator
+
+    zcodeManifestCheckPrefix:
+      StrCpy $R7 $R1 $R5
+      StrCpy $R3 "$INSTDIR\$R7"
+      IntOp $R5 $R5 + 1
+      Goto zcodeManifestCheckComponent
+
+    zcodeManifestUnsafePath:
+      FileClose $R0
+      !ifdef BUILD_UNINSTALLER
+        !insertmacro ZCodeReportUninstallerStage "cleanup-failed reason=$R8 path=$R1"
+      !endif
+      SetErrorLevel 2
+      Abort "无法验证旧版本清单路径，停止升级清理：$INSTDIR\$R1"
+
       ; 当前版本卸载器与外层安装器是两个进程；逐项记录到卸载器日志，便于核对真正尝试删除的文件。
+    zcodeManifestDelete:
       !ifdef BUILD_UNINSTALLER
         !insertmacro ZCodeReportUninstallerStage "cleanup-file path=$R1"
       !endif
