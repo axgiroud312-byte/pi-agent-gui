@@ -28,6 +28,13 @@ class ControlError extends Error {
   constructor(readonly code: string, message: string) { super(message); }
 }
 
+function safeProviderLabel(value: string): string {
+  return Array.from(value, char => {
+    const code = char.charCodeAt(0);
+    return code < 32 || code === 127 ? " " : char;
+  }).join("").slice(0, 200);
+}
+
 async function resourceSettingsFor(ctx: ExtensionCommandContext): Promise<{ packages: PiResourcePackage[]; availableResources: PiAvailableResource[]; diagnostics: string[]; skillCommandsEnabled: boolean }> {
   const settings = SettingsManager.create(ctx.cwd, getAgentDir(), { projectTrusted: ctx.isProjectTrusted() });
   const manager = new DefaultPackageManager({ cwd: ctx.cwd, agentDir: getAgentDir(), settingsManager: settings });
@@ -324,9 +331,26 @@ export default function piControlExtension(pi: ExtensionAPI): void {
         state.busy = true; ownsLock = true;
         if (request.operation === "inspect") {
           const resourceSettings = await resourceSettingsFor(ctx);
+          const modelCounts = new Map<string, number>();
+          for (const model of ctx.modelRegistry.getAll()) {
+            modelCounts.set(model.provider, (modelCounts.get(model.provider) ?? 0) + 1);
+          }
+          const registeredIds = ctx.modelRegistry.getRegisteredProviderIds();
+          const registeredProviders = registeredIds.slice(0, 256).flatMap(id => {
+            const provider = ctx.modelRegistry.getProvider(id);
+            if (!provider) return [];
+            const status = ctx.modelRegistry.getProviderAuthStatus(id);
+            return [{ id: safeProviderLabel(id), name: safeProviderLabel(provider.name), configured: status.configured,
+              modelCount: modelCounts.get(id) ?? 0,
+              methods: [
+                ...(provider.auth.apiKey ? ["api_key" as const] : []),
+                ...(provider.auth.oauth ? ["oauth" as const] : []),
+              ] }];
+          });
           reply(binding, { tools: pi.getAllTools(), activeTools: pi.getActiveTools(), commands: pi.getCommands(),
             promptOptions: ctx.getSystemPromptOptions(), systemPrompt: ctx.getSystemPrompt(),
             projectTrusted: ctx.isProjectTrusted(), ...resourceSettings,
+            registeredProviders, registeredProvidersTruncated: registeredIds.length > 256,
             systemPromptFiles: await promptFilesFor(ctx) });
           return;
         }

@@ -144,7 +144,9 @@ export class PiControlBridge {
     if (!inspection || !Array.isArray(inspection.tools) || !Array.isArray(inspection.activeTools) ||
       !Array.isArray(inspection.commands) || !inspection.promptOptions || !Array.isArray(inspection.packages) ||
       !Array.isArray(inspection.systemPromptFiles) || !Array.isArray(inspection.availableResources) ||
-      !Array.isArray(inspection.diagnostics) || typeof inspection.skillCommandsEnabled !== "boolean") {
+      !Array.isArray(inspection.diagnostics) || typeof inspection.skillCommandsEnabled !== "boolean" ||
+      !Array.isArray(inspection.registeredProviders) ||
+      typeof inspection.registeredProvidersTruncated !== "boolean") {
       throw new PiControlError("BAD_REPLY", "Pi bridge inspection is incomplete", true);
     }
     const tree = await this.native("get_tree");

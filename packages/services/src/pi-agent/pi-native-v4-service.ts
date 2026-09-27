@@ -69,7 +69,8 @@ import { retryablePiHistoryContent } from "./pi-history-entry.js";
 import { PiFileReferenceError, piFilePromptTitle, snapshotPiFileMentions } from "./pi-file-references.js";
 import { PiImageUploads } from "./pi-image-upload.js";
 import { isPiForkImageRef, piForkImageFromEntries, piForkImageRef } from "./pi-fork-image.js";
-import { piControlView, type PiControlAction, type PiControlView } from "./pi-control-protocol.js";
+import { PI_CONTROL_LIFECYCLE_PREFIX, piControlView, type PiControlAction,
+  type PiControlInspection, type PiControlView } from "./pi-control-protocol.js";
 import { assertPiContextPagination, projectPiContextPage,
   type PiContextPage, type PiContextSection } from "./pi-context-inspection.js";
 import { PiQueueMediaStore } from "./pi-queue-media-store.js";
@@ -572,6 +573,13 @@ export class PiNativeV4Service implements V4Methods {
   private readonly extensionInteractionTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private readonly pendingExtensionUi = new Map<string, SessionRecord["snapshot"]["piExtensionUi"]>();
   private readonly authManagers = new Map<string, PiAuthManager>();
+  private readonly authRuntimeCatalogs = new Map<string, { sessionId: string; pid: number;
+    providers: PiControlInspection["registeredProviders"]; truncated: boolean }>();
+  private readonly authRuntimeReads = new Map<string, { sessionId: string; pid: number;
+    promise: Promise<void> }>();
+  private readonly authRuntimeEpochs = new Map<string, number>();
+  private readonly authRuntimeUnavailable = new Map<string, { sessionId: string; pid: number;
+    checkedAt: number }>();
   private disposePromise?: Promise<void>;
   private readonly conversationEmitters = new Map<string, Emitter<ConversationTopicWireCandidate>>();
   private readonly indexEmitters = new Map<string, Emitter<SessionsIndexTopicWireCandidate>>();
@@ -1123,6 +1131,13 @@ export class PiNativeV4Service implements V4Methods {
       }
       return;
     }
+    if (event.type === "extension_ui_request" && event.method === "notify" &&
+      typeof event.message === "string" && event.message.startsWith(PI_CONTROL_LIFECYCLE_PREFIX)) {
+      this.authRuntimeCatalogs.delete(record.workspaceKey);
+      this.authRuntimeUnavailable.delete(record.workspaceKey);
+      this.authRuntimeEpochs.set(record.workspaceKey,
+        (this.authRuntimeEpochs.get(record.workspaceKey) ?? 0) + 1);
+    }
     if (event.type === "extension_ui_request") {
       const prior = (record.state.piExtensionUi as SessionRecord["snapshot"]["piExtensionUi"] | undefined)
         ?? emptyPiExtensionUiState();
@@ -1427,17 +1442,83 @@ export class PiNativeV4Service implements V4Methods {
     return manager;
   }
 
-  readPiAuth(params: ZCodeAgentWorkspaceTarget): Promise<PiAuthView> {
-    return this.authFor(params).snapshot();
+  async readPiAuth(params: ZCodeAgentWorkspaceTarget): Promise<PiAuthView> {
+    const base = await this.authFor(params).snapshot();
+    const workspaceKey = resolveWorkspaceKey(params);
+    const record = [...this.sessions.values()].filter(item => item.workspaceKey === workspaceKey &&
+      this.supervisor.getSession(item.view.sessionId)?.pid === item.view.pid)
+      .sort((a, b) => b.lastActivityAt - a.lastActivityAt)[0];
+    if (!record) return { ...base, runtimeCatalogStatus: "no-session" };
+    const sessionId = record.view.sessionId;
+    const active = this.supervisor.getSession(sessionId);
+    if (!active || !["idle", "settled", "stopped"].includes(active.phase)) {
+      return { ...base, runtimeCatalogStatus: "busy", runtimeCatalogSessionId: sessionId };
+    }
+    let catalog = this.authRuntimeCatalogs.get(workspaceKey);
+    if (!catalog || catalog.sessionId !== sessionId || catalog.pid !== active.pid) {
+      const unavailable = this.authRuntimeUnavailable.get(workspaceKey);
+      if (unavailable?.sessionId === sessionId && unavailable.pid === active.pid &&
+        Date.now() - unavailable.checkedAt < 5_000) {
+        return { ...base, runtimeCatalogStatus: "unavailable", runtimeCatalogSessionId: sessionId };
+      }
+      let pending = this.authRuntimeReads.get(workspaceKey);
+      if (!pending || pending.sessionId !== sessionId || pending.pid !== active.pid) {
+        const epoch = this.authRuntimeEpochs.get(workspaceKey) ?? 0;
+        const promise = this.supervisor.readControlBridge(sessionId).then(snapshot => {
+          if ((this.authRuntimeEpochs.get(workspaceKey) ?? 0) !== epoch) return;
+          if (this.supervisor.getSession(sessionId)?.pid !== active.pid) return;
+          this.authRuntimeCatalogs.set(workspaceKey, { sessionId, pid: active.pid,
+            providers: snapshot.inspection.registeredProviders,
+            truncated: snapshot.inspection.registeredProvidersTruncated });
+        }).catch(error => {
+          if ((this.authRuntimeEpochs.get(workspaceKey) ?? 0) === epoch &&
+            this.supervisor.getSession(sessionId)?.pid === active.pid) {
+            this.authRuntimeUnavailable.set(workspaceKey, { sessionId, pid: active.pid, checkedAt: Date.now() });
+          }
+          throw error;
+        }).finally(() => {
+          if (this.authRuntimeReads.get(workspaceKey)?.promise === promise) {
+            this.authRuntimeReads.delete(workspaceKey);
+          }
+        });
+        pending = { sessionId, pid: active.pid, promise };
+        this.authRuntimeReads.set(workspaceKey, pending);
+      }
+      try { await pending.promise; }
+      catch { return { ...base, runtimeCatalogStatus: "unavailable", runtimeCatalogSessionId: sessionId }; }
+      catalog = this.authRuntimeCatalogs.get(workspaceKey);
+    }
+    if (!catalog || catalog.sessionId !== sessionId || catalog.pid !== active.pid) {
+      return { ...base, runtimeCatalogStatus: "unavailable", runtimeCatalogSessionId: sessionId };
+    }
+    const runtimeIds = new Set(catalog.providers.map(item => item.id));
+    return { ...base, runtimeCatalogStatus: "ready", runtimeCatalogSessionId: sessionId,
+      runtimeCatalogTruncated: catalog.truncated,
+      providers: [...base.providers.filter(item => !runtimeIds.has(item.id)),
+        ...catalog.providers.map(item => ({ id: item.id, name: item.name, configured: item.configured,
+          source: "当前 Pi 会话扩展", modelCount: item.modelCount, runtimeOnly: true,
+          methods: item.methods.map(type => ({ type, label: type === "oauth" ? "OAuth" : "API key",
+            canLogin: false })) }))].sort((a, b) => a.name.localeCompare(b.name)) };
   }
 
-  refreshPiAuth(params: ZCodeAgentWorkspaceTarget & { generation: string }): Promise<PiAuthView> {
-    return this.currentAuth(params).refresh();
+  async refreshPiAuth(params: ZCodeAgentWorkspaceTarget & { generation: string }): Promise<PiAuthView> {
+    await this.currentAuth(params).refresh();
+    this.authRuntimeCatalogs.delete(resolveWorkspaceKey(params));
+    this.authRuntimeUnavailable.delete(resolveWorkspaceKey(params));
+    return this.readPiAuth(params);
   }
 
-  startPiAuth(params: ZCodeAgentWorkspaceTarget & { generation: string; providerId: string;
+  async startPiAuth(params: ZCodeAgentWorkspaceTarget & { generation: string; providerId: string;
     action: PiAuthAction; method?: PiAuthMethod }): Promise<string> {
-    return this.currentAuth(params).start(params.providerId, params.action, params.method);
+    const manager = this.currentAuth(params);
+    const view = await this.readPiAuth(params);
+    if (view.runtimeCatalogTruncated) {
+      throw new Error("Pi extension provider catalog is incomplete; authentication is unavailable until the catalog is complete");
+    }
+    if (view.providers.some(provider => provider.id === params.providerId && provider.runtimeOnly)) {
+      throw new Error("Pi extension provider login is not available in this GUI; use Pi CLI login for this provider");
+    }
+    return manager.start(params.providerId, params.action, params.method);
   }
 
   async answerPiAuth(params: ZCodeAgentWorkspaceTarget & { generation: string;

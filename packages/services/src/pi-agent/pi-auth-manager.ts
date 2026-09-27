@@ -35,8 +35,12 @@ export interface PiAuthView {
   /** Pi reports a catalog/configuration error; raw diagnostics may contain secrets. */
   catalogError: boolean;
   providers: Array<{ id: string; name: string; configured: boolean; source?: string;
-    storedType?: "api_key" | "oauth"; modelCount: number;
+    storedType?: "api_key" | "oauth"; modelCount: number; runtimeOnly?: boolean;
     methods: Array<{ type: PiAuthMethod; label: string; canLogin: boolean }> }>;
+  /** Runtime registration is inspected in the active Pi child, never recreated here. */
+  runtimeCatalogStatus?: "ready" | "no-session" | "busy" | "unavailable";
+  runtimeCatalogSessionId?: string;
+  runtimeCatalogTruncated?: boolean;
   operations: PiAuthOperationView[];
 }
 

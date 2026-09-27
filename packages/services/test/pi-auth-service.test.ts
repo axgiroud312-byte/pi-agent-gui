@@ -11,6 +11,72 @@ import { PiSessionSupervisor } from "../src/pi-agent/pi-session-supervisor.js";
 import { PiNativeV4Service } from "../src/pi-agent/pi-native-v4-service.js";
 import { PI_CONTROL_COMMAND } from "../src/pi-agent/pi-control-protocol.js";
 
+test("auth view reads runtime extension providers from the same Pi RPC child without rerunning factories",
+  { timeout: 30_000 }, async () => {
+    const root = await mkdtemp(join(tmpdir(), "pi-native-auth-runtime-provider-"));
+    const profile = join(root, "profile");
+    const extensions = join(profile, "extensions");
+    const marker = join(root, "factory-runs.txt");
+    await mkdir(extensions, { recursive: true });
+    await writeFile(join(extensions, "fixture-provider.js"), `
+import { appendFileSync } from "node:fs";
+export default function (pi) {
+  appendFileSync(${JSON.stringify(marker)}, "loaded\\n");
+  pi.registerProvider("fixture-extension-oauth", {
+    name: "Fixture extension OAuth", baseUrl: "http://127.0.0.1:1/v1",
+    api: "openai-completions", models: [{ id: "fixture-model", name: "Fixture model",
+      input: ["text"], contextWindow: 4096, maxTokens: 256 }],
+    oauth: { name: "Fixture OAuth", async login() { throw new Error("No live account"); },
+      async refreshToken(value) { return value; }, getApiKey(value) { return value.access; } }
+  });
+  pi.registerProvider("anthropic", { name: "Fixture Anthropic Override",
+    baseUrl: "http://127.0.0.1:1/v1", apiKey: "fixture-override-only" });
+}
+`);
+    const supervisor = new PiSessionSupervisor({
+      piEntry: fileURLToPath(import.meta.resolve("@earendil-works/pi-coding-agent/rpc-entry")),
+      env: { PI_CODING_AGENT_DIR: profile, PI_TELEMETRY: "0" },
+      rpcArgs: ["--offline", "--no-skills", "--no-prompt-templates", "--no-context-files",
+        "--extension", fileURLToPath(new URL("../src/pi-agent/pi-control-bridge-extension.ts", import.meta.url))],
+    });
+    const service = new PiNativeV4Service(supervisor, join(root, "catalog"));
+    const target = { workspacePath: root };
+    try {
+      const noSession = await service.readPiAuth(target);
+      assert.equal(noSession.runtimeCatalogStatus, "no-session");
+      await assert.rejects(readFile(marker, "utf8"), { code: "ENOENT" },
+        "opening the auth view must not execute any extension factory");
+      const created = await service.sendConversationCommandV4({ ...target, envelope: {
+        commandId: randomUUID(), clientId: "auth-runtime-test", sessionId: null, issuedAt: Date.now(),
+        type: "createSession", payload: { workspaceId: root },
+      } });
+      assert.equal(created.result?.type, "createSession");
+      if (created.result?.type !== "createSession") throw new Error("Pi session creation failed");
+      const sessionId = created.result.sessionId;
+      const processId = supervisor.getSession(sessionId)?.pid;
+      const factoryRuns = await readFile(marker, "utf8");
+      const first = await service.readPiAuth(target);
+      const extension = first.providers.find(item => item.id === "fixture-extension-oauth");
+      assert.equal(extension?.runtimeOnly, true);
+      assert.equal(extension?.configured, false);
+      assert.equal(extension?.methods.find(item => item.type === "oauth")?.canLogin, false);
+      assert.equal(first.runtimeCatalogStatus, "ready");
+      const overridden = first.providers.find(item => item.id === "anthropic");
+      assert.equal(overridden?.runtimeOnly, true,
+        "a Pi extension override must hide the built-in auth method for the same provider ID");
+      await assert.rejects(service.startPiAuth({ ...target, generation: first.generation,
+        providerId: "anthropic", action: "login", method: "api_key" }),
+      /not available in this GUI|不可在 GUI/iu);
+      await assert.rejects(service.startPiAuth({ ...target, generation: first.generation,
+        providerId: "fixture-extension-oauth", action: "login", method: "oauth" }),
+      /not available in this GUI|不可在 GUI/iu);
+      await service.readPiAuth(target);
+      assert.equal(await readFile(marker, "utf8"), factoryRuns,
+        "inspecting auth must not reload or execute the extension factory again");
+      assert.equal(supervisor.getSession(sessionId)?.pid, processId);
+    } finally { await service.dispose(); await rm(root, { recursive: true, force: true }); }
+  });
+
 test("native Pi service manages the exact RPC child's auth directory without a chat prompt", { timeout: 30_000 }, async () => {
   const root = await mkdtemp(join(tmpdir(), "pi-native-auth-service-"));
   const profile = join(root, "profile");

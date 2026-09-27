@@ -52,6 +52,8 @@ export function PiAuthSection({ service, workspacePath }: { service: IZCodeAgent
     view?.providers.find(provider => provider.configured) ?? view?.providers[0], [view, selectedId]);
   const operation = [...(view?.operations ?? [])].reverse().find(item => item.providerId === selected?.id);
   const running = operation?.outcome === "running" || operation?.outcome === "waiting";
+  const runtimeCatalogIncomplete = view?.runtimeCatalogStatus === "busy" ||
+    view?.runtimeCatalogStatus === "unavailable" || Boolean(view?.runtimeCatalogTruncated);
   const providers = useMemo(() => (view?.providers ?? []).filter(provider =>
     `${provider.name} ${provider.id}`.toLowerCase().includes(filter.toLowerCase())), [filter, view]);
 
@@ -97,6 +99,16 @@ export function PiAuthSection({ service, workspacePath }: { service: IZCodeAgent
         {view?.catalogError ? <p role="alert" className="text-ui-sm text-destructive">
           Pi 模型目录或认证状态存在错误，部分提供商可能未载入。检查本地 Pi 配置后点击“刷新目录”。
         </p> : null}
+        {view?.runtimeCatalogStatus === "no-session" ? <p className="text-ui-xs text-foreground-subtle">
+          尚无运行中的 Pi 会话；扩展动态注册的 provider 需打开会话后才能在此核对。
+        </p> : view?.runtimeCatalogStatus === "busy" ? <p className="text-ui-xs text-foreground-subtle">
+          当前 Pi 会话正忙，扩展 provider 目录暂不可核对；空闲后刷新目录再认证。
+        </p> : view?.runtimeCatalogStatus === "unavailable" ? <p className="text-ui-xs text-foreground-subtle">
+          当前 Pi 会话的扩展 provider 目录暂不可用；此处仅显示 Pi 管理目录已知的 provider，认证操作暂不可用。
+        </p> : null}
+        {view?.runtimeCatalogTruncated ? <p role="alert" className="text-ui-xs text-destructive">
+          当前 Pi 会话注册的扩展 provider 超过 256 个；目录不完整，认证操作暂不可用。
+        </p> : null}
       </div>
       <Button variant="outline" disabled={!view || busy || running}
         onClick={() => { if (view) void perform(() => service.refreshPiAuth({ workspacePath,
@@ -123,17 +135,19 @@ export function PiAuthSection({ service, workspacePath }: { service: IZCodeAgent
             <h3 className="text-ui-lg font-medium">{selected.name}</h3>
             <p className="text-ui-sm text-foreground-subtle">{selected.configured ? "已配置" : "未配置"} · 来源：{selected.source ?? "无"} · 保存类型：{selected.storedType ?? "无"} · 模型：{selected.modelCount}</p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          {selected.runtimeOnly ? <p role="alert" className="text-ui-sm text-foreground-subtle">
+            此 provider 由当前 Pi 会话的扩展动态注册。固定 Pi 0.87.0 的 RPC 与扩展 ModelRegistry 没有向 GUI 提供该 provider 的登录和登出操作；请在同一项目和 Pi 配置目录的 Pi CLI 中使用 /login，完成后回到这里刷新目录。此处只显示 Pi 报告的状态，不会替你保存或验证凭据。
+          </p> : <div className="flex flex-wrap gap-2">
             {selected.methods.filter(method => method.canLogin).map(method =>
-              <Button key={method.type} type="button" disabled={busy || running}
+              <Button key={method.type} type="button" disabled={busy || running || runtimeCatalogIncomplete}
                 onClick={() => start("login", method.type)}>{method.label} 登录</Button>)}
-            <Button type="button" variant="outline" disabled={busy || running}
+            <Button type="button" variant="outline" disabled={busy || running || runtimeCatalogIncomplete}
               onClick={() => start("resolve")}>解析认证</Button>
-            <Button type="button" variant="outline" disabled={busy || running}
+            <Button type="button" variant="outline" disabled={busy || running || runtimeCatalogIncomplete}
               onClick={() => start("catalog")}>刷新模型</Button>
-            {selected.storedType ? <Button type="button" variant="outline" disabled={busy || running}
+            {selected.storedType ? <Button type="button" variant="outline" disabled={busy || running || runtimeCatalogIncomplete}
               onClick={() => start("logout")}>登出</Button> : null}
-          </div>
+          </div>}
           {operation ? <div className="space-y-3 rounded-lg border border-border p-3" data-testid="pi-auth-operation">
             <p className="text-ui-sm">{operation.message}</p>
             <p className="text-ui-xs text-foreground-subtle">状态：{operation.outcome}</p>

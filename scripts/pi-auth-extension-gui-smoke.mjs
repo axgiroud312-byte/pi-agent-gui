@@ -17,6 +17,20 @@ const extensionDir = join(profile, 'extensions');
 await mkdir(extensionDir, { recursive: true });
 await copyFile(fileURLToPath(new URL('../packages/services/test/fixtures/pi-ui-sequence.ts', import.meta.url)),
   join(extensionDir, 'pi-ui-sequence.ts'));
+const providerMarker = join(f.sandbox, 'runtime-provider-factory-runs.txt');
+await writeFile(join(extensionDir, 'runtime-provider.js'), `
+import { appendFileSync } from 'node:fs';
+export default function (pi) {
+  appendFileSync(${JSON.stringify(providerMarker)}, 'loaded\\n');
+  pi.registerProvider('fixture-runtime-oauth', {
+    name: 'Fixture runtime OAuth', baseUrl: 'http://127.0.0.1:1/v1',
+    api: 'openai-completions', models: [{ id: 'fixture-runtime-model', name: 'Fixture runtime model',
+      input: ['text'], contextWindow: 4096, maxTokens: 256 }],
+    oauth: { name: 'Fixture OAuth', async login() { throw new Error('No live account'); },
+      async refreshToken(value) { return value; }, getApiKey(value) { return value.access; } }
+  });
+}
+`);
 const resultFile = join(f.sandbox, 'pi-ui-result.json');
 // bootstrap.cjs deliberately strips unknown process environment variables;
 // NATIVE_SMOKE_ keys are the fixture's explicit pass-through boundary.
@@ -81,6 +95,17 @@ try {
   await page.getByRole('button', { name: 'Pi 认证', exact: true }).click();
   const auth = page.getByTestId('pi-auth-section');
   await auth.waitFor();
+  await auth.getByRole('button', { name: /Fixture runtime OAuth/ }).click();
+  await auth.getByText(/固定 Pi 0\.87\.0 的 RPC 与扩展 ModelRegistry/).waitFor();
+  assert.equal(await auth.getByRole('button', { name: /OAuth.*登录/i }).count(), 0,
+    'dynamic provider must not advertise an unsupported GUI login');
+  const factoryRuns = await readFile(providerMarker, 'utf8');
+  await auth.getByRole('button', { name: '刷新目录', exact: true }).click();
+  await auth.getByText(/固定 Pi 0\.87\.0 的 RPC 与扩展 ModelRegistry/).waitFor();
+  assert.equal(await readFile(providerMarker, 'utf8'), factoryRuns,
+    'auth refresh must not execute the runtime extension factory a second time');
+  report.runtimeProvider = { discoveredInOwnedPiChild: true, guiLoginUnavailable: true,
+    factoryRunsUnchangedByAuthRefresh: true };
   await auth.getByRole('button', { name: /Anthropic/i }).first().click();
   await auth.getByRole('button', { name: /API key.*登录/i }).click();
   await auth.getByTestId('pi-auth-answer').fill(secret);

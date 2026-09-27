@@ -2,7 +2,7 @@ import type { ExtensionAPI, ExtensionCommandContext, PackageSource, SessionEntry
   SourceInfo } from "@earendil-works/pi-coding-agent";
 
 export const PI_CONTROL_PROTOCOL = 1;
-export const PI_CONTROL_VERSION = "1.4.0";
+export const PI_CONTROL_VERSION = "1.5.0";
 export const PI_CONTROL_COMMAND = "pi-ide-control-v1";
 export const PI_CONTROL_DESCRIPTION = "Pi Agent IDE public control bridge v1";
 export const PI_CONTROL_PREFIX = "pi-ide-control:";
@@ -113,6 +113,10 @@ export interface PiControlInspection {
   availableResources: PiAvailableResource[];
   diagnostics: string[];
   skillCommandsEnabled: boolean;
+  /** Public metadata from this exact Pi RPC child's extension ModelRegistry. */
+  registeredProviders: Array<{ id: string; name: string; configured: boolean;
+    modelCount: number; methods: Array<"api_key" | "oauth"> }>;
+  registeredProvidersTruncated: boolean;
 }
 export interface PiControlResult { cancelled?: boolean; editorText?: string; reloaded?: boolean;
   modelsRefreshed?: boolean;
