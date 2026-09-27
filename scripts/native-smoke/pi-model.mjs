@@ -27,7 +27,11 @@ export async function startPiModel() {
     const imageUrls = body.messages?.filter(message => message.role === 'user')
       .flatMap(message => Array.isArray(message.content) ? message.content : [])
       .filter(part => part.type === 'image_url').map(part => part.image_url?.url) ?? [];
-    const request = { scenario, tools: body.tools?.map(tool => tool.function?.name),
+    const latestUser = body.messages?.filter(message => message.role === 'user').at(-1);
+    const promptText = typeof latestUser?.content === 'string' ? latestUser.content
+      : Array.isArray(latestUser?.content) ? latestUser.content.filter(part => part.type === 'text')
+        .map(part => part.text).join('') : '';
+    const request = { scenario, promptText, tools: body.tools?.map(tool => tool.function?.name),
       imageMimeTypes: imageUrls.map(url => /^data:([^;]+);base64,/u.exec(url)?.[1] ?? 'unknown'),
       imageDigests: imageUrls.map(url => {
         const encoded = /^data:[^;]+;base64,(.*)$/u.exec(url)?.[1];
