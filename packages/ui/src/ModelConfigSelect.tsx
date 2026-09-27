@@ -237,6 +237,7 @@ export const ModelConfigSelect = memo(function ModelConfigSelectComponent({
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const searchFocusIntentRef = useRef(false);
   const open = controlledOpen ?? uncontrolledOpen;
   const lastOpenRequestKeyRef = useRef(openRequestKey);
   const hasSelectableModel = modelGroups.length > 0;
@@ -265,7 +266,10 @@ export const ModelConfigSelect = memo(function ModelConfigSelectComponent({
       if (controlledOpen === undefined) {
         setUncontrolledOpen(nextOpen);
       }
-      if (!nextOpen) setSearchQuery("");
+      if (!nextOpen) {
+        setSearchQuery("");
+        searchFocusIntentRef.current = false;
+      }
       onOpenChange?.(nextOpen);
       if (nextOpen && searchPlaceholder) {
         requestAnimationFrame(() => searchInputRef.current?.focus());
@@ -566,6 +570,19 @@ export const ModelConfigSelect = memo(function ModelConfigSelectComponent({
           )}
           align={contentAlign}
           side={contentSide}
+          onPointerDownCapture={(event) => {
+            if (!searchInputRef.current?.contains(event.target as Node)) {
+              searchFocusIntentRef.current = false;
+            }
+          }}
+          onFocusCapture={(event) => {
+            if (!searchFocusIntentRef.current || event.target === searchInputRef.current) return;
+            // Radix may refocus the selected item when filtering replaces its roving list.
+            // Restore the active search, but leave deliberate arrow/pointer navigation alone.
+            if ((event.target as HTMLElement).closest('[role="menuitemradio"],[role="menuitem"]')) {
+              searchInputRef.current?.focus();
+            }
+          }}
           onCloseAutoFocus={(event) => {
             if (!focusSelectorOnClose) {
               // Automations 没有聊天输入框可恢复；保留 Radix 默认行为，
@@ -594,9 +611,12 @@ export const ModelConfigSelect = memo(function ModelConfigSelectComponent({
                 size="sm"
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
+                onFocus={() => { searchFocusIntentRef.current = true; }}
                 onKeyDownCapture={(event) => {
                   // Stop Radix menu typeahead before its content keydown handler can move focus.
-                  if (event.key !== "ArrowDown" && event.key !== "ArrowUp" && event.key !== "Escape") {
+                  if (event.key === "ArrowDown" || event.key === "ArrowUp" || event.key === "Escape") {
+                    searchFocusIntentRef.current = false;
+                  } else {
                     event.stopPropagation();
                   }
                 }}
