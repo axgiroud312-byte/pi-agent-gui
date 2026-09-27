@@ -27,11 +27,7 @@
    - `docs/references/upstream-and-ui.md`
 2. 读取 GitHub #1、#34、当前实施票的最新正文、评论、父规格和阻塞任务。GitHub 最新内容优先于旧交接。
 3. 检查并记录：`git status -sb`、当前 HEAD、远程差异、worktree、stash、未提交和未跟踪文件。
-4. 当前基线应为：
-   - 分支 `issue-34-native-pi-rpc`
-   - HEAD `331a9b168073ed4178746f498b0a84cbbab4b1d2`
-   - Draft PR #39
-   - #34 OPEN
+4. 以步骤 3 的实时 Git/GitHub 结果和 [继续开发断点](next-context.md) 为准。本文初写时的 `HEAD=331a9b168073ed4178746f498b0a84cbbab4b1d2` 仅是历史快照，**不得 reset 回此版本**；工作分支为 `issue-34-native-pi-rpc`，PR #39 保持 Draft，#34 保持 OPEN。
 5. 必须保留 `%SystemDrive%/`、`用` 和 `stash@{0}: scope-doc-copies-before-main-integration-2026-09-27`。禁止 `reset --hard`、`clean`、强推、删除恢复材料或批量暂存未知文件。
 
 ### 用户最新验收策略
@@ -42,7 +38,7 @@
 - 不得伪造 #34 人工验收，不得提前关闭 Issue、合并 Draft PR 或正式发布。
 - 技术上可继续后续保留票，但在 #34 最终用户验收前，不把依赖票标成已完成人工验收。
 
-### 已完成，避免重复
+### 初写时已完成的历史快照，避免重复
 
 - `04de955`：压缩失败与恢复状态保存。
 - `ddbf196`：旧 #34 handoff 标为历史。
@@ -52,7 +48,7 @@
 - `f9b24c4`：Pi 模型与资源命令 catalog 刷新。
 - `2856e28`、`8d42fb9`：Composer 资源 Pi-scoped，移除子 Agent 建议。
 - `331a9b1`：任务账本已同步。
-- Pi 测试 116/116、typecheck、定向 lint、delivery checks、desktop build、Windows bundle 和最终包内启动均已通过。
+- 当时的 Pi 测试 116/116、typecheck、定向 lint、delivery checks、desktop build 和旧 Windows 包内启动曾通过；这些结果不代表后续源码的最终 Windows 包或安装器验收。最新结果见 [能力账本](coverage.md) 与 [继续开发断点](next-context.md)。
 
 ### 剩余实施顺序
 
@@ -122,6 +118,6 @@
 
 然后停在“等待用户最终验收”；未经用户明确确认，不合并、关闭人工验收任务或正式发布。
 
-## 当前第一项行动
+## 继续执行入口
 
-从 #3/#4/#5 做代码与原生 UI 差距审计，重点检查图片从 Composer 到 `readPiPromptImages` 的完整路径、队列附件保真以及草稿/附件重启恢复。先修真实断点，再补测试和证据；不要再次实现已经通过的 Pi RPC 基础层。
+先读 [继续开发断点](next-context.md) 顶部的最新时间戳记录并核对实时 Git/GitHub，再从其中未完成的代码、回归和隔离 Windows 打包继续。#3/#4/#5 图片、队列和恢复的早期缺口已有后续实现及实测；不能以本文初写时的“第一项行动”重复开工，也不能把局部通过当作最终包验收。
