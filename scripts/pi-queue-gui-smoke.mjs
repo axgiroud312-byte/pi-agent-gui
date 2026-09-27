@@ -150,7 +150,7 @@ try {
   await selectControlledModel(page, f, model);
   await send(page, 'PI_STOP: hold first foreground turn');
   await until(() => model.held > 0, 'Pinned Pi must have an active provider stream');
-  assert(await page.getByRole('button', { name: '停止生成', exact: true }).isVisible());
+  await page.getByRole('button', { name: '停止生成', exact: true }).waitFor({ state: 'visible' });
 
   const duplicate = 'PI_IMAGE: duplicate queued input';
   await send(page, duplicate, image);
