@@ -141,7 +141,7 @@ import type {
   ZCodeTaskIndexTerminalEvent,
 } from "./zcodeTaskIndexSyncer.js";
 import { readModelTrajectory } from "./modelTrajectory.js";
-import { errorAttributionSchema, type CommandPayloadMap } from "@zcode/shared/zcode-protocol-v4";
+import { errorAttributionSchema, type CommandPayloadMap, type SessionSummary } from "@zcode/shared/zcode-protocol-v4";
 import {
   assertV4CommandAckOk,
   createHostCommandEnvelope,
@@ -179,6 +179,7 @@ interface CreateZCodeTaskServiceAdapterOptions {
   zcodeAgentService: IZCodeAgentService;
   /** Pi JSONL owns session names; an app-only title must never mask a rejected Pi rename. */
   piHistoryAuthoritative?: boolean;
+  piSessionSummary?: (params: ZCodeAgentWorkspaceTarget & { sessionId: string }) => Promise<SessionSummary>;
   taskIndexRepo?: TaskIndexRepo;
   // syncer 现在持有 workspace emitter 和 broadcast 入口，adapter 必须共用同一实例，
   // 否则 desktop-continuous 路径和 task adapter 路径的事件订阅会分裂成两份，UI 收不全。
@@ -2903,7 +2904,40 @@ export function createZCodeTaskServiceAdapter(
         titleLength: params.title.length,
       });
       try {
-        if (options.piHistoryAuthoritative) await syncSessionName();
+        if (options.piHistoryAuthoritative) {
+          await syncSessionName();
+          if (!options.piSessionSummary) throw new Error("Pi session summary readback is unavailable");
+          const summary = await options.piSessionSummary({
+            workspacePath: params.workspacePath,
+            workspaceIdentity: params.workspaceIdentity,
+            sessionId: params.taskId,
+          });
+          if (
+            summary.sessionId !== params.taskId ||
+            summary.titleSource !== "custom" ||
+            summary.title !== params.title
+          ) throw new Error("Pi session name readback did not match the requested title");
+          const meta: ZCodeTaskMeta = {
+            taskId: summary.sessionId,
+            traceId: `session-${summary.sessionId}` as TraceId,
+            workspacePath: params.workspacePath,
+            ...(params.workspaceIdentity ? { workspaceIdentity: params.workspaceIdentity } : {}),
+            title: summary.title,
+            titleOverridden: true,
+            mode: "build",
+            createdAt: summary.createdAt,
+            updatedAt: summary.lastActivityAt,
+            ...(summary.phase === "running" || summary.phase === "prewarming"
+              ? { status: "running" as const }
+              : summary.phase === "error" ? { status: "error" as const }
+                : summary.phase === "draft" ? {} : { status: "completed" as const }),
+          };
+          // Pi CLI sessions have no ZCode task-index row. The v4 sessions-index
+          // already broadcasts the changed name; this mirrors it for the native
+          // task action result without seeding an old Agent task.
+          emitWorkspaceTaskListChanged(params, meta, "task_title_changed");
+          return meta;
+        }
         setOverlay(params, { title: params.title });
         logger.info(undefined, "[ZCodeTaskService] renameTask overlay set", {
           taskId: params.taskId,

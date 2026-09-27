@@ -46,6 +46,46 @@ test("Pi session rename cannot report success or change the task title after Pi 
   }
 });
 
+test("Pi-only CLI history can be renamed without creating a legacy ZCode task row", async () => {
+  type Options = Parameters<typeof createZCodeTaskServiceAdapter>[0];
+  const sessionId = "f845da82-d4c3-4393-8aa0-e44de597bd14";
+  const workspacePath = "C:/pi-project";
+  const calls: string[] = [];
+  const service = createZCodeTaskServiceAdapter({
+    piHistoryAuthoritative: true,
+    piSessionSummary: async () => ({ sessionId, workspaceId: workspacePath,
+      title: "Renamed in native GUI", titleSource: "custom", phase: "completedSuccess",
+      sessionEnded: true, hasBackgroundWork: false, createdAt: 100, lastActivityAt: 200 }),
+    zcodeAgentService: {
+      async sendConversationCommandV4() {
+        calls.push("pi-rename");
+        return { commandId: randomUUID(), status: "accepted", revisionAtDecision: 0 };
+      },
+      disposeAll() {},
+    } as unknown as Options["zcodeAgentService"],
+    taskIndexRepo: {
+      async updateTaskState() { calls.push("legacy-index-write"); throw new Error("No ZCode task row"); },
+      close() {},
+    } as unknown as TaskIndexRepo,
+    taskIndexSyncer: {
+      onSessionTerminalEvent: () => ({ dispose() {} }),
+      onSessionReadyEvent: () => ({ dispose() {} }),
+      emitWorkspaceTaskListChanged() { calls.push("title-event"); },
+      disposeAll() {},
+    } as unknown as Options["taskIndexSyncer"],
+  } as Options);
+  try {
+    const result = await service.renameTask({ taskId: sessionId, workspacePath,
+      title: "Renamed in native GUI" });
+    assert.equal(result.title, "Renamed in native GUI");
+    assert.equal(result.taskId, sessionId);
+    assert.equal(result.createdAt, 100);
+    assert.deepEqual(calls, ["pi-rename", "title-event"]);
+  } finally {
+    service.disposeAll();
+  }
+});
+
 test("a cold Pi CLI session renamed through the native command has the same JSONL identity and name in CLI",
   { timeout: 40_000 }, async () => {
     const root = await mkdtemp(join(tmpdir(), "pi-cli-rename-"));

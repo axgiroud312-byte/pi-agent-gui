@@ -32,6 +32,8 @@ try {
   const sessionId = cli.getSessionId();
   const sessionFile = cli.getSessionFile();
   assert.ok(sessionFile);
+  report.cliSessionFile = sessionFile;
+  report.cliSessionId = sessionId;
   const before = await readFile(sessionFile, 'utf8');
   const launch = async () => {
     app = await f.playwright._electron.launch({ executablePath: f.electronPath,
@@ -85,9 +87,11 @@ try {
 } catch (error) {
   report.ok = false;
   report.error = error instanceof Error ? error.stack : String(error);
+  if (app) await (await app.firstWindow()).screenshot({ path: join(f.output, 'pi-session-rename-failed.png') }).catch(() => {});
   throw error;
 } finally {
   if (app) report.cleanupAfterFailure = await closeOwned(app, f).catch(error => ({ error: String(error) }));
   await model.close();
+  if (!report.ok) report.logsTail = logs.slice(-80);
   await writeFile(join(f.output, 'pi-session-rename-gui-report.json'), JSON.stringify(report, null, 2));
 }

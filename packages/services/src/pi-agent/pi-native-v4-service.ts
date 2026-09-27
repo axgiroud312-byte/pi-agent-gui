@@ -186,6 +186,12 @@ function projectedIntentComplete(record: SessionRecord, pending: PendingIntent):
 export class PiNativeV4Service implements V4Methods {
   readonly supervisor: PiSessionSupervisor;
 
+  /** Host-local readback for native task controls; Pi's session index remains authoritative. */
+  async getPiSessionSummary(params: ZCodeAgentWorkspaceTarget & { sessionId: string }): Promise<SessionSummary> {
+    await this.loadSession(params, params.sessionId);
+    return this.summary(this.recordFor(params, params.sessionId));
+  }
+
   async readPiSettings(params: ZCodeAgentWorkspaceTarget): Promise<PiSettingsSnapshot> {
     const { env, rpcArgs } = this.supervisor.settingsEnvironment();
     return readPiSettingsDocuments(params.workspacePath, env, rpcArgs);

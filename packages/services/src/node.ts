@@ -343,6 +343,7 @@ import { createCredentialService } from "./credential/credentialService.js";
 import { createBroadcastService } from "./broadcast/broadcastService.js";
 import { createZCodeAgentService } from "./zcode-agent/zcodeAgentService.js";
 import { createPiAgentService } from "./pi-agent/pi-agent-service.js";
+import type { PiNativeV4Service } from "./pi-agent/pi-native-v4-service.js";
 import { PiSessionSupervisor } from "./pi-agent/pi-session-supervisor.js";
 import type { ZCodeAgentCommandResolver } from "./zcode-agent/zcodeAgentProcessManager.js";
 import { buildAgentTelemetrySpawnEnv } from "./zcode-agent/agentTelemetryEnv.js";
@@ -2340,6 +2341,9 @@ export function createLocalServices(options: {
   const zcodeTaskService = createZCodeTaskServiceAdapter({
     zcodeAgentService,
     piHistoryAuthoritative: Boolean(options?.piAgentRpcEntry),
+    piSessionSummary: options?.piAgentRpcEntry
+      ? params => (zcodeAgentService as unknown as PiNativeV4Service).getPiSessionSummary(params)
+      : undefined,
     taskIndexRepo,
     taskIndexSyncer: zcodeTaskIndexSyncer,
     settingService,
