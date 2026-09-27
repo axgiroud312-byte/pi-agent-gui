@@ -477,6 +477,7 @@ export interface ZCodeAgentAttachmentTerminalParams extends ZCodeAgentSessionTar
 
 export interface ZCodeAgentAttachmentReadParams extends ZCodeAgentSessionTarget {
   ref: string;
+  queueItemId?: string;
   target?: ConversationRowTarget;
   attachmentIndex?: number;
   offset: number;

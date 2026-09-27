@@ -5194,6 +5194,7 @@ export function createZCodeAgentService(
       const wireParams = v4AttachmentReadParamsSchema.parse({
         sessionId: params.sessionId,
         ref: params.ref,
+        ...(params.queueItemId ? { queueItemId: params.queueItemId } : {}),
         ...(params.target ? { target: params.target } : {}),
         ...(params.attachmentIndex !== undefined
           ? { attachmentIndex: params.attachmentIndex }

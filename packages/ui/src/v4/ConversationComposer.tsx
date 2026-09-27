@@ -300,6 +300,9 @@ export interface ComposerRestoreRequest {
   text: string;
   attachments: readonly AttachmentRef[];
   config?: Pick<V4ComposerDraft, "mode" | "planEnabled" | "modelSelection">;
+  /** A durable queue withdrawal must be consumed on a binding/draft conflict. */
+  durableQueueRecovery?: boolean;
+  recoveryQueueItemId?: string;
 }
 
 function applyComposerRestoreRequestToComposer({
@@ -470,6 +473,7 @@ interface ConversationComposerProps {
    */
   composerRestoreRequest?: ComposerRestoreRequest | null;
   onComposerRestoreApplied?: (requestId: number) => void;
+  onComposerRestoreDeferred?: (requestId: number) => void;
   /** 副屏会话不提供 goal 能力；协议层仍会拒绝直接调用。 */
   suppressGoalCommands?: boolean;
   /** App 层本地斜杠命令（如 `/side`），由 SessionPane 按门禁组装后透传。 */
@@ -536,6 +540,7 @@ function ConversationComposerImpl({
   onExternalTextInsertApplied,
   composerRestoreRequest = null,
   onComposerRestoreApplied,
+  onComposerRestoreDeferred,
   suppressGoalCommands = false,
   appSlashCommands,
   onDropTargetControllerChange,
@@ -886,17 +891,28 @@ function ConversationComposerImpl({
   useEffect(() => {
     if (!composerRestoreRequest) return;
     const applyRequest = () => {
+      if (appliedComposerRestoreRequestRef.current === composerRestoreRequest.requestId) return true;
+      const hasDraftContent =
+        textRef.current.length > 0 ||
+        attachmentsApi.attachments.length > 0 ||
+        codeCommentContexts.length > 0 ||
+        webElementContexts.length > 0 ||
+        pptxElementReferences.length > 0 ||
+        conversationSelectionReferences.length > 0;
+      if (composerRestoreRequest.durableQueueRecovery &&
+        (composerRestoreRequest.sessionId !== sessionId ||
+          composerRestoreRequest.workspaceKey !== workspaceKey || hasDraftContent)) {
+        // The authoritative Pi item is already deleted. Keep its durable copy,
+        // consume this request once, and never overwrite later user input.
+        appliedComposerRestoreRequestRef.current = composerRestoreRequest.requestId;
+        onComposerRestoreDeferred?.(composerRestoreRequest.requestId);
+        return true;
+      }
       const nextAppliedRequestId = applyComposerRestoreRequestToComposer({
         appliedRequestId: appliedComposerRestoreRequestRef.current,
         currentSessionId: sessionId,
         currentWorkspaceKey: workspaceKey,
-        hasDraftContent:
-          textRef.current.length > 0 ||
-          attachmentsApi.attachments.length > 0 ||
-          codeCommentContexts.length > 0 ||
-          webElementContexts.length > 0 ||
-          pptxElementReferences.length > 0 ||
-          conversationSelectionReferences.length > 0,
+        hasDraftContent,
         inputApi: inputApiRef.current,
         request: composerRestoreRequest,
         requestFocus: requestComposerFocus,
@@ -931,6 +947,7 @@ function ConversationComposerImpl({
     composerRestoreRequest,
     conversationSelectionReferences.length,
     onComposerRestoreApplied,
+    onComposerRestoreDeferred,
     replaceComposerDraft,
     requestComposerFocus,
     scheduleDraftPersist,

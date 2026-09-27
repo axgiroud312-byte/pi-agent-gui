@@ -91,6 +91,19 @@ test("native queue keeps Pi-owned image through Stop, reorder, edit, send now an
       assert.equal(snapshot.queue.items[0]?.queueItemId, before.followUp[0]!.id);
       assert.equal(snapshot.queue.items[0]?.attachments.length, 1);
       assert.deepEqual(await readFile(snapshot.queue.items[0]!.attachments[0]!.ref), image);
+      const queueImageRef = snapshot.queue.items[0]!.attachments[0]!.ref;
+      const readQueuedImage = (override: Record<string, unknown> = {}) => service!.attachmentReadV4({
+        workspacePath: root, sessionId, queueItemId: before.followUp[0]!.id,
+        attachmentIndex: 0, ref: queueImageRef, offset: 0, limit: 1024, ...override,
+      });
+      const queuedImageBytes = await readQueuedImage();
+      assert.deepEqual(Buffer.from(queuedImageBytes.dataBase64, "base64"), image,
+        "a restricted queue item read returns Pi's exact image before deletion");
+      await assert.rejects(readQueuedImage({ queueItemId: before.followUp[1]!.id }),
+        /queued image ref does not match|no longer in this session queue/);
+      await assert.rejects(readQueuedImage({ ref: "unrelated" }), /queued image ref does not match/);
+      await assert.rejects(readQueuedImage({ attachmentIndex: 1 }), /queued image ref does not match/);
+      await assert.rejects(readQueuedImage({ workspacePath: join(root, "other-workspace") }));
       const bookmark = JSON.parse(await readFile(join(root, "catalog", `${sessionId}.json`), "utf8")) as {
         queueRecovery: Array<{ id: string; attachments: Array<{ ref: string }> }>;
       };
@@ -111,6 +124,7 @@ test("native queue keeps Pi-owned image through Stop, reorder, edit, send now an
         ["edited text", "queued image"]);
       const sendNow = await command("sendQueuedNow", { queueItemId: before.followUp[0]!.id }, current().revision);
       assert.equal(sendNow.status, "accepted", sendNow.message);
+      await assert.rejects(readQueuedImage(), /no longer in this session queue/);
       const afterPromotion = await supervisor.getQueueCatalog(sessionId);
       assert.equal(afterPromotion.paused, true);
       assert.deepEqual(afterPromotion.followUp.map(item => item.text), ["edited text"]);

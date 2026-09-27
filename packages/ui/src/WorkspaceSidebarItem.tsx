@@ -72,6 +72,8 @@ import {
 import { useRemotePinnedTaskStore } from "@/store/remotePinnedTaskStore.js";
 import { useRemoteTimelineTaskStore } from "@/store/remoteTimelineTaskStore.js";
 import { logger } from "@/logger.js";
+import { forgetPiQueueEditRecoveriesForSession, readPiQueueEditRecoveries,
+  retryPendingPiQueueRecoveryPurges } from "@/v4/piQueueEditRecovery.js";
 import {
   RemoteSyncDialogs,
   RemoteSyncMenuItems,
@@ -281,6 +283,12 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
         window.clearTimeout(remoteErrorCopyResetRef.current);
       }
     };
+  }, []);
+
+  useEffect(() => {
+    void retryPendingPiQueueRecoveryPurges({ storage: window.localStorage }).catch(error => {
+      logger.warn("[WorkspaceSidebarItem] prior Pi queue recovery purge incomplete", error);
+    });
   }, []);
 
   const handleWorkspaceOpenChange = useCallback(
@@ -641,11 +649,13 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
       if (!preview.exists || !preview.path || !preview.revision) {
         throw new Error("Pi session deletion preview is unavailable");
       }
+      const workspaceKey = tab.workspaceIdentity?.trim() || tab.workspacePath;
+      const recoveryCopies = readPiQueueEditRecoveries(window.localStorage, workspaceKey, taskId);
       const confirmed = await confirmDialog({
         title: intl.formatMessage({ id: "taskList.deletePiTitle" }),
         description: intl.formatMessage({ id: "taskList.deletePiDescription" }, {
           title: preview.title ?? task.title, sessionId: taskId, workspacePath: tab.workspacePath,
-          sessionFile: preview.path,
+          sessionFile: preview.path, recoveryCount: String(recoveryCopies.length),
         }),
         confirmLabel: intl.formatMessage({ id: "taskList.deletePiSession" }),
         cancelLabel: intl.formatMessage({ id: "common.cancel" }),
@@ -654,10 +664,21 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
       if (!confirmed) return;
       await zcodeTaskService.deleteTask({ ...target, expectedSessionFile: preview.path,
         expectedRevision: preview.revision });
+      let recoveryCleanupFailed = false;
+      try {
+        await forgetPiQueueEditRecoveriesForSession({ storage: window.localStorage,
+          workspaceKey, sessionId: taskId });
+      } catch (error) {
+        recoveryCleanupFailed = true;
+        logger.error("[WorkspaceSidebarItem] Pi session deleted; private recovery cleanup will retry", {
+          taskId, message: error instanceof Error ? error.message : String(error),
+        });
+      }
       removeTaskFromTaskCaches({ workspacePath: tab.workspacePath,
         workspaceIdentity: tab.workspaceIdentity, taskId });
       removeOptimisticTaskListItem(tab.workspacePath, taskId, tab.workspaceIdentity);
       removeTaskState(tab.workspacePath, taskId, tab.workspaceIdentity);
+      if (recoveryCleanupFailed) toast(intl.formatMessage({ id: "taskList.deletePiRecoveryCleanupPending" }));
     } catch (error) {
       logger.error("[WorkspaceSidebarItem] Pi session deletion failed", {
         taskId, message: error instanceof Error ? error.message : String(error),

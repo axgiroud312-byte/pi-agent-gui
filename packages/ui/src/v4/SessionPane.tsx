@@ -133,6 +133,11 @@ import { extractPiModelCatalog } from "@/v4/composer/piModelCatalog.js";
 import { PiResourcesDialog } from "@/v4/PiResourcesDialog.js";
 import { PiShellDialog } from "@/v4/PiShellDialog.js";
 import { ConversationQueuePanel } from "@/v4/ConversationQueuePanel.js";
+import { PiQueueEditRecoveryBanner } from "@/v4/PiQueueEditRecoveryBanner.js";
+import { decidePiQueueEditRestore, discardPiQueueEditRecovery, preparePiQueueEditRecovery,
+  markPiQueueEditRecoveryState, readPiQueueEditRecoveries, restorePiQueueEditRecoveryRefs,
+  settlePiQueueEditDelete, shouldDiscardPiQueueRecoveryAfterSend,
+  type PiQueueEditRecovery } from "@/v4/piQueueEditRecovery.js";
 import { projectPendingGuideQueue } from "@/v4/pendingGuideProjection.js";
 import { ConversationQuotaBanner } from "@/v4/ConversationQuotaBanner.js";
 import { PendingCommandRecoveryBanner } from "@/v4/PendingCommandRecoveryBanner.js";
@@ -482,6 +487,24 @@ function resolveQueuedComposerRestore(
 
 function shouldRestoreQueuedComposerFromAck(status: CommandAck["status"]): boolean {
   return status === "accepted" || status === "duplicate";
+}
+
+function imageFileBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const value = reader.result;
+      if (typeof value !== "string") {
+        reject(new Error("Image recovery read did not return a data URL"));
+        return;
+      }
+      const comma = value.indexOf(",");
+      if (comma < 0) { reject(new Error("Image recovery read did not return base64")); return; }
+      resolve(value.slice(comma + 1));
+    };
+    reader.onerror = () => reject(reader.error ?? new Error("Image recovery read failed"));
+    reader.readAsDataURL(file);
+  });
 }
 
 /**
@@ -1099,6 +1122,12 @@ export function SessionPane({
   queueEditOperationRef.current = queueEditOperation;
   const [composerRestoreRequest, setComposerRestoreRequest] =
     useState<ComposerRestoreRequest | null>(null);
+  const composerRestoreRequestRef = useRef(composerRestoreRequest);
+  composerRestoreRequestRef.current = composerRestoreRequest;
+  const activeQueueRecoveryRef = useRef<{
+    queueItemId: string; sessionId: string; workspaceKey: string;
+    text: string; refs: readonly AttachmentRef[];
+  } | null>(null);
   const nextComposerRestoreRequestIdRef = useRef(1);
   const timelineScrollToBottomRef = useRef<(() => void) | null>(null);
   const timelineScrollToQueryRef = useRef<
@@ -1121,6 +1150,24 @@ export function SessionPane({
   );
 
   const workspaceKey = workspaceIdentity?.trim() || workspacePath;
+  const [queueRecoveryVersion, setQueueRecoveryVersion] = useState(0);
+  const [queueEditRecoveries, setQueueEditRecoveries] = useState<PiQueueEditRecovery[]>([]);
+  const [queueRecoveryStorageError, setQueueRecoveryStorageError] = useState(false);
+  useEffect(() => {
+    if (!sessionId) {
+      setQueueEditRecoveries([]);
+      setQueueRecoveryStorageError(false);
+      return;
+    }
+    try {
+      setQueueEditRecoveries(readPiQueueEditRecoveries(window.localStorage, workspaceKey, sessionId));
+      setQueueRecoveryStorageError(false);
+    } catch (error) {
+      logger.warn("[v4-pane] Pi queue withdrawal recovery index unavailable", error);
+      setQueueEditRecoveries([]);
+      setQueueRecoveryStorageError(true);
+    }
+  }, [queueRecoveryVersion, sessionId, workspaceKey]);
   const workspaceConfigOptions = useZCodeSessionStore(
     (store) => store.getWorkspaceState(workspacePath, workspaceIdentity).configOptions,
   );
@@ -3017,6 +3064,20 @@ export function SessionPane({
           return sendResult;
         }
         setSendSubmissionError(null);
+        const recovered = activeQueueRecoveryRef.current;
+        if (recovered && shouldDiscardPiQueueRecoveryAfterSend(recovered, {
+          sessionId, text, attachments: options?.attachments, result: "sent",
+        })) {
+          // Pi accepted the exact recovered payload. Cleanup is secondary to its ACK.
+          activeQueueRecoveryRef.current = null;
+          void discardPiQueueEditRecovery({ storage: window.localStorage,
+            workspaceKey: recovered.workspaceKey, sessionId: recovered.sessionId,
+            queueItemId: recovered.queueItemId }).then(() => {
+            setQueueRecoveryVersion(value => value + 1);
+          }).catch(error => {
+            logger.warn("[v4-pane] Pi queued edit recovery cleanup after send failed", error);
+          });
+        }
         if (shouldFocusLatest) {
           focusTimelineToLatest();
         }
@@ -3054,11 +3115,32 @@ export function SessionPane({
   }, []);
   const handleComposerRestoreApplied = useCallback(
     (requestId: number) => {
+      const request = composerRestoreRequestRef.current;
+      if (request?.requestId === requestId && request.durableQueueRecovery &&
+        request.recoveryQueueItemId) {
+        activeQueueRecoveryRef.current = { queueItemId: request.recoveryQueueItemId,
+          sessionId: request.sessionId, workspaceKey: request.workspaceKey,
+          text: request.text, refs: request.attachments };
+        try {
+          markPiQueueEditRecoveryState({ storage: window.localStorage,
+            workspaceKey: request.workspaceKey, sessionId: request.sessionId,
+            queueItemId: request.recoveryQueueItemId, state: "restored" });
+          setQueueRecoveryVersion(value => value + 1);
+        } catch (error) {
+          logger.warn("[v4-pane] Pi queued edit recovery state could not be marked", error);
+        }
+        toast(intl.formatMessage({ id: "chat.queue.recoveryReady" }));
+      }
       setComposerRestoreRequest((current) => (current?.requestId === requestId ? null : current));
       clearQueueEditOperation();
     },
-    [clearQueueEditOperation],
+    [clearQueueEditOperation, intl],
   );
+  const handleComposerRestoreDeferred = useCallback((requestId: number) => {
+    setComposerRestoreRequest((current) => (current?.requestId === requestId ? null : current));
+    clearQueueEditOperation();
+    toast(intl.formatMessage({ id: "chat.queue.recoveryConflict" }));
+  }, [clearQueueEditOperation, intl]);
 
   const beforePiTreeNavigate = useCallback(() => {
     if (composerDraftStateRef.current.hasContent || composerDraftStateRef.current.busy) {
@@ -3246,6 +3328,59 @@ export function SessionPane({
     [dispatchCommand, sessionId],
   );
 
+  const restoreQueueRecoveryToComposer = useCallback(async (entry: PiQueueEditRecovery): Promise<boolean> => {
+    const before = composerBindingRef.current;
+    if (decidePiQueueEditRestore("accepted", entry, before,
+      composerDraftStateRef.current.hasContent || composerDraftStateRef.current.busy) !== "restore") {
+      toast(intl.formatMessage({ id: "chat.queue.recoveryConflict" }));
+      return false;
+    }
+    const refs = await restorePiQueueEditRecoveryRefs({ entry, workspaceKey,
+      upload: async ({ sessionId: targetSessionId, file }) => attachmentPut({
+        sessionId: targetSessionId, fileName: file.name, mime: file.type,
+        dataBase64: await imageFileBase64(file),
+      }),
+    });
+    const after = composerBindingRef.current;
+    if (decidePiQueueEditRestore("accepted", entry, after,
+      composerDraftStateRef.current.hasContent || composerDraftStateRef.current.busy) !== "restore") {
+      toast(intl.formatMessage({ id: "chat.queue.recoveryConflict" }));
+      return false;
+    }
+    setComposerRestoreRequest({
+      requestId: nextComposerRestoreRequestIdRef.current++,
+      sessionId: entry.sessionId, workspaceKey, inputKind: entry.inputKind,
+      text: entry.text, attachments: refs, config: entry.config,
+      durableQueueRecovery: true, recoveryQueueItemId: entry.queueItemId,
+    });
+    return true;
+  }, [attachmentPut, intl, workspaceKey]);
+
+  const handleRestoreQueueRecovery = useCallback((entry: PiQueueEditRecovery) => {
+    if (queueEditOperationRef.current || !sessionId || entry.sessionId !== sessionId) return;
+    const operation = { queueItemId: entry.queueItemId, sessionId, workspaceKey };
+    queueEditOperationRef.current = operation;
+    setQueueEditOperation(operation);
+    void restoreQueueRecoveryToComposer(entry).then(staged => {
+      if (!staged) clearQueueEditOperation();
+    }).catch(error => {
+      logger.warn("[v4-pane] Pi queued image recovery failed", error);
+      toast(intl.formatMessage({ id: "chat.queue.editRestoreFailed" }));
+      clearQueueEditOperation();
+    });
+  }, [clearQueueEditOperation, intl, restoreQueueRecoveryToComposer, sessionId, workspaceKey]);
+
+  const handleDiscardQueueRecovery = useCallback((entry: PiQueueEditRecovery) => {
+    if (!sessionId || entry.sessionId !== sessionId) return;
+    void discardPiQueueEditRecovery({ storage: window.localStorage, workspaceKey, sessionId,
+      queueItemId: entry.queueItemId }).then(() => {
+      setQueueRecoveryVersion(value => value + 1);
+    }).catch(error => {
+      logger.warn("[v4-pane] Pi queued edit recovery discard failed", error);
+      toast(intl.formatMessage({ id: "chat.queue.editRestoreFailed" }));
+    });
+  }, [intl, sessionId, workspaceKey]);
+
   const handleEditQueueItem = useCallback(
     async (queueItemId: string): Promise<void> => {
       const current = snapshotRef.current;
@@ -3263,6 +3398,29 @@ export function SessionPane({
       queueEditOperationRef.current = operation;
       setQueueEditOperation(operation);
       try {
+        // A Pi queue item is the only dispatch fact. This separate profile copy
+        // is solely crash recovery and must be durable before the Pi delete.
+        const recovery = await preparePiQueueEditRecovery({
+          storage: window.localStorage, workspaceKey, sessionId,
+          target: restoreTarget,
+          readImage: async (attachment, attachmentIndex) => {
+            const image = await attachmentRead({ sessionId, ref: attachment.ref,
+              queueItemId, attachmentIndex, mediaType: attachment.mime });
+            if (!("bytes" in image)) throw new Error("Pi queued image bytes unavailable");
+            return image;
+          },
+        });
+        setQueueRecoveryVersion(value => value + 1);
+        if (decidePiQueueEditRestore("accepted", recovery, composerBindingRef.current,
+          composerDraftStateRef.current.hasContent || composerDraftStateRef.current.busy) !== "restore") {
+          // The queue still owns the item; a switch during the copy never triggers deletion.
+          await discardPiQueueEditRecovery({ storage: window.localStorage,
+            workspaceKey, sessionId, queueItemId });
+          setQueueRecoveryVersion(value => value + 1);
+          toast(intl.formatMessage({ id: "chat.queue.recoveryConflict" }));
+          clearQueueEditOperation();
+          return;
+        }
         const ack = await dispatchCommand(
           "deleteQueueItem",
           { queueItemId },
@@ -3270,43 +3428,35 @@ export function SessionPane({
           restoreTarget.baseRevision,
         );
         if (!shouldRestoreQueuedComposerFromAck(ack.status)) {
+          // An explicit non-accepting Pi ACK has not deleted this item. Retire
+          // the prepared copy so a later retry can take a fresh Pi snapshot.
+          await settlePiQueueEditDelete({ storage: window.localStorage, workspaceKey,
+            sessionId, queueItemId, status: ack.status });
+          setQueueRecoveryVersion(value => value + 1);
           logger.warn(`[v4-pane] queue 撤回编辑被拒绝: ${ack.status} ${ack.reasonCode ?? ""}`);
           toast(intl.formatMessage({ id: "chat.queue.editRestoreFailed" }));
           clearQueueEditOperation();
           return;
         }
-        pendingCommandRegistry.settle(sessionId, restoreTarget.sourceCommandId);
-        const currentBinding = composerBindingRef.current;
-        if (
-          currentBinding.sessionId !== sessionId ||
-          currentBinding.workspaceKey !== workspaceKey
-        ) {
-          // delete ACK 异步返回时 pane 可能已切 task；旧实现若直接 setText，
-          // 会把原 session 的 queue payload 写进新 task。权威删除保留，但本地恢复必须放弃。
-          logger.warn("[v4-pane] queue 撤回编辑未恢复：ACK 返回前 composer 已切换", {
-            queueItemId,
-            sessionId,
-            workspaceKey,
-          });
-          clearQueueEditOperation();
-          return;
+        try {
+          await settlePiQueueEditDelete({ storage: window.localStorage, workspaceKey,
+            sessionId, queueItemId, status: ack.status });
+          setQueueRecoveryVersion(value => value + 1);
+        } catch (error) {
+          // Pi has already removed the item. The prepared backup remains valid
+          // even if its local state marker cannot be updated.
+          logger.warn("[v4-pane] Pi queue delete accepted; recovery marker update failed", error);
         }
-        setComposerRestoreRequest({
-          requestId: nextComposerRestoreRequestIdRef.current++,
-          sessionId,
-          workspaceKey,
-          inputKind: restoreTarget.inputKind,
-          text: restoreTarget.text,
-          attachments: restoreTarget.attachments,
-          config: restoreTarget.config,
-        });
+        pendingCommandRegistry.settle(sessionId, restoreTarget.sourceCommandId);
+        if (!(await restoreQueueRecoveryToComposer(recovery))) clearQueueEditOperation();
       } catch (error) {
         logger.warn("[v4-pane] queue 撤回编辑命令失败", error);
         toast(intl.formatMessage({ id: "chat.queue.editRestoreFailed" }));
         clearQueueEditOperation();
       }
     },
-    [clearQueueEditOperation, dispatchCommand, intl, sessionId, workspaceKey],
+    [attachmentRead, clearQueueEditOperation, dispatchCommand, intl,
+      restoreQueueRecoveryToComposer, sessionId, workspaceKey],
   );
 
   const handleSendQueuedNow = useCallback(
@@ -4500,6 +4650,7 @@ export function SessionPane({
       onDraftStateChange={handleComposerDraftStateChange}
       composerRestoreRequest={composerRestoreRequest}
       onComposerRestoreApplied={handleComposerRestoreApplied}
+      onComposerRestoreDeferred={handleComposerRestoreDeferred}
       onStop={handleStopFromButton}
       onSelectModel={handleSelectModel}
       onSelectThought={handleSelectThought}
@@ -4604,6 +4755,20 @@ export function SessionPane({
             recoverableCommand.replay.kind === "input" ? handleResendPendingCommand : undefined
           }
           onDismiss={handleDismissPendingRecovery}
+        />
+      ) : null}
+      {sessionId && queueRecoveryStorageError ? (
+        <div role="alert" className="mb-3 rounded-xl border border-border bg-surface px-3 py-2 text-ui-base">
+          {intl.formatMessage({ id: "chat.queue.recoveryStorageError" })}
+        </div>
+      ) : null}
+      {sessionId && snapshot && !readOnly ? (
+        <PiQueueEditRecoveryBanner
+          entries={queueEditRecoveries.filter(entry => entry.sessionId === sessionId)}
+          queuedItemIds={new Set(snapshot.queue.items.map(item => item.queueItemId))}
+          busyQueueItemId={queueEditOperation?.queueItemId ?? null}
+          onRestore={handleRestoreQueueRecovery}
+          onDiscard={handleDiscardQueueRecovery}
         />
       ) : null}
       {sessionId && snapshot?.workspaceHookAdmission ? (

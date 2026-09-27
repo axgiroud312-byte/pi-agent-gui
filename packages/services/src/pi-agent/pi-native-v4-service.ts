@@ -1481,12 +1481,32 @@ export class PiNativeV4Service implements V4Methods {
   }
 
   async attachmentReadV4(params: ZCodeAgentAttachmentReadParams): ReturnType<V4Methods["attachmentReadV4"]> {
-    const { ref, offset, limit, target, attachmentIndex } = v4AttachmentReadParamsSchema.parse({
+    const { ref, offset, limit, target, attachmentIndex, queueItemId } = v4AttachmentReadParamsSchema.parse({
       sessionId: params.sessionId, ref: params.ref, offset: params.offset, limit: params.limit,
+      ...(params.queueItemId ? { queueItemId: params.queueItemId } : {}),
       ...(params.target ? { target: params.target } : {}),
       ...(params.attachmentIndex !== undefined ? { attachmentIndex: params.attachmentIndex } : {}),
     });
     const record = this.recordFor(params, params.sessionId);
+    if (queueItemId !== undefined) {
+      const catalog = await this.supervisor.getQueueCatalog(record.view.sessionId);
+      const queued = [...catalog.steering, ...catalog.followUp].find(item => item.id === queueItemId);
+      if (!queued) throw new Error("Pi image is no longer in this session queue");
+      const full = await this.supervisor.readQueueItem(record.view.sessionId, catalog.revision, queueItemId);
+      const refs = await this.queueMedia.materialize(record.view.sessionId, full);
+      const image = full.images[attachmentIndex!];
+      if (!image || refs[attachmentIndex!]?.ref !== ref ||
+        !["image/png", "image/jpeg", "image/gif", "image/webp"].includes(image.mimeType)) {
+        throw new Error("Pi queued image ref does not match this item and index");
+      }
+      const bytes = Buffer.from(image.data, "base64");
+      if (bytes.length === 0 || bytes.length > 20 * 1024 * 1024 || offset > bytes.length) {
+        throw new Error("Pi queued image read is out of bounds");
+      }
+      const end = Math.min(offset + limit, bytes.length);
+      return { dataBase64: bytes.subarray(offset, end).toString("base64"), mediaType: image.mimeType,
+        totalBytes: bytes.length, nextOffset: end < bytes.length ? end : null };
+    }
     const row = record.projection.getRows().find(item =>
       (item.kind === "userInput" || item.kind === "extensionMessage"
         ? item.attachments?.some(attachment => attachment.ref === ref)

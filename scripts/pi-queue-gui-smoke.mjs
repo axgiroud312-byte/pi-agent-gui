@@ -19,6 +19,12 @@ const sendButton = page => page.getByTestId('v4-composer-send').filter({ visible
 const queue = page => page.getByTestId('v4-queue');
 const rows = page => queue(page).locator('li[data-queue-item-id]');
 const row = (page, id) => queue(page).locator(`li[data-queue-item-id="${id}"]`);
+const editRecovery = page => page.getByTestId('pi-queue-edit-recovery');
+async function editRecoveryEntries(page) {
+  return page.evaluate(() => Object.keys(window.localStorage)
+    .filter(key => key.startsWith('zcode-v4-pi-queue-edit-recovery:v2:'))
+    .map(key => JSON.parse(window.localStorage.getItem(key))));
+}
 
 async function until(check, message, attempts = 100) {
   for (let index = 0; index < attempts; index++) {
@@ -323,6 +329,67 @@ try {
   assert(report.stages.restart.recoveryNoticeVisible,
     'Native GUI must explain that recovered media is evidence, not an executable Pi queue');
   await page.screenshot({ path: join(f.output, 'pi-queue-recovery-after-restart.png') });
+
+  // A deleted queued image must also survive a restart as a composer recovery
+  // copy. Pi's queue stays the only executable queue throughout this path.
+  const heldBeforeWithdrawal = model.held;
+  await send(page, 'PI_STOP: hold withdrawal recovery turn');
+  await until(() => model.held > heldBeforeWithdrawal,
+    'Pinned Pi must be running before the image withdrawal');
+  const withdrawalText = 'PI_IMAGE: withdrawn across app restart';
+  await send(page, withdrawalText, image);
+  await queueCount(page, 1);
+  await page.getByRole('button', { name: '停止生成', exact: true }).click();
+  await page.getByTestId('v4-queue-paused-banner').waitFor();
+  const withdrawnId = await rows(page).first().getAttribute('data-queue-item-id');
+  assert(withdrawnId);
+  await page.getByTestId(`v4-queue-item-edit-${withdrawnId}`).click();
+  await until(async () => (await editRecoveryEntries(page)).some(entry =>
+    entry.queueItemId === withdrawnId && entry.state === 'restored'),
+  'Withdrawal must publish a durable restorable image copy before Pi deletion');
+  await queueCount(page, 0);
+  await editRecovery(page).waitFor();
+  await page.screenshot({ path: join(f.output, 'pi-queue-withdrawn-durable-copy.png') });
+  report.stages.withdrawnBeforeRestart = { queueItemId: withdrawnId, imageDigest: digest(image) };
+  report.withdrawalCleanup = await closeOwned(app, f);
+  assertCleanExit(report.withdrawalCleanup, logs, 'Withdrawal recovery restart');
+  app = undefined;
+
+  ({ app, page } = await openNative(f, logs, report));
+  const targetTurn = page.locator('section[data-turn-id]')
+    .filter({ hasText: 'PI_STOP: hold withdrawal recovery turn' }).first();
+  if (!await targetTurn.isVisible()) {
+    await page.locator('[data-testid^="task-item-"]')
+      .filter({ hasText: 'PI_STOP: hold first foreground turn' }).first().click();
+  }
+  await targetTurn.waitFor({ timeout: 30_000 });
+  await editRecovery(page).waitFor();
+  const afterRestartCopies = await editRecoveryEntries(page);
+  assert(afterRestartCopies.some(entry => entry.queueItemId === withdrawnId &&
+    entry.text === withdrawalText && entry.attachments.length === 1));
+  await composer(page).click();
+  await page.keyboard.press('Control+A');
+  await page.keyboard.press('Backspace');
+  const oldChips = page.locator('[data-composer-attachment-kind="image"][data-upload-status="ready"]');
+  while (await oldChips.count()) {
+    await oldChips.first().locator('[data-composer-attachment-remove]').click({ force: true });
+  }
+  await editRecovery(page).locator(`[data-queue-recovery-id="${withdrawnId}"]`)
+    .getByTestId('pi-queue-recovery-restore').click();
+  await until(async () => (await composer(page).innerText()).includes(withdrawalText),
+    'Recovered Pi queue text must return to the original composer');
+  await page.locator('[data-composer-attachment-kind="image"][data-upload-status="ready"]')
+    .filter({ visible: true }).first().waitFor();
+  const requestsBeforeRecoveredSend = model.requests.length;
+  await sendButton(page).click();
+  await until(() => model.requests.slice(requestsBeforeRecoveredSend).some(request =>
+    request.promptText.includes(withdrawalText) && request.imageDigests.includes(digest(image))),
+  'The fixed Pi model request must receive the exact restarted image bytes');
+  await until(async () => (await editRecoveryEntries(page)).every(entry => entry.queueItemId !== withdrawnId),
+    'An exact accepted Pi send must retire the private recovery copy');
+  report.stages.withdrawnAfterRestart = { restored: true, exactImageSent: true, backupRetired: true };
+  await page.screenshot({ path: join(f.output, 'pi-queue-withdrawal-recovered-and-sent.png') });
+
   await verifyPiPackageCleanup(f);
   const boundaries = (await readFile(f.env.NATIVE_SMOKE_BOUNDARY_LOG, 'utf8'))
     .split('\n').filter(Boolean).map(JSON.parse);
