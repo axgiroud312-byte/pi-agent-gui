@@ -10,6 +10,13 @@
 - 不得因用户暂缓验收而伪造 #34 或后续 Issue 的人工通过、关闭 Issue、合并 Draft PR 或正式发布。
 - 缺少在线账号、OAuth 人工回调、真实 llama.cpp/GGUF 或安装权限时，明确记录待最终验收项，但继续所有不依赖这些条件的开发。
 
+## 2026-09-28 07:31 继续开发断点（下方 07:24 等均为历史快照）
+
+- 主目录 `issue-34-native-pi-rpc` 当前源码 HEAD `84e7685` 已普通推送；`coverage.md` 和本文件正在更新。PR #39 Draft、需最终人工验收的 Issues OPEN。仅受保护未跟踪 `%SystemDrive%/`、`用`、锁定 `packages/desktop/dist-pi-incremental/` 应留在主目录；`stash@{0}` 与用户旧 `packages/desktop/dist/win-unpacked` 不触碰。
+- #11/P20 `84e7685` 已把 router unload HTTP 503 的取消挂起/旧状态修复：独立 loopback 合同先红 9/10 后绿 10/10，主树 client/service 11/11、typecheck 通过。`D:/Temp/pi-router-cancel-gui-red-20260928/pi-llama-gui-report.json` 红测旧界面把远端 loading 显示为 unloaded；`D:/Temp/pi-router-cancel-gui-green-20260928/pi-llama-gui-report.json` 固定 Pi 原生 GUI 证实 503 时远端/界面仍 loading、二次取消后均 unloaded，原 Pi router 推理与会话隔离仍绿，页面错误/强杀/残留为零。主树合并后的 GUI 仍待最终回归；真实 GGUF/llama.cpp 未有。
+- #10/P32/P34 独立树 `D:/Temp/pi-agent-gui-settings-completion-20260928` 已先红测 `appSettingsSchema` 丢 `piOfflineMode`/`piVersionCheckMode`，修复后新 Pi 子进程真实环境合同 2/2、既有设置 8/8、scope 2/2、自定义 sessionDir 1/1、typecheck/build 通过。设置页两个三态选项及“已配置值”/TUI 适用面已写；首轮 GUI `D:/Temp/pi-settings-launch-gui-20260928-a/pi-settings-gui-report.json` 虽 UI/既有路径绿，但探针文件未出现，整体 exit 1，不得报全绿；代理正在离线定位、待下一次桌面复跑/提交。
+- #14/D04 P0 保存期间新输入/跨文件旧 ACK 丢草稿由独立树 `D:/Temp/pi-agent-gui-file-save-race-20260928` 处理；目前在写受控延迟 Promise 的 React 红测，原生 GUI 桌面槽已交给该代理，尚无修复/提交。其余包内/安装器/最终主树全顺序检查仍按下方 07:24 的边界，未执行。下一步先整合 #10/#14 红绿，再针对最新 HEAD 做最终固定 Pi 顺序回归、Standards/Spec 复审、隔离 Windows 打包与受控升级/卸载。
+
 ## 2026-09-28 07:24 继续开发断点（下方 07:06 等均为历史快照）
 
 - 主目录 `issue-34-native-pi-rpc` 当前代码 HEAD `aa14fe4` 已普通推送；本文件、`coverage.md`、`native-ui-parity.md` 正在更新，实际 Git 状态优先。PR #39 Draft、需用户最终验收的 Issues OPEN；受保护未跟踪 `%SystemDrive%/`、`用`、锁住的 `packages/desktop/dist-pi-incremental/`、`stash@{0}`、用户旧 `packages/desktop/dist/win-unpacked` 均保持原状。
