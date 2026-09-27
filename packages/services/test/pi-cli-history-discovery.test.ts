@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { on } from 'node:events';
-import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -55,6 +55,69 @@ test('native index discovers pinned Pi CLI sessions in a custom shared directory
       await rm(root, { recursive: true, force: true });
     }
   });
+
+test('an explicit index resync discovers Pi CLI JSONL created after the GUI subscribed', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'pi-cli-live-discovery-'));
+  const workspace = join(root, 'workspace');
+  const otherWorkspace = join(root, 'other-workspace');
+  const sessionDir = join(root, 'sessions');
+  await mkdir(workspace);
+  await mkdir(otherWorkspace);
+  const supervisor = new PiSessionSupervisor({ piEntry: join(root, 'unused'),
+    env: { PI_CODING_AGENT_SESSION_DIR: sessionDir } });
+  const service = new PiNativeV4Service(supervisor, join(root, 'catalog'));
+  const target = { workspacePath: workspace };
+  const frames: unknown[] = [];
+  const listener = service.onDynamicSessionsIndexFrame(target)(frame => frames.push(frame));
+  try {
+    const subscription = await service.subscribeSessionsIndexV4(target);
+    await new Promise(resolve => setImmediate(resolve));
+    const initial = sessionsIndexTopicWireFrameSchema.parse(frames.at(-1));
+    assert.equal(initial.kind, 'complete');
+    if (initial.kind !== 'complete' || initial.frame.payload.kind !== 'snapshot') throw Error('missing initial snapshot');
+    assert.deepEqual(initial.frame.payload.snapshot.sessions, []);
+
+    const cli = SessionManager.create(workspace, sessionDir);
+    cli.appendMessage({ role: 'user', content: 'CREATED_WHILE_GUI_OPEN', timestamp: Date.now() });
+    cli.appendMessage({ role: 'assistant', content: [{ type: 'text', text: 'CLI answer' }],
+      timestamp: Date.now() } as Parameters<typeof cli.appendMessage>[0]);
+    cli.appendSessionInfo('CLI created while GUI open');
+    const file = cli.getSessionFile();
+    assert.ok(file);
+    const lines = (await readFile(file, 'utf8')).trimEnd().split('\n');
+    lines[0] = JSON.stringify({ ...JSON.parse(lines[0]!), futureCliMetadata: { retained: true } });
+    await writeFile(file, `${lines.join('\n')}\n`);
+    const original = await readFile(file);
+    const other = SessionManager.create(otherWorkspace, sessionDir);
+    other.appendMessage({ role: 'user', content: 'ANOTHER_WORKSPACE', timestamp: Date.now() });
+    other.appendMessage({ role: 'assistant', content: [{ type: 'text', text: 'Other answer' }],
+      timestamp: Date.now() } as Parameters<typeof other.appendMessage>[0]);
+
+    await service.resyncSessionsIndexV4({ ...target, subscriptionId: subscription.ack.subscriptionId });
+    await new Promise(resolve => setImmediate(resolve));
+    const snapshots = frames.map(frame => sessionsIndexTopicWireFrameSchema.parse(frame))
+      .filter(frame => frame.kind === 'complete' && frame.frame.payload.kind === 'snapshot');
+    const last = snapshots.at(-1);
+    assert.ok(last && last.kind === 'complete' && last.frame.payload.kind === 'snapshot');
+    assert.deepEqual(last.frame.payload.snapshot.sessions.map(item => [item.sessionId, item.title]),
+      [[cli.getSessionId(), 'CLI created while GUI open']]);
+    const countNewSessionUpserts = () => frames.map(frame => sessionsIndexTopicWireFrameSchema.parse(frame))
+      .filter(frame => frame.kind === 'complete' && frame.frame.payload.kind === 'deltas')
+      .flatMap(frame => frame.kind === 'complete' && frame.frame.payload.kind === 'deltas'
+        ? frame.frame.payload.deltas : [])
+      .filter(delta => delta.op === 'session.upserted' && delta.session.sessionId === cli.getSessionId()).length;
+    assert.equal(countNewSessionUpserts(), 1, 'new CLI session gets one live index delta');
+    await service.resyncSessionsIndexV4({ ...target, subscriptionId: subscription.ack.subscriptionId });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(countNewSessionUpserts(), 1, 'unchanged CLI JSONL must not churn index deltas');
+    assert.deepEqual(await readFile(file), original, 'refresh must not rewrite Pi JSONL or unknown fields');
+    assert.equal((await SessionManager.list(otherWorkspace, sessionDir)).length, 1);
+  } finally {
+    listener.dispose();
+    await service.dispose();
+    await rm(root, { recursive: true, force: true });
+  }
+});
 
 test('pinned Pi resumes CLI history in GUI service and the same JSONL can continue in CLI',
   { timeout: 40_000 }, async () => {

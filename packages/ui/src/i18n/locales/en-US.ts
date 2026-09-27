@@ -504,6 +504,7 @@ const enUS: Record<string, string> = {
   "quickPick.command.logout": "Disconnect",
   "commandCenter.placeholder": "Search actions, tasks, or files",
   "commandCenter.open": "Search",
+  "commandCenter.refreshHistory": "Refresh session history",
   "commandCenter.noResults": "No related results",
   "commandCenter.scopeTabs": "Command center sections",
   "commandCenter.scope.all": "All",

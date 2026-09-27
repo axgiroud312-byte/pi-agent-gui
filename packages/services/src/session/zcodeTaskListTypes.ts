@@ -14,6 +14,8 @@ export interface ZCodeTaskListQuery {
   workspaceScopes: ZCodeTaskListWorkspaceScope[];
   sortBy: ZCodeTaskListSortBy;
   search?: string;
+  /** Re-read the native sessions index before returning this explicit refresh. */
+  refreshSessions?: boolean;
   limit?: number;
 }
 

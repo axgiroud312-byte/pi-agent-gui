@@ -63,6 +63,30 @@ test('native conversation search finds a Pi CLI JSONL session without a legacy t
       'legacy body search keeps its snippet');
     assert.equal(result.total, 2);
     assert.equal(result.hasMore, false);
+
+    const lateCli = SessionManager.create(workspacePath, sessionDir);
+    lateCli.appendMessage({ role: 'user', content: 'LATE_CLI_HISTORY', timestamp: Date.now() });
+    lateCli.appendMessage({ role: 'assistant', content: [{ type: 'text', text: 'Late answer' }],
+      timestamp: Date.now() } as Parameters<typeof lateCli.appendMessage>[0]);
+    lateCli.appendSessionInfo('Late CLI while GUI open');
+    const lateSearch = await runtime.service.listTaskList({
+      kind: 'timeline', workspaceScopes: [{ workspacePath }], sortBy: 'updated',
+      search: 'Late CLI', limit: 10,
+    });
+    assert.ok(lateSearch.items.some(item => item.taskId === lateCli.getSessionId()),
+      'search must rescan Pi JSONL created after the native controller subscribed');
+
+    const refreshedCli = SessionManager.create(workspacePath, sessionDir);
+    refreshedCli.appendMessage({ role: 'user', content: 'EXPLICIT_REFRESH', timestamp: Date.now() });
+    refreshedCli.appendMessage({ role: 'assistant', content: [{ type: 'text', text: 'Refresh answer' }],
+      timestamp: Date.now() } as Parameters<typeof refreshedCli.appendMessage>[0]);
+    refreshedCli.appendSessionInfo('Found by explicit refresh');
+    const refreshedList = await runtime.service.listTaskList({
+      kind: 'timeline', workspaceScopes: [{ workspacePath }], sortBy: 'updated',
+      refreshSessions: true, limit: 10,
+    });
+    assert.ok(refreshedList.items.some(item => item.taskId === refreshedCli.getSessionId()),
+      'manual refresh must discover Pi JSONL without a search query');
   } finally {
     runtime.dispose();
     await pi.dispose();

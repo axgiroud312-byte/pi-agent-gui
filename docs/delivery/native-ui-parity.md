@@ -122,6 +122,12 @@ PI14-F2 继续使用原生 `WorkspaceFileTree`、`PreviewPane`、`MentionPlugin`
 | PI04-S4 | 原生输入区 `/compact` 与会话 Stop 控件 | 手动压缩改由同一固定 Pi `compact` RPC 持有前台执行 ID，Stop 直接 `abort` 并等待 Pi 命令结束；取消后仍保留原会话历史 | #3/#4 / P03、P08、V03。固定 Pi 0.87.0 延迟摘要合同、启动竞态测试及生产入口原生 GUI `D:/Temp/pi-manual-compact-main-20260927/pi-manual-compact-gui-report.json` 已通过；包内和原版成对截图待验。 |
 | PI04-S5 | 原生运行状态和输入区 Stop 控件 | Pi 自动 retry 退避期间仍保留原生 Stop；Stop 经固定 Pi `abort_retry` / `abort` 取消等待，不额外创建前端重试器 | #3/#4 / P03、P07、V03。`pi-retry-stop-fixed.test.ts` 和主分支原生 GUI `D:/Temp/pi-retry-stop-main-20260928-a/pi-retry-stop-gui-report.json` 验证首个受控 503 后停止且无迟到第二请求；包内及原版成对截图待验。 |
 
+## #9 Pi CLI 运行期间历史发现（开发增量，视觉待验）
+
+| ID | 原生入口/行为 | Pi 产品行为 | 必要性 / 状态 |
+| --- | --- | --- | --- |
+| PI09-C1 | 保留原生任务侧栏及命令中心搜索框，在搜索框内增加一个小型刷新按钮 | 工作区已打开时，搜索会重新读取固定 Pi 0.87.0 `SessionManager.list`；刷新按钮在空查询时也重扫当前工作区。新 CLI JSONL 的真实 ID、名称与时间进入已有 sessions-index，原始 JSONL 不被复制或改写；活动 Pi 会话不被磁盘冷扫描覆盖。 | 原先只在首次订阅扫描，CLI 后建的会话在 GUI 中不可见。固定 Pi 与桌面 Controller 已先红后绿；隔离源码原生 GUI `D:/Temp/pi-cli-live-history-gui-20260928-c/pi-session-search-gui-report.json` 通过（搜索、空查询刷新、打开、退出零残留）。包内、原版同状态成对截图及人工验收待测。多次搜索会产生只读目录扫描，长历史性能仍待最终回归。 |
+
 ## #9 Pi 会话确认删除（开发增量，视觉待验）
 
 | ID | 原生入口/行为 | Pi 产品行为 | 必要性 / 状态 |

@@ -148,7 +148,8 @@ export function useGlobalTaskList(params: {
       }
       setLoading(true);
       try {
-        const result = await controllerRegistry.list(queryKey, version, query);
+        const result = await controllerRegistry.list(queryKey, version,
+          version.manualRefreshSerial ? { ...query, refreshSessions: true } : query);
         if (requestSerialRef.current !== requestSerial) {
           return;
         }

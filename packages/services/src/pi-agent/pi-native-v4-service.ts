@@ -551,6 +551,7 @@ export class PiNativeV4Service implements V4Methods {
   private readonly queueRefreshes = new Map<string, Promise<void>>();
   private readonly catalogWrites = new Map<string, Promise<boolean>>();
   private readonly workspaceLoads = new Map<string, Promise<void>>();
+  private readonly workspaceScans = new Map<string, Promise<void>>();
   private readonly bookmarks = new Map<string, PiSessionBookmark>();
   private readonly sessionLoads = new Map<string, Promise<void>>();
   private readonly reconciliations = new Map<string, Promise<void>>();
@@ -809,7 +810,21 @@ export class PiNativeV4Service implements V4Methods {
     const workspaceKey = resolveWorkspaceKey(params);
     let pending = this.workspaceLoads.get(workspaceKey);
     if (pending) return pending;
-    pending = (async () => {
+    pending = this.scanWorkspace(params, false);
+    this.workspaceLoads.set(workspaceKey, pending);
+    void pending.catch(() => {
+      if (this.workspaceLoads.get(workspaceKey) === pending) this.workspaceLoads.delete(workspaceKey);
+    });
+    return pending;
+  }
+
+  /** Read Pi JSONL discovery again only on an explicit index subscription/resync. */
+  private scanWorkspace(params: ZCodeAgentWorkspaceTarget, broadcast: boolean): Promise<void> {
+    this.assertWorkspaceOpen(params);
+    const workspaceKey = resolveWorkspaceKey(params);
+    const existing = this.workspaceScans.get(workspaceKey);
+    if (existing) return existing;
+    const pending = (async () => {
       const bookmarks = await this.catalog.list(workspaceKey);
       // Pi's fixed-version SessionManager owns JSONL discovery and workspace
       // filtering. App bookmarks only preserve display/control metadata. Older
@@ -819,16 +834,22 @@ export class PiNativeV4Service implements V4Methods {
           await this.supervisor.sessionDirectory(params.workspacePath)) : [];
       this.assertWorkspaceOpen(params);
       for (const entry of bookmarks) {
-        if (entry.workspacePath === params.workspacePath) this.bookmarks.set(entry.sessionId, entry);
+        if (entry.workspacePath === params.workspacePath && !this.bookmarks.has(entry.sessionId)) {
+          this.bookmarks.set(entry.sessionId, entry);
+        }
       }
       for (const session of cliSessions) {
         if (!/^[a-f0-9-]{36}$/iu.test(session.id) || !Number.isFinite(session.created.getTime()) ||
           !Number.isFinite(session.modified.getTime())) continue;
+        // A live Pi process owns its in-memory facts. An external CLI must not
+        // overwrite that record's bookmark while the GUI holds the JSONL lease.
+        if (this.sessions.has(session.id)) continue;
         const previous = this.bookmarks.get(session.id);
         if (previous && previous.workspaceKey !== workspaceKey) continue;
+        const before = previous ? this.coldSummary(previous) : undefined;
         const title = session.name?.trim() ||
           (session.firstMessage === "(no messages)" ? "" : piFilePromptTitle(session.firstMessage));
-        this.bookmarks.set(session.id, {
+        const next: PiSessionBookmark = {
           ...previous,
           sessionId: session.id, sessionFile: previous?.sessionFile ?? session.path,
           workspacePath: params.workspacePath, workspaceKey,
@@ -836,10 +857,18 @@ export class PiNativeV4Service implements V4Methods {
           createdAt: session.created.getTime(), lastActivityAt: session.modified.getTime(),
           title: title || undefined, titleSource: title
             ? session.name ? "custom" : "generated" : "default",
-        });
+        };
+        this.bookmarks.set(session.id, next);
+        const after = this.coldSummary(next);
+        if (broadcast && JSON.stringify(before) !== JSON.stringify(after)) {
+          this.emitIndexSummary(workspaceKey, after);
+        }
       }
     })();
-    this.workspaceLoads.set(workspaceKey, pending);
+    this.workspaceScans.set(workspaceKey, pending);
+    void pending.finally(() => {
+      if (this.workspaceScans.get(workspaceKey) === pending) this.workspaceScans.delete(workspaceKey);
+    }).catch(() => {});
     return pending;
   }
 
@@ -983,6 +1012,18 @@ export class PiNativeV4Service implements V4Methods {
     };
   }
 
+  private coldSummary(entry: PiSessionBookmark): SessionSummary {
+    const wasRunning = entry.uncertainDelivery || entry.phase === "running" || entry.phase === "prewarming";
+    return {
+      sessionId: entry.sessionId, workspaceId: entry.workspaceId, title: entry.title ?? "Pi session",
+      titleSource: entry.titleSource ?? "default",
+      // A cold index cannot claim an in-flight turn is still running.
+      phase: wasRunning ? "error" : entry.phase ?? "completedSuccess",
+      sessionEnded: wasRunning ? false : entry.sessionEnded ?? true,
+      hasBackgroundWork: false, lastActivityAt: entry.lastActivityAt, createdAt: entry.createdAt,
+    };
+  }
+
   private emitConversation(record: SessionRecord, deltas: ConversationDelta[]): void {
     if (deltas.length === 0) return;
     const priorSeq = record.snapshot.seq;
@@ -1005,6 +1046,10 @@ export class PiNativeV4Service implements V4Methods {
   }
 
   private emitIndex(workspaceKey: string, record: SessionRecord): void {
+    this.emitIndexSummary(workspaceKey, this.summary(record));
+  }
+
+  private emitIndexSummary(workspaceKey: string, summary: SessionSummary): void {
     const log = this.indexLog(workspaceKey);
     const fromSeq = log.seq++;
     const topic = sessionsIndexTopic(workspaceKey);
@@ -1012,7 +1057,7 @@ export class PiNativeV4Service implements V4Methods {
       if (sub.topic !== topic || sub.workspaceKey !== workspaceKey) continue;
       const frame = sessionsIndexTopicFrameSchema.parse({
         topic, subscriptionId: sub.id, fromSeq, toSeq: log.seq,
-        sentAt: Date.now(), payload: { kind: "deltas", deltas: [{ op: "session.upserted", session: this.summary(record) }] },
+        sentAt: Date.now(), payload: { kind: "deltas", deltas: [{ op: "session.upserted", session: summary }] },
       });
       for (const wire of piWireFrames(frame, "online", ++sub.ordinal)) {
         getEmitter(this.indexEmitters, workspaceKey).fire(wire);
@@ -2307,7 +2352,9 @@ export class PiNativeV4Service implements V4Methods {
 
   async subscribeSessionsIndexV4(params: ZCodeAgentSessionsIndexSubscribeParams): ReturnType<V4Methods["subscribeSessionsIndexV4"]> {
     const key = resolveWorkspaceKey(params);
+    const alreadyLoaded = this.workspaceLoads.has(key);
     await this.loadWorkspace(params);
+    if (alreadyLoaded) await this.scanWorkspace(params, true);
     this.markWorkspaceAvailable(params);
     const log = this.indexLog(key);
     const sub = this.subscription(key, sessionsIndexTopic(key));
@@ -2322,16 +2369,9 @@ export class PiNativeV4Service implements V4Methods {
       payload: { kind: "snapshot", snapshot: { protocolVersion: 1,
         workspaceId: sub.workspaceKey, logEpoch: log.epoch,
         sessions: [...this.bookmarks.values()].filter(entry => entry.workspaceKey === sub.workspaceKey)
-          .map(entry => this.sessions.has(entry.sessionId) ? this.summary(this.sessions.get(entry.sessionId)!) : {
-            sessionId: entry.sessionId, workspaceId: entry.workspaceId, title: entry.title ?? "Pi session",
-            titleSource: entry.titleSource ?? "default" as const,
-            // A cold index cannot claim an in-flight turn is still running.
-            phase: entry.uncertainDelivery || entry.phase === "running" || entry.phase === "prewarming"
-              ? "error" as const : entry.phase ?? "completedSuccess" as const,
-            sessionEnded: entry.uncertainDelivery || entry.phase === "running" || entry.phase === "prewarming"
-              ? false : entry.sessionEnded ?? true,
-            hasBackgroundWork: false, lastActivityAt: entry.lastActivityAt, createdAt: entry.createdAt,
-          }).concat([...this.sessions.values()].filter(record => record.workspaceKey === sub.workspaceKey &&
+          .map(entry => this.sessions.has(entry.sessionId) ? this.summary(this.sessions.get(entry.sessionId)!)
+            : this.coldSummary(entry))
+          .concat([...this.sessions.values()].filter(record => record.workspaceKey === sub.workspaceKey &&
             !this.bookmarks.has(record.view.sessionId)).map(record => this.summary(record))),
       } },
     });
@@ -2342,6 +2382,7 @@ export class PiNativeV4Service implements V4Methods {
 
   async resyncSessionsIndexV4(params: ZCodeAgentConversationResyncParams): ReturnType<V4Methods["resyncSessionsIndexV4"]> {
     const sub = this.requireSubscription(params, "sessions-index/");
+    await this.scanWorkspace(params, true);
     const log = this.indexLog(sub.workspaceKey);
     queueMicrotask(() => this.sendIndexSnapshot(sub, log, "recovery"));
     return { ack: { subscriptionId: sub.id, mode: "snapshot", logEpoch: log.epoch } };
@@ -2464,6 +2505,7 @@ export class PiNativeV4Service implements V4Methods {
     // cannot publish a late runtime after release has returned.
     collect(await Promise.allSettled([
       ...(this.workspaceLoads.has(key) ? [this.workspaceLoads.get(key)!] : []),
+      ...(this.workspaceScans.has(key) ? [this.workspaceScans.get(key)!] : []),
       ...[...this.sessionLoads].filter(([id]) => this.bookmarks.get(id)?.workspaceKey === key).map(([, load]) => load),
       ...[...this.reconciliations].filter(([id]) => this.sessions.get(id)?.workspaceKey === key).map(([, pending]) => pending),
       ...[...this.commandResults].filter(([commandKey]) => commandKey.startsWith(`${key}:`)).map(([, result]) => result),
@@ -2472,6 +2514,7 @@ export class PiNativeV4Service implements V4Methods {
     collect(await Promise.allSettled([this.imageUploads.releaseWorkspace(key)]));
     for (const [id, sub] of this.subscriptions) if (sub.workspaceKey === key) this.subscriptions.delete(id);
     this.workspaceLoads.delete(key);
+    this.workspaceScans.delete(key);
     for (const [id, entry] of this.bookmarks) if (entry.workspaceKey === key) this.bookmarks.delete(id);
     for (const [token, prepared] of this.preparedShares) {
       if (prepared.workspaceKey === key) this.preparedShares.delete(token);
@@ -2508,7 +2551,7 @@ export class PiNativeV4Service implements V4Methods {
     };
     collect(await Promise.allSettled([this.supervisor.dispose()]));
     collect(await Promise.allSettled([
-      ...this.workspaceClosures.values(), ...this.workspaceLoads.values(),
+      ...this.workspaceClosures.values(), ...this.workspaceLoads.values(), ...this.workspaceScans.values(),
       ...this.sessionLoads.values(), ...this.commandResults.values(),
     ]));
     collect(await Promise.allSettled(this.reconciliations.values()));

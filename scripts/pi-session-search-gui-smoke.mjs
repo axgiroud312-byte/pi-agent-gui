@@ -60,6 +60,51 @@ try {
   await dialog.getByText('Find Pi CLI session', { exact: true }).click();
   await page.getByText('CLI_ANSWER', { exact: true }).waitFor({ timeout: 30_000 });
   report.openedOriginalHistory = true;
+
+  const liveCli = SessionManager.create(f.workspace, f.env.PI_CODING_AGENT_SESSION_DIR);
+  liveCli.appendMessage({ role: 'user', content: 'LIVE_CLI_INPUT', timestamp: Date.now() });
+  liveCli.appendMessage({ role: 'assistant', content: [{ type: 'text', text: 'LIVE_CLI_ANSWER' }],
+    api: 'openai-completions', provider: 'new-provider', model: 'pi-native-test',
+    usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+    stopReason: 'stop', timestamp: Date.now() });
+  liveCli.appendSessionInfo('Live CLI after GUI launch');
+  const liveFile = liveCli.getSessionFile();
+  assert.ok(liveFile);
+  const liveBytes = await readFile(liveFile);
+  assert.equal(await page.locator(`[data-testid="task-item-${liveCli.getSessionId()}"]`).count(), 0,
+    'the external CLI session is not visible before the user asks to search again');
+  await page.getByRole('button', { name: /^搜索/ }).click();
+  const liveDialog = page.getByRole('dialog');
+  await liveDialog.getByPlaceholder('搜索操作、任务或文件').fill('Live CLI after GUI launch');
+  await liveDialog.getByText('Live CLI after GUI launch', { exact: true }).waitFor({ timeout: 30_000 });
+  await page.locator(`[data-testid="task-item-${liveCli.getSessionId()}"]`).waitFor({ timeout: 30_000 });
+  report.liveCliFoundBySearch = liveCli.getSessionId();
+  await liveDialog.getByText('Live CLI after GUI launch', { exact: true }).click();
+  await page.getByText('LIVE_CLI_ANSWER', { exact: true }).waitFor({ timeout: 30_000 });
+
+  const refreshedCli = SessionManager.create(f.workspace, f.env.PI_CODING_AGENT_SESSION_DIR);
+  refreshedCli.appendMessage({ role: 'user', content: 'REFRESH_CLI_INPUT', timestamp: Date.now() });
+  refreshedCli.appendMessage({ role: 'assistant', content: [{ type: 'text', text: 'REFRESH_CLI_ANSWER' }],
+    api: 'openai-completions', provider: 'new-provider', model: 'pi-native-test',
+    usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+    stopReason: 'stop', timestamp: Date.now() });
+  refreshedCli.appendSessionInfo('CLI via refresh button');
+  const refreshedFile = refreshedCli.getSessionFile();
+  assert.ok(refreshedFile);
+  const refreshedBytes = await readFile(refreshedFile);
+  await page.getByRole('button', { name: /^搜索/ }).click();
+  const refreshDialog = page.getByRole('dialog');
+  await refreshDialog.getByPlaceholder('搜索操作、任务或文件').fill('');
+  await refreshDialog.getByRole('button', { name: '刷新会话历史' }).click();
+  await page.locator(`[data-testid="task-item-${refreshedCli.getSessionId()}"]`).waitFor({ timeout: 30_000 });
+  report.liveCliFoundByRefresh = refreshedCli.getSessionId();
+  assert.ok((await readFile(liveFile)).subarray(0, liveBytes.length).equals(liveBytes),
+    'opening the CLI session may append Pi metadata but must preserve its original bytes');
+  assert.deepEqual(await readFile(refreshedFile), refreshedBytes);
+  report.modelRequestsDuringDiscovery = model.requests.length;
+  assert.equal(report.modelRequestsDuringDiscovery, 0, 'index search/refresh must not run the model');
   await page.screenshot({ path: join(f.output, 'pi-session-search-open.png') });
   report.cleanup = await closeOwned(app, f);
   app = undefined;

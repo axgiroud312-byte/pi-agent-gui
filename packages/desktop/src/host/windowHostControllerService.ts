@@ -519,6 +519,14 @@ export function createWindowHostControllerRuntime(options: {
     );
 
     const search = query.search?.trim();
+    if (search || query.refreshSessions) {
+      await Promise.all(resolvedSources
+        .filter(source => source.sourceAvailability === "online" && source.agentService != null)
+        .map(async source => {
+          try { await ensureSourceSessionObserver(source)?.refresh(); }
+          catch (error) { options.onSourceError?.(source.scope, "search", error); }
+        }));
+    }
     let items: WindowHostControllerTaskListItem[];
     if (search) {
       const results = await Promise.all(
@@ -526,7 +534,7 @@ export function createWindowHostControllerRuntime(options: {
           .filter((source) => source.sourceAvailability === "online" && source.taskService != null)
           .map(async (source) => {
             try {
-              const result = await source.taskService!.listTaskList({
+              const sourceQuery = {
                 ...query,
                 workspaceScopes: [
                   {
@@ -537,7 +545,11 @@ export function createWindowHostControllerRuntime(options: {
                   },
                 ],
                 limit: undefined,
-              });
+              };
+              // This controls the Controller's native index read, not the
+              // legacy task-index query forwarded to a local/remote source.
+              delete sourceQuery.refreshSessions;
+              const result = await source.taskService!.listTaskList(sourceQuery);
               return result.items.map((item) => {
                 const normalized = normalizeTaskMeta(item, source.scope);
                 const projected = projection
