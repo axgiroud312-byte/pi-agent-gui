@@ -8,6 +8,13 @@ const PURGE_PREFIX = "zcode-v4-pi-queue-edit-recovery-purge:v1:";
 const DELETE_INTENT_PREFIX = "zcode-v4-pi-session-recovery-delete-intent:v1:";
 const IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
+const SHA256_PATTERN = /^sha256:[0-9a-f]{64}$/;
+
+async function imageSha256(bytes: Uint8Array): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new Uint8Array(bytes));
+  return `sha256:${Array.from(new Uint8Array(digest), byte =>
+    byte.toString(16).padStart(2, "0")).join("")}`;
+}
 
 export interface PiQueueEditRecovery {
   queueItemId: string;
@@ -15,7 +22,7 @@ export interface PiQueueEditRecovery {
   workspaceKey: string;
   inputKind: "sendText" | "sendGoalCommand";
   text: string;
-  attachments: Array<AttachmentRef & { draftId: string }>;
+  attachments: Array<AttachmentRef & { draftId: string; sha256: string }>;
   config?: ComposerRestoreRequest["config"];
   savedAt: number;
   /** Prepared may mean an ACK was lost; only Pi confirms removal. */
@@ -79,7 +86,9 @@ export function readPiQueueEditRecoveries(storage: Storage, workspaceKey: string
       !Array.isArray(item.attachments) || item.attachments.length > 8 ||
       !item.attachments.every(attachment => isRecord(attachment) &&
         typeof attachment.ref === "string" && typeof attachment.fileName === "string" &&
-        typeof attachment.draftId === "string" && IMAGE_TYPES.has(String(attachment.mime)) &&
+        typeof attachment.draftId === "string" &&
+        typeof attachment.sha256 === "string" && SHA256_PATTERN.test(attachment.sha256) &&
+        IMAGE_TYPES.has(String(attachment.mime)) &&
         Number.isSafeInteger(attachment.bytes) && Number(attachment.bytes) > 0 &&
         Number(attachment.bytes) <= MAX_IMAGE_BYTES)) {
       throw new Error("Pi queue edit recovery index is damaged; keep the Pi queue item");
@@ -118,9 +127,10 @@ export async function preparePiQueueEditRecovery(input: {
     }
     const draftId = crypto.randomUUID();
     const file = new File([new Uint8Array(read.bytes)], attachment.fileName, { type: attachment.mime });
+    const sha256 = await imageSha256(new Uint8Array(await file.arrayBuffer()));
     await (input.saveImage ?? (async (key, id, image) => saveComposerImageDraft(key, {
       id, fileName: image.name, mimeType: image.type, file: image })))(scope, draftId, file);
-    attachments.push({ ...attachment, draftId });
+    attachments.push({ ...attachment, draftId, sha256 });
   }
   const entry: PiQueueEditRecovery = { queueItemId: target.queueItemId, sessionId, workspaceKey,
     inputKind: target.inputKind, text: target.text, attachments,
@@ -159,6 +169,13 @@ export async function restorePiQueueEditRecoveryRefs(input: {
     }
     return record.file;
   });
+  for (const [index, file] of files.entries()) {
+    const actualSha = await imageSha256(new Uint8Array(await file.arrayBuffer()));
+    if (!SHA256_PATTERN.test(entry.attachments[index]!.sha256) ||
+      actualSha !== entry.attachments[index]!.sha256) {
+      throw new Error("Saved Pi queued image SHA changed or is damaged");
+    }
+  }
   const refs: AttachmentRef[] = [];
   for (const [index, file] of files.entries()) {
     const ref = await input.upload({ sessionId: entry.sessionId, file });

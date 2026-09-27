@@ -122,10 +122,37 @@ test("damaged recovered image blocks restore and leaves durable copy visible", a
   assert.deepEqual(readPiQueueEditRecoveries(storage, "workspace-a", "session-a"), [entry]);
 });
 
+test("same-size image tampering and an older index without SHA fail closed", async () => {
+  const storage = new MemoryStorage();
+  const entry = await preparePiQueueEditRecovery({ storage, workspaceKey: "workspace-a",
+    sessionId: "session-a", target: { queueItemId: "queue-one", inputKind: "sendText", text: "recover",
+      attachments: [{ ref: "old-ref", fileName: "one.png", mime: "image/png", bytes: 2 }] },
+    readImage: async () => ({ bytes: Uint8Array.from([1, 2]), mediaType: "image/png" }),
+    saveImage: async () => {},
+  });
+  let uploads = 0;
+  await assert.rejects(restorePiQueueEditRecoveryRefs({ entry, workspaceKey: "workspace-a",
+    readFiles: async () => [{ id: entry.attachments[0]!.draftId, fileName: "one.png",
+      mimeType: "image/png", file: new File([Uint8Array.from([3, 4])], "one.png", { type: "image/png" }) }],
+    upload: async () => { uploads += 1; return { ref: "bad" }; },
+  }), /SHA|changed|damaged/);
+  assert.equal(uploads, 0);
+  const key = storage.key(0)!;
+  const old = JSON.parse(storage.getItem(key)!) as { attachments: Array<{ sha256?: string }> };
+  delete old.attachments[0]!.sha256;
+  storage.setItem(key, JSON.stringify(old));
+  assert.throws(() => readPiQueueEditRecoveries(storage, "workspace-a", "session-a"), /damaged/);
+});
+
 test("parallel withdrawals of different Pi items retain both independent recovery copies", async () => {
   const storage = new MemoryStorage();
   const releases: Array<() => void> = [];
-  const saveImage = async () => new Promise<void>(resolve => { releases.push(resolve); });
+  let bothReady!: () => void;
+  const ready = new Promise<void>(resolve => { bothReady = resolve; });
+  const saveImage = async () => new Promise<void>(resolve => {
+    releases.push(resolve);
+    if (releases.length === 2) bothReady();
+  });
   const prepare = (queueItemId: string) => preparePiQueueEditRecovery({ storage,
     workspaceKey: "workspace-a", sessionId: "session-a",
     target: { queueItemId, inputKind: "sendText", text: queueItemId,
@@ -135,7 +162,7 @@ test("parallel withdrawals of different Pi items retain both independent recover
   });
   const first = prepare("first");
   const second = prepare("second");
-  for (let attempt = 0; releases.length < 2 && attempt < 20; attempt += 1) await Promise.resolve();
+  await ready;
   assert.equal(releases.length, 2);
   releases.forEach(release => release());
   await Promise.all([first, second]);
