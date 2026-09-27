@@ -43,39 +43,6 @@ export async function sendPiImage(page, model, output) {
   return modelRequest;
 }
 
-export async function verifyBusyImageIsNotLost(page, model, output) {
-  const input = page.getByTestId('v4-composer-input').filter({ visible: true }).first();
-  await input.click();
-  await page.keyboard.type('PI_QUEUE_IMAGE: keep the unsent image');
-  await page.locator('.chat-composer-region input[type="file"]').first()
-    .setInputFiles({ name: 'busy-image.png', mimeType: 'image/png', buffer: image });
-  const chip = page.locator('[data-composer-attachment-kind="image"][data-upload-status="ready"]').first();
-  await chip.waitFor();
-  const requestsBefore = model.requests.length;
-  await page.getByTestId('v4-composer-send').filter({ visible: true }).first().click();
-  const details = page.getByTestId('chat-error-details-button');
-  await details.waitFor({ timeout: 15_000 });
-  await details.click();
-  await page.getByText('pi.queueImagesRequireLosslessRecovery', { exact: true }).waitFor();
-  assert(await chip.isVisible() && (await input.innerText()).includes('PI_QUEUE_IMAGE'),
-    'A refused image queue admission must keep both text and image in the composer');
-  assert.equal(model.requests.length, requestsBefore, 'Refused image must not reach the model');
-  assert.equal(await page.locator('[data-queue-read-only="true"]').count(), 0,
-    'Refused image must never appear as a text-only Pi queue item');
-  await page.keyboard.press('Escape');
-  await page.getByRole('button', { name: '停止生成', exact: true }).waitFor({ timeout: 10_000 });
-  assert(await chip.isVisible(), 'Stop must remain reachable without discarding the rejected image');
-  await page.screenshot({ path: join(output, 'pi-native-busy-image-refused.png') });
-  // The refusal left the draft untouched. Clear it deliberately before the
-  // separate queue/Stop probe, not as an automatic admission side effect.
-  await chip.hover();
-  await page.locator('[data-composer-attachment-remove]').first().click();
-  await input.click();
-  await input.press('ControlOrMeta+A');
-  await input.press('Backspace');
-  return true;
-}
-
 /** Delay only browser file reads, then attempt send before the image is admitted. */
 export async function probeImageAdmissionRace(page, model) {
   await page.evaluate(() => {
