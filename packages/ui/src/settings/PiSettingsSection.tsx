@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button.js";
 import { useServices } from "@/hooks/useServices.js";
 import { PiSettingsReadGuard, type PiSettingsEditorScope } from "./piSettingsReadGuard.js";
+import { buildPiSettingsSourceRows } from "./piSettingsSourceRows.js";
 
 type Snapshot = Awaited<ReturnType<ReturnType<typeof useServices>["zcodeAgentService"]["readPiSettings"]>>;
 type Scope = PiSettingsEditorScope;
@@ -26,6 +27,7 @@ export function PiSettingsSection({ workspacePath }: { workspacePath: string }) 
   // Update synchronously with props so an older Promise cannot win before an effect runs.
   guard.syncContext(workspacePath, scope);
   const snapshot = loaded?.workspacePath === workspacePath ? loaded.snapshot : null;
+  const effectiveRows = useMemo(() => snapshot ? buildPiSettingsSourceRows(snapshot) : [], [snapshot]);
 
   const load = useCallback(async (nextScope: Scope = scope) => {
     if (!workspacePath) { setLoading(false); return; }
@@ -101,6 +103,11 @@ export function PiSettingsSection({ workspacePath }: { workspacePath: string }) 
                   此项目当前未获 Pi 信任；大多数项目设置不会应用。Pi 会在信任检查前读取 sessionDir 来定位历史。
                 </p>
               ) : null}
+              {scope === "project" && snapshot.ignoredProjectPaths.length > 0 ? (
+                <p role="status" className="text-sm text-amber-600">
+                  Pi 0.87.0 只从用户设置读取 {snapshot.ignoredProjectPaths.join("、")}；项目文件中的同名字段仍在原文件，但不会生效。
+                </p>
+              ) : null}
               {snapshot.offline ? <p className="text-xs text-muted-foreground">Pi 启动参数：离线模式</p> : null}
               <p className="break-all text-xs text-muted-foreground">新会话历史目录：{snapshot.sessionDirectory}</p>
               {document?.error ? <p role="alert" className="text-sm text-destructive">
@@ -118,15 +125,15 @@ export function PiSettingsSection({ workspacePath }: { workspacePath: string }) 
               <details className="text-sm">
                 <summary className="cursor-pointer font-medium">查看 Pi 实际生效值与来源</summary>
                 <div className="mt-2 max-h-64 overflow-auto rounded-md border border-border">
-                  <table className="w-full text-left text-xs"><thead><tr><th className="p-2">选项</th><th className="p-2">生效值</th><th className="p-2">来源</th></tr></thead>
-                    <tbody>{Object.entries(snapshot.effective).sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) => (
-                      <tr key={key} className="border-t border-border"><td className="p-2 font-mono">{key}</td>
-                        <td className="p-2 font-mono break-all">{JSON.stringify(value)}</td>
-                        <td className="p-2">{snapshot.sources[key] === "project" ? "项目" : "用户"}</td></tr>
+                  <table className="w-full text-left text-xs"><thead><tr><th className="p-2">选项路径</th><th className="p-2">生效值</th><th className="p-2">来源</th></tr></thead>
+                    <tbody>{effectiveRows.slice(0, 200).map(row => (
+                      <tr key={row.path} className="border-t border-border"><td className="p-2 font-mono">{row.path}</td>
+                        <td className="p-2 font-mono break-all">{row.value}</td>
+                        <td className="p-2">{row.source === "project" ? "项目" : row.source === "user" ? "用户" : "未知"}</td></tr>
                     ))}</tbody>
                   </table>
                 </div>
-                <p className="mt-2 text-xs text-muted-foreground">嵌套选项按 Pi 规则逐项合并；编辑器保存当前作用域的完整 JSON，保留未修改字段。</p>
+                <p className="mt-2 text-xs text-muted-foreground">路径用 / 分层；嵌套选项按 Pi 规则逐项合并。编辑器保存当前作用域的完整 JSON，保留未修改字段。{effectiveRows.length > 200 ? `这里只显示前 200 / ${effectiveRows.length} 项；可切换上方作用域分别查看原始 JSON。` : ""}</p>
               </details>
             </>
           ) : null}

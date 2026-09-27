@@ -25,12 +25,16 @@ export interface PiSettingsSnapshot {
   /** Top-level source; sourcePaths identifies nested leaves, e.g. /retry/enabled. */
   sources: Record<string, PiSettingsScope>;
   sourcePaths: Record<string, PiSettingsScope>;
+  /** Project keys Pi 0.87.0 deliberately reads from global settings only. */
+  ignoredProjectPaths: string[];
   appliesTo: "new-session";
   offline: boolean;
   sessionDirectory: string;
 }
 
 const missingRevision = createHash("sha256").update("pi-settings:missing").digest("hex");
+// Pinned Pi 0.87.0 reads these through getGlobalSettings() / global-only getters.
+const globalOnlyKeys = ["cacheWarming", "defaultProjectTrust", "httpProxy"] as const;
 
 function profilePath(value: string, cwd: string): string {
   const expanded = value === "~" ? homedir() : value.startsWith("~/") || value.startsWith("~\\")
@@ -132,9 +136,14 @@ export async function readPiSettingsDocuments(
   const projectTrusted = override ?? (!hasTrustRequiringProjectResources(cwd) || trustDecision === true ||
     (trustDecision === null && startup.getDefaultProjectTrust() === "always"));
   const manager = SettingsManager.create(cwd, agentDir, { projectTrusted });
-  const merged = mergeWithSources(manager.getGlobalSettings() as Record<string, unknown>,
-    manager.getProjectSettings() as Record<string, unknown>);
-  return { user, project, projectTrusted, ...merged, appliesTo: "new-session", offline: isOffline(env, rpcArgs),
+  const global = manager.getGlobalSettings() as Record<string, unknown>;
+  const projectEffective = manager.getProjectSettings() as Record<string, unknown>;
+  const ignoredProjectPaths = globalOnlyKeys.filter(key => Object.hasOwn(projectEffective, key))
+    .map(key => `/${key}`);
+  for (const key of globalOnlyKeys) delete projectEffective[key];
+  const merged = mergeWithSources(global, projectEffective);
+  return { user, project, projectTrusted, ...merged, ignoredProjectPaths,
+    appliesTo: "new-session", offline: isOffline(env, rpcArgs),
     sessionDirectory: await piSessionDirectory(cwd, env, rpcArgs) };
 }
 
@@ -143,6 +152,7 @@ export async function savePiSettingsDocument(
   workspacePath: string, env: NodeJS.ProcessEnv, request: {
     scope: PiSettingsScope; expectedRevision: string; text: string; rpcArgs?: string[];
   },
+  options: { beforeCommit?: () => Promise<void> } = {},
 ): Promise<PiSettingsSnapshot> {
   if (request.scope !== "user" && request.scope !== "project") throw new Error("Invalid Pi settings scope");
   parseObject(request.text);
@@ -170,6 +180,10 @@ export async function savePiSettingsDocument(
       await temporary.sync();
     } finally {
       await temporary.close();
+    }
+    await options.beforeCommit?.();
+    if ((await readDocument(request.scope, path)).revision !== current.revision) {
+      throw new Error("Pi settings conflict: the file changed outside this editor; reload before saving");
     }
     await rename(temporaryPath, path);
     temporaryPath = undefined;

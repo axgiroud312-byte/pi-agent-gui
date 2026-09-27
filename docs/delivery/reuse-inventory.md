@@ -61,6 +61,10 @@ Pi 的 MIT 来源及固定版本见 `THIRD_PARTY_NOTICES.md` 与
 
 继续沿用原生 `SessionPane`、Dialog/Button、文件/目录选择器和会话选择，未迁入旧原型的分享 UI 或任务索引。固定 Pi 0.87.0 公开 RPC 的 `get_last_assistant_text`、`export_html`、根导出 `SessionManager.forkFrom` 和 Pi JSONL 是实现来源；Pi TUI `/share` 的 `gh gist create --public=false` 仅作为外发协议参考，GUI 不调用私有 TUI 组件。Pi MIT 声明见 `THIRD_PARTY_NOTICES.md`。宿主仅做受限 JSONL 字节/版本/树校验、原文件未变化校验与本地导出复制；分享保留 Pi HTML 原字节，必须由用户预览和勾选后才调用 `gh`。测试注入本地发布器，不会产生远程 Gist；Windows 目标目录的 ACL 由用户选择，不能把 POSIX `0600` 宣称为 Windows ACL 隔离。
 
+### #10 Pi 设置来源修正（2026-09-28，隔离分支待整合）
+
+继续复用原生 Settings 两栏、现有 Pi JSON 编辑器和固定 Pi 0.87.0 根导出 `SettingsManager`、`ProjectTrustStore`；没有迁入旧路线设置页或另建配置存储。依据固定包的 `settings-manager.js` 全局 getter 与 `main.js` 的 HTTP proxy 引用，项目文件中的 `cacheWarming`、`defaultProjectTrust`、`httpProxy` 不投影为实际生效值，但原始文件保留。嵌套值按现有 `sourcePaths` 逐叶展示来源，避免把混合用户/项目的 `retry` 总体标成项目来源。Pi MIT 来源及许可证见 [上游参考](../references/upstream-and-ui.md) 和 `THIRD_PARTY_NOTICES.md`；固定版本之外的设置语义尚未承诺。
+
 ## 已知外部验收差额
 
 - 旧主线真实 `openai-codex/gpt-5.5` 文本成功（449 tokens）；`aio-codex/gpt-5.4-mini` 为 Connection error，未通过。

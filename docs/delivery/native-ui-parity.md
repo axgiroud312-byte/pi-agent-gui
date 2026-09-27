@@ -53,6 +53,7 @@
 | ID | 原生入口/行为 | Pi 产品行为 | 必要性 / 状态 |
 | --- | --- | --- | --- |
 | PI07-S1 | 原生 Settings 的模型提供商页及两栏设置布局 | 在同一页增设“Pi 认证”分段，保留原有模型配置入口；Pi 分段显示固定版本 provider、API key/OAuth 登录、回调/设备码、解析、目录刷新与登出，不显示保存的 key/token。同一 Pi RPC 会话的模型快照通过公开桥刷新 | #7/P18/P19；固定 Pi 服务/认证合同通过，在线账号与授权回调、原版成对 GUI 和包内运行未验证。旧模型配置与 Pi 认证的关系需在 #10 统一设置范围 |
+| PI10-S1 | 原生 Settings 的两栏导航、Pi 设置 JSON 编辑器与生效值详情 | 生效值按嵌套叶子路径分别显示“用户/项目”来源；Pi 0.87.0 只从用户设置读取的 `cacheWarming`、`defaultProjectTrust`、`httpProxy` 若出现在项目文件则提示未生效，原始 JSON 仍保留 | #10/P31/P32；固定版本源代码和纯合同测试已核对。此增量的生产入口 GUI、固定 Pi 子进程、成对截图和包内运行待顺序复验，不据此签署视觉或全字段验收。 |
 | PI08-S1 | 原生 v4 userInput 弹窗 | Pi 扩展的选择、确认、单行输入和多行编辑复用同一原生弹窗路径，按交互 ID 重建、显示正文/占位符/预填，Stop/取消由 Pi 请求与会话状态决定 | #8/#13/#25/P27；固定 Pi 0.87.0 的同 PID 顺序合同通过，原生 GUI、包内与键盘/焦点待验。其余 UI 类别逐项见 [兼容表](pi-extension-ui-compatibility.md) |
 | PI13-S1 | 原生会话底部信息区和既有会话树弹窗 | Pi RPC 的通知、状态、文本 widget、终端标题投影到同一 pane；扩展建议输入需显式应用，复用现有空草稿门禁。树弹窗增加真实 Pi 工具目录和启用状态的复选入口 | #13/P23/P26；固定 Pi 0.87.0 服务合同和隔离源码原生 GUI `D:/Temp/pi-extension-state-gui-20260927-d/pi-extension-state-gui-report.json` 通过，退出无进程残留。包内及原版成对截图未跑。组件 factory 等复杂 TUI 无 RPC 可序列化合同，边界见 [兼容表](pi-extension-ui-compatibility.md) |
 

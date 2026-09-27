@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { ProjectTrustStore } from '@earendil-works/pi-coding-agent';
 import { fixture } from './native-smoke/fixture.mjs';
 import { closeOwned, assertCleanExit } from './native-smoke/cleanup.mjs';
 import { startPiModel } from './native-smoke/pi-model.mjs';
@@ -14,10 +15,12 @@ const model = await startPiModel();
 await configurePiProfile(f, { url: model.url, modelId: 'pi-native-test', apiKey: 'fixture-not-a-secret' });
 const settingsPath = join(f.sandbox, 'pi-profile', 'settings.json');
 const initial = JSON.parse(await readFile(settingsPath, 'utf8'));
-await writeFile(settingsPath, JSON.stringify({ ...initial, futureSetting: { keep: 'unchanged' } }));
+await writeFile(settingsPath, JSON.stringify({ ...initial, futureSetting: { keep: 'unchanged' },
+  retry: { enabled: true }, defaultProjectTrust: 'ask' }));
 const projectSettingsPath = join(f.workspace, '.pi', 'settings.json');
 await mkdir(join(f.workspace, '.pi'));
-await writeFile(projectSettingsPath, JSON.stringify({ retry: { maxRetries: 7 }, projectUnknown: 42 }));
+await writeFile(projectSettingsPath, JSON.stringify({ retry: { maxRetries: 7 }, projectUnknown: 42,
+  cacheWarming: 'idle', defaultProjectTrust: 'always' }));
 const logs = [];
 const report = { at: new Date().toISOString(), workspace: f.workspace, piVersion: '0.87.0',
   inference: 'deterministic loopback provider, not online provider', pageErrors: [] };
@@ -69,22 +72,32 @@ try {
   assert.equal(persisted.defaultThinkingLevel, 'medium');
   assert.deepEqual(persisted.futureSetting, { keep: 'unchanged' });
   report.saved = true;
-  const external = { ...persisted, cacheWarming: 'idle' };
+  const external = { ...persisted, cacheWarming: 'off' };
   await writeFile(settingsPath, JSON.stringify(external));
   await editor.fill(JSON.stringify({ ...edited, defaultThinkingLevel: 'high' }, null, 2));
   await settings.getByRole('button', { name: '保存 Pi 设置' }).click();
   await settings.getByText(/Pi settings conflict/).waitFor();
-  assert.equal(JSON.parse(await readFile(settingsPath, 'utf8')).cacheWarming, 'idle');
+  assert.equal(JSON.parse(await readFile(settingsPath, 'utf8')).cacheWarming, 'off');
   assert((await editor.inputValue()).includes('"high"'));
   report.externalEditConflict = true;
   await page.screenshot({ path: join(f.output, 'pi-settings-conflict.png') });
   await settings.getByRole('button', { name: '放弃修改并重新读取' }).click();
-  await page.waitForFunction(() => document.querySelector('[data-testid="pi-settings-json"]')?.value.includes('"cacheWarming":"idle"'));
+  await page.waitForFunction(() => document.querySelector('[data-testid="pi-settings-json"]')?.value.includes('"cacheWarming":"off"'));
   await settings.getByRole('button', { name: '项目设置' }).click();
   await page.waitForFunction(() => document.querySelector('[data-testid="pi-settings-json"]')?.value.includes('"projectUnknown":42'));
   assert((await settings.innerText()).includes('未获 Pi 信任'));
   report.projectUntrusted = true;
   await page.screenshot({ path: join(f.output, 'pi-settings-project.png') });
+  new ProjectTrustStore(join(f.sandbox, 'pi-profile')).set(f.workspace, true);
+  await settings.getByRole('button', { name: '读取最新' }).click();
+  await settings.getByText(/只从用户设置读取.*cacheWarming/u).waitFor();
+  await settings.getByText('查看 Pi 实际生效值与来源').click();
+  assert.match(await settings.locator('tr').filter({ hasText: '/retry/enabled' }).innerText(), /用户/u);
+  assert.match(await settings.locator('tr').filter({ hasText: '/retry/maxRetries' }).innerText(), /项目/u);
+  assert.match(await settings.locator('tr').filter({ hasText: '/cacheWarming' }).innerText(), /"off".*用户/u);
+  report.trustedNestedSources = true;
+  report.globalOnlyProjectOverrideIgnored = true;
+  await page.screenshot({ path: join(f.output, 'pi-settings-sources.png') });
   // The same native Host also starts and observes the pinned Pi RPC process.
   if (!await page.getByRole('button', { name: '创建自定义供应商', exact: true }).isVisible()) {
     await page.getByRole('button', { name: '模型设置', exact: true }).click();

@@ -161,6 +161,12 @@
 
 本增量纯投影 9/9、UI 行 3/3、固定 Pi 新合同 1/1 和既有扩展样例 4/4 PASS；`pnpm typecheck`、`pnpm lint`（0 error / 69 warning）、桌面 `build:no-runtime-assets`、delivery plan 本地、7 项校验测试及 `--github` PASS。GUI 首两轮 a/b 是测试文案与模型请求记录形状的断言失误，均正常退出且无残留，未当作产品失败。受控 loopback 模型不是在线 provider，源码入口 GUI 不是包内 GUI。
 
+## 2026-09-28 #10 设置来源与并发冲突修正（隔离分支，静态增量）
+
+| 能力 / 场景 | 已观察结果 | 仍待完成 |
+| --- | --- | --- |
+| P31、P32 / V06、V08 | 固定 Pi 0.87.0 的 `SettingsManager` 对缓存预热与默认项目信任只读用户文件，入口 HTTP proxy 也只读用户文件；项目同名键现在保留原文并提示未生效。原生 Settings 生效值表按 `/retry/enabled` 等叶子显示用户/项目来源。用户/项目未知字段的作用域保存保持不变；在临时文件准备后注入外部写入，提交前第二次 SHA 检查拒绝覆盖并保留外部原字节。红测先复现，再由 `pi-settings-scope-source.test.ts` 与 `piSettingsSourceRows.test.ts` 3/3 验证；服务/UI typecheck、lint 与差异检查通过。 | 这次修正的原生 GUI/固定 Pi 子进程、包内 GUI、在线 provider、全部设置字段及用户验收未复验。Pi 锁可协调遵守锁的写者；不遵守锁的外部写者在最终 SHA 检查与 rename 之间仍有极短竞争窗，不能宣称跨进程绝对 CAS。 |
+
 ## 回填要求
 
 每项填写实际原生 GUI/Pi 版本、提交、测试命令、结果和证据链接；在线 provider、可控模型、包内运行、实际安装与用户验收分别标明。P27 的限制按 #8/#25 逐类明示，不将复杂 TUI 不支持写为已全面兼容。
