@@ -625,6 +625,9 @@ export function SessionPane({
     );
   }, [conversationTelemetry, conversationTelemetryForegroundEnabled, sessionId, telemetryVisible]);
   const [lease, setLease] = useState<SessionLease | null>(null);
+  // A no-prewarm first send must expose its newly created Pi session while
+  // the authoritative sendText ACK is still waiting on extension UI input.
+  const [pendingFirstInputSessionId, setPendingFirstInputSessionId] = useState<string | null>(null);
   const state = useConversationProjection(lease);
   const snapshot = state.snapshot;
   const newlyCreatedSessionIdRef = useRef<string | null>(null);
@@ -2398,7 +2401,7 @@ export function SessionPane({
   // pane 未绑定会话时后台建 phase=draft 会话作预热载体：配置写 CAS 直达、首发复用。
   // 对外绑定语义不变（shell activeTaskId 仍 null），预热会话只是 pane 内部 effective 订阅目标。
   const { binding: prewarmBinding } = useDraftSessionPrewarm({
-    enabled: sessionId === null && draftAgentStartupAllowed,
+    enabled: sessionId === null && !pendingFirstInputSessionId && draftAgentStartupAllowed,
     workspaceKey,
     paneId,
     storageMode: temporaryDraftSelected ? "temporary" : "persistent",
@@ -2426,7 +2429,7 @@ export function SessionPane({
   const ensureDraftPrewarmConfigBeforeSendRef = useRef<(targetSessionId: string) => Promise<void>>(
     async () => undefined,
   );
-  const effectiveSessionId = sessionId ?? prewarmSessionId;
+  const effectiveSessionId = sessionId ?? pendingFirstInputSessionId ?? prewarmSessionId;
   const showModelChangeNotice = useCallback(
     (sourceModel: ModelSelectionSource | null, targetModel: ModelSelectionSource) => {
       // Bug 原因：草稿尚未形成实际会话，模型选择本身已经在 composer 中可见；
@@ -2855,6 +2858,11 @@ export function SessionPane({
         return;
       }
       if (!sessionId) {
+        if (pendingFirstInputSessionId) {
+          // The prior create already has a real Pi identity. A failed or
+          // unknown send ACK must be inspected there before any new admission.
+          throw new Error(`首次发送尚未确认。请从左侧打开 Pi 会话 ${pendingFirstInputSessionId} 核对历史；不会自动重复发送。`);
+        }
         // 草稿附件在 composer 中已绑定预热 session 完成预传。
         // 这里只提交 ready ref，禁止在 send click 内再启动上传。
         const prewarm = prewarmBindingRef.current;
@@ -2910,40 +2918,11 @@ export function SessionPane({
           { ...draftConfigRef.current, modelSelection: submission.modelSelection },
           appFollowupMode,
         );
-        if (readyAttachments.length === 0 && !sharedContextRefs?.length) {
-          const ack = await dispatchSubmissionCommand(
-            "createSession",
-            {
-              workspaceId: workspaceKey,
-              ...(temporaryDraftSelected ? { storageMode: "temporary" } : {}),
-              firstInput: { text: effectiveText, ...submission },
-              ...draftConfigPayload,
-            },
-            null,
-            undefined,
-            undefined,
-            options?.telemetrySeed,
-            undefined,
-            createSourceAtSend,
-          );
-          if (ack.status !== "accepted") {
-            throw new Error(ack.reasonCode ?? "createSession 被拒绝");
-          }
-          const result = ack.result;
-          if (!result || result.type !== "createSession") {
-            throw new Error("createSession 缺少 sessionId");
-          }
-          handleDraftSessionCreated(
-            result.sessionId,
-            groupedDraftTaskAtSend,
-            createSourceAtSend,
-            ack.commandId,
-          );
-          return;
-        }
-        // 本地 desktop localPath 是零拷贝 ready，不依赖 attachment transaction；极短窗口内
-        // 预热 session 可能还未返回。此时仍可先创建空 session，再提交现成 ref，发送点击内
-        // 不做任何附件上传，也不会让非 ready 附件绕过 composer 门禁。
+        // A pending Pi extension can hold the first prompt RPC until its GUI
+        // answer. Obtain the session ID before sending, including text-only
+        // first inputs; the composer still waits for the sendText ACK before
+        // promotion, so an unknown delivery cannot clear its draft or replay.
+        // Local ready attachments use this same existing two-command path.
         const createAck = await dispatchSubmissionCommand(
           "createSession",
           { workspaceId: workspaceKey, ...draftConfigPayload,
@@ -2958,6 +2937,7 @@ export function SessionPane({
           throw new Error("createSession 缺少 sessionId");
         }
         const newSessionId = createResult.sessionId;
+        setPendingFirstInputSessionId(newSessionId);
         const sendAck = await dispatchSubmissionCommand(
           "sendText",
           {
@@ -2980,6 +2960,7 @@ export function SessionPane({
           createSourceAtSend,
           sendAck.commandId,
         );
+        setPendingFirstInputSessionId(null);
         return;
       }
       // 附件 ref 已在 composer 预传状态机中收口。
@@ -3034,6 +3015,7 @@ export function SessionPane({
       handleOpenSelectionSideConversationWithPrompt,
       intl,
       lease,
+      pendingFirstInputSessionId,
       resolveInitialDraftConfig,
       createSubmissionFromComposer,
       sessionId,
@@ -3837,10 +3819,11 @@ export function SessionPane({
   const handleStop = useCallback(
     (source: "button" | "escape") => {
       const current = snapshotRef.current;
-      if (!sessionId || !current?.control.canStop) {
+      const targetSessionId = sessionId ?? pendingFirstInputSessionId ?? prewarmBindingRef.current?.sessionId;
+      if (!targetSessionId || current?.sessionId !== targetSessionId || !current.control.canStop) {
         logger.lifecycle.info("[v4-pane] stop 命令被跳过（无可停执行）", {
           source,
-          sessionId: sessionId ?? "",
+          sessionId: targetSessionId ?? "",
         });
         return;
       }
@@ -3849,16 +3832,16 @@ export function SessionPane({
       )?.foregroundExecutionId;
       logger.lifecycle.info("[v4-pane] stop 命令发出", {
         source,
-        sessionId,
+        sessionId: targetSessionId,
         foregroundExecutionId: foregroundExecutionId ?? "",
       });
       void dispatchCommand(
         "stop",
         foregroundExecutionId ? { expectedForegroundExecutionId: foregroundExecutionId } : {},
-        sessionId,
+        targetSessionId,
       ).then((ack) => {
         logger.lifecycle.info("[v4-pane] stop 命令结果", {
-          sessionId,
+          sessionId: targetSessionId,
           status: ack.status,
           reasonCode: ack.reasonCode ?? "",
         });
@@ -3866,7 +3849,7 @@ export function SessionPane({
         logger.lifecycle.warn(`[v4-pane] stop 失败: ${String(error)}`);
       });
     },
-    [dispatchCommand, sessionId],
+    [dispatchCommand, pendingFirstInputSessionId, sessionId],
   );
 
   const handlePauseGoal = useCallback(() => {
@@ -4857,10 +4840,10 @@ export function SessionPane({
       ) : null}
       {/* v4 权限/问答等待态只是 runtime 的阻塞交互，必须和 composer
           共享 timeline bottom dock；渲染在 SessionPane 外层会脱离主列宽度并挤占下半屏。 */}
-      {sessionId && snapshot ? (
+      {effectiveSessionId && snapshot && (sessionId || snapshot.pendingInteractions.length > 0) ? (
         <V4InteractionDialogs
           key="conversation-interactions"
-          sessionId={sessionId}
+          sessionId={effectiveSessionId}
           workspacePath={workspacePath}
           workspaceIdentity={workspaceIdentity}
           remoteSessionId={remoteSessionId ?? undefined}

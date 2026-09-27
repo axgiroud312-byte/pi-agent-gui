@@ -27,9 +27,19 @@
 `D:/Temp/pi-extension-stop-gui-green5-20260928/pi-extension-stop-gui-report.json`：
 四类弹窗各自 Stop 后关闭且不复活，普通模型消息仍可发送；重启后绑定同一 Pi JSONL，
 不重放弹窗或模型请求；两次退出均 `graceful=true`、`forced=[]`、`survivors=[]`，
-`pageErrors=[]`。包内 GUI 与最终用户验收仍须独立验证。已有会话中的扩展请求是
-这份证据的范围；在 `createSession(firstInput)` 等待首条扩展命令回执期间，前端尚无
-可操作的 session ID，首条扩展输入的 Stop/弹窗路径尚未获得等价保证。
+`pageErrors=[]`。首条扩展输入的旧 `createSession(firstInput)` 路径曾在原生 GUI
+`D:/Temp/pi-extension-firstinput-red-20260928/pi-extension-stop-gui-report.json` 中卡住：
+Pi 已创建会话，草稿 pane 却等不到创建回执，弹窗和 Stop 均不可见。普通草稿首发的
+无预热 fallback 现先由 Pi 创建空会话、取得其 ID，再提交同一原始 `sendText`；
+等待中的会话 ID 仅供订阅/Stop 和失败对账，草稿仍以 Pi 发送 ACK 为提升边界，
+失败或未知投递禁止再次创建会话或自动重发。隔离原生 GUI
+`D:/Temp/pi-extension-firstinput-final-20260928/pi-extension-stop-gui-report.json`
+已验证首条弹窗 Stop、停止前零模型请求、清空旧命令草稿、后续模型请求恰为新文本、
+重启同一 Pi JSONL 且没有重播；两次进程退出均无残留。
+`D:/Temp/pi-extension-firstimage-green-20260928/pi-extension-stop-gui-report.json`
+验证首条 PNG ready 输入经同一两步路径抵达 Pi 和受控模型，模型侧 MIME/SHA 与原图一致，
+原生时间线可预览。图片 JSONL 原始字节的自动断言、预热路径、包内 GUI 与用户验收
+仍须独立验证。
 
 #13 增量以固定 Pi 0.87.0 的 `extension_ui_request` 为唯一状态来源；公开控制桥 1.2.0
 在 `session_start` / `session_shutdown` 发出内部生命周期标记。Host 在初始 `get_state`

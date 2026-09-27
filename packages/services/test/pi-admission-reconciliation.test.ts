@@ -3,7 +3,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join, resolve, sep } from 'node:path';
 import { test } from 'node:test';
 import { conversationTopicWireFrameSchema, workspaceConfigTopicWireFrameSchema } from '@zcode/shared/zcode-protocol-v4';
 import { PiRpcClient, PiRpcError } from '../src/pi-agent/pi-rpc-client.js';
@@ -39,6 +39,7 @@ async function fixture() {
     thinkingLevel = 'off';
     async start() {}
     async dispose() {}
+    async waitForPendingCommand() { return true; }
     async notify(command: Record<string, unknown>) { this.notifications.push(command); }
     async request(command: { type: string; message?: string; provider?: string; modelId?: string; level?: string;
       expectedRevision?: number; paused?: boolean }) {
@@ -134,7 +135,12 @@ async function fixture() {
   const service = new PiNativeV4Service(supervisor, catalogDir);
   return { root, client, supervisor, service, target: { workspacePath: root },
     catalogDir, id: () => id,
-    close: async () => { await service.dispose(); await rm(root, { recursive: true, force: true }); } };
+    close: async () => {
+      await service.dispose();
+      const owned = resolve(root);
+      assert(owned.startsWith(`${resolve(tmpdir())}${sep}`) && basename(owned).startsWith('pi-admission-'));
+      await rm(owned, { recursive: true, force: true });
+    } };
 }
 
 test('Pi effective input hash is durable before post-admission state inspection', async () => {

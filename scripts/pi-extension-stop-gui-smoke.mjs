@@ -1,5 +1,6 @@
 // Native GUI -> Host -> one fixed Pi 0.87.0 RPC child: Stop at each extension dialog kind.
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { copyFile, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -7,6 +8,7 @@ import { fixture } from './native-smoke/fixture.mjs';
 import { closeOwned, assertCleanExit } from './native-smoke/cleanup.mjs';
 import { startPiModel } from './native-smoke/pi-model.mjs';
 import { configurePiProfile, isolatePiPackage, verifyPiPackageCleanup } from './native-smoke/pi-package.mjs';
+import { image as testImage, sendPiImage } from './native-smoke/pi-image.mjs';
 
 const f = await fixture();
 await isolatePiPackage(f);
@@ -74,6 +76,62 @@ try {
   await page.getByTestId('chat-model-select-trigger').click();
   await page.getByTestId('chat-model-select-search').fill('pi-native-test');
   await page.getByRole('menuitemradio', { name: /pi-native-test/ }).first().click();
+  if (process.env.PI_FIRST_INPUT_IMAGE_PROBE === '1') {
+    const request = await sendPiImage(page, model, f.output);
+    const digest = createHash('sha256').update(testImage).digest('hex');
+    assert(request.imageDigests.includes(digest), 'first image bytes must reach Pi and the controlled model');
+    report.firstInputImage = { mime: 'image/png', sha256: digest, delivered: true };
+  } else if (process.env.PI_FIRST_INPUT_PROBE === '1') {
+    await composer.click();
+    await page.keyboard.insertText('/pi-ui-sequence');
+    await page.getByTestId('v4-composer-send').filter({ visible: true }).first().click();
+    const dialog = page.getByTestId('v4-user-input-dialog');
+    await dialog.waitFor({ timeout: 20_000 });
+    const stop = dialog.getByTestId('pi-extension-stop');
+    assert(await stop.isVisible(), 'first-input Pi extension modal must expose Stop');
+    await stop.click();
+    await dialog.waitFor({ state: 'hidden', timeout: 20_000 });
+    assert.equal(model.requests.length, 0, 'stopped first-input extension must not enter the model');
+    await page.waitForFunction(() => {
+      const editor = document.querySelector('[data-testid="v4-composer-input"]');
+      return editor?.getAttribute('contenteditable') === 'true';
+    }, null, { timeout: 20_000 });
+    assert.equal((await composer.innerText()).trim(), '',
+      'the stopped first extension command must not remain in the next composer draft');
+    await composer.click();
+    const followUpText = 'PI_TEXT: normal message after first-input Stop';
+    await page.keyboard.insertText(followUpText);
+    model.releaseText();
+    await page.getByTestId('v4-composer-send').filter({ visible: true }).first().click();
+    await page.getByText('PI_TEXT_COMPLETE', { exact: true }).first().waitFor({ timeout: 30_000 });
+    report.firstInputStop = { dialogVisible: true, stopped: true,
+      modelRequestsBeforeFollowUp: 0,
+      followUpModelRun: model.requests.some(request => request.scenario === 'PI_TEXT') };
+    assert(report.firstInputStop.followUpModelRun);
+    assert.equal(model.requests.find(request => request.scenario === 'PI_TEXT')?.promptText, followUpText,
+      'the next model request must contain only the new user message');
+    const beforeRestart = await bookmark();
+    const modelRequestsBeforeRestart = model.requests.length;
+    report.firstCleanup = await closeOwned(app, f);
+    assertCleanExit(report.firstCleanup, logs, 'Pi first-input extension Stop restart');
+    app = undefined;
+    app = await f.playwright._electron.launch({ executablePath: f.electronPath,
+      args: [fileURLToPath(new URL('./native-smoke/bootstrap.cjs', import.meta.url)), '--lang=zh-CN'],
+      cwd: f.root, env: f.env, timeout: 60_000 });
+    app.process().stdout?.on('data', chunk => logs.push(String(chunk)));
+    app.process().stderr?.on('data', chunk => logs.push(String(chunk)));
+    page = await app.firstWindow();
+    page.on('pageerror', error => report.pageErrors.push(error.stack || error.message));
+    await page.waitForTimeout(6000);
+    await dismissOnboarding(page);
+    assert.equal(await page.getByTestId('v4-user-input-dialog').count(), 0,
+      'cancelled first-input extension dialog must not revive after restart');
+    assert.equal(model.requests.length, modelRequestsBeforeRestart,
+      'restart must not replay a stopped first-input extension or the following model turn');
+    assert.equal((await bookmark()).sessionFile, beforeRestart.sessionFile);
+    report.firstInputStop.restart = { samePiSessionFile: true, dialogRevived: false,
+      modelRequestReplay: false };
+  } else {
   await composer.click();
   await page.keyboard.type('PI_TEXT: establish Pi session for stop matrix');
   model.releaseText();
@@ -144,6 +202,7 @@ try {
   assert.equal(afterRestart.sessionFile, beforeRestart.sessionFile);
   report.restart = { samePiSessionFile: true, dialogRevived: false,
     modelRequestReplay: false };
+  }
   await verifyPiPackageCleanup(f);
   assert.deepEqual(report.pageErrors, []);
 } catch (error) {
