@@ -174,6 +174,12 @@
 | #3：P05、P06、P15 / V02、V06 | `802c8e2` 至 `28b4871` 整合模型搜索、未知 context 明示、Pi session token/cache/费用、原生搜索焦点和选模后 thinking 目录刷新。隔离固定 Pi 0.87.0 原生 GUI `D:/Temp/pi-model-thinking-gui-20260928-e/pi-model-thinking-gui-report.json`：完整键盘搜索，真实选模推理，`off/minimal/low/medium/high` 与下一请求 `reasoning_effort=minimal`，退出 `graceful=true`、`forced=[]`、`survivors=[]`。主分支服务 22/22、UI 4/4、typecheck、lint 0 error/69 既有 warning、完整桌面源码 build PASS。 | 主分支整合后 GUI、最终包内、在线 provider/计费真实性、用户验收待做；显示的费用是固定 Pi 返回的测试 fixture 值。 |
 | #4、#9：队列图片私有缓存 / V03、V04 | 独立只读审查指出确认删除 Pi JSONL 后 `queue-media` 原字节仍残留。`pi-session-delete.test.ts` 先红再绿；`2dac7d1` 在已确认的冷会话删除前，仅清除该 session 下本 Store 生成的图片文件，另一会话图片不动。测试 3/3、定向 lint 0/0、typecheck PASS。 | 队列项取回编辑后的图片仍由 composer 引用，不能按 Pi 队列快照立即删；同一只读审查发现 ACK 后切会话/新草稿及重启会丢图文，#4 正在独立红绿修复。缓存按会话持有期间的回收边界仍需验。 |
 
+## 2026-09-28 #9 历史编辑与重试增量（隔离分支，非最终验收）
+
+| 能力 / 场景 | 已观察结果 | 仍待完成 |
+| --- | --- | --- |
+| #9：P11、P17 / V04 | 固定 Pi 0.87.0 合同 `pi-history-edit-retry-fixed.test.ts` 1/1：真实旧图片 entry 的 base64 原字节被同一 Pi 新回合接收，旧 JSONL 原字节前缀不变；纯文字编辑只回填原生 composer，显式发送后才有新模型请求；扩展取消不产生回合。聚焦纯合同 4/4、typecheck、lint、production build 通过。生产入口 GUI `D:/Temp/pi-history-edit-retry-gui-20260928-a/pi-history-edit-retry-gui-report.json` 验证历史重试、编辑预填、显式发送，`pageErrors=[]`、`graceful=true`、`forced=[]`、`survivors=[]`。 | Pi 固定版本 `fork` 仅返回文字，图片 fork 仍入 Pi 前拒绝；图片与未知 content 不进入纯文字编辑器。树跳转与 prompt 两个公开调用之间的失败需要检查当前 leaf；主分支整合、包内 GUI、原版成对截图、在线 provider 和统一人工验收仍待做。 |
+
 ## 回填要求
 
 每项填写实际原生 GUI/Pi 版本、提交、测试命令、结果和证据链接；在线 provider、可控模型、包内运行、实际安装与用户验收分别标明。P27 的限制按 #8/#25 逐类明示，不将复杂 TUI 不支持写为已全面兼容。

@@ -25,7 +25,7 @@ function flatten(nodes: TreeView["tree"], depth = 0): Array<{ node: TreeNode; de
 }
 
 export function PiTreeDialog({ sessionId, workspacePath, workspaceIdentity, remoteSessionId,
-  beforeNavigate, onRestoredText, onBranch }: {
+  beforeNavigate, onRestoredText, onBranch, onRetry }: {
   sessionId: string;
   workspacePath: string;
   workspaceIdentity?: string;
@@ -33,6 +33,7 @@ export function PiTreeDialog({ sessionId, workspacePath, workspaceIdentity, remo
   beforeNavigate(): void;
   onRestoredText(text: string): void;
   onBranch(operation: "fork" | "clone", entryId?: string): Promise<boolean>;
+  onRetry(entryId: string): Promise<boolean>;
 }) {
   const { zcodeAgentService } = useServices();
   const [open, setOpen] = useState(false);
@@ -40,7 +41,7 @@ export function PiTreeDialog({ sessionId, workspacePath, workspaceIdentity, remo
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [label, setLabel] = useState("");
   const [summarize, setSummarize] = useState(false);
-  const [busy, setBusy] = useState<"load" | "navigate" | "label" | "reload" | "set_tools" | "branch" | null>(null);
+  const [busy, setBusy] = useState<"load" | "navigate" | "label" | "reload" | "set_tools" | "branch" | "retry" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pendingText, setPendingText] = useState<string | null>(null);
   const [selectedTools, setSelectedTools] = useState<string[]>([]);
@@ -104,13 +105,30 @@ export function PiTreeDialog({ sessionId, workspacePath, workspaceIdentity, remo
     finally { setBusy(null); }
   };
 
+  const retry = async () => {
+    if (!view || busy || !selectedId) return;
+    try {
+      beforeNavigate();
+      setBusy("retry"); setError(null);
+      const started = await onRetry(selectedId);
+      if (started) setOpen(false);
+      else setError("Pi 扩展取消了重试；原分支保持不变。");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+      try {
+        const current = await zcodeAgentService.readPiControlTree(target);
+        setView(current); setSelectedTools(current.activeTools);
+      } catch { /* Preserve the retry error; a later refresh can inspect Pi state. */ }
+    } finally { setBusy(null); }
+  };
+
   return <>
     <Button type="button" variant="outline" size="icon-md" title="Pi 会话树" aria-label="Pi 会话树"
       className="pointer-events-auto bg-[var(--color-popover)] shadow-md"
       onClick={() => setOpen(true)} data-testid="pi-tree-open">
       <GitBranch className="size-4" />
     </Button>
-    <Dialog open={open} onOpenChange={next => { if (!next && (busy === "navigate" || busy === "branch")) return; setOpen(next); }}>
+    <Dialog open={open} onOpenChange={next => { if (!next && (busy === "navigate" || busy === "branch" || busy === "retry")) return; setOpen(next); }}>
       <DialogContent data-testid="pi-tree-dialog" data-generation={view?.info.generation ?? ""}
         className="max-h-[85vh] max-w-[min(56rem,calc(100vw-2rem))] overflow-hidden">
         <DialogHeader>
@@ -174,7 +192,13 @@ export function PiTreeDialog({ sessionId, workspacePath, workspaceIdentity, remo
           <Button type="button" variant="outline" disabled={busy !== null || selected?.entry.type !== "message" ||
             selected.entry.message.role !== "user"} data-testid="pi-tree-fork"
           onClick={() => void branch("fork")}>从此用户消息分支</Button>
-          <Button type="button" disabled={!selected || busy !== null} onClick={() => void action("navigate")}>跳转到节点</Button>
+          <Button type="button" variant="outline" disabled={busy !== null || selected?.entry.type !== "message" ||
+            selected.entry.message.role !== "user" || selected.entry.id === view?.leafId}
+            data-testid="pi-tree-retry" onClick={() => void retry()}>从此输入重试</Button>
+          <Button type="button" disabled={!selected || busy !== null || selected.entry.type === "message" &&
+            selected.entry.message.role === "user" && selected.entry.id === view?.leafId}
+            onClick={() => void action("navigate")}>{selected?.entry.type === "message" &&
+            selected.entry.message.role === "user" ? "编辑此输入" : "跳转到节点"}</Button>
         </div>
       </DialogContent>
     </Dialog>

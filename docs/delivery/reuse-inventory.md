@@ -65,6 +65,10 @@ Pi 的 MIT 来源及固定版本见 `THIRD_PARTY_NOTICES.md` 与
 
 继续复用原生 Settings 两栏、现有 Pi JSON 编辑器和固定 Pi 0.87.0 根导出 `SettingsManager`、`ProjectTrustStore`；没有迁入旧路线设置页或另建配置存储。依据固定包的 `settings-manager.js` 全局 getter 与 `main.js` 的 HTTP proxy 引用，项目文件中的 `cacheWarming`、`defaultProjectTrust`、`httpProxy` 不投影为实际生效值，但原始文件保留。嵌套值按现有 `sourcePaths` 逐叶展示来源，避免把混合用户/项目的 `retry` 总体标成项目来源。Pi MIT 来源及许可证见 [上游参考](../references/upstream-and-ui.md) 和 `THIRD_PARTY_NOTICES.md`；固定版本之外的设置语义尚未承诺。
 
+### #9 Pi 历史编辑与重试纵向切片（2026-09-28，隔离分支待整合）
+
+保留原生 `PiTreeDialog`、`SessionPane`、Lexical composer 和 V4 命令 ledger。固定 Pi 0.87.0 的公开 `get_entries`、扩展 `ctx.navigateTree` 和 RPC `prompt` 是唯一历史与回合来源；没有移植旧原型的行复制、Agent loop 或队列。编辑仅将可无损表示的纯文字交给原生 composer，图片和文件快照明确阻止；重试从 Pi 原 entry 取图文并在同一 Pi 会话分支上发出。公开控制桥版本由 1.2.0 提升到 1.3.0，`mode: retry` 明确不把图片误当文字编辑。Pi 来源及 MIT 声明见固定上游参考与 `THIRD_PARTY_NOTICES.md`。
+
 ## 已知外部验收差额
 
 - 旧主线真实 `openai-codex/gpt-5.5` 文本成功（449 tokens）；`aio-codex/gpt-5.4-mini` 为 Connection error，未通过。

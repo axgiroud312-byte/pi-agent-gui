@@ -2,7 +2,7 @@ import type { ExtensionAPI, ExtensionCommandContext, PackageSource, SessionEntry
   SourceInfo } from "@earendil-works/pi-coding-agent";
 
 export const PI_CONTROL_PROTOCOL = 1;
-export const PI_CONTROL_VERSION = "1.2.0";
+export const PI_CONTROL_VERSION = "1.3.0";
 export const PI_CONTROL_COMMAND = "pi-ide-control-v1";
 export const PI_CONTROL_DESCRIPTION = "Pi Agent IDE public control bridge v1";
 export const PI_CONTROL_PREFIX = "pi-ide-control:";
@@ -36,7 +36,8 @@ export interface PiResourceCatalog {
 }
 
 export type PiControlIntent =
-  | { operation: "navigate"; targetId: string; summarize: boolean; customInstructions?: string }
+  | { operation: "navigate"; targetId: string; summarize: boolean; customInstructions?: string;
+    mode?: "retry" }
   | { operation: "label"; targetId: string; label: string | null }
   | { operation: "set_tools"; names: string[] }
   | { operation: "reload" }
@@ -225,9 +226,12 @@ export function piControlIntent(value: unknown): PiControlIntent {
       break;
     case "navigate":
       if (identifier(input.targetId) && typeof input.summarize === "boolean" &&
-        (input.customInstructions === undefined || typeof input.customInstructions === "string" && input.customInstructions.length <= 32_768)) {
+        (input.customInstructions === undefined || typeof input.customInstructions === "string" && input.customInstructions.length <= 32_768) &&
+        (input.mode === undefined || input.mode === "retry" && input.summarize === false &&
+          input.customInstructions === undefined)) {
         return { operation: "navigate", targetId: input.targetId, summarize: input.summarize,
-          ...(typeof input.customInstructions === "string" ? { customInstructions: input.customInstructions } : {}) };
+          ...(typeof input.customInstructions === "string" ? { customInstructions: input.customInstructions } : {}),
+          ...(input.mode === "retry" ? { mode: "retry" } : {}) };
       }
       break;
     case "label":

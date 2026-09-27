@@ -3118,6 +3118,19 @@ export function SessionPane({
     return true;
   }, [dispatchCommand, onSessionCreated, sessionId, workspaceIdentity, workspacePath]);
 
+  const handlePiRetryEntry = useCallback(async (entryId: string): Promise<boolean> => {
+    const current = snapshotRef.current;
+    if (!sessionId || !current) throw new Error("当前 Pi 会话已关闭");
+    const ack = await dispatchCommand("retryPiEntry", { entryId }, sessionId,
+      current.revision, current.logEpoch);
+    if (ack.status === "noop" && ack.reasonCode === "pi.branchCancelled") return false;
+    if ((ack.status !== "accepted" && ack.status !== "duplicate") ||
+      ack.result?.type !== "inputAccepted") {
+      throw new Error(ack.message ?? `Pi 历史重试失败：${ack.reasonCode ?? ack.status}`);
+    }
+    return true;
+  }, [dispatchCommand, sessionId]);
+
   const handleEdit = useCallback(
     async (
       target: ConversationRowTarget,
@@ -4715,7 +4728,7 @@ export function SessionPane({
           <PiTreeDialog sessionId={sessionId} workspacePath={workspacePath}
             workspaceIdentity={workspaceIdentity} remoteSessionId={remoteSessionId}
             beforeNavigate={beforePiTreeNavigate} onRestoredText={restorePiTreeEditor}
-            onBranch={handlePiBranch} />
+            onBranch={handlePiBranch} onRetry={handlePiRetryEntry} />
         </> : undefined}
       />
 

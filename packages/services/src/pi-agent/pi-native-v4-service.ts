@@ -64,6 +64,7 @@ import { createPiV4Snapshot } from "./pi-v4-snapshot.js";
 import { emptyPiExtensionUiState, reducePiExtensionUiState } from "./pi-extension-ui-state.js";
 import { piWireFrames } from "./pi-v4-frames.js";
 import { assertPiPromptRecordFits, readPiPromptImages } from "./pi-prompt-images.js";
+import { retryablePiHistoryContent } from "./pi-history-entry.js";
 import { PiFileReferenceError, piFilePromptTitle, snapshotPiFileMentions } from "./pi-file-references.js";
 import { PiImageUploads } from "./pi-image-upload.js";
 import { piControlView, type PiControlAction, type PiControlView } from "./pi-control-protocol.js";
@@ -1554,7 +1555,7 @@ export class PiNativeV4Service implements V4Methods {
 
   private dispatchSerialized(params: ZCodeAgentConversationCommandParams,
     envelope: ZCodeAgentConversationCommandParams["envelope"]): Promise<CommandAck> {
-    if (!envelope.sessionId || !["sendText", "deleteSession", "stop", "forkPiEntry", "clonePiSession", "sendQueuedNow",
+    if (!envelope.sessionId || !["sendText", "deleteSession", "stop", "forkPiEntry", "clonePiSession", "retryPiEntry", "sendQueuedNow",
       "editQueueItem", "reorderQueueItem", "deleteQueueItem", "setAutoDrain"].includes(envelope.type)) {
       return this.dispatch(params, envelope);
     }
@@ -1719,6 +1720,79 @@ export class PiNativeV4Service implements V4Methods {
           return { commandId, status: "accepted", revisionAtDecision: record.snapshot.revision,
             result: { type: "forkAssistant", sessionId: view.sessionId,
               ...(branch.restoredText !== undefined ? { restoredText: branch.restoredText } : {}) } };
+        } finally { this.treeOperations.delete(operationKey); }
+      }
+      if (envelope.type === "retryPiEntry") {
+        if (envelope.baseRevision !== record.snapshot.revision ||
+          envelope.baseLogEpoch !== record.snapshot.logEpoch) return {
+          commandId, status: "stale", reasonCode: "pi.branchSnapshotChanged",
+          revisionAtDecision: record.snapshot.revision,
+        };
+        const sourceId = record.view.sessionId;
+        const operationKey = `${record.workspaceKey}:${sourceId}`;
+        if (this.treeOperations.has(operationKey) || record.state.piPendingIntent ||
+          !["idle", "settled", "stopped"].includes(record.view.phase)) {
+          return failure(commandId, "pi.branchBusy", "Finish current Pi work before retrying a branch",
+            record.snapshot.revision);
+        }
+        this.treeOperations.add(operationKey);
+        try {
+          const { entryId } = envelope.payload as { entryId: string };
+          const before = await this.supervisor.readControlBridge(sourceId);
+          const entry = before.entries.find(item => item.id === entryId);
+          if (!entry || entry.type !== "message" || entry.message.role !== "user" ||
+            before.leafId === entryId) {
+            return failure(commandId, "pi.retryEntryUnavailable", "Select a historical Pi user entry",
+              record.snapshot.revision);
+          }
+          let prompt: ReturnType<typeof retryablePiHistoryContent>;
+          try { prompt = retryablePiHistoryContent(entry.message.content); }
+          catch (error) {
+            return failure(commandId, "pi.retryContentUnsupported",
+              error instanceof Error ? error.message : "Pi history cannot be replayed losslessly",
+              record.snapshot.revision);
+          }
+          const decisionRevision = record.snapshot.revision;
+          let navigated: Awaited<ReturnType<typeof this.supervisor.runControlBridge>>;
+          try {
+            navigated = await this.supervisor.runControlBridge(sourceId, { operation: "navigate",
+              targetId: entryId, summarize: false, mode: "retry",
+              generation: before.info.generation, sessionId: sourceId });
+          } catch (error) {
+            try { await this.reconcilePiTreeHistory(record); }
+            catch { /* Preserve the Pi control error; a later read reconciles history. */ }
+            throw error;
+          }
+          await this.reconcilePiTreeHistory(record);
+          if (navigated.result?.cancelled) return { commandId, status: "noop",
+            reasonCode: "pi.branchCancelled", revisionAtDecision: decisionRevision };
+          record.admissionGeneration++;
+          this.recordVersions.set(sourceId, (this.recordVersions.get(sourceId) ?? 0) + 1);
+          record.projection.expectUserCommand(commandId);
+          record.state.piPendingIntent = { textHash: createHash("sha256").update(prompt.text).digest("hex"),
+            commandId, priorUserCount: record.projection.getRows().filter(row => row.kind === "userInput").length,
+            generation: record.admissionGeneration };
+          try {
+            if (!await this.persist(record)) throw new Error("Cannot persist Pi retry correlation before delivery");
+            const outcome = await this.supervisor.sendText(sourceId, prompt.text, prompt.images);
+            if (outcome === "noRun" || outcome === "handledCommand") {
+              record.projection.cancelExpectedUserCommand(commandId);
+              delete record.state.piPendingIntent;
+              await this.safelyPersist(record);
+              return failure(commandId, "pi.retryNoRun", "Pi did not start a retry run; inspect history",
+                decisionRevision);
+            }
+            await this.safelyPersist(record);
+          } catch (error) {
+            if (!(error instanceof Error && "delivery" in error && error.delivery === "unknown")) {
+              record.projection.cancelExpectedUserCommand(commandId);
+              delete record.state.piPendingIntent;
+            }
+            await this.safelyPersist(record);
+            throw error;
+          }
+          return { commandId, status: "accepted", revisionAtDecision: decisionRevision,
+            result: { type: "inputAccepted", delivery: "startNow", inputId: randomUUID() } };
         } finally { this.treeOperations.delete(operationKey); }
       }
       if (envelope.type === "sendText") {

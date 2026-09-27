@@ -133,6 +133,12 @@ PI14-F2 继续使用原生 `WorkspaceFileTree`、`PreviewPane`、`MentionPlugin`
 
 固定 Pi 0.87.0 的 `fork` 仅返回选中用户消息的文字。若该条包含图片，Host 会在命令入 Pi 前拒绝并保留原会话，避免把无图的 child 当成无损分支。图片分支恢复仍待后续实现和验收。
 
+## #9 Pi 历史编辑与重试（开发增量，源码 GUI 已测）
+
+| ID | 原生入口/行为 | Pi 产品行为 | 必要性 / 状态 |
+| --- | --- | --- | --- |
+| PI09-H1 | 保留原生会话树 Dialog 与 Lexical 输入区，为历史用户 entry 增加“编辑此输入”和“从此输入重试” | 编辑经公开 `navigateTree` 回填纯文字，用户显式发送才产生新 Pi 回合；重试从 Pi `get_entries` 取原文字和图片，用同一 Pi 的公开树跳转和 RPC `prompt` 创建分支回合。原 JSONL 字节前缀保留，扩展取消则不发送。未知块、图片编辑和快照文本编辑明确拒绝。 | `pi-history-edit-retry-fixed.test.ts` 1/1 通过，生产入口 GUI `D:/Temp/pi-history-edit-retry-gui-20260928-a/pi-history-edit-retry-gui-report.json` 验证重试/编辑/显式发送，`pageErrors=[]`、`graceful=true`、`forced=[]`、`survivors=[]`。Pi 0.87.0 的树跳转和发送不是单个原子 RPC；跳转后投递失败可保留原分支，但需从树检查当前 leaf 后再操作。包内、原版成对截图和用户验收仍待做。 |
+
 ## #9 Pi 会话导入、导出与主动分享（开发增量，源码 GUI 已测）
 
 | ID | 原生入口/行为 | Pi 产品行为 | 必要性 / 状态 |

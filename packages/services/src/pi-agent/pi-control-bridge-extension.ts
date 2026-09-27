@@ -10,6 +10,7 @@ import {
   type PiControlInfo, type PiControlIntent, type PiControlReply, type PiControlRequest,
   type PiAvailableResource, type PiResourcePackage,
 } from "./pi-control-protocol.js";
+import { editablePiHistoryText } from "./pi-history-entry.js";
 
 interface Binding { info: PiControlInfo; emit(reply: PiControlReply): void }
 interface ReloadOperation { request: PiControlRequest; fresh?: Binding }
@@ -328,11 +329,16 @@ export default function piControlExtension(pi: ExtensionAPI): void {
             const wasLeaf = ctx.sessionManager.getLeafId() === entry.id;
             const content = entry.type === "message" && entry.message.role === "user" ? entry.message.content
               : entry.type === "custom_message" ? entry.content : undefined;
-            if (Array.isArray(content) && content.some(part => part.type === "image")) {
-              throw new ControlError("IMAGE_RECOVERY_UNSUPPORTED", "Pi tree editing cannot restore image attachments losslessly");
+            if (intent.mode === "retry" &&
+              (entry.type !== "message" || entry.message.role !== "user")) {
+              throw new ControlError("RETRY_ENTRY_UNAVAILABLE", "Pi retry requires a historical user entry");
             }
-            const editorText = content === undefined || wasLeaf ? undefined : typeof content === "string" ? content
-              : content.filter(part => part.type === "text").map(part => part.text).join("");
+            if (content !== undefined && wasLeaf) throw new ControlError("ENTRY_IS_LEAF",
+              "Pi user entry is already the leaf; select an earlier message to edit");
+            // Retry resubmits the original canonical content from Pi JSONL in Host.
+            // Ordinary navigation still refuses media that the text editor cannot restore.
+            const editorText = content === undefined || intent.mode === "retry"
+              ? undefined : editablePiHistoryText(content);
             const result = await ctx.navigateTree(intent.targetId,
               { summarize: intent.summarize, customInstructions: intent.customInstructions });
             if (!result.cancelled && !wasLeaf) {

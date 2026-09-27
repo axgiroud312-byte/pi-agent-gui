@@ -149,6 +149,7 @@ export const commandPayloadSchemas = {
   forkAssistant: z.object({ target: conversationRowTargetSchema }),
   forkPiEntry: z.object({ entryId: z.string().min(1) }),
   clonePiSession: z.object({}),
+  retryPiEntry: z.object({ entryId: z.string().min(1) }),
   applyFileRewind: z.object({ target: conversationRowTargetSchema }),
   editUserQuery: z.object({
     target: conversationRowTargetSchema,
@@ -297,6 +298,7 @@ export const COMMANDS_REQUIRING_BASE_REVISION: ReadonlySet<CommandType> = new Se
   "forkAssistant",
   "forkPiEntry",
   "clonePiSession",
+  "retryPiEntry",
   "editUserQuery",
   "retryTurn",
   "setAssistantFeedback",
@@ -317,6 +319,7 @@ export const ROW_TARGETING_COMMANDS: ReadonlySet<CommandType> = new Set([
   "forkAssistant",
   "forkPiEntry",
   "clonePiSession",
+  "retryPiEntry",
   "editUserQuery",
   "retryTurn",
   "setAssistantFeedback",
