@@ -44,6 +44,7 @@ import {
   type ComposerAttachmentUploadStatus,
 } from "@/store/composerAttachmentUploadStore.js";
 import { uploadComposerAttachment, type AttachmentPutFn } from "@/v4/composer/attachmentUpload.js";
+import { preparePromotedComposerAttachment } from "@/v4/composer/composerAttachmentPromotion.js";
 import { DAMAGED_IMAGE_DRAFT_ID, discardDamagedComposerImageDrafts, finishComposerImageDraftPromotion,
   forgetComposerImageDrafts, listComposerImageDraftIds, markFailedComposerImageDraftPromotion,
   moveComposerImageDrafts, pendingComposerImageDraftPromotionTarget, readComposerImageDrafts,
@@ -1181,16 +1182,19 @@ export function useComposerAttachments(
             const key = `${scopeKey}\u0000${item.id}`;
             controllersRef.current.get(key)?.abort();
             controllersRef.current.delete(key);
+            const completeTimer = completeTimersRef.current.get(key);
+            if (completeTimer !== undefined) window.clearTimeout(completeTimer);
+            completeTimersRef.current.delete(key);
+            const retryTimer = retryTimersRef.current.get(key);
+            if (retryTimer !== undefined) window.clearTimeout(retryTimer);
+            retryTimersRef.current.delete(key);
             const oldTarget = targetsRef.current.get(scopeKey);
             if (item.staged && !item.adopted) {
               void oldTarget?.transferService.cleanup(item.operationId).catch(() => {});
             }
           }
           uploadQueueRef.current = uploadQueueRef.current.filter(entry => entry.scopeKey !== scopeKey);
-          const moved = retained.map(item => item.referenceOwnership === "session" || item.localZeroCopy
-            ? item
-            : { ...item, uploadStatus: "waitingSession" as const, uploadProgress: 0,
-              attachmentRef: undefined, staged: false, adopted: false, showComplete: false });
+          const moved = retained.map(preparePromotedComposerAttachment);
           commitScope(promotionTarget, existing => {
             const retainedIds = new Set(moved.map(item => item.id));
             return [...existing.filter(item => !retainedIds.has(item.id)), ...moved];
