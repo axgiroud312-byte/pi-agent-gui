@@ -10,6 +10,12 @@
 - 不得因用户暂缓验收而伪造 #34 或后续 Issue 的人工通过、关闭 Issue、合并 Draft PR 或正式发布。
 - 缺少在线账号、OAuth 人工回调、真实 llama.cpp/GGUF 或安装权限时，明确记录待最终验收项，但继续所有不依赖这些条件的开发。
 
+## 2026-09-28 10:30 包内首窗阻塞与修复断点
+
+- `11f06ff` 已普通推送，固定 Pi 顺序 261/261、typecheck、lint 0 errors、NSIS/Host 合同 15/15、delivery 本地/7/`--github` 均通过。其新隔离产物 `D:/Temp/pi-agent-gui-final-11f06ff2-20260928/` 已生成，asar 3.14.1/Pi 0.87.0/commit `11f06ff2`、NSIS SHA-256 `C4E3B43F35B6FAFE95A9164AD13D97A2E6010F042C9E980BBDB6418892125960`；**这份产物是坏包，禁止交付/覆盖安装**。
+- 新包 `D:/Temp/pi-final-unpacked-11f06ff2-20260928/pi-native-gui-report.json` 首窗等待 30 秒失败，额外 120 秒探针仍 0 窗口，均正常退出/无残留；静态 asar 实测缺 `brace-expansion`。用户读到受控 3.14.0 基线的原生错误弹框 `ERR_MODULE_NOT_FOUND: brace-expansion`；该弹框不是新包本身的直接日志，二者不能混作同一次结果。受控基线没有进行覆盖升级。
+- 已先红后绿修 `runtime-dependency-closure.mjs` 的包根误判：`minimatch/dist/commonjs/package.json` 只有 `type`，旧代码在那里停下，漏了真正 `minimatch/package.json` 的 `brace-expansion`；合成夹具由 0/1→1/1，当前 Pi 源闭包找到嵌套 minimatch 10.2.6/brace-expansion 5.0.12。此修复尚未提交/重包。进一步只读审查发现旧 asar 把 Pi 的 minimatch 10.2.6、semver 7.8.5、undici 8.10.2 扁平化为其它根版本，Pi 嵌套 diff 8.0.4 缺失。另一个隔离 worktree 正补 Pi 0.87.0 嵌套依赖保留与包内版本机械校验；主树唯一源码写入者整合后，必须在**新 HEAD 的另一全新目录**重包、先跑 unpacked GUI，再考虑受控 3.14.0→3.14.1 安装/卸载。旧运行中的用户 unpacked、受保护未跟踪项和 stash 继续不动。
+
 ## 2026-09-28 最终顺序回归通过，等待全新隔离包
 
 - 主树在 `6fe7e91` 的固定 Pi 0.87.0 顺序全集 `D:/Temp/pi-main-sequential-6fe7e91-20260928.log` 为 **261/261 PASS，进程 exit 0**。先前 `dc2037b` 的 260/261 仅 `pi-fork-clone.test.ts` 过期修订夹具误用 `range.atRevision + 1`，异步 Pi 投影后该值恰是当前修订；`6fe7e91` 只将夹具改为确实过期的 `range.atRevision - 1` 并核验较新决策，生产代码未改。旧失败日志不得算最终通过。

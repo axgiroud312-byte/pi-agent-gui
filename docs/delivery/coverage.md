@@ -10,6 +10,8 @@
 
 本表逐项记录已整合到主分支的工程证据及其边界，行内旧提交作为对应能力的来源。下方原有“当前验收/结果”列仍表示**用户尚未最终验收**；源码原生 GUI、固定 Pi 0.87.0、受控模型、在线 provider、最终包和实际安装各自独立，不互相替代。`D:/Temp` 报告是本机证据路径，不属于发布包。
 
+`11f06ff` 的首轮全新 3.14.1 unpacked/NSIS 虽构建完成，**不得交付**：`D:/Temp/pi-final-unpacked-11f06ff2-20260928/pi-native-gui-report.json` 首窗超时，120 秒探针仍 0 窗口；asar 缺 `brace-expansion`，受控旧 3.14.0 安装基线另有用户读到同名 `ERR_MODULE_NOT_FOUND` 弹框。包根闭包测试已先红后绿定位 `minimatch/dist/commonjs/package.json` 类型标记误当真正包根；Pi 嵌套依赖版本保留和包内校验仍在修，**新 HEAD 重包、包内 GUI、实际覆盖升级/卸载均待重新验证**。旧 `11f06ff2` 产物仅作故障证据，不作为最终 Windows 试用版。
+
 最终打包前的固定 Pi 0.87.0 顺序全集在 `6fe7e91` 为 **261/261 PASS，exit 0**，日志 `D:/Temp/pi-main-sequential-6fe7e91-20260928.log`。上一次 260/261 是 fork 过期修订测试夹具的竞态：Pi 异步投影后 `range.atRevision + 1` 恰好是当前值；`6fe7e91` 仅改测试为确实过期的修订，生产代码未变。独立 Standards/Spec 复核最新父子票和 P/D/V 共 52 项，未发现新的可复现 P0/P1。Composer/Dialog 快照跨会话疑虑经三轮隔离固定 Pi GUI 未复现，仍按未来交错风险保留。最终包、覆盖升级和卸载证据须以后续 `D:/Temp/pi-agent-gui-final-validation-20260928.json` 的实际结果为准，不预报成功。
 
 2026-09-28 最终源码打包前增量：`2bdb342` 将 `SessionPane` 的 Pi 快照、队列、扩展状态/widget 和导入分享头部统一按当前会话 ID 门禁；主树 React 合同及固定 Pi 原生 GUI `D:/Temp/pi-session-scope-main-20260928-a/pi-session-snapshot-scope-gui-report.json` 通过，B 的每次 DOM mutation 均未显示 A 私有文本/队列，回 A 仍显示扩展状态，页面错误、强杀和残留进程均为零。`7639f8e` 在异步分享确认成功后按发起会话保存当前 renderer 的收据，切 B 不泄漏，回 A 可取得 viewer/Gist 链接；主树 headless 2/2、固定 Pi 原生 GUI `D:/Temp/pi-share-receipt-main-20260928-a/pi-share-receipt-gui-report.json` 通过，本地假发布器仅调用一次、HTML SHA-256 与字节数可核对、页面错误/强杀/残留为零。`D:/Temp/pi-transfer-main-20260928-a/pi-session-transfer-gui-report.json` 主树复验真实 Pi HTML/JSONL 导出、导入后 Pi 推理、源原字节不变及清洁退出。收据只在当前应用进程内存，重启后需从用户自己保存的链接或 GitHub Gist 找回；**实际远端 Gist 未创建**。这些新增证据不等同于最终包、在线 provider 或用户验收。
