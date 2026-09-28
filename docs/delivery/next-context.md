@@ -10,6 +10,12 @@
 - 不得因用户暂缓验收而伪造 #34 或后续 Issue 的人工通过、关闭 Issue、合并 Draft PR 或正式发布。
 - 缺少在线账号、OAuth 人工回调、真实 llama.cpp/GGUF 或安装权限时，明确记录待最终验收项，但继续所有不依赖这些条件的开发。
 
+## 2026-09-28 11:05 包依赖修复与仍待执行的最终包验证
+
+- 主目录分支 `issue-34-native-pi-rpc` 的源码 HEAD `3c4c905` 已普通推送。相对旧失败包 `11f06ff2`，`9c461f7` 修复把内层 `{type}` 标记误当包根的闭包扫描；`d2bae49`、`3c4c905` 将固定 Pi 0.87.0 家族的嵌套依赖及根包清单、版本纳入 afterPack 和最终 asar 双重校验。`b750b06`、`01d03c6` 修正 Pi 队列顺序测试等待与受控模型夹具；主树固定 Pi 顺序全集 `D:/Temp/pi-main-sequential-01d03c6-20260928.log` **261/261 PASS、exit 0**，该轮生产 Pi 服务代码未变。包规则定向 5/5、typecheck、lint 0 errors、delivery 本地/7/`--github` 均通过。
+- 独立审查又在旧失败包的 Chord 扩展路径实测 `esbuild` API 0.28.2 对 Windows 二进制 0.27.7，真实启动报 Host/Binary 版本不符；隔离 worktree 正修复 Chord 私有目标平台依赖及包内校验，尚未整合。#4 队列 stale 恢复的 UI 体验改进与 #25 custom 消息图文/details 原生 GUI 缺口也在各自隔离 worktree 处理，主目录仍由唯一写入者整合。
+- **此刻没有可交付最终包。** `D:/Temp/pi-agent-gui-final-11f06ff2-20260928/` 仍是坏包，禁止覆盖安装。等上述隔离改动完成、主树聚焦提交与普通推送、最终 HEAD 检查通过，在另一全新 `D:/Temp/pi-agent-gui-final-<HEAD8>-20260928/` 重包；先包内 GUI/进程清理，再对已审计的隔离 3.14.0 安装基线执行受控 3.14.1 覆盖升级、已安装 GUI 和卸载。旧用户进程、保护未跟踪项与 stash 均不碰。PR #39 仍 Draft，需用户验收的 Issue 保持 OPEN；PR body 待最后证据同步。
+
 ## 2026-09-28 10:30 包内首窗阻塞与修复断点
 
 - `11f06ff` 已普通推送，固定 Pi 顺序 261/261、typecheck、lint 0 errors、NSIS/Host 合同 15/15、delivery 本地/7/`--github` 均通过。其新隔离产物 `D:/Temp/pi-agent-gui-final-11f06ff2-20260928/` 已生成，asar 3.14.1/Pi 0.87.0/commit `11f06ff2`、NSIS SHA-256 `C4E3B43F35B6FAFE95A9164AD13D97A2E6010F042C9E980BBDB6418892125960`；**这份产物是坏包，禁止交付/覆盖安装**。
