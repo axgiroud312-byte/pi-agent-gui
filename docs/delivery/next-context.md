@@ -10,6 +10,12 @@
 - 不得因用户暂缓验收而伪造 #34 或后续 Issue 的人工通过、关闭 Issue、合并 Draft PR 或正式发布。
 - 缺少在线账号、OAuth 人工回调、真实 llama.cpp/GGUF 或安装权限时，明确记录待最终验收项，但继续所有不依赖这些条件的开发。
 
+## 2026-09-28 11:20 主树整合后的打包断点
+
+- 当前源码提交包括 `eb68918` 的 Chord `esbuild` 私有 0.28.2 API/目标 binary 配对及固定 Pi packaged 子进程物理侧车路径、`9ce8702` 的 #25 custom 图文冷恢复 GUI 测试、`a1b63da` 的包内 Chord 扩展试验模式、`bc7e2de` 的 #4 暂停队列 stale 有界恢复。主树 package 11/11（另一个需要显式归档参数的真运行测试在隔离工作树 1/1）、Pi 子进程 env 合同 4/4、typecheck/lint 正在收口；以最新命令结果为准。旧包 `11f06ff2` 仍坏，未重包。
+- #25 隔离固定 Pi GUI `D:/Temp/pi-custom-message-gui-20260928-c/pi-extension-custom-message-gui-report.json` 首开/完整冷重启 custom 图文/details 通过，Pi JSONL 原字节保留，两次清洁退出；模型请求 0。#4 隔离 GUI `D:/Temp/pi-queue-resume-ui-20260928-b/pi-queue-gui-report.json` 普通暂停恢复、双队列图文/重启和三次清洁退出通过；stale 竞争由先红后绿 5/5 合同覆盖，GUI 未强制触发。首轮 queue GUI 的 `unsupported_runtime` 是隔离树缺 Agent bundle，补 `prepare:agent-bundle` 后复绿；失败首屏不算产品队列红测。
+- 独立旧 asar 审计 827 个包清单与 18,824 个运行时 JS 文件，只有 Chord 声明/直接导入 `esbuild`；当前修复仅给其私有运行路径成对目标 binary，第三方扩展自行动态加载 root esbuild 尚未保证。受控 3.14.0 基线于 11:11 再预检：146 项、reparse 0、Preview/目标根进程 0。下一步：主树本批测试和文档聚焦提交并普通推送；以冻结后的**最终 HEAD**跑完整固定 Pi 顺序及交付门禁，在新隔离输出构建，执行 unpacked GUI + Chord 扩展 GUI、受控覆盖升级、已安装 GUI、卸载/外部数据保留。只在这些通过后更新 #27/#28、PR #39 并给一次用户统一试用清单。
+
 ## 2026-09-28 11:05 包依赖修复与仍待执行的最终包验证
 
 - 主目录分支 `issue-34-native-pi-rpc` 的源码 HEAD `3c4c905` 已普通推送。相对旧失败包 `11f06ff2`，`9c461f7` 修复把内层 `{type}` 标记误当包根的闭包扫描；`d2bae49`、`3c4c905` 将固定 Pi 0.87.0 家族的嵌套依赖及根包清单、版本纳入 afterPack 和最终 asar 双重校验。`b750b06`、`01d03c6` 修正 Pi 队列顺序测试等待与受控模型夹具；主树固定 Pi 顺序全集 `D:/Temp/pi-main-sequential-01d03c6-20260928.log` **261/261 PASS、exit 0**，该轮生产 Pi 服务代码未变。包规则定向 5/5、typecheck、lint 0 errors、delivery 本地/7/`--github` 均通过。
