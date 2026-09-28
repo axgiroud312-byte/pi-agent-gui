@@ -14,9 +14,12 @@ import { pathToFileURL } from "node:url";
 import { collectRuntimeModuleClosureEntries } from "./runtime-dependency-closure.mjs";
 import {
   createAsarPackageManifestReader,
+  FIXED_PI_NESTED_PACKAGE_OWNERS,
   FIXED_PI_PACKAGE_NAME,
   FIXED_PI_PACKAGE_VERSION,
-  resolveFixedPiNestedPackagePlan,
+  resolveFixedPiFamilyNestedPackagePlan,
+  resolvePiAiProxyAgentBasePlan,
+  resolveRootMinimatchNestedPackagePlan,
 } from "./fixed-pi-nested-packages.mjs";
 import { resolveDesktopProductIdentity } from "./desktop-product-identity.mjs";
 import {
@@ -677,24 +680,34 @@ function verifyPackagedRuntimeDependencies(os, arch) {
     requiredRuntimeModules,
     runtimeModuleLookupRoots,
   );
+  const readPackagedManifest = createAsarPackageManifestReader({
+    archivePath: appAsarPath,
+    asarEntries,
+    extractFile: asarApi.extractFile,
+  });
   if (desktopPackageJson.dependencies?.[FIXED_PI_PACKAGE_NAME] !== FIXED_PI_PACKAGE_VERSION) {
     throw new Error(`Desktop must pin ${FIXED_PI_PACKAGE_NAME}@${FIXED_PI_PACKAGE_VERSION}`);
   }
-  const sourcePiPackageRoot = runtimeModules.find(entry => entry.moduleName === FIXED_PI_PACKAGE_NAME)?.sourceModulePath;
-  if (!sourcePiPackageRoot) {
-    throw new Error(`Fixed Pi source package not found: ${FIXED_PI_PACKAGE_NAME}`);
-  }
-  const nestedPiPlan = resolveFixedPiNestedPackagePlan({
-    sourcePiPackageRoot,
+  const sourcePackageRoots = new Map(runtimeModules
+    .filter(entry => FIXED_PI_NESTED_PACKAGE_OWNERS.includes(entry.moduleName))
+    .map(entry => [entry.moduleName, entry.sourceModulePath]));
+  const nestedPiPlan = resolveFixedPiFamilyNestedPackagePlan({
+    sourcePackageRoots,
     expectedPiVersion: FIXED_PI_PACKAGE_VERSION,
-    readPackagedManifest: createAsarPackageManifestReader({
-      archivePath: appAsarPath,
-      asarEntries,
-      extractFile: asarApi.extractFile,
-    }),
+    readPackagedManifest,
   });
-  if (nestedPiPlan.toCopy.length > 0) {
-    throw new Error(`打包产物缺少固定 Pi 嵌套依赖或版本不符: ${nestedPiPlan.toCopy.map(entry => `${entry.moduleName}@${entry.version}`).join(", ")}: ${appAsarPath}`);
+  const rootMinimatchPlan = resolveRootMinimatchNestedPackagePlan({
+    workspaceRoot,
+    readPackagedManifest,
+  });
+  const proxyAgentBasePlan = resolvePiAiProxyAgentBasePlan({
+    sourcePackageRoots,
+    workspaceRoot,
+    readPackagedManifest,
+  });
+  const missingNestedModules = [...nestedPiPlan.toCopy, ...rootMinimatchPlan.toCopy, ...proxyAgentBasePlan.toCopy];
+  if (missingNestedModules.length > 0) {
+    throw new Error(`打包产物缺少嵌套运行时依赖或版本不符: ${missingNestedModules.map(entry => `${entry.ownerPackageName}/${entry.moduleName}@${entry.version}`).join(", ")}: ${appAsarPath}`);
   }
   const resolvableRuntimeModules = runtimeModules.filter((entry) => {
     if (!entry.sourceModulePath) {
@@ -711,17 +724,9 @@ function verifyPackagedRuntimeDependencies(os, arch) {
   });
 
   for (const { moduleName } of resolvableRuntimeModules) {
-    const moduleRoot = `/node_modules/${moduleName}`;
-    // @electron/asar 在 Windows 下列目录时会通过 path.join 产出反斜杠路径，
-    // 之前这里按 POSIX 路径做精确匹配，导致模块其实已经打进 app.asar，校验却仍然误报缺失。
-    // 先统一归一化成正斜杠，避免 Windows 打包机被这道机械校验误伤。
-    const hasModule = asarEntries.some(
-      (entry) => entry === moduleRoot || entry.startsWith(`${moduleRoot}/`),
-    );
-
-    if (!hasModule) {
-      // 校验也按依赖闭包展开，确保 afterPack 注入逻辑遗漏子依赖时能在 bundle 阶段直接失败。
-      throw new Error(`打包产物缺少运行时依赖 ${moduleName}: ${appAsarPath}`);
+    // A directory or inner `{ type: "commonjs" }` marker is not a loadable package.
+    if (readPackagedManifest(join("node_modules", moduleName, "package.json"))?.name !== moduleName) {
+      throw new Error(`打包产物缺少完整运行时依赖 ${moduleName}: ${appAsarPath}`);
     }
   }
 }

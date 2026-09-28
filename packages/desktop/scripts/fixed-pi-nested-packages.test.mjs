@@ -2,13 +2,19 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve, sep } from "node:path";
 import { test } from "node:test";
 import {
   copyFixedPiNestedPackages,
   createAsarPackageManifestReader,
   resolveFixedPiNestedPackagePlan,
 } from "./fixed-pi-nested-packages.mjs";
+
+async function cleanupTempRoot(root) {
+  const safeRoot = resolve(root);
+  if (!safeRoot.startsWith(`${resolve(tmpdir())}${sep}`)) throw new Error("Refusing temp cleanup outside system temp");
+  await rm(safeRoot, { recursive: true, force: true });
+}
 
 test("fixed Pi nested packages are planned by name and exact version without replacing root modules", async () => {
   const root = await mkdtemp(join(tmpdir(), "fixed-pi-nested-"));
@@ -73,7 +79,7 @@ test("fixed Pi nested packages are planned by name and exact version without rep
       /Pi source version/,
     );
   } finally {
-    await rm(root, { recursive: true, force: true });
+    await cleanupTempRoot(root);
   }
 });
 
