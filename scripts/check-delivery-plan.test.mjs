@@ -37,6 +37,26 @@ test('retirement is never accepted as feature completion', () => {
   issue.labels.push({ name: 'ready-for-agent' });
   assert.throws(() => validateRemoteIssue(scope, ticket, tickets, issue), /still ready/);
 });
+test('completed tickets retain coverage and require a completed closed issue', () => {
+  const updated = structuredClone(tickets);
+  const ticket = updated.find(item => item.key === 'conversation');
+  ticket.status = 'completed';
+  validatePlan(scope, updated, plan);
+  const issue = {
+    number: ticket.number,
+    title: ticket.title,
+    body: renderIssueBody(scope, ticket, updated),
+    state: 'closed',
+    state_reason: 'completed',
+    labels: [],
+  };
+  validateRemoteIssue(scope, ticket, updated, issue);
+  issue.state = 'open';
+  assert.throws(() => validateRemoteIssue(scope, ticket, updated, issue), /Completed issue open/);
+  issue.state = 'closed';
+  issue.labels.push({ name: 'ready-for-agent' });
+  assert.throws(() => validateRemoteIssue(scope, ticket, updated, issue), /Completed issue still ready/);
+});
 test('GitHub transport EOF is retried, while a permanent API error is not hidden', () => {
   let calls = 0;
   const oneTransientFailure = () => {

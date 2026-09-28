@@ -70,7 +70,7 @@
       "固定真实Pi的文本/工具/停止/原生历史验收；独立原版对照与Pi结果区分。后续图片/双队列/完整认证等全量能力仍由原实施票完成。"
     ],
     "number": 34,
-    "status": "active"
+    "status": "completed"
   },
   {
     "key": "conversation",
@@ -111,7 +111,7 @@
       "在线账号的图片、工具、模型切换与压缩分别记录真实结果；受控 loopback 不记为在线 provider 验收。"
     ],
     "number": 3,
-    "status": "active"
+    "status": "completed"
   },
   {
     "key": "queue-stop",
@@ -143,7 +143,7 @@
       "GUI 完整停止覆盖 shell、retry、compaction、扩展等待；实际验证 excludeFromContext 的差异。"
     ],
     "number": 4,
-    "status": "active"
+    "status": "completed"
   },
   {
     "key": "workbench",
@@ -180,7 +180,7 @@
       "记录与确认原版同状态的布局、焦点、滚动和恢复证据。"
     ],
     "number": 5,
-    "status": "active"
+    "status": "completed"
   },
   {
     "key": "tree-bridge",
@@ -218,7 +218,7 @@
       "原生 GUI 树操作→公开扩展桥→Pi→后续消息；失败不转为模型 prompt，重载后旧 context 不复活。"
     ],
     "number": 6,
-    "status": "active"
+    "status": "completed"
   },
   {
     "key": "auth",
@@ -282,7 +282,7 @@
       "记录 session/PID、请求关联、取消/reload 结果与原生 GUI 截图。"
     ],
     "number": 8,
-    "status": "active"
+    "status": "completed"
   },
   {
     "key": "history",
@@ -367,7 +367,7 @@
       "固定 Pi 启动和自定义 provider/模型切换 GUI 冒烟，区分当前值与默认值。"
     ],
     "number": 10,
-    "status": "active"
+    "status": "completed"
   },
   {
     "key": "llama",
@@ -432,7 +432,7 @@
       "至少一个真实 npm/Git 包安装与卸载结果和 UI 截图。"
     ],
     "number": 12,
-    "status": "active"
+    "status": "completed"
   },
   {
     "key": "extension-ui",
@@ -469,7 +469,7 @@
       "未知工具 text/image/details 保留、会话替换生命周期及停止等待合同。"
     ],
     "number": 13,
-    "status": "active"
+    "status": "completed"
   },
   {
     "key": "editor",
@@ -501,7 +501,7 @@
       "实际文件编辑/保存冲突和未发送引用重启恢复；截图与确认原生布局对照。"
     ],
     "number": 14,
-    "status": "active"
+    "status": "completed"
   },
   {
     "key": "language",
@@ -635,7 +635,7 @@
       "两个会话及重载后再次交互，未验证项保留待验收或明确兼容限制。"
     ],
     "number": 25,
-    "status": "active"
+    "status": "completed"
   },
   {
     "key": "ux-performance",
@@ -674,7 +674,7 @@
       "代表性长历史和两个会话交错输出实测；必要局部性能检查，不以网络耗时替代界面响应。"
     ],
     "number": 26,
-    "status": "active"
+    "status": "completed"
   },
   {
     "key": "packaging",
@@ -710,7 +710,7 @@
       "实际发行形式的本地 Windows 验收、配置异常恢复与诊断脱敏；在线 provider 和安装器结果分开。"
     ],
     "number": 27,
-    "status": "active"
+    "status": "completed"
   },
   {
     "key": "release-acceptance",

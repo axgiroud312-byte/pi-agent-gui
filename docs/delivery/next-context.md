@@ -1,14 +1,23 @@
-# 当前入口：继续完成剩余 Pi-first 范围，统一后再请用户验收
+# 当前入口：main 已统一，等待剩余真实外部条件
 
 更新时间：2026-09-28。开始前读取 [产品目标](../product-goal.md)、[ADR 0001](../adr/0001-native-zcode-base.md)、[Pi-first 范围](pi-first-scope.md)、[完整开发计划](full-development.md)、[任务账本](tickets.json)、[复用清单](reuse-inventory.md) 和 [本次预览证据](pi-capability-preview-2026-09-27.md)，再核对 GitHub 最新 Issue/PR 与本地 Git 状态。
 
 ## 用户最新决定
 
-- 用户不希望在功能尚未贯通时分批进行人工试用或逐票验收。
-- 继续实施所有保留范围，完成统一、连贯的产品后，再提供一份完整测试清单并请求一次用户实际验收。
-- 开发期间仍必须执行代理可完成的本地自动测试、受控真实 Pi、桌面宿主、包内启动和回归验证；“暂缓用户测试”不等于暂缓工程验证。
-- 不得因用户暂缓验收而伪造 #34 或后续 Issue 的人工通过、关闭 Issue、合并 Draft PR 或正式发布。
-- 缺少在线账号、OAuth 人工回调、真实 llama.cpp/GGUF 或安装权限时，明确记录待最终验收项，但继续所有不依赖这些条件的开发。
+- 用户已对最终统一 Windows 试用清单确认“全部通过”。
+- 用户随后明确要求把成果统一到 `main`、清理工作树和分支，并确认没有撤回需求。
+- PR #39 已合入 `main`；#3/#4/#5/#6/#8/#10/#12/#13/#14/#25/#26/#27/#34 已按 completed 关闭。
+- #7、#9、#11、#28 与父规格 #1 保持 OPEN：仍缺现场 OAuth 登录/回调/登出、真实 GitHub Gist、真实 llama.cpp + GGUF，以及最终关闭核对。
+- 不自动创建正式 Release；未验证外部条件继续精确记录，不能用已有凭据、本地发布器或 router fixture 代签。
+
+## 2026-09-28 main 合并与清理结果
+
+- 验收源码 `cdb9d5b6f0f3ce54591e16bb9a7a05ddb33f2812` 已由 PR #39 合入 `main`，merge commit `441982b2e3156ec575a5e33d8a17448b74f67ebd`。
+- 最终包仍在 `D:/Temp/pi-agent-gui-final-user-preview-20260928/`，汇总证据为 `D:/Temp/pi-agent-gui-final-validation-20260928.json`；不要用旧 `11f06ff2` 故障包。
+- 清理前完整恢复资料在 `D:/Temp/pi-agent-gui-cleanup-backup-20260928-160530/`，Git bundle SHA-256 `6C832488106007CA0E040ADA34BCC9395D866A44F46088EE2E538A7A8D3C5791`；包含全部旧分支、worktree HEAD、`stash@{0}` 和未提交补丁。
+- Git 现在只登记桌面主工作树；本地只剩 `main`，远端只剩 `origin/main`。主工作树的 `%SystemDrive%/`、`用`、`packages/desktop/dist-pi-incremental/` 与 `stash@{0}` 均保留。
+- 两个已注销且内容为空的临时目录因未知进程持有目录句柄而保留：`D:/Temp/pi-agent-gui-standards-audit-20260928`、`D:/Temp/pi-custom-message-gui-20260928`。不要为删除它们结束未知用户进程；相关进程退出后可直接删除空目录。
+- 清理 Junction 时曾使主工作树出现已跟踪删除；清理前状态确认没有已跟踪改动，已立即用当前 `main` HEAD 恢复，复核后只剩上述三个受保护未跟踪项。
 
 ## 2026-09-28 14:15 c2accc3 打包根因闭环，进入最终精确 HEAD 重建
 

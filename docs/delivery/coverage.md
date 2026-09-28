@@ -2,7 +2,15 @@
 
 当前合同为 [范围](pi-first-scope.md)、[scope.json](scope.json) 与 [tickets.json](tickets.json)。编号用于追踪，不以固定数量替代真实验收。任务覆盖不代表功能完成；历史原型证据不能自动计入原生 GUI。
 
-#34 已有本地闭环与增量修复证据；图片与队列的旧局部修复见 `1337c33`。本轮未发送图片恢复改动见下方最新增量记录，仍未取得用户验收；#1/#28 和下列能力最终验收仍未完成。受控模型并不等于在线 provider。
+#34 及保留范围实现已通过 PR #39 合入 `main`；验收源码为 `cdb9d5b6f0f3ce54591e16bb9a7a05ddb33f2812`，合并提交为 `441982b2e3156ec575a5e33d8a17448b74f67ebd`。用户于 2026-09-28 对最终统一试用清单确认“全部通过”。#3/#4/#5/#6/#8/#10/#12/#13/#14/#25/#26/#27/#34 已按 completed 关闭。#7/#9/#11/#28 和父规格 #1 保持 OPEN，因为现场 OAuth、真实 GitHub Gist、真实 llama.cpp + GGUF 仍须独立取证；受控模型、本地发布器和已有凭据不能替代这些结果。
+
+## 2026-09-28 main 合并、用户验收与仓库整理
+
+- PR #39 已 MERGED；本地和远端分支都只保留 `main`，Git 只登记一个主工作树。
+- 最终试用包继续精确对应 `cdb9d5b6`：unpacked SHA-256 `F99AAE6C1EAC6103E91720DA8708557384647FFA56D0B6D8D1A1095499BAB93F`，NSIS SHA-256 `DDCE58A2F5B71E027A79D86BCAB67EEBD96F7AA786E9E65CE5BA81F9085DEF10`。
+- 用户统一验收记录为 `D:/Temp/pi-agent-gui-user-acceptance-cdb9d5b6-20260928.md`，用户原话“全部通过”。
+- 清理前全部 Git 引用、67 个 worktree HEAD、`stash@{0}` 和未提交对照补丁已保存到 `D:/Temp/pi-agent-gui-cleanup-backup-20260928-160530/`；bundle SHA-256 `6C832488106007CA0E040ADA34BCC9395D866A44F46088EE2E538A7A8D3C5791`。
+- 主工作树仍保留既有未跟踪 `%SystemDrive%/`、`用` 和锁定的 `packages/desktop/dist-pi-incremental/`。两个已注销且内容为空的临时目录仍被未知目录句柄占用，未结束未知进程：`D:/Temp/pi-agent-gui-standards-audit-20260928`、`D:/Temp/pi-custom-message-gui-20260928`。
 
 实现路径图例：R = Pi RPC；B = 公开扩展桥；H = 必要本地宿主；C = 固定版本兼容适配。路径是实施方向，不是已支持声明。
 
