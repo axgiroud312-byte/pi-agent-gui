@@ -31,6 +31,16 @@ test("process check patch fails closed without path-aware PowerShell and bounds 
   assert.equal((patched.match(/\.Path\.StartsWith\('\$INSTDIR\\', 'OrdinalIgnoreCase'\)/g) ?? []).length, 2);
   assert.doesNotMatch(patched, /\.Path\.StartsWith\('\$INSTDIR', 'CurrentCultureIgnoreCase'\)/);
   assert.match(patched, /cannot safely verify process path without PowerShell/);
+  assert.doesNotMatch(patched, /!insertmacro IS_POWERSHELL_AVAILABLE/);
+  assert.match(patched, /StrCpy \$IsPowerShellAvailable 0/);
+  assert.match(
+    patched,
+    /ZCodeReportInstallerProcessCheck "query-mode=direct-guarded executable=\$\{APP_EXECUTABLE_FILENAME\}"/,
+  );
+  assert.match(
+    patched,
+    /ZCodeReportInstallerProcessCheck "find status=\$\{_RETURN\} executable=\$\{_FILE\}"/,
+  );
   assert.equal(patchNsisProcessCheckSource(patched), patched);
 });
 
@@ -196,6 +206,53 @@ test("real makensis process lookup distinguishes owned install from a sibling pr
       child.kill();
       await new Promise(resolve => child.once("exit", resolve));
     }
+    const actual = resolve(directory);
+    assert.ok(actual.startsWith(`${resolve(base)}${sep}`));
+    await rm(actual, { recursive: true });
+  }
+});
+
+test("real makensis process lookup runs the guarded query without a separate availability gate", {
+  skip: process.platform !== "win32" || !existsSync(makensis),
+}, async () => {
+  const base = existsSync("D:/Temp") ? "D:/Temp" : tmpdir();
+  const directory = await mkdtemp(join(base, "pi-nsis-process-direct-query-"));
+  try {
+    const template = patchNsisProcessCheckSource(await readFile(upstreamPath, "utf8"));
+    const patchedPath = join(directory, "allowOnlyOneInstallerInstance.nsh");
+    await writeFile(patchedPath, `\uFEFF${template}`, "utf8");
+    await copyFile(resolve(dirname(upstreamPath), "nsProcess.nsh"), join(directory, "nsProcess.nsh"));
+    await copyFile(resolve(dirname(upstreamPath), "getProcessInfo.nsh"), join(directory, "getProcessInfo.nsh"));
+    const nsi = join(directory, "direct-query.nsi");
+    const exe = join(directory, "direct-query.exe");
+    const script = [
+      "Unicode true",
+      '!include "LogicLib.nsh"',
+      `!include "${patchedPath}"`,
+      'Name "Direct guarded process lookup"',
+      `OutFile "${exe}"`,
+      "RequestExecutionLevel user",
+      "SilentInstall silent",
+      "Var IsPowerShellAvailable",
+      "Var PowerShellPath",
+      "Section",
+      '  StrCpy $PowerShellPath "$SYSDIR\\WindowsPowerShell\\v1.0\\powershell.exe"',
+      "  StrCpy $IsPowerShellAvailable 0",
+      "  StrCpy $INSTDIR \"D:\\Temp\\pi-nsis-no-running-app\"",
+      '  !insertmacro FIND_PROCESS "PiNsisGuardNoProc.exe" $R0',
+      "  SetErrorLevel $R0",
+      "SectionEnd",
+    ].join("\r\n");
+    await writeFile(nsi, `\uFEFF${script}`, "utf8");
+    execFileSync(makensis, ["/V2", nsi], { windowsHide: true, timeout: 15_000 });
+    let exitCode = 0;
+    try {
+      execFileSync(exe, ["/S"], { windowsHide: true, timeout: 15_000 });
+    } catch (error) {
+      exitCode = error.status;
+    }
+    assert.equal(exitCode, 1, "the real query must report only that the fixture is not running");
+  } finally {
     const actual = resolve(directory);
     assert.ok(actual.startsWith(`${resolve(base)}${sep}`));
     await rm(actual, { recursive: true });

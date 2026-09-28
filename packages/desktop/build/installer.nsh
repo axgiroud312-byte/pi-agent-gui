@@ -192,6 +192,12 @@
     Call ZCodeWriteInstallerLog
   !macroend
 
+  ; 进程检测发生在旧版本清理之前。把返回值和最终安装目录写进同一份安装日志，
+  ; 让静默升级的退出码 2 可以区分 PowerShell 不可用、查询失败和实际进程占用。
+  !macro ZCodeReportInstallerProcessCheck MESSAGE
+    !insertmacro ZCodeReportInstallerStage "process-check ${MESSAGE} install-dir=$INSTDIR"
+  !macroend
+
   Function ZCodeWriteInstallerLog
     Exch $R9
     Push $R0

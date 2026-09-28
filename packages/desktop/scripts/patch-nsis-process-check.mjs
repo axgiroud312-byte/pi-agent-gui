@@ -2,6 +2,14 @@ import { readFile, writeFile } from "node:fs/promises";
 import { writeFileSync } from "node:fs";
 
 const PATCH_MARKER = "; pi-agent-ide-process-path-guard-v1";
+const availabilityProbe = "    !insertmacro IS_POWERSHELL_AVAILABLE";
+const directGuardedQuerySetup = [
+  "    Var /GLOBAL IsPowerShellAvailable",
+  "    StrCpy $IsPowerShellAvailable 0",
+  "    !ifmacrodef ZCodeReportInstallerProcessCheck",
+  '      !insertmacro ZCodeReportInstallerProcessCheck "query-mode=direct-guarded executable=${APP_EXECUTABLE_FILENAME}"',
+  "    !endif",
+].join("\n");
 const oldFindCommand = '    nsExec::Exec `"$PowerShellPath" -C "if ((Get-CimInstance -ClassName Win32_Process | ? {$$_.Path -and $$_.Path.StartsWith(\'$INSTDIR\', \'CurrentCultureIgnoreCase\')}).Count -gt 0) { exit 0 } else { exit 1 }"`';
 const safeFindCommand = "    nsExec::Exec `\"$PowerShellPath\" -NoProfile -NonInteractive -C \"$$ErrorActionPreference='Stop'; try { $$procs = @(Get-CimInstance Win32_Process | ? { $$_.Name -eq '${_FILE}' }); if (@($$procs | ? { -not $$_.Path }).Count -gt 0) { exit 2 }; if (@($$procs | ? { $$_.Path.StartsWith('$INSTDIR\\', 'OrdinalIgnoreCase') }).Count -gt 0) { exit 0 } else { exit 1 } } catch { exit 2 }\"`";
 const oldKillCommand = '    nsExec::Exec `"$PowerShellPath" -C "Get-CimInstance -ClassName Win32_Process | ? {$$_.Path -and $$_.Path.StartsWith(\'$INSTDIR\', \'CurrentCultureIgnoreCase\')} | % { Stop-Process -Id $$_.ProcessId $0 }"`';
@@ -36,6 +44,9 @@ const safeFallback = [
 ].join("\n");
 const findResultCheck = [
   "    Pop ${_RETURN}",
+  "    !ifmacrodef ZCodeReportInstallerProcessCheck",
+  '      !insertmacro ZCodeReportInstallerProcessCheck "find status=${_RETURN} executable=${_FILE}"',
+  "    !endif",
   "    ${if} ${_RETURN} != 0",
   "    ${andIf} ${_RETURN} != 1",
   '      DetailPrint "Pi Agent IDE: process path check failed"',
@@ -65,6 +76,7 @@ export function patchNsisProcessCheckSource(source) {
         count(normalized, safeKillCommand) !== 1 || normalized.includes(oldFindCommand) ||
         normalized.includes(oldKillCommand) || normalized.includes(oldFindFallback) ||
         normalized.includes(oldKillFallback) || count(normalized, safeFallback) !== 2 ||
+        count(normalized, directGuardedQuerySetup) !== 1 ||
         count(normalized, findResultCheck) !== 1 || count(normalized, killResultCheck) !== 1) {
       throw new Error("electron-builder allowOnlyOneInstallerInstance.nsh has an inconsistent process-path patch");
     }
@@ -78,6 +90,10 @@ export function patchNsisProcessCheckSource(source) {
     .replace(oldKillCommand, () => safeKillCommand)
     .replace(oldFindFallback, safeFallback)
     .replace(oldKillFallback, safeFallback)
+    // electron-builder 的两个预探测在真实静默安装器里会把可用的 Windows
+    // PowerShell 误判为不可用。真正的查询命令已经把“未运行”限定为 1，
+    // 其他启动、权限或 CIM 错误统一返回 2，因此直接运行它仍然是 fail closed。
+    .replace(availabilityProbe, directGuardedQuerySetup)
     .replace("    Pop ${_RETURN}\n  ${else}\n    ; pi-agent-ide-process-path-guard-v1",
       findResultCheck + "\n  ${else}\n    " + PATCH_MARKER)
     .replace("  Pop $0\n!macroend \n\n!macro _CHECK_APP_RUNNING",
