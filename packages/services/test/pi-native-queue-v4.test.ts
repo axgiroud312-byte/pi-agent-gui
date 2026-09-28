@@ -128,16 +128,44 @@ test("native queue keeps Pi-owned image through Stop, reorder, edit, send now an
       const afterPromotion = await supervisor.getQueueCatalog(sessionId);
       assert.equal(afterPromotion.paused, true);
       assert.deepEqual(afterPromotion.followUp.map(item => item.text), ["edited text"]);
-      for (let i = 0; i < 100 && supervisor.getSession(sessionId)?.foregroundExecutionId; i++) {
+      // The foreground id can clear before Pi's settled state and Host's final
+      // projection are both observable. Resume only after Pi has finished the
+      // promoted image run; otherwise this test races the very run it created.
+      let promotedSettled = false;
+      for (let i = 0; i < 150; i++) {
+        const state = await supervisor.getState(sessionId);
+        if (!supervisor.getSession(sessionId)?.foregroundExecutionId &&
+          state.isStreaming === false && state.isCompacting === false) {
+          promotedSettled = true;
+          break;
+        }
         await new Promise(resolve => setTimeout(resolve, 50));
       }
-      const resumed = await command("setAutoDrain", { autoDrain: true }, current().revision);
-      assert.equal(resumed.status, "accepted", resumed.message);
-      for (let i = 0; i < 100 && (await supervisor.getQueueCatalog(sessionId)).followUp.length; i++) {
+      assert.equal(promotedSettled, true, "the promoted Pi image run must settle before queue resume");
+      // A late Pi history/queue projection can advance the snapshot revision
+      // between a GUI read and its command. A stale CAS must not unpause or
+      // consume Pi's remaining item; the caller can retry the fresh revision.
+      const staleResume = await command("setAutoDrain", { autoDrain: true }, current().revision - 1);
+      assert.equal(staleResume.status, "stale");
+      assert.equal(staleResume.reasonCode, "pi.queueSnapshotChanged");
+      let unchanged = await supervisor.getQueueCatalog(sessionId);
+      assert.equal(unchanged.paused, true);
+      assert.deepEqual(unchanged.followUp.map(item => item.text), ["edited text"]);
+      let resumed = await command("setAutoDrain", { autoDrain: true }, staleResume.revisionAtDecision);
+      for (let i = 0; resumed.status === "stale" && i < 5; i++) {
+        assert.equal(resumed.reasonCode, "pi.queueSnapshotChanged");
+        unchanged = await supervisor.getQueueCatalog(sessionId);
+        assert.equal(unchanged.paused, true);
+        assert.deepEqual(unchanged.followUp.map(item => item.text), ["edited text"]);
+        resumed = await command("setAutoDrain", { autoDrain: true }, resumed.revisionAtDecision);
+      }
+      assert.equal(resumed.status, "accepted", JSON.stringify(resumed));
+      for (let i = 0; i < 150 && (await supervisor.getQueueCatalog(sessionId)).followUp.length; i++) {
         await new Promise(resolve => setTimeout(resolve, 50));
       }
-      assert.equal((await supervisor.getQueueCatalog(sessionId)).paused, false);
-      assert.equal((await supervisor.getQueueCatalog(sessionId)).followUp.length, 0);
+      const drained = await supervisor.getQueueCatalog(sessionId);
+      assert.equal(drained.paused, false);
+      assert.equal(drained.followUp.length, 0, JSON.stringify(drained));
       assert.ok(bodies.some(body => body.includes("data:image/png;base64,")), "promoted image reached the model");
       const history = await supervisor.getHistoryMessages(sessionId);
       assert.equal(history.filter(message => typeof message === "object" && message !== null &&
