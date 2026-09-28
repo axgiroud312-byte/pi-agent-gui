@@ -216,6 +216,14 @@ Pi 0.87.0 的公开 `update(source)` 没有作用域参数，会按包身份同�
 | PI25-E1 | 原生时间线的消息行、附件预览和可折叠详情 | 保留原生行与图片按需预览；新增 `Pi 扩展消息` 行，展示固定 Pi `display:true` custom message 的有序文字、图片和折叠 details。Pi TUI renderer 不经 RPC，不能直接移植为组件。 | #25 / P27 要求 renderer 不兼容时保留原始消息。固定 Pi 合同和服务图片读取已测；真实原生 GUI、原版同状态截图及包内运行待验。 |
 | PI25-E2 | 原生工具组内的工具行、图片预览与可折叠详情 | 保留原生 `ToolCallBlock` 及工具组展开路径；固定 Pi 的 toolResult 有图像或 details 时，在同一工具行追加有序原始内容，按会话与行引用读取 Pi JSONL 中的图像，避免重复展示扁平文字。没有装载扩展 TUI 专属 `renderResult` 组件。 | `pi-extension-rich-tool.test.ts` 固定 Pi 合同和隔离生产源码 GUI `D:/Temp/pi-rich-tool-gui-20260928-c/pi-rich-tool-gui-report.json` 通过；原生工具组展开后图文、PNG 解码及 details 可见，退出无残留。原版同状态成对截图、包内 GUI 与用户验收仍待做。 |
 
+## #4/#9/#27 会话隔离与损坏恢复（2026-09-28 增量）
+
+| ID | 原生入口/行为 | Pi 产品行为 | 必要性 / 状态 |
+| --- | --- | --- | --- |
+| PI04-09-S1 | 保留会话 pane 的原生 Shell 与导入导出 Dialog、原有 Stop 入口 | 异步命令/结果/分享预览按发起会话绑定；切到 B 不显示 A 的内容，A 的 Stop 只指向 A。分享 token 迟到时按 A 目标丢弃 | 这是 Pi 会话所有权的隔离修复，无新增 UI 布局。主树 `D:/Temp/pi-dialog-main-20260928-a/pi-dialog-session-isolation-gui-report.json` 固定 Pi GUI 证实 A/B 隔离及真实 Stop，页面错误/强杀/残留均零。实际 Gist 外发未测。 |
+| PI27-R1 | 原生 RootShell 中可见的提示区域与既有设置入口 | 桌面 `setting.json` 无法安全读取时显示原路径/修复提示，普通更新和新 Pi/Host 网络调用拒绝以默认值替代原网络偏好；外部修复后重启恢复 | 坏设置若静默变空可丢项目与隐私选择。主树 `D:/Temp/pi-settings-corrupt-main-20260928-c/pi-desktop-settings-corrupt-gui-report.json` 两阶段固定 Pi GUI 通过，原件不变、修复后恢复、两次清洁退出；备份后跨重启拒绝由 Host 合同验证。原版同状态成对截图待验。 |
+| PI27-R2 | 原生会话 pane 输入区上方的紧凑提示，保留 Lexical composer | 当前项目文字草稿聚合记录损坏时保留原始字节，提示新输入无法可靠保存，并仅由用户点击导出私有原记录；其它项目和图片原字节不受影响 | 原版没有此 Pi 草稿故障态；主树 `D:/Temp/pi-composer-damage-main-20260928-a/pi-composer-draft-damage-gui-report.json` 固定 Pi 两次 RPC、冷重启、逐字节下载、原记录不覆写和两次清洁退出通过。人工修复与原版同状态视觉对照待验。 |
+
 ## 用户关卡记录
 
 - 关卡 Issue：[#33](https://github.com/axgiroud312-byte/pi-agent-gui/issues/33)，前置导入 [#32](https://github.com/axgiroud312-byte/pi-agent-gui/issues/32)。

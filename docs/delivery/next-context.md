@@ -10,6 +10,16 @@
 - 不得因用户暂缓验收而伪造 #34 或后续 Issue 的人工通过、关闭 Issue、合并 Draft PR 或正式发布。
 - 缺少在线账号、OAuth 人工回调、真实 llama.cpp/GGUF 或安装权限时，明确记录待最终验收项，但继续所有不依赖这些条件的开发。
 
+## 2026-09-28 08:30 主树收口断点（以下 08:02 等为历史快照）
+
+- 当前主树 `issue-34-native-pi-rpc` HEAD `84cdee2` 已普通推送到 origin，PR #39 仍 OPEN/Draft，需用户验收的 Issue OPEN。主树正在只改 `coverage.md`、本文件和 `native-ui-parity.md`；受保护未跟踪 `%SystemDrive%/`、`用`、锁住的 `packages/desktop/dist-pi-incremental/`，`stash@{0}` 和用户旧 `packages/desktop/dist/win-unpacked` 未动。以实际 Git 状态优先。
+- #4/#9 `cae60b9`/`b51adf4` 先在隔离树 headless 红 2/2 绿 3/3，再主树 3/3、typecheck/production build；主树原生 GUI `D:/Temp/pi-dialog-main-20260928-a/pi-dialog-session-isolation-gui-report.json` 固定 Pi 0.87.0 证实 A Shell 命令/结果/Stop 与 A 分享私密预览不进入 B，回切 A Stop 真正停止 A，页面错误 0、正常退出且无强杀/残留。实际 Gist 外发未做。
+- #27/P32/D06 `1295a2f` 先红测桌面 `setting.json` 有效 JSON 字段损坏/EACCES 会静默默认并被覆盖；再补严格 Host 注入、Pi 新启动与 Host API 代理逐请求 fail-closed、语法坏备份后跨 Host 重启阻断。主树损坏/Host 合同 8/8、desktop-profile 4/4（须以 `NODE_OPTIONS=--import=file:///.../node_modules/tsx/dist/loader.mjs` 让子进程加载 TS）、typecheck、production build。原生 GUI `D:/Temp/pi-settings-corrupt-main-20260928-c/pi-desktop-settings-corrupt-gui-report.json` 两阶段证实坏文件原字节/可见路径，外部修复后恢复最近项目与一次真实 Pi 回复，两次清洁退出；跨重启备份/代理拒绝由 Host 合同证明，GUI 未逐场景跑。
+- #27/D03 `4202cae` 在隔离树先红测坏文字草稿被新输入覆盖，后保留原聚合记录、禁写并显示主动导出入口；主树文字+图片隔离 18/18、typecheck/production build；主树原生 GUI `D:/Temp/pi-composer-damage-main-20260928-a/pi-composer-draft-damage-gui-report.json` 冷重启与固定 Pi 2 次 RPC、原记录逐字节下载、新输入可见且不覆盖、页面错误/强杀/残留均零。损坏记录需要用户主动修复，不宣称自动修好。
+- #10/P31 `f31521c` 的无效 Pi 值保护在主树 GUI `D:/Temp/pi-settings-main-invalid-20260928-c/pi-settings-gui-report.json` 通过：高级编辑拒绝固定 Pi 会拒绝的 `compaction.reserveTokens=-1`、原字节不变、外部冲突拒绝、两项启动偏好和真实 Pi 推理、清洁退出。前一次 main GUI 遇 Windows `rename EPERM`，原件未损；`4b10d6f` 加限次重试并逐次重查修订，合同 10/10 后同 GUI 复绿。`84cdee2` 仅改测试引导页跳过，使上述三组 GUI 能在新引导状态运行。
+- 全仓 `pnpm run typecheck`、`pnpm run lint`（0 error/69 inherited warnings）、桌面 `build:no-runtime-assets`、交付计划本地/7 项测试/`--github` 已分别通过；**这些检查发生在不同中间 HEAD**，最终代码/文档整合后仍须完整重跑固定 Pi 顺序、typecheck/lint/build/delivery 和 Standards/Spec。`node scripts/check-delivery-plan.mjs --github` 证实 17 active/10 retired、40 能力/12 场景、父 #1/30 子票/45 阻塞边。
+- 最后仍须：收最终只读 Standards 复审，回填 Issues/PR；新隔离目录打最终源码对应的 3.14.1 unpacked+NSIS 并跑包内固定 Pi GUI/清理；按 `D:/Temp/pi-agent-gui-install-preflight-20260928.ps1` 复检受控 3.14.0 安装基线后实际覆盖升级、已安装 GUI、卸载和外部数据保留。在线已有 OAuth 推理证据与现场人工登录不同；真实 GGUF/llama.cpp、物理中文 IME、实际 Gist 和统一用户验收各自留界。只在全部可实施工作后给一次 5–15 分钟连贯试用。
+
 ## 2026-09-28 08:02 继续开发断点（下方 07:39 等均为历史快照）
 
 - 主分支 `issue-34-native-pi-rpc` 当前 HEAD `9ae1413` 已普通推送；本文件和 `coverage.md` 正在记账，其他受保护未跟踪项、`stash@{0}`、用户旧 unpacked 均未动。PR #39 仍 Draft，#14/#10 等需用户最终验收的 Issue OPEN。受控 3.14.0 安装基线只读预检再次 PASS：`D:/Temp/pi-agent-gui-installer-20260928-a/diagnostic-install-3`，owner 当前用户、146 项无 reparse、卸载注册匹配、Preview/目录进程 0；D: 约 232 GB 可用。最终 3.14.1 包、实际升级卸载未做。
