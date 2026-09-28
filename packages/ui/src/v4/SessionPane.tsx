@@ -4972,7 +4972,10 @@ export function SessionPane({
           ) : null}
           {sessionId ? <>
           <PiShellDialog sessionId={sessionId} workspacePath={workspacePath}
-            workspaceIdentity={workspaceIdentity} onStop={handleStopFromButton} />
+            workspaceIdentity={workspaceIdentity}
+            onStop={targetSessionId => {
+              if (targetSessionId === sessionId) handleStopFromButton();
+            }} />
           <PiLlamaRouterDialog sessionId={sessionId} workspacePath={workspacePath}
             workspaceIdentity={workspaceIdentity} remoteSessionId={remoteSessionId}
             onModelsChanged={refreshPiModelCatalog} />
