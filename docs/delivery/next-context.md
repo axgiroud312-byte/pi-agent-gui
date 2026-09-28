@@ -10,6 +10,13 @@
 - 不得因用户暂缓验收而伪造 #34 或后续 Issue 的人工通过、关闭 Issue、合并 Draft PR 或正式发布。
 - 缺少在线账号、OAuth 人工回调、真实 llama.cpp/GGUF 或安装权限时，明确记录待最终验收项，但继续所有不依赖这些条件的开发。
 
+## 2026-09-28 09:30 最终回归/打包断点（以下 09:00 等为历史快照）
+
+- 主树 `issue-34-native-pi-rpc` 当前代码 HEAD `dc2037b`，待把本轮 P04 证据文档聚焦提交/普通推送；PR #39 仍 Draft、待用户统一验收的 Issue OPEN。受保护未跟踪 `%SystemDrive%/`、`用`、锁定 `packages/desktop/dist-pi-incremental/`，`stash@{0}` 和用户运行中的旧 `packages/desktop/dist/win-unpacked` 未动；以实际 Git 状态为准。
+- #3/P04 `dc2037b` 在隔离树先红测未知助手/用户 content 块和未来 role 无时间线行，再作有界只读结构回退；正常固定 Pi `system` 上下文明确不误投。主树 14/14 定向合同、typecheck、lint（0 errors）、桌面 production build PASS；主树原生 GUI `D:/Temp/pi-unknown-main-20260928-a/pi-unknown-message-gui-report.json` 证实固定 Pi 0.87.0 SessionManager 写入未来格式夹具，首开和 Electron 冷重启三类未知行可见/默认折叠、图片仍可见、私密原值不进界面、Pi JSONL 原字节保留、模型请求 0、两轮页面错误/强杀/残留零。旧图文工具主树 GUI `D:/Temp/pi-rich-tool-main-final-20260928-a/pi-rich-tool-gui-report.json` 两次模型请求、图文/details、清洁退出复绿。未来格式不是模型真实生成；第一轮隔离 GUI 因缺私有 Agent bundle 在存储准备处失败，补齐后旧工具 GUI 曾因把正常 `system` 误投而红，已据此修复并复绿，不能把旧红报告算通过。
+- 当前 `D:/Temp/pi-agent-gui-install-preflight-20260928.ps1 -ExpectedVersion 3.14.0` 在 09:01 再次通过：受控基线 146 项无 reparse、owner/注册/无 Preview 或该根进程吻合。包审查确认新绝对隔离输出 `D:/Temp/pi-agent-gui-final-<HEAD8>-20260928` 必须不存在，最终 `app.asar` 的 3.14.1 及 `buildCommitId` 必须与最终 HEAD 对应；升级前还须带最终 installer 重跑 preflight。最终包/安装结果写入本机 `D:/Temp/pi-agent-gui-final-validation-20260928.json`，该文件生成前不能预报成功。
+- 下一步：收最终只读 Standards/Spec 快审，提交/推送本轮 docs 并更新 #3 与 Draft PR；在**最终 HEAD**跑固定 Pi 全顺序、typecheck/lint/build、NSIS/Host 15 项、delivery 本地/7/`--github`；冻结 HEAD 后新隔离目录构建 3.14.1 unpacked+NSIS，包内固定 Pi GUI 和退出清理、受控 3.14.0→3.14.1 升级、已安装 GUI、卸载及隔离用户数据保留。已有 OAuth 在线推理与现场回调、真实 GGUF/router、物理 IME、实际 Gist 和用户统一验收仍分开记录。
+
 ## 2026-09-28 09:00 最终源码打包前断点（以下 08:30 等为历史快照）
 
 - 主树 `issue-34-native-pi-rpc` 当前代码 HEAD `7639f8e`，较 origin 超前 2 个聚焦提交，PR #39 仍 Draft，需用户验收的 Issue 保持 OPEN。`coverage.md`、本文件、`native-ui-parity.md` 正记账；主目录仅受保护的未跟踪 `%SystemDrive%/`、`用`、锁定 `packages/desktop/dist-pi-incremental/`，`stash@{0}` 及旧 `packages/desktop/dist/win-unpacked` 未触碰。以实际 Git 状态为准。

@@ -215,6 +215,7 @@ Pi 0.87.0 的公开 `update(source)` 没有作用域参数，会按包身份同�
 | --- | --- | --- | --- |
 | PI25-E1 | 原生时间线的消息行、附件预览和可折叠详情 | 保留原生行与图片按需预览；新增 `Pi 扩展消息` 行，展示固定 Pi `display:true` custom message 的有序文字、图片和折叠 details。Pi TUI renderer 不经 RPC，不能直接移植为组件。 | #25 / P27 要求 renderer 不兼容时保留原始消息。固定 Pi 合同和服务图片读取已测；真实原生 GUI、原版同状态截图及包内运行待验。 |
 | PI25-E2 | 原生工具组内的工具行、图片预览与可折叠详情 | 保留原生 `ToolCallBlock` 及工具组展开路径；固定 Pi 的 toolResult 有图像或 details 时，在同一工具行追加有序原始内容，按会话与行引用读取 Pi JSONL 中的图像，避免重复展示扁平文字。没有装载扩展 TUI 专属 `renderResult` 组件。 | `pi-extension-rich-tool.test.ts` 固定 Pi 合同和隔离生产源码 GUI `D:/Temp/pi-rich-tool-gui-20260928-c/pi-rich-tool-gui-report.json` 通过；原生工具组展开后图文、PNG 解码及 details 可见，退出无残留。原版同状态成对截图、包内 GUI 与用户验收仍待做。 |
+| PI03-U1 | 保留原生时间线消息行和可折叠详情样式 | 固定 Pi 未知用户/助手 content 块及未来消息角色显示为默认折叠的只读结构摘要；Pi JSONL 保留原件，传入 renderer 的摘要限深、限字段、最多 900 字符并隐藏任意私密原值。正常 `system` 上下文不作为未知消息行显示 | `dc2037b` 先红绿固定 Pi 投影合同，主树 `D:/Temp/pi-unknown-main-20260928-a/pi-unknown-message-gui-report.json` 首开/冷重启三类行及原图片均可见，旧 `D:/Temp/pi-rich-tool-main-final-20260928-a/pi-rich-tool-gui-report.json` 工具图文复绿；两组页面错误/强杀/残留为零。未来格式由固定 Pi SessionManager 测试夹具写入，非模型生成；原版成对截图、包内 GUI 与人工验收待做。 |
 
 ## #4/#9/#27 会话隔离与损坏恢复（2026-09-28 增量）
 
