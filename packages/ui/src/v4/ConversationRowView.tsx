@@ -2085,6 +2085,19 @@ const ExtensionMessageRowView = memo(function ExtensionMessageRowView({
   row: ExtensionMessageRow;
   context: ConversationRowRenderContext;
 }) {
+  const unknownLabel = row.customType === "pi.unknown-assistant-content" ? "Pi 未知助手内容" :
+    row.customType === "pi.unknown-user-content" ? "Pi 未知用户内容" :
+      row.customType === "pi.unknown-message" ? "Pi 未知消息" : null;
+  if (unknownLabel) return <RowShell rowId={row.rowId}>
+    <details data-pi-extension-message={row.customType}
+      className="max-w-xl rounded-lg border border-border bg-surface p-3 text-ui-sm">
+      <summary className="cursor-pointer font-medium text-foreground-subtle">{unknownLabel} · 查看结构摘要</summary>
+      <div className="mt-2 max-h-64 overflow-auto">
+        <PiRichParts parts={row.parts} attachments={row.attachments} details={row.details}
+          detailsLabel="结构摘要" rowId={row.rowId} entityId={row.entityId} context={context} />
+      </div>
+    </details>
+  </RowShell>;
   return (
     <RowShell rowId={row.rowId}>
       <div data-pi-extension-message={row.customType}

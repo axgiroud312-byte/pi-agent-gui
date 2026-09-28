@@ -117,6 +117,9 @@ test("fixed Pi custom tool result remains image readable in live and restored na
       ref, offset: 0, limit: 1024 }), /workspace|session|owned/u);
     const restored = new PiMessageRows(workspacePath);
     const cold = restored.restore(history);
+    assert.equal(cold.some(item => item.kind === "extensionMessage" &&
+      item.customType === "pi.unknown-message"), false,
+    "fixed Pi's internal system message must not become a visible unknown row");
     const coldRow = cold.find(item => item.kind === "toolCall");
     assert(coldRow && coldRow.kind === "toolCall");
     assert.deepEqual(coldRow.piResult, row.piResult, "cold Pi history must retain ordered result content");

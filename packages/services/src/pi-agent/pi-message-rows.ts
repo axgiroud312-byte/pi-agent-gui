@@ -4,6 +4,7 @@ import type { ConversationDelta, ConversationRow } from "@zcode/shared/zcode-pro
 import { piFileSnapshotEpilogueStart } from "./pi-file-references.js";
 import { diffPiMessageRows, serializePiValue } from "./pi-message-row-diff.js";
 import { piRichMessageParts, piToolRichResult } from "./pi-rich-message-parts.js";
+import { piUnknownMessageStructure } from "./pi-unknown-message-structure.js";
 
 type Data = Record<string, unknown>;
 
@@ -69,7 +70,7 @@ export class PiMessageRows {
     this.tools.clear();
     this.rowIds.clear();
     for (const [key, id] of Object.entries(rowIds)) {
-      if (/^\d+:(turn|user|custom|bash|text:\d+|thinking:\d+|tool:\d+)$/u.test(key) &&
+      if (/^\d+:(turn|user|custom|bash|unknownRole|text:\d+|thinking:\d+|tool:\d+|unknown:\d+)$/u.test(key) &&
         Number.isSafeInteger(id) && id > 0) this.rowIds.set(key, id);
     }
     this.sourceByMessageIndex.clear();
@@ -316,6 +317,17 @@ export class PiMessageRows {
           ...(images.length ? { attachments: images } : {}),
           ...(sourceCommandId ? { sourceCommandId, rootSourceCommandId: sourceCommandId } : {}),
         });
+        if (Array.isArray(message.content)) {
+          for (const [partIndex, rawPart] of message.content.entries()) {
+            const part = object(rawPart);
+            if (part.type === "text" && typeof part.text === "string" ||
+              part.type === "image" && typeof part.mimeType === "string" && typeof part.data === "string") continue;
+            const rowId = this.rowId(`${messageIndex}:unknown:${partIndex}`);
+            rows.push({ kind: "extensionMessage", rowId, turnId, createdAt: at, createdAtSeq: rowId,
+              customType: "pi.unknown-user-content",
+              parts: [{ type: "unknown", value: piUnknownMessageStructure(rawPart) }] });
+          }
+        }
       } else if (message.role === "custom") {
         if (message.display === false) continue;
         const rich = piRichMessageParts(message, messageIndex, "extension-image");
@@ -374,6 +386,16 @@ export class PiMessageRows {
               ...(tool?.result !== undefined ? { output: { text: resultText(tool.result) } } : {}),
               ...(tool?.error ? { error: { code: "pi.toolError", message: tool.error } } : {}),
             });
+          } else if (this.activeMessageIndex === messageIndex &&
+            (part.type === "text" || part.type === "thinking")) {
+            // Pi emits a start block before the first delta. It is incomplete,
+            // not an unknown final block, and must not replace the native row.
+            continue;
+          } else {
+            const rowId = this.rowId(`${messageIndex}:unknown:${partIndex}`);
+            rows.push({ kind: "extensionMessage", rowId, turnId, createdAt: at, createdAtSeq: rowId,
+              customType: "pi.unknown-assistant-content",
+              parts: [{ type: "unknown", value: piUnknownMessageStructure(rawPart) }] });
           }
         }
       } else if (message.role === "toolResult" && typeof message.toolCallId === "string") {
@@ -395,6 +417,15 @@ export class PiMessageRows {
             if (piResult) call.piResult = piResult;
           }
         }
+      } else if (message.role === "system") {
+        // Pi's system prompt and tool declarations are context, not a user
+        // timeline message. The context inspector is their explicit entry.
+        continue;
+      } else {
+        const rowId = this.rowId(`${messageIndex}:unknownRole`);
+        rows.push({ kind: "extensionMessage", rowId, turnId, createdAt: at, createdAtSeq: rowId,
+          customType: "pi.unknown-message",
+          parts: [{ type: "unknown", value: piUnknownMessageStructure(message) }] });
       }
     }
     return rows;

@@ -165,6 +165,87 @@ test("visible Pi custom message keeps ordered text, image bytes by ref, and rend
   assert.equal(hidden.some(item => String(item.kind) === "extensionMessage"), false);
 });
 
+test("unknown assistant content and message roles retain a bounded, private structural fallback", () => {
+  const imageData = Buffer.from("PRIVATE_UNKNOWN_IMAGE_BYTES").toString("base64");
+  const assistant = { role: "assistant", timestamp: 12, content: [
+    { type: "text", text: "known text" },
+    { type: "future_block", label: "reference", nested: {
+      apiKey: "sk-private-unknown-assistant", image: { mimeType: "image/png", data: imageData },
+    } },
+  ] };
+  const future = { role: "futureDiagnostic", timestamp: 13,
+    content: [{ type: "event", token: "private-unknown-message", payload: imageData }] };
+  const messages = [{ role: "system", content: "private Pi system prompt", timestamp: 10,
+    sections: [{ name: "tools", token: "system-secret" }] },
+  { role: "user", content: "inspect", timestamp: 11 }, assistant, future];
+  const restored = new PiMessageRows().restore(messages);
+  const unknown = restored.filter(row => row.kind === "extensionMessage");
+  assert.deepEqual(unknown.map(row => row.kind === "extensionMessage" ? row.customType : ""),
+    ["pi.unknown-assistant-content", "pi.unknown-message"]);
+  for (const row of unknown) {
+    conversationRowSchema.parse(row);
+    const transport = JSON.stringify(row);
+    assert.ok(transport.length < 1_500, "unknown Pi data must be bounded before renderer transport");
+    assert.doesNotMatch(transport, /sk-private-unknown-assistant|private-unknown-message|PRIVATE_UNKNOWN_IMAGE_BYTES|"data":"/u);
+    assert.equal(transport.includes(imageData), false, "unknown image base64 must stay in Pi JSONL only");
+    assert.equal(row.kind === "extensionMessage" ? row.attachments?.length ?? 0 : -1, 0,
+      "unknown image data must not receive a readable attachment ref");
+  }
+  assert.match(JSON.stringify(unknown[0]), /"type"|"label"/u);
+  assert.match(JSON.stringify(unknown[1]), /"role"|"content"/u);
+  assert.doesNotMatch(JSON.stringify(unknown), /futureDiagnostic|future_block|reference/u,
+    "unknown free-form labels can themselves contain private data");
+  const live = new PiMessageRows();
+  for (const message of messages) {
+    live.apply({ type: "message_start", message });
+    live.apply({ type: "message_end", message });
+  }
+  live.apply({ type: "agent_settled" });
+  assert.deepEqual(live.getRows(), restored, "stream and cold JSONL must display the same fallback");
+  assert.equal(JSON.stringify(restored).includes("private Pi system prompt"), false,
+    "Pi's internal system message belongs to context inspection, not the timeline");
+});
+
+test("unknown user parts are visible without changing the Pi user turn or image attachment", () => {
+  const imageData = Buffer.from("PRIVATE_USER_IMAGE_BYTES").toString("base64");
+  const user = { role: "user", timestamp: 20, content: [
+    { type: "text", text: "hello" }, { type: "image", mimeType: "image/png", data: imageData },
+    { type: "future_input", secret: "private-user-part", children: [{ type: "reference", label: "fixture" }] },
+  ] };
+  const rows = new PiMessageRows().restore([user]);
+  assert.deepEqual(rows.map(row => row.kind), ["turnHeader", "userInput", "extensionMessage"]);
+  const input = rows.find(row => row.kind === "userInput");
+  assert(input && input.kind === "userInput");
+  assert.equal(input.text, "hello");
+  assert.equal(input.attachments?.[0]?.ref, "pi-image:0:1");
+  const fallback = rows.find(row => row.kind === "extensionMessage");
+  assert(fallback && fallback.kind === "extensionMessage");
+  assert.equal(fallback.customType, "pi.unknown-user-content");
+  assert.equal(fallback.turnId, input.turnId);
+  assert.equal(JSON.stringify(fallback).includes("private-user-part"), false);
+  assert.equal(JSON.stringify(fallback).includes(imageData), false);
+  assert.ok(JSON.stringify(fallback).length < 1_500);
+  for (const row of rows) conversationRowSchema.parse(row);
+  const live = new PiMessageRows();
+  live.apply({ type: "message_start", message: user });
+  live.apply({ type: "message_end", message: user });
+  assert.deepEqual(live.getRows(), rows);
+});
+
+test("large unknown Pi structures become a bounded structural summary", () => {
+  const secret = "PRIVATE_LARGE_UNKNOWN_VALUE";
+  const future = { role: "futureDiagnostic", timestamp: 21,
+    content: Array.from({ length: 500 }, (_, index) => ({ type: "item", index, token: secret,
+      children: Array.from({ length: 10 }, (_, nestedIndex) => ({ nestedIndex, label: secret })) })) };
+  const row = new PiMessageRows().restore([future]).find(item => item.kind === "extensionMessage");
+  assert(row);
+  const transport = JSON.stringify(row);
+  assert.ok(transport.length < 1_500, `unknown fallback has ${transport.length} chars`);
+  assert.ok(JSON.stringify(row.kind === "extensionMessage" ? row.parts[0] : null).length < 950,
+    "one unknown part must stay under the UI structure budget");
+  assert.equal(transport.includes(secret), false);
+});
+
 test("Pi extension details and local image refs cannot leak through public sharing", () => {
   const row = conversationRowSchema.parse({ kind: "extensionMessage", rowId: 1, turnId: "pi-turn-1",
     productTurnId: "product-1", createdAt: 1000, createdAtSeq: 1, customType: "private.fixture",
