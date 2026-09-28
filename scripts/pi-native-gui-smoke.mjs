@@ -334,18 +334,23 @@ try {
   report.helloDebug.buttons = await helloCard.getByRole('button').allTextContents();
   report.helloDebug.openPath = await helloCard.getByRole('button', { name: 'hello.txt', exact: true }).getAttribute('title');
   await helloCard.getByRole('button', { name: 'hello.txt', exact: true }).click();
-  const helloPreview = reopenedPage.getByText('Native parity file content', { exact: false }).first();
+  const helloPane = reopenedPage.getByTestId('preview-pane').filter({ visible: true }).first();
+  const helloPreview = helloPane.getByText('Native parity file content', { exact: false });
   report.helloFirstClickTabs = await reopenedPage.locator('[data-side-pane-tab-id]').allTextContents();
   await helloPreview.waitFor({ timeout: 5000 }).catch(() => {});
   report.helloFirstClickVisible = await helloPreview.isVisible();
   report.helloPreviewDebug = {
     markerVisible: await helloPreview.isVisible(),
+    deferred: await helloPane.locator('[data-preview-pane-heavy-content-deferred="true"]').count(),
+    placeholder: await helloPane.locator('[data-preview-pane-heavy-content-placeholder="true"]').count(),
+    paneText: (await helloPane.innerText()).slice(-1200),
     tabs: await reopenedPage.locator('[data-side-pane-tab-id]').evaluateAll(nodes => nodes.map(node => ({
       text: node.textContent, state: node.getAttribute('data-state'), id: node.getAttribute('data-side-pane-tab-id'),
     }))),
-    paneText: (await reopenedPage.locator('#browser').innerText().catch(() => '')).slice(-1200),
+    browserText: (await reopenedPage.locator('#browser').innerText().catch(() => '')).slice(-1200),
     modelRequests: model.requests.slice(-2),
   };
+  await reopenedPage.screenshot({ path: join(f.output, 'pi-native-hello-preview.png') });
   assert(report.helloPreviewDebug.markerVisible, 'Second Pi read must open the actual hello.txt content');
   const sideTabs = reopenedPage.locator('[data-side-pane-tab-id]');
   assert.equal(await sideTabs.count(), 2, 'Opening a second Pi-read file must retain native Side Pane tabs');
@@ -436,8 +441,10 @@ try {
     Object.keys(localStorage).filter(key => key.includes('zcode-v4-composer'))
       .map(key => [key, localStorage.getItem(key)])));
   report.rootDraftStorageBeforeRestart = await inspectDraftStorage(reopenedPage);
+  const encodedRootWorkspace = encodeURIComponent(f.workspace);
   const rootDraftKey = Object.keys(report.rootDraftStorageBeforeRestart)
-    .find(key => key.includes('zcode-v4-composer-drafts') && key.includes('parity-workspace'));
+    .find(key => key.includes('zcode-v4-composer-drafts') && key.endsWith(encodedRootWorkspace));
+  report.rootDraftPersistence = { encodedRootWorkspace, rootDraftKey };
   assert(rootDraftKey && JSON.parse(report.rootDraftStorageBeforeRestart[rootDraftKey])
     .scopes.__draft__?.text?.includes('PI_IMAGE_ROOT: retain this unsent image'),
   'The visible root text must already be persisted before a quick app close');
