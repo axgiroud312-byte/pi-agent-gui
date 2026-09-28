@@ -38,6 +38,7 @@ import {
 } from "./remoteCdn.js";
 import { getElectronAppPath, isElectronAppPackaged } from "./desktopElectronApp.js";
 import { buildDesktopProfileRuntimeEnv } from "./desktopProductProfile.js";
+import { resolvePackagedResourcesHostEnv } from "./desktopPackagedResourcesEnv.js";
 
 const isLocalDevelopmentRuntime = !isElectronAppPackaged();
 export const desktopRuntimeEnv: ZCodeRuntimeEnv = isLocalDevelopmentRuntime
@@ -541,6 +542,13 @@ export function buildHostProcessEnv(hostProcessLocalEnv: Record<string, string>)
 
   return {
     ...inheritedEnv,
+    // Electron utility processes do not expose process.resourcesPath consistently. Pass the
+    // trusted packaged directory explicitly so a normal shortcut/double-click launch can find
+    // resources/glm/zcode.cjs without depending on the caller's current working directory.
+    ...resolvePackagedResourcesHostEnv({
+      isPackaged: packagedDesktop,
+      resourcesPath: process.resourcesPath,
+    }),
     // OTLP 凭据只定向传到 host；host 初始化 services 时会立即捕获并从 process.env 清除，
     // 后续只在启动 Agent 时短暂注入，不会进入 Bash/MCP/tool env。
     ...agentTelemetryEnv,
