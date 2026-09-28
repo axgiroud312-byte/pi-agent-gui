@@ -10,6 +10,15 @@
 - 不得因用户暂缓验收而伪造 #34 或后续 Issue 的人工通过、关闭 Issue、合并 Draft PR 或正式发布。
 - 缺少在线账号、OAuth 人工回调、真实 llama.cpp/GGUF 或安装权限时，明确记录待最终验收项，但继续所有不依赖这些条件的开发。
 
+## 2026-09-28 08:02 继续开发断点（下方 07:39 等均为历史快照）
+
+- 主分支 `issue-34-native-pi-rpc` 当前 HEAD `9ae1413` 已普通推送；本文件和 `coverage.md` 正在记账，其他受保护未跟踪项、`stash@{0}`、用户旧 unpacked 均未动。PR #39 仍 Draft，#14/#10 等需用户最终验收的 Issue OPEN。受控 3.14.0 安装基线只读预检再次 PASS：`D:/Temp/pi-agent-gui-installer-20260928-a/diagnostic-install-3`，owner 当前用户、146 项无 reparse、卸载注册匹配、Preview/目录进程 0；D: 约 232 GB 可用。最终 3.14.1 包、实际升级卸载未做。
+- #10/P31 `f31521c`：主树先红测固定 Pi 0.87.0 会拒绝的 `compaction.reserveTokens=-1` 原本被高级编辑器接受并覆写唯一 Pi settings.json；修后在写前用固定 Pi SettingsManager 的内存存储/读取器检查普通与 modelOverrides 压缩值、HTTP/WebSocket 超时，原字节保留。主树 `pi-settings-documents.test.ts` 9/9、typecheck、定向 lint、desktop `build:no-runtime-assets` PASS。`scripts/pi-settings-gui-smoke.mjs` 已加 GUI 拒绝值断言，**桌面槽仍待运行**，不能报 GUI 绿。
+- #14/D04 `9ae1413` 已主树整合/普通推送：React 组件红绿覆盖保存 A 未 ACK 时续写 B、A→另一文件 B、A→B→A 同内容草稿、FILE_CHANGED；主树 `node scripts/pi-file-save-race-react.mjs` PASS、typecheck PASS。最终隔离原生 GUI `D:/Temp/pi-file-save-race-gui-green4-20260928/pi-file-save-race-gui-report.json` 用固定 Pi 0.87.0 真实 RPC 两回合和真实 Host 文件保存延迟 ACK 1800 ms，B 保留于 editor/localStorage、磁盘仅提交 A、重开/再保存、页面/进程清理全绿。#14 Issue 技术评论已写，仍 OPEN。主树整合后完整 GUI/包内待统一复验。
+- #27/P32/D06 独立树 `D:/Temp/pi-agent-gui-settings-corrupt-20260928` 已先红证实合法 JSON 单字段 schema 错误或 EACCES 读失败会把原设置覆写；严格读初版又使原生 GUI 全黑。现修为普通界面读取显示保留原文件/修复提示、所有更新/迁移/新 Pi 启动严格拒绝损坏配置，不让原离线选择变成默认联网。纯合同已 8/8、typecheck PASS；原生 GUI `D:/Temp/pi-settings-corrupt-gui-green-20260928-a/pi-desktop-settings-corrupt-gui-report.json` 两阶段证实原字节/可见错误、手工修复重启恢复项目和固定 Pi 一回合、两次退出零残留。最终聚焦提交/主树整合仍待。
+- #4/#9 Shell/Transfer 跨会话异步泄漏由独立树 `D:/Temp/pi-agent-gui-shell-transfer-scope-20260928` 的 headless React 先红后绿：A shell 命令/输出/Stop 可串到 B，A 私密分享预览可闪现 B；修复按发起 session/target/ticket 归属，迟到分享 token 按 A target discard。纯测/typecheck/build 已绿，原生 GUI 首跑因隔离 CLI 存储准备产物缺失停在入口（页面错误/强杀/残留零），代理正补齐产物再跑，**不得称 GUI 已绿**。完成后再合入。
+- 下一步收 #27 和 Shell/Transfer 聚焦 SHA、主树复测及 coverage/Issue/PR；跑主树设置无效值 GUI、固定 Pi 全顺序/typecheck/lint/build/delivery 与 Standards/Spec 审查；最终新隔离目录 3.14.1 unpacked/NSIS、包内 GUI/进程清理、受控 3.14.0→3.14.1 升级卸载。在线账号人工回调/动态 provider GUI 登录、真实 GGUF/router、物理 IME、实际 Gist、用户统一验收各自保持未验。
+
 ## 2026-09-28 07:39 继续开发断点（下方 07:31 等均为历史快照）
 
 - 主分支 `issue-34-native-pi-rpc` 当前代码 HEAD `3a433eb` 已普通推送；本文件与 `coverage.md` 记账中。PR #39 仍 Draft，需人工验收的 Issues OPEN；主目录受保护未跟踪 `%SystemDrive%/`、`用`、锁定 `packages/desktop/dist-pi-incremental/`，`stash@{0}`、用户旧 `packages/desktop/dist/win-unpacked` 均未动。所有最终包/安装结果仍未完成，不能沿用旧 3.14.0 基线。

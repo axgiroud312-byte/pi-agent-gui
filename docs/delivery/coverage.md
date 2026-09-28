@@ -42,14 +42,14 @@
 | P28 | 部分源码 GUI 与设置路径通过 | `pi-long-scroll-two-sessions-main-e83956d-20260928`、`pi-ime-main-b76d7f8-20260928` 证实主题视口、快捷键、焦点；#10 设置 GUI 证实显示配置保存。 | 帮助/changelog/退出各入口全矩阵、物理 IME、完整同状态原版对照及最终包待验。 |
 | P29 | 本机 npm 实际更新通过，Git 更新未验 | `72eae71`、`D:/Temp/pi-npm-package-update-main-72eae71-20260928/pi-npm-package-update-gui-report.json` 证实本机 registry 1.0.0→1.1.0、真实模板推理、重复更新无重载、卸载；本地包/Git tag 安装另见 #12。 | 固定 Pi 的 Git ref 更新会在自管 clone 用 `reset --hard`/`clean`，按用户禁令未运行；本机 registry 不代表公共 npm，最终包待验。 |
 | P30 | 重载/加载选项代表路径通过 | #6 bridge `66e1763` 与 #12 资源 GUI 证实 reload 后固定 Pi 命令目录重读、临时包过滤。 | theme/provider 目录刷新、旧 context 失效诊断和精确 flags 全矩阵待验，最终包待验。 |
-| P31 | 来源与冲突保护通过，完整字段待验 | `ecd801b`、`D:/Temp/pi-settings-scope-gui-20260928-b/pi-settings-gui-report.json` 证实用户/项目来源、未知字段保留、外部写冲突拒绝；`3a433eb` 将来源表明确限定为文件已配置值，标出 Pi CLI TUI 专属项，不冒充 Pi 默认值或运行中 `get_state`。 | retry/cache/images/tools/network 等“完整 Pi 设置”未逐字段证实；非协作写者的最终 SHA→rename 窗口非原子，最终包待验。 |
+| P31 | 来源、冲突和 Pi 拒绝值保护通过，完整字段待验 | `ecd801b`、`D:/Temp/pi-settings-scope-gui-20260928-b/pi-settings-gui-report.json` 证实用户/项目来源、未知字段保留、外部写冲突拒绝；`3a433eb` 将来源表明确限定为文件已配置值，标出 Pi CLI TUI 专属项。`f31521c` 先红测证实 Pi 会拒绝的 `compaction.reserveTokens=-1` 原本会写入唯一 settings.json；修后用固定 Pi 的设置读取器在替换前检查压缩参数/模型覆盖与超时，服务测试 9/9、typecheck/build/定向 lint 通过。 | 全部字段与在线行为未逐项验证；新拒绝值的原生 GUI 脚本已写、仍待运行。非协作写者的最终 SHA→rename 窗口非原子，最终包待验。 |
 | P32 | trust 与新 Pi 子进程网络偏好通过 | #10 设置 GUI 证实未信任项目；`3a433eb` 的固定 Pi 子进程合同与 `D:/Temp/pi-settings-launch-gui-20260928-b/pi-settings-gui-report.json` 证实联网/离线和 Pi 版本检查三态选择持久化、真实子进程环境/cwd 与推理；#27 隐私诊断另见 P33。 | 遥测、全部联网路径及桌面更新设置仍需分别验证；已运行会话不受新选择影响，最终包待验。 |
 | P33 | 版本/目录/隐私诊断代表路径通过 | `f44a5d1` 模型目录刷新；`9bfbaf2`、`8be4045` 的 `D:/Temp/pi-diagnostics-gui-20260928-b/pi-diagnostics-gui-report.json` 证实白名单预览、复制与用户主动打开页面。 | 报告未上传；Pi 维护/实际更新、最终包待验。 |
 | P34 | 启动/设置与自定义存储代表路径通过 | #10 的 `D:/Temp/pi-settings-main-integrated-20260927/pi-settings-gui-report.json` 证实用户/项目配置、信任与 Pi 新会话推理；`D:/Temp/pi-custom-session-dir-gui-20260928-g/pi-custom-session-dir-gui-report.json` 证实项目 sessionDir、CLI 热/冷互通和重启续接；`3a433eb` 证实新 Pi 子进程的两项网络偏好与目录解析共用同一次环境快照。 | 其余资源/Pi 路径和启动 flag 的真实 GUI 全矩阵未证；TUI/print/JSON 模式只属于 Pi CLI，最终包待验。 |
 | D01 | 源码 GUI 通过 | `D:/Temp/pi-main-full-postresources-20260927/pi-native-gui-report.json` 证实两项目选择、同名图片隔离。 | 最终包与用户实际项目待验。 |
 | D02 | 源码 GUI 通过 | 同一项目报告证实会话与布局恢复；`D:/Temp/pi-long-scroll-two-sessions-main-e83956d-20260928/pi-long-scroll-gui-report.json` 证实两会话交错。 | 最终包、完整同状态原版视觉对照待验。 |
 | D03 | 源码 GUI 代表路径通过 | P01 图片草稿原字节与重启、`82eb531` 文件引用 Pi 输入及 `pi-ime-main-b76d7f8-20260928` 中文合成输入。 | 物理 IME、异常断电与最终包待验。 |
-| D04 | 预览/必要编辑代表路径通过 | `D:/Temp/pi-agent-integrated-green8-20260927/pi-native-gui-report.json` 证实有界 UTF-8 编辑/SHA 冲突与草稿恢复；`D:/Temp/pi-file-reference-gui-20260928-h/pi-file-reference-gui-report.json` 证实文件引用/预览。 | Office/其它媒体及未知格式外开、最终包待验。 |
+| D04 | 预览/必要编辑及保存竞态恢复源码 GUI 通过 | `D:/Temp/pi-agent-integrated-green8-20260927/pi-native-gui-report.json` 证实有界 UTF-8 编辑/SHA 冲突与草稿恢复；`D:/Temp/pi-file-reference-gui-20260928-h/pi-file-reference-gui-report.json` 证实文件引用/预览。`9ae1413` 的 React 红绿覆盖保存中续写、跨文件、A→B→A 同内容及 FILE_CHANGED；`D:/Temp/pi-file-save-race-gui-green4-20260928/pi-file-save-race-gui-report.json` 固定 Pi 原生 GUI 证实真实 Host 保存 ACK 延迟 1800 ms 期间新草稿/磁盘/重开/再次保存及清洁退出。 | Office/其它媒体及未知格式外开、主树整合后 GUI 与最终包待验。 |
 | D05 | 设置与合成键盘路径通过 | `pi-settings-scope-gui-20260928-b`、`pi-ime-main-b76d7f8-20260928` 与弹窗焦点报告。 | 物理中文 IME、完整快捷键/视觉矩阵及最终包待验。 |
 | D06 | 源码恢复、Host 构建与安装器合同通过，最终交付待验 | `8b47391` 的 NSIS/manifest/known-folder 合同主树 14/14；`3de8356` 先以隔离 Host 产物红测复现子路径外部化启动失败，再主树 production build 与 `host-storage-startup-bundle.test.mjs` 1/1 通过；自定义存储 GUI 两次进程清理见 P17；旧隔离 3.14.0 基线已安装。 | 本 HEAD 对应 unpacked/NSIS、包内 GUI、覆盖升级/卸载尚未执行；旧基线不能代替最终安装。 |
 | V01 | 最终包待验 | D01/D06 的源码 GUI 和旧 3.14.0 诊断基线仅为前置证据。 | 最终 exe 的项目→Pi→退出→恢复尚无同一包完整报告。 |
@@ -62,7 +62,7 @@
 | V08 | 源码 GUI 资源路径与跨会话编辑隔离通过，包/配置仍部分 | P21/P22/P29 的 Pi 模板/context、本机 npm 真实更新、trust 与 reload 报告；`pi-resources-main-aa14fe4-20260928` 证实 B 不继承 A 的未保存文本/草稿。 | Git ref 更新、目录刷新全类、启动 flags、最终包待验。 |
 | V09 | 声明的代表扩展类别与 Stop 通过 | P23–P27 的四类交互、状态/widget、动态/覆盖工具、输入变换与兼容表；green5/firstinput-final 证实弹窗 Stop 和恢复。 | 复杂 TUI 有明确不支持/受限项；并行/Stop 全矩阵和最终包待验。 |
 | V10 | 本地转移通过，实际分享未做 | P16 的 JSONL/HTML/复制/导入续接 GUI；假发布器证实预览确认字节。 | 未由用户主动创建真实 Gist 和取得链接，最终包待验。 |
-| V11 | 文件代表路径通过 | D04 的真实文件引用进入 Pi、预览、保存冲突与草稿恢复 GUI。 | 工具回链和未知格式的全矩阵、最终包待验。 |
+| V11 | 文件代表路径及保存竞态源码 GUI 通过 | D04 的真实文件引用进入 Pi、预览、保存冲突与草稿恢复 GUI；`9ae1413`/`pi-file-save-race-gui-green4-20260928` 证实保存 ACK 迟到时仍保留后续编辑和持久草稿。 | 工具回链和未知格式的全矩阵、最终包待验。 |
 | V12 | 源码 GUI 的合成 UX/诊断通过，最终交付待验 | `pi-long-scroll-two-sessions-main-e83956d-20260928` 的 24 回合/120 行/24 帧与 p95 10.5ms；P28、P33 的 IME/诊断报告。 | 物理 IME、空/运行/等待/失败原版同状态成对截图、最终包/安装器与用户体验待验。 |
 
 ### 本次补录的聚焦增量
