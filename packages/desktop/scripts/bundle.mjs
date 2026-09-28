@@ -12,6 +12,12 @@ import process from "node:process";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { collectRuntimeModuleClosureEntries } from "./runtime-dependency-closure.mjs";
+import {
+  createAsarPackageManifestReader,
+  FIXED_PI_PACKAGE_NAME,
+  FIXED_PI_PACKAGE_VERSION,
+  resolveFixedPiNestedPackagePlan,
+} from "./fixed-pi-nested-packages.mjs";
 import { resolveDesktopProductIdentity } from "./desktop-product-identity.mjs";
 import {
   findDesktopNativePackageViolations,
@@ -27,6 +33,8 @@ import { resolveIntranetDepsBaseUrl } from "../../../scripts/intranetDefaults.mj
 const desktopRoot = resolve(import.meta.dirname, "..");
 const workspaceRoot = resolve(desktopRoot, "../..");
 const requireFromBundle = createRequire(import.meta.url);
+const desktopPackageJson = requireFromBundle("../package.json");
+const asarApi = requireFromBundle("@electron/asar");
 const asarCliPath = resolve(
   dirname(requireFromBundle.resolve("@electron/asar/package.json")),
   "bin",
@@ -669,6 +677,25 @@ function verifyPackagedRuntimeDependencies(os, arch) {
     requiredRuntimeModules,
     runtimeModuleLookupRoots,
   );
+  if (desktopPackageJson.dependencies?.[FIXED_PI_PACKAGE_NAME] !== FIXED_PI_PACKAGE_VERSION) {
+    throw new Error(`Desktop must pin ${FIXED_PI_PACKAGE_NAME}@${FIXED_PI_PACKAGE_VERSION}`);
+  }
+  const sourcePiPackageRoot = runtimeModules.find(entry => entry.moduleName === FIXED_PI_PACKAGE_NAME)?.sourceModulePath;
+  if (!sourcePiPackageRoot) {
+    throw new Error(`Fixed Pi source package not found: ${FIXED_PI_PACKAGE_NAME}`);
+  }
+  const nestedPiPlan = resolveFixedPiNestedPackagePlan({
+    sourcePiPackageRoot,
+    expectedPiVersion: FIXED_PI_PACKAGE_VERSION,
+    readPackagedManifest: createAsarPackageManifestReader({
+      archivePath: appAsarPath,
+      asarEntries,
+      extractFile: asarApi.extractFile,
+    }),
+  });
+  if (nestedPiPlan.toCopy.length > 0) {
+    throw new Error(`打包产物缺少固定 Pi 嵌套依赖或版本不符: ${nestedPiPlan.toCopy.map(entry => `${entry.moduleName}@${entry.version}`).join(", ")}: ${appAsarPath}`);
+  }
   const resolvableRuntimeModules = runtimeModules.filter((entry) => {
     if (!entry.sourceModulePath) {
       // afterPack 会按当前平台实际可解析依赖注入；bundle 校验也需保持同口径。

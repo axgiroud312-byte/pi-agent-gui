@@ -11,6 +11,13 @@ import { resolveNativeSearchReleasePlan } from "../../scripts/native-search-tool
 import { getBuildMetadata } from "./scripts/build-metadata.mjs";
 import { collectRuntimeModuleClosureEntries } from "./scripts/runtime-dependency-closure.mjs";
 import {
+  copyFixedPiNestedPackages,
+  createAsarPackageManifestReader,
+  FIXED_PI_PACKAGE_NAME,
+  FIXED_PI_PACKAGE_VERSION,
+  resolveFixedPiNestedPackagePlan,
+} from "./scripts/fixed-pi-nested-packages.mjs";
+import {
   resolvePackagedNodePtyPrebuildPath,
   restoreTargetNodePtyPrebuild,
 } from "./scripts/node-pty-package-assets.mjs";
@@ -113,7 +120,9 @@ let nsisMultiUserOriginalSource = null;
 let nsisMultiUserPath = null;
 let nsisProcessCheckOriginalSource = null;
 let nsisProcessCheckPath = null;
-const desktopElectronVersion = requireFromConfig("./package.json").devDependencies.electron;
+const desktopPackageJson = requireFromConfig("./package.json");
+const desktopElectronVersion = desktopPackageJson.devDependencies.electron;
+const asarApi = requireFromConfig("@electron/asar");
 const asarCliPath = resolve(
   dirname(requireFromConfig.resolve("@electron/asar/package.json")),
   "bin",
@@ -324,6 +333,23 @@ function resolveMissingRuntimeModules(appAsarPath) {
     REQUIRED_ASAR_RUNTIME_MODULES,
     runtimeModuleLookupRoots,
   );
+  if (desktopPackageJson.dependencies?.[FIXED_PI_PACKAGE_NAME] !== FIXED_PI_PACKAGE_VERSION) {
+    throw new Error(`Desktop must pin ${FIXED_PI_PACKAGE_NAME}@${FIXED_PI_PACKAGE_VERSION}`);
+  }
+  const sourcePiPackageRoot = runtimeModules.find(entry => entry.moduleName === FIXED_PI_PACKAGE_NAME)?.sourceModulePath;
+  if (!sourcePiPackageRoot) {
+    throw new Error(`Fixed Pi source package not found: ${FIXED_PI_PACKAGE_NAME}`);
+  }
+  const nestedPiPlan = resolveFixedPiNestedPackagePlan({
+    sourcePiPackageRoot,
+    expectedPiVersion: FIXED_PI_PACKAGE_VERSION,
+    readPackagedManifest: createAsarPackageManifestReader({
+      archivePath: appAsarPath,
+      asarEntries,
+      extractFile: asarApi.extractFile,
+    }),
+    allowMissingPackagedPi: true,
+  });
   const resolvableRuntimeModules = runtimeModules.filter((entry) => {
     if (!entry.sourceModulePath) {
       // 不同平台/安装布局下，部分运行时依赖可能被裁剪或未落到本次打包工作区。
@@ -338,7 +364,7 @@ function resolveMissingRuntimeModules(appAsarPath) {
     }
     return true;
   });
-  return resolvableRuntimeModules.filter((entry) => {
+  const missingRootModules = resolvableRuntimeModules.filter((entry) => {
     const { moduleName } = entry;
     const moduleRoot = `/node_modules/${moduleName}`;
     if (asarEntrySet.has(moduleRoot)) {
@@ -351,6 +377,7 @@ function resolveMissingRuntimeModules(appAsarPath) {
     }
     return true;
   });
+  return { missingRootModules, nestedPiPlan };
 }
 
 async function injectHoistedRuntimeModulesIntoAsar(context) {
@@ -359,16 +386,16 @@ async function injectHoistedRuntimeModulesIntoAsar(context) {
     throw new Error(`打包产物缺少 app.asar: ${appAsarPath}`);
   }
 
-  const missingRuntimeModules = runTimedSync("afterPack:scan-missing-runtime-modules", () =>
+  const { missingRootModules, nestedPiPlan } = runTimedSync("afterPack:scan-missing-runtime-modules", () =>
     resolveMissingRuntimeModules(appAsarPath),
   );
-  if (missingRuntimeModules.length === 0) {
+  if (missingRootModules.length === 0 && nestedPiPlan.toCopy.length === 0) {
     // 之前 afterPack 每次都完整 extract/pack app.asar，即使运行时依赖已经齐全也会重复重写。
     // 这会把每次打包固定拉长十几秒到几十秒。先做缺失扫描，只有真的缺包才执行重写流程。
     console.log("[afterPack] runtime modules already complete, skip app.asar rewrite");
     return;
   }
-  console.log(`[afterPack] missing runtime modules count=${missingRuntimeModules.length}`);
+  console.log(`[afterPack] missing root runtime modules=${missingRootModules.length}, Pi nested modules=${nestedPiPlan.toCopy.length}`);
 
   // CI 会把 TMPDIR 指到项目内 .tmp，GitLab get_sources/clean 可能在脚本启动前清掉该目录。
   // afterPack 里重写 app.asar 同样依赖 mkdtempSync，必须自己兜底创建父目录，避免后续签名阶段只看到 .app 消失。
@@ -383,7 +410,7 @@ async function injectHoistedRuntimeModulesIntoAsar(context) {
     mkdirSync(stagingNodeModulesDir, { recursive: true });
 
     runTimedSync("afterPack:copy-runtime-modules", () => {
-      for (const runtimeModule of missingRuntimeModules) {
+      for (const runtimeModule of missingRootModules) {
         const { moduleName, sourceModulePath } = runtimeModule;
         const targetModulePath = resolve(stagingNodeModulesDir, moduleName);
 
@@ -406,6 +433,7 @@ async function injectHoistedRuntimeModulesIntoAsar(context) {
         rmSync(targetModulePath, { force: true, recursive: true });
         cpSync(sourceModulePath, targetModulePath, { recursive: true });
       }
+      copyFixedPiNestedPackages({ stagingDir, entries: nestedPiPlan.toCopy });
     });
 
     await runTimedAsync("afterPack:asar-pack", () =>
