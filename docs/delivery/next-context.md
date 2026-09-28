@@ -10,6 +10,12 @@
 - 不得因用户暂缓验收而伪造 #34 或后续 Issue 的人工通过、关闭 Issue、合并 Draft PR 或正式发布。
 - 缺少在线账号、OAuth 人工回调、真实 llama.cpp/GGUF 或安装权限时，明确记录待最终验收项，但继续所有不依赖这些条件的开发。
 
+## 2026-09-28 最终顺序回归通过，等待全新隔离包
+
+- 主树在 `6fe7e91` 的固定 Pi 0.87.0 顺序全集 `D:/Temp/pi-main-sequential-6fe7e91-20260928.log` 为 **261/261 PASS，进程 exit 0**。先前 `dc2037b` 的 260/261 仅 `pi-fork-clone.test.ts` 过期修订夹具误用 `range.atRevision + 1`，异步 Pi 投影后该值恰是当前修订；`6fe7e91` 只将夹具改为确实过期的 `range.atRevision - 1` 并核验较新决策，生产代码未改。旧失败日志不得算最终通过。
+- 独立 Standards/Spec 审查已核对最新 #1/#34/#3–#14/#25–#28 和 P01–P34、D01–D06、V01–V12 共 52 项，未发现新的**可复现** P0/P1 或账本过度声明。针对 Composer/Dialog 跨会话原始快照的疑虑，隔离固定 Pi GUI 三轮未复现 B 泄漏、Stop 或队列误路由；无红测，不把理论风险标为已修复。仍保留未来时序复测边界。
+- 本段写入时主树 HEAD `6fe7e91`，此文档聚焦提交及最终 HEAD 校验/普通推送仍待完成。最终包和实际安装结果仍**未产生**，不能以早期 3.14.1 诊断包替代。下一步完成最终 HEAD 校验后，只在新建 `D:/Temp/pi-agent-gui-final-<HEAD8>-20260928` 构建；核验包内版本/commit、unpacked 固定 Pi GUI/清洁退出，再预检受控 3.14.0 并执行 3.14.1 覆盖升级、已安装 GUI、卸载与外部数据保留。结果写入 `D:/Temp/pi-agent-gui-final-validation-20260928.json`。旧运行中的用户 unpacked、受保护未跟踪项和 stash 均不可碰。
+
 ## 2026-09-28 09:30 最终回归/打包断点（以下 09:00 等为历史快照）
 
 - 主树 `issue-34-native-pi-rpc` 当前代码 HEAD `dc2037b`，待把本轮 P04 证据文档聚焦提交/普通推送；PR #39 仍 Draft、待用户统一验收的 Issue OPEN。受保护未跟踪 `%SystemDrive%/`、`用`、锁定 `packages/desktop/dist-pi-incremental/`，`stash@{0}` 和用户运行中的旧 `packages/desktop/dist/win-unpacked` 未动；以实际 Git 状态为准。
