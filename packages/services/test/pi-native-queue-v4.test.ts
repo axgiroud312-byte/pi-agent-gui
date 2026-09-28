@@ -17,6 +17,7 @@ test("native queue keeps Pi-owned image through Stop, reorder, edit, send now an
     const image = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC", "base64");
     const imagePath = join(root, "queued.png");
     const bodies: string[] = [];
+    let heldFirst = false;
     let releaseFirst: (() => void) | undefined;
     let firstArrived: (() => void) | undefined;
     const first = new Promise<void>(resolve => { firstArrived = resolve; });
@@ -24,7 +25,10 @@ test("native queue keeps Pi-owned image through Stop, reorder, edit, send now an
       let body = "";
       for await (const chunk of request) body += chunk.toString();
       bodies.push(body);
-      if (body.includes("HOLD_RUN")) {
+      // A later Pi model request includes this earlier user message in its
+      // history. Only the first request represents the deliberately held run.
+      if (!heldFirst && body.includes("HOLD_RUN")) {
+        heldFirst = true;
         firstArrived?.();
         await new Promise<void>(resolve => { releaseFirst = resolve; });
       }
@@ -132,8 +136,10 @@ test("native queue keeps Pi-owned image through Stop, reorder, edit, send now an
       // projection are both observable. Resume only after Pi has finished the
       // promoted image run; otherwise this test races the very run it created.
       let promotedSettled = false;
+      let lastPiState: Record<string, unknown> = {};
       for (let i = 0; i < 150; i++) {
         const state = await supervisor.getState(sessionId);
+        lastPiState = state;
         if (!supervisor.getSession(sessionId)?.foregroundExecutionId &&
           state.isStreaming === false && state.isCompacting === false) {
           promotedSettled = true;
@@ -141,7 +147,9 @@ test("native queue keeps Pi-owned image through Stop, reorder, edit, send now an
         }
         await new Promise(resolve => setTimeout(resolve, 50));
       }
-      assert.equal(promotedSettled, true, "the promoted Pi image run must settle before queue resume");
+      assert.equal(promotedSettled, true, JSON.stringify({ state: lastPiState,
+        view: supervisor.getSession(sessionId), catalog: await supervisor.getQueueCatalog(sessionId),
+        modelRequests: bodies.length }));
       // A late Pi history/queue projection can advance the snapshot revision
       // between a GUI read and its command. A stale CAS must not unpause or
       // consume Pi's remaining item; the caller can retry the fresh revision.
