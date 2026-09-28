@@ -5,6 +5,7 @@ const { EventEmitter } = require('node:events');
 const { PassThrough } = require('node:stream');
 const { syncBuiltinESMExports } = require('node:module');
 const { promisify } = require('node:util');
+const { createHash } = require('node:crypto');
 const append = fs.appendFileSync.bind(fs);
 
 function record(type, detail) {
@@ -14,9 +15,58 @@ function record(type, detail) {
 require('./guard-boundaries.cjs')(record);
 
 const registry = command => /\breg(?:\.exe)?\b|regedit|Register-ScheduledTask|Set-ItemProperty|New-ItemProperty/i.test(String(command));
+function fakeGhPublish(args) {
+  const command = args[1];
+  if (!Array.isArray(command) || command.length !== 4 ||
+    command[0] !== 'gist' || command[1] !== 'create' || command[2] !== '--public=false') {
+    throw new Error('Native smoke fake publisher refused an unexpected gh command');
+  }
+  const callback = args.findLast(arg => typeof arg === 'function');
+  if (!callback) throw new Error('Native smoke fake publisher requires an execFile callback');
+  const child = new EventEmitter();
+  child.stdout = new PassThrough(); child.stderr = new PassThrough(); child.stdin = new PassThrough();
+  let done = false;
+  let timer;
+  const finish = (error, stdout = '', stderr = '') => {
+    if (done) return;
+    done = true;
+    clearInterval(timer);
+    child.stdout.end(stdout); child.stderr.end(stderr);
+    callback(error, stdout, stderr);
+    child.emit('exit', error ? 1 : 0, null);
+    child.emit('close', error ? 1 : 0, null);
+  };
+  child.kill = () => { finish(new Error('Native smoke fake publisher cancelled')); return true; };
+  process.nextTick(() => {
+    try {
+      const bytes = fs.readFileSync(command[3]);
+      const encoded = /<script id="session-data" type="application\/json">([A-Za-z0-9+/=]+)<\/script>/u
+        .exec(bytes.toString('utf8'))?.[1];
+      const reviewedData = encoded ? Buffer.from(encoded, 'base64').toString('utf8') : '';
+      const detail = { args: command.slice(0, 3), sha256: createHash('sha256').update(bytes).digest('hex'),
+        bytes: bytes.length, containsA: reviewedData.includes('A_PRIVATE_SHARE_RECEIPT'),
+        containsB: reviewedData.includes('B_PUBLIC_SHARE_RECEIPT') };
+      fs.appendFileSync(process.env.NATIVE_SMOKE_FAKE_GH_CALLED, JSON.stringify(detail) + '\n');
+      record('fake-gh-publish', { sha256: detail.sha256, bytes: detail.bytes });
+      const started = Date.now();
+      timer = setInterval(() => {
+        if (fs.existsSync(process.env.NATIVE_SMOKE_FAKE_GH_RELEASE)) {
+          fs.writeFileSync(process.env.NATIVE_SMOKE_FAKE_GH_COMPLETED, 'completed');
+          finish(null, process.env.NATIVE_SMOKE_FAKE_GH_URL + '\n');
+        } else if (Date.now() - started > 30_000) {
+          finish(new Error('Native smoke fake publisher was not released'));
+        }
+      }, 30);
+    } catch (error) { finish(error); }
+  });
+  return child;
+}
 for (const method of ['spawn', 'exec', 'execFile', 'fork', 'spawnSync', 'execSync', 'execFileSync']) {
   const original = cp[method];
   cp[method] = function (...args) {
+    if (method === 'execFile' && args[0] === 'gh' && process.env.NATIVE_SMOKE_FAKE_GH_CALLED) {
+      return fakeGhPublish(args);
+    }
     if (!registry(args.slice(0, 2).flat().join(' '))) {
       if (['spawn', 'fork', 'execFile'].includes(method)) {
         const index = Array.isArray(args[1]) ? 2 : 1;

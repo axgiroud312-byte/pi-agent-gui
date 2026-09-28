@@ -23,6 +23,13 @@ interface TransferUiState {
 const emptyState = (scope: number): TransferUiState => ({ scope, open: false, preview: null,
   busy: false, error: null, notice: null, share: null, shareConfirmed: false });
 
+interface PublishedShareReceipt { viewerUrl: string; gistUrl: string }
+// A confirmed remote write can finish after navigation. Keep only its returned
+// links in this renderer, under the exact source workspace/session identity.
+// Nothing is written to settings, drafts, diagnostics, or another session.
+const publishedShareReceipts = new Map<string, PublishedShareReceipt[]>();
+const sharePublishFailures = new Map<string, string>();
+
 export function PiSessionTransferDialog({ sessionId, workspacePath, workspaceIdentity,
   beforeSwitch, onImported }: {
   sessionId: string;
@@ -35,6 +42,7 @@ export function PiSessionTransferDialog({ sessionId, workspacePath, workspaceIde
   const platform = useOptionalPlatform();
   const [state, setState] = useState<TransferUiState>(() => emptyState(0));
   const guard = useRef(new PiSessionDialogGuard()).current;
+  const publishingTokens = useRef(new Set<string>());
   const target = useMemo(() => ({ workspacePath, sessionId,
     ...(workspaceIdentity ? { workspaceIdentity } : {}) }),
   [workspacePath, sessionId, workspaceIdentity]);
@@ -43,6 +51,8 @@ export function PiSessionTransferDialog({ sessionId, workspacePath, workspaceIde
   const { open, preview, busy, error, notice, share, shareConfirmed } =
     state.scope === scope ? state : emptyState(scope);
   const sharePreview = share?.value ?? null;
+  const receipts = publishedShareReceipts.get(targetKey) ?? [];
+  const publishFailure = sharePublishFailures.get(targetKey) ?? null;
 
   const write = useCallback((ticket: PiSessionDialogTicket,
     update: (current: TransferUiState) => TransferUiState) => {
@@ -68,7 +78,7 @@ export function PiSessionTransferDialog({ sessionId, workspacePath, workspaceIde
   // The saved preview carries its source target. Cleanup must never send an A
   // token to the currently rendered B session after a navigation.
   useEffect(() => () => {
-    if (share) void zcodeAgentService.discardPiSessionShare({
+    if (share && !publishingTokens.current.has(share.value.token)) void zcodeAgentService.discardPiSessionShare({
       ...share.target, token: share.value.token });
   }, [share, zcodeAgentService]);
 
@@ -151,17 +161,28 @@ export function PiSessionTransferDialog({ sessionId, workspacePath, workspaceIde
   const publishShare = async () => {
     if (!share || !shareConfirmed || busy) return;
     const actionShare = share;
+    if (publishingTokens.current.has(actionShare.value.token)) return;
     const ticket = guard.begin(targetKey);
+    // The publisher owns this token until it settles. A navigation cleanup
+    // must not race its one explicitly confirmed external request.
+    publishingTokens.current.add(actionShare.value.token);
     write(ticket, current => ({ ...current, busy: true, error: null }));
     try {
       const result = await zcodeAgentService.publishPiSessionShare({ ...actionShare.target,
         token: actionShare.value.token, confirmed: true });
-      write(ticket, current => ({ ...current, share: null, shareConfirmed: false,
-        notice: `已创建秘密链接（持链接者可访问）：${result.viewerUrl}；Gist：${result.gistUrl}` }));
+      publishedShareReceipts.set(targetKey, [
+        ...(publishedShareReceipts.get(targetKey) ?? []),
+        { viewerUrl: result.viewerUrl, gistUrl: result.gistUrl },
+      ]);
+      sharePublishFailures.delete(targetKey);
+      write(ticket, current => ({ ...current, share: null, shareConfirmed: false }));
     } catch (cause) {
-      write(ticket, current => ({ ...current, share: null, shareConfirmed: false,
-        error: cause instanceof Error ? cause.message : String(cause) }));
-    } finally { write(ticket, current => ({ ...current, busy: false })); }
+      sharePublishFailures.set(targetKey, cause instanceof Error ? cause.message : String(cause));
+      write(ticket, current => ({ ...current, share: null, shareConfirmed: false }));
+    } finally {
+      publishingTokens.current.delete(actionShare.value.token);
+      write(ticket, current => ({ ...current, busy: false }));
+    }
   };
 
   const setDialogOpen = (next: boolean) => {
@@ -172,6 +193,18 @@ export function PiSessionTransferDialog({ sessionId, workspacePath, workspaceIde
     } else {
       setState(current => ({ ...(current.scope === scope ? current : emptyState(scope)), open: true }));
     }
+  };
+
+  const clearReceipt = (index: number) => {
+    const current = publishedShareReceipts.get(targetKey) ?? [];
+    const next = current.filter((_item, position) => position !== index);
+    if (next.length) publishedShareReceipts.set(targetKey, next);
+    else publishedShareReceipts.delete(targetKey);
+    setState(previous => ({ ...previous }));
+  };
+  const clearPublishFailure = () => {
+    sharePublishFailures.delete(targetKey);
+    setState(previous => ({ ...previous }));
   };
 
   return <>
@@ -185,7 +218,19 @@ export function PiSessionTransferDialog({ sessionId, workspacePath, workspaceIde
           <DialogDescription>读取当前固定 Pi 会话的真实 JSONL。导入仅接受 Pi 0.87 的当前 JSONL 版本，生成新的 Pi 会话 ID，不改选中的源文件。</DialogDescription>
         </DialogHeader>
         {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
+        {publishFailure ? <p role="alert" data-testid="pi-share-publish-error" className="text-sm text-destructive">
+          分享请求未确认成功：{publishFailure} 请检查 GitHub Gist 列表后再决定是否重试。
+          <Button type="button" variant="outline" size="sm" onClick={clearPublishFailure}>清除发布提示</Button>
+        </p> : null}
         {notice ? <p role="status" className="break-all text-sm">{notice}</p> : null}
+        {receipts.length ? <section data-testid="pi-share-receipts" className="space-y-2 rounded border border-border p-3 text-sm">
+          <p>本会话已创建的秘密链接（仅在本次应用运行期间保留）。清除本地收据不会删除 GitHub Gist。</p>
+          {receipts.map((receipt, index) => <div key={`${receipt.gistUrl}:${index}`} className="space-y-1">
+            <p role="status" className="break-all">查看链接：{receipt.viewerUrl}</p>
+            <p className="break-all">Gist：{receipt.gistUrl}</p>
+            <Button type="button" variant="outline" size="sm" onClick={() => clearReceipt(index)}>清除本地收据</Button>
+          </div>)}
+        </section> : null}
         {preview ? <div className="space-y-2 rounded border border-border p-3 text-sm">
           <p>会话 ID：<code className="break-all">{preview.sessionId}</code></p>
           <p>原始历史：{preview.messageCount} 条消息，{preview.bytes.toLocaleString()} 字节。</p>

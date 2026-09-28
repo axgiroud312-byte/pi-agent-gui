@@ -30,6 +30,7 @@ const entry = `
   const transferRoot = createRoot(document.getElementById('transfer'));
   window.__shellCalls = []; window.__stops = []; window.__discardCalls = [];
   window.__exportCalls = []; window.__importCalls = []; window.__beforeSwitch = [];
+  window.__publishCalls = [];
   window.__testPlatform = { selectDirectory: async () => 'C:/unused', selectFile: async () => 'C:/unused.jsonl' };
   window.__testServices = { zcodeAgentService: {
     runPiShell(params) {
@@ -49,7 +50,13 @@ const entry = `
     discardPiSessionShare(params) { window.__discardCalls.push(params); return Promise.resolve(); },
     exportPiSession(params) { window.__exportCalls.push(params); return Promise.resolve({ path: 'C:/unused/export.jsonl' }); },
     importPiSession(params) { window.__importCalls.push(params); return Promise.resolve({ sessionId: 'IMPORTED' }); },
-    publishPiSessionShare() { throw new Error('publish forbidden in this test'); },
+    publishPiSessionShare(params) {
+      window.__publishCalls.push(params);
+      return new Promise((resolve, reject) => {
+        window.__resolvePublish = resolve;
+        window.__rejectPublish = reject;
+      });
+    },
   } };
   window.__renderShell = sessionId => flushSync(() => shellRoot.render(
     <PiShellDialog sessionId={sessionId} workspacePath="C:/fixture"
@@ -57,6 +64,7 @@ const entry = `
   window.__renderTransfer = sessionId => flushSync(() => transferRoot.render(
     <PiSessionTransferDialog sessionId={sessionId} workspacePath="C:/fixture"
       beforeSwitch={() => window.__beforeSwitch.push(sessionId)} onImported={() => {}} />));
+  window.__removeTransfer = () => flushSync(() => transferRoot.render(null));
 `;
 
 const result = await build({
