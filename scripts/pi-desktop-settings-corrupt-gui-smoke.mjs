@@ -62,10 +62,20 @@ try {
     lastWorkspaceSession: [], receivePreviewUpdates: true }));
   await launch();
   await page.waitForTimeout(5_000);
-  for (const name of [/^(使用 API key|Use API key)$/, /^(暂时跳过|Skip for now)$/,
-    /^(退出引导|Exit onboarding)$/]) {
-    const button = page.getByRole('button', { name, exact: true });
-    if (await button.isVisible()) { await button.click(); await page.waitForTimeout(1_500); }
+  for (let attempt = 0; attempt < 60; attempt++) {
+    if (await page.getByTestId('onboarding-page').isVisible()) {
+      await page.getByTestId('onboarding-page').getByRole('button',
+        { name: /^(跳过|Skip)$/, exact: true }).click();
+      await page.waitForTimeout(1000);
+      continue;
+    }
+    if (await page.getByRole('button', { name: '添加项目', exact: true }).isVisible()) break;
+    for (const name of [/^(使用 API key|Use API key)$/, /^(暂时跳过|Skip for now)$/,
+      /^(退出引导|Exit onboarding)$/]) {
+      const button = page.getByRole('button', { name, exact: true });
+      if (await button.isVisible()) { await button.click(); break; }
+    }
+    await page.waitForTimeout(1000);
   }
   await page.getByRole('button', { name: '添加项目', exact: true }).click();
   await page.getByRole('menuitem', { name: '打开文件夹', exact: true }).click();
