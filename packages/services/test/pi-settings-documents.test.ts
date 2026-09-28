@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -61,6 +61,35 @@ test("Pi settings respect Pi's lock directory and leave the original document in
       scope: "user", expectedRevision: before.user.revision, text: '{"defaultModel":"mine"}',
     }), /busy/i);
     assert.equal(await readFile(path, "utf8"), '{"defaultModel":"before"}');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("Pi settings retry a transient Windows replace denial without losing the original", async () => {
+  const root = await mkdtemp(join(tmpdir(), "pi-settings-replace-"));
+  const agentDir = join(root, "agent");
+  try {
+    await mkdir(agentDir);
+    const path = join(agentDir, "settings.json");
+    const original = '{"defaultModel":"before","unknown":true}';
+    await writeFile(path, original);
+    const before = await readPiSettingsDocuments(root, { PI_CODING_AGENT_DIR: agentDir });
+    let attempts = 0;
+    const saved = await savePiSettingsDocument(root, { PI_CODING_AGENT_DIR: agentDir }, {
+      scope: "user", expectedRevision: before.user.revision,
+      text: '{"defaultModel":"after","unknown":true}',
+    }, { renameFile: async (source, destination) => {
+      attempts++;
+      if (attempts < 3) {
+        assert.equal(await readFile(path, "utf8"), original);
+        throw Object.assign(new Error("transient Windows reader lock"), { code: "EPERM" });
+      }
+      await rename(source, destination);
+    } });
+    assert.equal(attempts, 3);
+    assert.equal(saved.effective.defaultModel, "after");
+    assert.deepEqual((await readdir(agentDir)).filter(name => name.endsWith(".tmp") || name.endsWith(".lock")), []);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

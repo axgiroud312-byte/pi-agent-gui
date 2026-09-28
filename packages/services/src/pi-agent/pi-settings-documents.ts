@@ -180,7 +180,7 @@ export async function savePiSettingsDocument(
   workspacePath: string, env: NodeJS.ProcessEnv, request: {
     scope: PiSettingsScope; expectedRevision: string; text: string; rpcArgs?: string[];
   },
-  options: { beforeCommit?: () => Promise<void> } = {},
+  options: { beforeCommit?: () => Promise<void>; renameFile?: typeof rename } = {},
 ): Promise<PiSettingsSnapshot> {
   if (request.scope !== "user" && request.scope !== "project") throw new Error("Invalid Pi settings scope");
   parseObject(request.text);
@@ -211,11 +211,27 @@ export async function savePiSettingsDocument(
       await temporary.close();
     }
     await options.beforeCommit?.();
-    if ((await readDocument(request.scope, path)).revision !== current.revision) {
-      throw new Error("Pi settings conflict: the file changed outside this editor; reload before saving");
+    const stagedPath = temporaryPath;
+    // Windows can briefly deny replacing a Pi settings file while another
+    // process reads it. Keep the original and the staged bytes intact while
+    // retrying; recheck the revision before every attempt so a real external
+    // edit still wins over this editor.
+    const delays = [0, 50, 100, 200, 400, 800, 800];
+    for (let attempt = 0; attempt < delays.length; attempt++) {
+      if (delays[attempt]) await new Promise(resolve => setTimeout(resolve, delays[attempt]));
+      if ((await readDocument(request.scope, path)).revision !== current.revision) {
+        throw new Error("Pi settings conflict: the file changed outside this editor; reload before saving");
+      }
+      try {
+        await (options.renameFile ?? rename)(stagedPath, path);
+        temporaryPath = undefined;
+        break;
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        if (!(["EPERM", "EACCES", "EBUSY"] as const).some(value => value === code) ||
+          attempt === delays.length - 1) throw error;
+      }
     }
-    await rename(temporaryPath, path);
-    temporaryPath = undefined;
   } finally {
     if (temporaryPath) await unlink(temporaryPath).catch(() => {});
     if (locked) await rmdir(`${path}.lock`);
