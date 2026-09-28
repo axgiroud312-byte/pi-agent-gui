@@ -11,15 +11,25 @@ import { startPiModel } from './native-smoke/pi-model.mjs';
 import { configurePiProfile, isolatePiPackage, verifyPiPackageCleanup } from './native-smoke/pi-package.mjs';
 
 const f = await fixture();
+const packagedExecutable = process.env.NATIVE_PI_PACKAGED_EXE;
+if (packagedExecutable) {
+  f.electronPath = packagedExecutable;
+  f.workspace = join(f.home, '.zcode', 'workspace', 'default');
+  await mkdir(f.workspace, { recursive: true });
+  f.env.ZCODE_DESKTOP_PROFILE_HOME = f.home;
+  delete f.env.NODE_OPTIONS;
+}
+const launchArgs = packagedExecutable ? []
+  : [fileURLToPath(new URL('./native-smoke/bootstrap.cjs', import.meta.url)), '--lang=zh-CN'];
 const model = await startPiModel();
 const report = { at: new Date().toISOString(), piVersion: '0.87.0', phases: [], pageErrors: [],
-  boundary: 'native Electron GUI -> Host -> fixed Pi RPC extension -> Pi JSONL; deterministic loopback model is available but unused' };
+  boundary: `${packagedExecutable ? 'packaged' : 'source'} native Electron GUI -> Host -> fixed Pi RPC extension -> Pi JSONL; deterministic loopback model is available but unused` };
 let app;
 
 async function openHistory(phase, sessionId, sendCommand) {
   const logs = [];
   app = await f.playwright._electron.launch({ executablePath: f.electronPath,
-    args: [fileURLToPath(new URL('./native-smoke/bootstrap.cjs', import.meta.url)), '--lang=zh-CN'],
+    args: launchArgs,
     cwd: f.root, env: f.env, timeout: 60_000 });
   app.process().stdout?.on('data', chunk => logs.push(String(chunk)));
   app.process().stderr?.on('data', chunk => logs.push(String(chunk)));
@@ -31,12 +41,14 @@ async function openHistory(phase, sessionId, sendCommand) {
     const button = page.getByRole('button', { name, exact: true });
     if (await button.isVisible()) { await button.click(); await page.waitForTimeout(1200); }
   }
-  const addProject = page.getByRole('button', { name: '添加项目', exact: true });
-  if (await addProject.isVisible()) {
-    await addProject.click();
-    await page.getByRole('menuitem', { name: '打开文件夹', exact: true }).click();
+  if (!packagedExecutable) {
+    const addProject = page.getByRole('button', { name: '添加项目', exact: true });
+    if (await addProject.isVisible()) {
+      await addProject.click();
+      await page.getByRole('menuitem', { name: '打开文件夹', exact: true }).click();
+    }
+    await page.getByTestId('composer-workspace-trigger').filter({ hasText: 'parity-workspace' }).waitFor();
   }
-  await page.getByTestId('composer-workspace-trigger').filter({ hasText: 'parity-workspace' }).waitFor();
   await page.locator(`[data-testid="task-item-${sessionId}"]`).click();
   await page.getByText('PI25_BASELINE', { exact: true }).waitFor();
   if (sendCommand) {
@@ -73,9 +85,18 @@ try {
   const extensionDir = join(f.env.PI_CODING_AGENT_DIR, 'extensions');
   await mkdir(extensionDir, { recursive: true });
   const extensionPath = fileURLToPath(new URL('../examples/pi-gui-compat/extension.ts', import.meta.url));
-  const extensionSource = (await readFile(extensionPath, 'utf8'))
-    .replace('"@earendil-works/pi-ai"', JSON.stringify(import.meta.resolve('@earendil-works/pi-ai')))
-    .replace('"@earendil-works/pi-tui"', JSON.stringify(import.meta.resolve('@earendil-works/pi-tui')));
+  const sourceExtension = await readFile(extensionPath, 'utf8');
+  const extensionSource = packagedExecutable
+    // A self-contained extension makes the installed Pi/Chord runtime resolve its own dependencies.
+    ? `const sampleImage = ${JSON.stringify(/const sampleImage = "([^"]+)"/u.exec(sourceExtension)?.[1])};\n`
+      + `export default function(pi) { pi.registerCommand('gui-compat-image', { description: 'Packaged custom image', handler: async () => {\n`
+      + `pi.sendMessage({ customType: 'pi-gui-compat.image', display: true, content: [`
+      + `{ type: 'text', text: 'before image' }, { type: 'image', mimeType: 'image/png', data: sampleImage },`
+      + `{ type: 'text', text: 'after image' }], details: { image: 'sample', source: 'Pi' } },`
+      + `{ triggerTurn: false }); } }); }\n`
+    : sourceExtension
+      .replace('"@earendil-works/pi-ai"', JSON.stringify(import.meta.resolve('@earendil-works/pi-ai')))
+      .replace('"@earendil-works/pi-tui"', JSON.stringify(import.meta.resolve('@earendil-works/pi-tui')));
   await writeFile(join(extensionDir, 'pi-gui-compat.ts'), extensionSource);
   const originalImage = /const sampleImage = "([^"]+)"/u.exec(extensionSource)?.[1];
   assert(originalImage, 'representative extension must contain its fixed PNG fixture');
