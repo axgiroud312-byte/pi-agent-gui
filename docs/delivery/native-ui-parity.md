@@ -105,6 +105,7 @@
 | --- | --- | --- | --- |
 | PI04-S1 | 输入区运行时有草稿时，原控制簇显示“发送/加入队列”，Stop 按钮被替换 | 在同一原生控制簇并排显示 Stop 和发送；图文入队由固定 Pi 0.87.0 的版本化队列兼容补丁处理，不以清空草稿换取 Stop | 主分支 `D:/Temp/pi-queue-main-415003e-20260928-b/pi-queue-gui-report.json` 已证实同一 Pi 双队列、图片原 SHA、运行中 Stop；旧截图 `test-results/native-parity/product/pi-native-busy-image-refused.png` 仅为补丁前状态。最终包、原版同状态成对截图与用户验收待做。关联 #3/#4。 |
 | PI04-S2 | 原生队列可单项编辑、删除、拖拽与继续 | 保留原生队列面板；Pi steering 和 followUp 的同一权威快照都在面板中提供编辑、删除、立即发送及各 lane 内重排。steering 仍在时间线显示待引导状态；面板行加“引导/队列”标识，跨 lane 拖拽不暗中改变发送语义。Stop 在 Pi 内暂停，重启后只保留图文恢复证据，不伪装为可执行队列 | 主分支 `D:/Temp/pi-queue-main-415003e-20260928-b/pi-queue-gui-report.json` 证实队列编辑、取回、重排、立即发送和重启恢复；`D:/Temp/pi-queue-handled-gui-20260928-c/pi-extension-input-transform-gui-report.json` 证实扩展 handled 带图输入由 Pi 消费、UI 明确立即处理，原始 PNG SHA 未变。handled 的附件持久化取决于扩展；最终包、原版同状态成对截图和用户试用待验。旧只读队列截图是补丁前历史证据。 |
+| PI04-S6 | 原生暂停队列面板的“继续”按钮 | 保留同一按钮。固定 Pi 对旧 revision 拒绝 `setAutoDrain` 时，仅在同一会话、同一暂停队列内容和顺序仍可核实时，等待权威快照同步并最多重试两次；队列改变或仍未获 Pi 接受时显示提示，不由界面改写队列。拒绝不记成操作成功 | #3/#4 的快照竞争恢复；`packages/ui/test/piQueueResume.test.ts` 先红后绿，覆盖同会话重试、会话/队列变化和连续拒绝。`D:/Temp/pi-queue-resume-ui-20260928-b/pi-queue-gui-report.json` 固定 Pi 0.87.0 原生 GUI 通过普通暂停恢复、双 lane 图文和重启恢复，页面错误为零，三次 Electron/Pi 清理均无强杀和残留；GUI 本次没有稳定触发 stale 分支，原版同状态成对截图、最终包及用户验收待验。 |
 
 ## #5 未发送图片草稿恢复差异（开发增量，未最终验收）
 

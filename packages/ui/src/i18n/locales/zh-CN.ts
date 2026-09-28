@@ -4099,6 +4099,8 @@ const zhCN: Record<string, string> = {
   "chat.queue.paused.generic": "队列已暂停",
   "chat.queue.resume": "继续",
   "chat.queue.resume.description": "继续按顺序自动发送队列中的内容",
+  "chat.queue.resumeChanged": "会话或队列已变化，或状态尚未同步；未自动继续。请核对当前队列后再点继续。",
+  "chat.queue.resumeFailed": "Pi 未确认继续队列。请核对队列和历史后重试。",
   "chat.queue.piReadOnlyActive": "这些消息由 Pi 排队。当前 Pi 版本无法安全地逐条编辑、重排或移除。",
   "chat.queue.piReadOnlyStopped": "停止时 Pi 已取回这些消息，不会自动续发；如需重发，请将文本复制到输入框。",
   "chat.queue.sendConfirm.title": "发送消息？",

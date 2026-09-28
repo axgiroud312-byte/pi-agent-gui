@@ -136,6 +136,7 @@ import { PI_AUTH_CATALOG_CHANGED_EVENT } from "@/lib/piAuthCatalogEvent.js";
 import { PiResourcesDialog } from "@/v4/PiResourcesDialog.js";
 import { PiShellDialog } from "@/v4/PiShellDialog.js";
 import { ConversationQueuePanel } from "@/v4/ConversationQueuePanel.js";
+import { resumeUnchangedPiQueue, type PiQueueResumeResult } from "@/v4/piQueueResume.js";
 import { PiQueueEditRecoveryBanner } from "@/v4/PiQueueEditRecoveryBanner.js";
 import { canDiscardPiQueueEditRecovery, decidePiQueueEditRestore,
   discardPiQueueEditRecovery, preparePiQueueEditRecovery,
@@ -2434,6 +2435,13 @@ export function SessionPane({
   const effectiveSessionId = sessionId ?? pendingFirstInputSessionId ?? prewarmSessionId;
   const activeSessionIdRef = useRef(effectiveSessionId);
   activeSessionIdRef.current = effectiveSessionId;
+  const activeSessionGenerationRef = useRef({ sessionId: effectiveSessionId, generation: 0 });
+  if (activeSessionGenerationRef.current.sessionId !== effectiveSessionId) {
+    activeSessionGenerationRef.current = {
+      sessionId: effectiveSessionId,
+      generation: activeSessionGenerationRef.current.generation + 1,
+    };
+  }
   const showModelChangeNotice = useCallback(
     (sourceModel: ModelSelectionSource | null, targetModel: ModelSelectionSource) => {
       // Bug 原因：草稿尚未形成实际会话，模型选择本身已经在 composer 中可见；
@@ -3533,20 +3541,18 @@ export function SessionPane({
     [dispatchCommand, sessionId],
   );
 
-  const handleResumeQueue = useCallback(async () => {
-    const current = snapshotRef.current;
-    if (!sessionId || !current || current.queue.autoDrain || current.queue.items.length === 0) {
-      return;
-    }
-    const ack = await dispatchCommand(
-      "setAutoDrain",
-      { autoDrain: true },
-      sessionId,
-      current.revision,
-    );
-    if (ack.status !== "accepted" && ack.status !== "noop") {
-      logger.warn(`[v4-pane] 恢复暂停队列被拒绝: ${ack.status} ${ack.reasonCode ?? ""}`);
-    }
+  const handleResumeQueue = useCallback(async (): Promise<PiQueueResumeResult> => {
+    if (!sessionId) return "changed";
+    const result = await resumeUnchangedPiQueue({
+      targetSessionId: sessionId,
+      getCurrent: () => ({ sessionId: activeSessionIdRef.current,
+        generation: activeSessionGenerationRef.current.generation,
+        snapshot: snapshotRef.current }),
+      dispatch: baseRevision => dispatchCommand("setAutoDrain", { autoDrain: true },
+        sessionId, baseRevision),
+    });
+    if (result !== "accepted") logger.warn(`[v4-pane] 恢复暂停队列未确认: ${result}`);
+    return result;
   }, [dispatchCommand, sessionId]);
 
   // 配置面 CAS 命令的 stale 重试。模型→思考深度→模式连续操作时，前一条命令的

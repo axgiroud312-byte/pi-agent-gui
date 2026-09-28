@@ -24,10 +24,12 @@ import type { QueueState } from "@zcode/shared/zcode-protocol-v4";
 import { ArrowUpFromLine, GripVertical, PaperclipIcon, PencilIcon, Trash2Icon } from "lucide-react";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { Button } from "@/components/ui/button.js";
+import { toast } from "@/components/ui/toast.js";
 import { cn } from "@/components/lib/utils.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { runUserAction, runUserActionAsync } from "@/lib/userActionTelemetry.js";
 import { resolveQueueReorderAnchor } from "@/v4/queueReorder.js";
+import type { PiQueueResumeResult } from "@/v4/piQueueResume.js";
 
 interface ConversationQueuePanelProps {
   queue: QueueState;
@@ -42,7 +44,7 @@ interface ConversationQueuePanelProps {
   /** 拖拽排序项（reorderQueueItem，移动到锚点前；null=队尾）。 */
   onMoveItem?: (queueItemId: string, beforeQueueItemId: string | null) => void;
   /** 暂停队列恢复：CLI setAutoDrain(true)，idle 立即消费、busy 仅武装。 */
-  onResume?: () => Promise<void> | void;
+  onResume?: () => Promise<PiQueueResumeResult> | PiQueueResumeResult;
   /** Explain a read-only projection when the runtime cannot safely mutate individual items. */
   readOnlyNotice?: string;
 }
@@ -281,17 +283,24 @@ function ConversationQueuePanelImpl({
   const handleResume = useCallback(async () => {
     if (!onResume || resumePending) return;
     setResumePending(true);
+    const outcome: { result: PiQueueResumeResult } = { result: "failed" };
     try {
       await runUserActionAsync({
         input: { featureId: "conversation.queue.policy", action: "resume", trigger: "button" },
-        operation: () => Promise.resolve(onResume()),
+        operation: async () => {
+          outcome.result = await onResume();
+          if (outcome.result !== "accepted") throw new Error(`Pi queue resume ${outcome.result}`);
+        },
         completed: { resultSource: "authority_ack" },
         failureStage: "queue_resume",
       });
+    } catch {
+      toast(intl.formatMessage({ id: outcome.result === "changed"
+        ? "chat.queue.resumeChanged" : "chat.queue.resumeFailed" }));
     } finally {
       setResumePending(false);
     }
-  }, [onResume, resumePending]);
+  }, [intl, onResume, resumePending]);
 
   if (queue.items.length === 0) return null;
   // 补回 v4 视觉迁移时漏掉的旧队列面板 blur 层，让列表保持贴合 composer 的磨砂背景。

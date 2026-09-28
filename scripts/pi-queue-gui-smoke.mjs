@@ -91,23 +91,34 @@ async function openNative(f, logs, report) {
   const app = await f.playwright._electron.launch({ executablePath: f.electronPath,
     args: [fileURLToPath(new URL('./native-smoke/bootstrap.cjs', import.meta.url)), '--lang=zh-CN'],
     cwd: f.root, env: f.env, timeout: 60_000 });
-  app.process().stdout?.on('data', chunk => logs.push(String(chunk)));
-  app.process().stderr?.on('data', chunk => logs.push(String(chunk)));
-  const page = await app.firstWindow();
-  page.setDefaultTimeout(15_000);
-  page.on('pageerror', error => report.pageErrors.push(error.stack || error.message));
-  await page.waitForTimeout(6000);
-  for (const name of [/^(使用 API key|Use API key)$/, /^(暂时跳过|Skip for now)$/, /^(退出引导|Exit onboarding)$/]) {
-    const button = page.getByRole('button', { name, exact: true });
-    if (await button.isVisible()) { await button.click(); await page.waitForTimeout(1800); }
+  try {
+    app.process().stdout?.on('data', chunk => logs.push(String(chunk)));
+    app.process().stderr?.on('data', chunk => logs.push(String(chunk)));
+    const page = await app.firstWindow();
+    page.setDefaultTimeout(15_000);
+    page.on('pageerror', error => report.pageErrors.push(error.stack || error.message));
+    await page.waitForTimeout(6000);
+    for (const name of [/^(使用 API key|Use API key)$/, /^(暂时跳过|Skip for now)$/, /^(退出引导|Exit onboarding)$/]) {
+      const button = page.getByRole('button', { name, exact: true });
+      if (await button.isVisible()) { await button.click(); await page.waitForTimeout(1800); }
+    }
+    if (await page.getByRole('button', { name: '添加项目', exact: true }).isVisible()) {
+      await page.getByRole('button', { name: '添加项目', exact: true }).click();
+      await page.getByRole('menuitem', { name: '打开文件夹', exact: true }).click();
+    }
+    await composer(page).waitFor();
+    assert.match(page.url(), /^file:/, 'Use the packaged production renderer entry, not Vite dev server');
+    return { app, page };
+  } catch (error) {
+    // openNative can fail before returning app to the caller. The launch still
+    // belongs to this fixture and must be closed before a second GUI run.
+    try { report.startupCleanup = await closeOwned(app, f); }
+    catch (cleanupError) {
+      report.startupCleanupError = String(cleanupError);
+      await app.close().catch(() => {});
+    }
+    throw error;
   }
-  if (await page.getByRole('button', { name: '添加项目', exact: true }).isVisible()) {
-    await page.getByRole('button', { name: '添加项目', exact: true }).click();
-    await page.getByRole('menuitem', { name: '打开文件夹', exact: true }).click();
-  }
-  await composer(page).waitFor();
-  assert.match(page.url(), /^file:/, 'Use the packaged production renderer entry, not Vite dev server');
-  return { app, page };
 }
 
 async function selectControlledModel(page, f, model) {
@@ -408,7 +419,10 @@ try {
   console.error(error);
   await app?.windows()[0]?.screenshot({ path: join(f.output, 'pi-queue-failure.png') }).catch(() => {});
 } finally {
-  try { report.cleanup = await closeOwned(app, f); assertCleanExit(report.cleanup, logs, 'Final'); }
+  try {
+    report.cleanup = app ? await closeOwned(app, f) : report.startupCleanup;
+    if (report.cleanup) assertCleanExit(report.cleanup, logs, 'Final');
+  }
   catch (error) { report.cleanupError = String(error); process.exitCode = 1; }
   await model.close();
   report.modelRequests = model.requests;
