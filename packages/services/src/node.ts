@@ -429,6 +429,7 @@ import type {
   RuntimeTaskReporter,
 } from "#src/process/runtimeProcessLifecycle.js";
 import { initializeRuntimeProcessEnv } from "./runtime-tools/runtimeCommandEnv.js";
+import { packagedPiEsbuildEnv } from "./pi-agent/pi-packaged-esbuild-env.js";
 import {
   buildAgentEndpointOriginEnv,
   buildAgentRuntimeEnv,
@@ -2087,6 +2088,7 @@ export function createLocalServices(options: {
   const zcodeAgentService = options?.piAgentRpcEntry
     ? createPiAgentService(options.piAgentRpcEntry,
       new PiSessionSupervisor({ piEntry: options.piAgentRpcEntry,
+        env: packagedPiEsbuildEnv(options.piAgentRpcEntry),
         launchPreferences: async () => {
           // A degraded desktop setting.json is shown with temporary UI
           // defaults. It must never silently turn a saved Pi offline choice

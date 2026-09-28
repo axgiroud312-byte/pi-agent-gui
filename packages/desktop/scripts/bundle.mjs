@@ -4,7 +4,7 @@
 // 该脚本聚合了打包入口、重试策略、计时与产物校验逻辑，短期内拆文件会影响 CI 稳定性。
 // 先保留集中实现，后续再按“参数解析/构建执行/产物校验”拆分模块。
 
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { readdirSync, statSync } from "node:fs";
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -12,6 +12,12 @@ import process from "node:process";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { collectRuntimeModuleClosureEntries } from "./runtime-dependency-closure.mjs";
+import {
+  CHORD_PACKAGE_NAME,
+  chordEsbuildBinaryPath,
+  filterChordEsbuildFromRootRuntimeModules,
+  resolveChordEsbuildPlan,
+} from "./chord-esbuild-package.mjs";
 import {
   createAsarPackageManifestReader,
   FIXED_PI_NESTED_PACKAGE_OWNERS,
@@ -688,6 +694,30 @@ function verifyPackagedRuntimeDependencies(os, arch) {
   if (desktopPackageJson.dependencies?.[FIXED_PI_PACKAGE_NAME] !== FIXED_PI_PACKAGE_VERSION) {
     throw new Error(`Desktop must pin ${FIXED_PI_PACKAGE_NAME}@${FIXED_PI_PACKAGE_VERSION}`);
   }
+  const chordSourcePackageRoot = runtimeModules.find(entry => entry.moduleName === CHORD_PACKAGE_NAME)?.sourceModulePath;
+  const chordEsbuildPlan = resolveChordEsbuildPlan({
+    sourceChordPackageRoot: chordSourcePackageRoot,
+    targetPlatformKey,
+    readPackagedManifest,
+    asarEntries,
+  });
+  if (chordEsbuildPlan.toCopy.length > 0 || chordEsbuildPlan.nonTargetPlatforms.length > 0) {
+    throw new Error(`打包产物 Chord esbuild 版本或平台不完整: ${appAsarPath}`);
+  }
+  const privateEsbuildModule = `/node_modules/${CHORD_PACKAGE_NAME}/node_modules/esbuild/lib/main.js`;
+  const binaryRelativePath = join('node_modules', CHORD_PACKAGE_NAME, 'node_modules', '@esbuild', targetPlatformKey, chordEsbuildBinaryPath(targetPlatformKey)).replaceAll('\\', '/');
+  const binaryEntry = asarEntriesWithPackState.find(entry => entry.path === `/${binaryRelativePath}`);
+  const binaryPath = join(`${appAsarPath}.unpacked`, binaryRelativePath);
+  if (!asarEntries.includes(privateEsbuildModule) || binaryEntry?.packState !== 'unpack' || !existsSync(binaryPath)) {
+    throw new Error(`打包产物缺少可加载的 Chord esbuild API 或 unpacked 原生二进制: ${appAsarPath}`);
+  }
+  const targetOs = os === 'win' ? 'win32' : os === 'mac' ? 'darwin' : os;
+  if (process.platform === targetOs && process.arch === arch) {
+    const binaryVersion = execFileSync(binaryPath, ['--version'], { encoding: 'utf8' }).trim();
+    if (binaryVersion !== chordEsbuildPlan.version) {
+      throw new Error(`Chord esbuild host/binary version mismatch: ${chordEsbuildPlan.version} / ${binaryVersion}`);
+    }
+  }
   const sourcePackageRoots = new Map(runtimeModules
     .filter(entry => FIXED_PI_NESTED_PACKAGE_OWNERS.includes(entry.moduleName))
     .map(entry => [entry.moduleName, entry.sourceModulePath]));
@@ -709,7 +739,7 @@ function verifyPackagedRuntimeDependencies(os, arch) {
   if (missingNestedModules.length > 0) {
     throw new Error(`打包产物缺少嵌套运行时依赖或版本不符: ${missingNestedModules.map(entry => `${entry.ownerPackageName}/${entry.moduleName}@${entry.version}`).join(", ")}: ${appAsarPath}`);
   }
-  const resolvableRuntimeModules = runtimeModules.filter((entry) => {
+  const resolvableRuntimeModules = filterChordEsbuildFromRootRuntimeModules(runtimeModules).filter((entry) => {
     if (!entry.sourceModulePath) {
       // afterPack 会按当前平台实际可解析依赖注入；bundle 校验也需保持同口径。
       // 否则在某些 CI 安装布局中会出现“注入阶段已跳过，但校验阶段仍硬失败”的误报。

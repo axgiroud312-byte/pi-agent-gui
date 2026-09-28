@@ -75,6 +75,14 @@ import {
 } from "./scripts/desktop-native-package-policy.mjs";
 import { replaceAppAsarFromStaging } from "./scripts/app-asar-repack.mjs";
 import {
+  CHORD_PACKAGE_NAME,
+  copyChordEsbuildPackages,
+  copyChordPackageWithoutNestedModules,
+  filterChordEsbuildFromRootRuntimeModules,
+  pruneNonTargetEsbuildPlatforms,
+  resolveChordEsbuildPlan,
+} from "./scripts/chord-esbuild-package.mjs";
+import {
   patchNsisInstallSectionFile,
   restoreNsisInstallSectionFileSync,
 } from "./scripts/patch-nsis-install-section.mjs";
@@ -344,6 +352,13 @@ function resolveMissingRuntimeModules(appAsarPath) {
   if (desktopPackageJson.dependencies?.[FIXED_PI_PACKAGE_NAME] !== FIXED_PI_PACKAGE_VERSION) {
     throw new Error(`Desktop must pin ${FIXED_PI_PACKAGE_NAME}@${FIXED_PI_PACKAGE_VERSION}`);
   }
+  const chordSourcePackageRoot = runtimeModules.find(entry => entry.moduleName === CHORD_PACKAGE_NAME)?.sourceModulePath;
+  const chordEsbuildPlan = resolveChordEsbuildPlan({
+    sourceChordPackageRoot: chordSourcePackageRoot,
+    targetPlatformKey: targetPlatform.key,
+    readPackagedManifest,
+    asarEntries,
+  });
   const sourcePackageRoots = new Map(runtimeModules
     .filter(entry => FIXED_PI_NESTED_PACKAGE_OWNERS.includes(entry.moduleName))
     .map(entry => [entry.moduleName, entry.sourceModulePath]));
@@ -363,7 +378,7 @@ function resolveMissingRuntimeModules(appAsarPath) {
     workspaceRoot,
     readPackagedManifest,
   });
-  const resolvableRuntimeModules = runtimeModules.filter((entry) => {
+  const resolvableRuntimeModules = filterChordEsbuildFromRootRuntimeModules(runtimeModules).filter((entry) => {
     if (!entry.sourceModulePath) {
       // 不同平台/安装布局下，部分运行时依赖可能被裁剪或未落到本次打包工作区。
       // 之前这里直接在 copy 阶段抛错会中断整个平台出包；改为记录告警并跳过该模块，
@@ -382,7 +397,11 @@ function resolveMissingRuntimeModules(appAsarPath) {
     workspaceRoot,
     readPackagedManifest,
   });
-  return { missingRootModules, nestedModulesToCopy: [...nestedPiPlan.toCopy, ...rootMinimatchPlan.toCopy, ...proxyAgentBasePlan.toCopy] };
+  return {
+    missingRootModules,
+    nestedModulesToCopy: [...nestedPiPlan.toCopy, ...rootMinimatchPlan.toCopy, ...proxyAgentBasePlan.toCopy],
+    chordEsbuildPlan,
+  };
 }
 
 async function injectHoistedRuntimeModulesIntoAsar(context) {
@@ -391,16 +410,17 @@ async function injectHoistedRuntimeModulesIntoAsar(context) {
     throw new Error(`打包产物缺少 app.asar: ${appAsarPath}`);
   }
 
-  const { missingRootModules, nestedModulesToCopy } = runTimedSync("afterPack:scan-missing-runtime-modules", () =>
+  const { missingRootModules, nestedModulesToCopy, chordEsbuildPlan } = runTimedSync("afterPack:scan-missing-runtime-modules", () =>
     resolveMissingRuntimeModules(appAsarPath),
   );
-  if (missingRootModules.length === 0 && nestedModulesToCopy.length === 0) {
+  if (missingRootModules.length === 0 && nestedModulesToCopy.length === 0 &&
+      chordEsbuildPlan.toCopy.length === 0 && chordEsbuildPlan.nonTargetPlatforms.length === 0) {
     // 之前 afterPack 每次都完整 extract/pack app.asar，即使运行时依赖已经齐全也会重复重写。
     // 这会把每次打包固定拉长十几秒到几十秒。先做缺失扫描，只有真的缺包才执行重写流程。
     console.log("[afterPack] runtime modules already complete, skip app.asar rewrite");
     return;
   }
-  console.log(`[afterPack] missing or invalid root runtime modules=${missingRootModules.length}, nested modules=${nestedModulesToCopy.length}`);
+  console.log(`[afterPack] missing or invalid root runtime modules=${missingRootModules.length}, nested modules=${nestedModulesToCopy.length}, Chord esbuild=${chordEsbuildPlan.toCopy.length}, non-target esbuild=${chordEsbuildPlan.nonTargetPlatforms.length}`);
 
   // CI 会把 TMPDIR 指到项目内 .tmp，GitLab get_sources/clean 可能在脚本启动前清掉该目录。
   // afterPack 里重写 app.asar 同样依赖 mkdtempSync，必须自己兜底创建父目录，避免后续签名阶段只看到 .app 消失。
@@ -436,9 +456,15 @@ async function injectHoistedRuntimeModulesIntoAsar(context) {
         // 所以在 afterPack 阶段直接重写 app.asar，先把这些运行时包补进去，再交给后续签名和出包。
         mkdirSync(dirname(targetModulePath), { recursive: true });
         rmSync(targetModulePath, { force: true, recursive: true });
-        cpSync(sourceModulePath, targetModulePath, { recursive: true });
+        if (moduleName === CHORD_PACKAGE_NAME) {
+          copyChordPackageWithoutNestedModules({ sourceModulePath, targetModulePath });
+        } else {
+          cpSync(sourceModulePath, targetModulePath, { recursive: true });
+        }
       }
       copyFixedPiNestedPackages({ stagingDir, entries: nestedModulesToCopy });
+      copyChordEsbuildPackages({ stagingDir, entries: chordEsbuildPlan.toCopy });
+      pruneNonTargetEsbuildPlatforms({ stagingDir, targetPlatformKey: targetPlatform.key });
     });
 
     await runTimedAsync("afterPack:asar-pack", () =>
