@@ -10,6 +10,13 @@
 - 不得因用户暂缓验收而伪造 #34 或后续 Issue 的人工通过、关闭 Issue、合并 Draft PR 或正式发布。
 - 缺少在线账号、OAuth 人工回调、真实 llama.cpp/GGUF 或安装权限时，明确记录待最终验收项，但继续所有不依赖这些条件的开发。
 
+## 2026-09-28 09:00 最终源码打包前断点（以下 08:30 等为历史快照）
+
+- 主树 `issue-34-native-pi-rpc` 当前代码 HEAD `7639f8e`，较 origin 超前 2 个聚焦提交，PR #39 仍 Draft，需用户验收的 Issue 保持 OPEN。`coverage.md`、本文件、`native-ui-parity.md` 正记账；主目录仅受保护的未跟踪 `%SystemDrive%/`、`用`、锁定 `packages/desktop/dist-pi-incremental/`，`stash@{0}` 及旧 `packages/desktop/dist/win-unpacked` 未触碰。以实际 Git 状态为准。
+- `2bdb342` 修复 #13/#25 跨会话旧 Pi 快照短暂泄漏，`7639f8e` 修复 #9 异步分享成功后 A→B 丢收据/泄漏风险。两者在隔离树先红绿，再合入主树；主树 React 快照合同、分享 headless 2/2、typecheck、lint（0 error/69 既有 warning）和桌面 `build:no-runtime-assets` PASS。主树固定 Pi 0.87.0 原生 GUI `D:/Temp/pi-session-scope-main-20260928-a/pi-session-snapshot-scope-gui-report.json` 的 B 私有内容泄漏 0，`D:/Temp/pi-share-receipt-main-20260928-a/pi-share-receipt-gui-report.json` 的本地延迟假发布仅一次、B 收据 0、回 A 可取，`D:/Temp/pi-transfer-main-20260928-a/pi-session-transfer-gui-report.json` 的真实 Pi 导入导出/续接 PASS；三组均 `pageErrors=[]`、`graceful=true`、`forced=[]`、`survivors=[]`。没有实际 Gist；收据仅当前 renderer 内存，进程重启需用户保存链接或到 GitHub 找回。
+- 代码 HEAD `6f5985e` 的固定 Pi 顺序回归 `D:/Temp/pi-main-sequential-6f5985e-20260928.log` 为 258/258 PASS；最新两个 UI 提交后的**最终 HEAD 全顺序**仍须重新运行，不能把中间 HEAD 的结果冒充最终版本。NSIS/Host 合同主树 15/15、delivery 本地/7 测试/`--github` 在中间 HEAD 已过，最终仍需复核。
+- 下一步：收最终只读 Standards/Spec 审查并修具体缺口；交付文档定稿与聚焦推送、Issue/PR 技术进度；最终 HEAD 的固定 Pi 顺序、typecheck/lint/build、delivery 本地/7/`--github`；新隔离目录构建 3.14.1 unpacked+NSIS，包内固定 Pi GUI/清理；按 `D:/Temp/pi-agent-gui-install-preflight-20260928.ps1` 复检受控 3.14.0 后实际覆盖升级、已安装 GUI、卸载和外部数据保留。用户旧进程/目录不碰。在线账号现场 OAuth 回调、真实 GGUF/router、物理 IME、实际 Gist、最终用户验收分别留界。
+
 ## 2026-09-28 08:30 主树收口断点（以下 08:02 等为历史快照）
 
 - 当前主树 `issue-34-native-pi-rpc` HEAD `84cdee2` 已普通推送到 origin，PR #39 仍 OPEN/Draft，需用户验收的 Issue OPEN。主树正在只改 `coverage.md`、本文件和 `native-ui-parity.md`；受保护未跟踪 `%SystemDrive%/`、`用`、锁住的 `packages/desktop/dist-pi-incremental/`，`stash@{0}` 和用户旧 `packages/desktop/dist/win-unpacked` 未动。以实际 Git 状态优先。

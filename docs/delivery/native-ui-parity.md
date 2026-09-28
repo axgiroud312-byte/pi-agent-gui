@@ -223,6 +223,8 @@ Pi 0.87.0 的公开 `update(source)` 没有作用域参数，会按包身份同�
 | PI04-09-S1 | 保留会话 pane 的原生 Shell 与导入导出 Dialog、原有 Stop 入口 | 异步命令/结果/分享预览按发起会话绑定；切到 B 不显示 A 的内容，A 的 Stop 只指向 A。分享 token 迟到时按 A 目标丢弃 | 这是 Pi 会话所有权的隔离修复，无新增 UI 布局。主树 `D:/Temp/pi-dialog-main-20260928-a/pi-dialog-session-isolation-gui-report.json` 固定 Pi GUI 证实 A/B 隔离及真实 Stop，页面错误/强杀/残留均零。实际 Gist 外发未测。 |
 | PI27-R1 | 原生 RootShell 中可见的提示区域与既有设置入口 | 桌面 `setting.json` 无法安全读取时显示原路径/修复提示，普通更新和新 Pi/Host 网络调用拒绝以默认值替代原网络偏好；外部修复后重启恢复 | 坏设置若静默变空可丢项目与隐私选择。主树 `D:/Temp/pi-settings-corrupt-main-20260928-c/pi-desktop-settings-corrupt-gui-report.json` 两阶段固定 Pi GUI 通过，原件不变、修复后恢复、两次清洁退出；备份后跨重启拒绝由 Host 合同验证。原版同状态成对截图待验。 |
 | PI27-R2 | 原生会话 pane 输入区上方的紧凑提示，保留 Lexical composer | 当前项目文字草稿聚合记录损坏时保留原始字节，提示新输入无法可靠保存，并仅由用户点击导出私有原记录；其它项目和图片原字节不受影响 | 原版没有此 Pi 草稿故障态；主树 `D:/Temp/pi-composer-damage-main-20260928-a/pi-composer-draft-damage-gui-report.json` 固定 Pi 两次 RPC、冷重启、逐字节下载、原记录不覆写和两次清洁退出通过。人工修复与原版同状态视觉对照待验。 |
+| PI13-S2 | 保留原生会话 pane、队列和扩展显示位置 | 切会话时，当前 Pi 快照、队列、状态/widget、导入分享头部必须属于当前 session ID；旧 A 快照迟到也不允许短暂投到 B | `2bdb342` 的主树 React 合同和 `D:/Temp/pi-session-scope-main-20260928-a/pi-session-snapshot-scope-gui-report.json` 固定 Pi GUI 以每次 DOM mutation 观察 B，A 私有扩展文本/队列泄漏 0，回 A 显示原状态；页面错误/强杀/残留均零。原版同状态视觉对照及最终包待验。 |
+| PI09-T3 | 沿用原生导入导出 Dialog、状态提示和链接控件 | 用户明确确认分享后，即使异步发布期间切到 B，成功收据只归发起会话 A，回 A 可复制 viewer/Gist 链接；B 无权看到 A 收据 | `7639f8e` 主树 headless 2/2、`D:/Temp/pi-share-receipt-main-20260928-a/pi-share-receipt-gui-report.json` 固定 Pi GUI 以本地延迟假发布器证实仅调用一次，B 每次 DOM mutation 均不见 A 链接，回 A 可取收据，清洁退出。未创建真实 Gist；收据只在本次 renderer 进程内，重启后需用户保存链接或从 GitHub 找回。原版视觉及最终包待验。 |
 
 ## 用户关卡记录
 
