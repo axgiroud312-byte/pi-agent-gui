@@ -198,6 +198,7 @@ function RootInner({
   const markOAuthSuccess = useZCodeStore((state) => state.markOAuthSuccess);
   const {
     settings: appSettings,
+    error: appSettingsError,
     refresh: refreshAppSettings,
     update: updateAppSettings,
   } = useSettings();
@@ -223,6 +224,18 @@ function RootInner({
         </Button>
       </div>
     ) : null;
+  const settingsReadErrorNode = isDesktop && appSettingsError ? (
+    <div role="alert" data-testid="desktop-settings-read-error"
+      className="fixed left-1/2 top-14 z-[1000] w-[min(40rem,calc(100vw-2rem))] -translate-x-1/2 rounded-lg border border-destructive/50 bg-surface-raised p-4 text-sm text-foreground shadow-xl">
+      <div className="font-semibold">本地设置无法安全读取，原文件未被覆盖</div>
+      <p className="mt-1 break-all text-foreground-subtle">{String(appSettingsError)}</p>
+      <p className="mt-2">修复或从备份恢复设置后，重新读取并重启应用，以恢复项目和会话。</p>
+      <Button type="button" variant="outline" size="sm" className="mt-3"
+        onClick={() => void refreshAppSettings()}>
+        <RefreshCw className="size-3.5" aria-hidden="true" />重新读取
+      </Button>
+    </div>
+  ) : null;
   const readRootModelSelectionView = useCallback(
     () => services.modelSelectionService.getView(),
     [services.modelSelectionService],
@@ -947,6 +960,7 @@ function RootInner({
     const loadingLabel = intl.formatMessage({ id: "common.loading" });
     return (
       <RootShell>
+        {settingsReadErrorNode}
         {rootModelSelectionErrorNode}
         {remoteConnectionDialog}
         {directoryBrowserDialog}
@@ -961,6 +975,7 @@ function RootInner({
   if (welcomeScreenOpenReason) {
     return (
       <RootShell>
+        {settingsReadErrorNode}
         {rootModelSelectionErrorNode}
         {remoteConnectionDialog}
         {directoryBrowserDialog}
@@ -979,6 +994,7 @@ function RootInner({
     // 这里延续入口 loading，等任务列表有 workspaceShellPath 后再切换，避免露出浏览器白底。
     return (
       <RootShell>
+        {settingsReadErrorNode}
         {rootModelSelectionErrorNode}
         {initialWorkspaceLoadingFallback}
         {directoryBrowserDialog}
@@ -988,6 +1004,7 @@ function RootInner({
 
   return (
     <RootShell>
+      {settingsReadErrorNode}
       {rootModelSelectionErrorNode}
       {remoteConnectionDialog}
       {directoryBrowserDialog}

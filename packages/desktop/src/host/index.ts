@@ -58,7 +58,7 @@ import {
   OffPeakTaskService,
   createServiceLogger,
   buildTaskChangeSummary,
-  createHostApiNetworkTransport,
+  createHostApiNetworkTransportForSettings,
   createSettingServiceWithMigrations,
   OffPeakModelUnavailableError,
   OffPeakPermanentDispatchError,
@@ -2799,16 +2799,9 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
         activeSessionRealtimePort = createTaskRealtimeBridgeForHostInit(msg, parentPort);
         // 旧 Team 补组织必须与网络代理读取共用同一个 Setting 实例及写队列。
         // 只注入 service 会跳过默认装配分支，导致缺组织的升级用户永远无法恢复连接。
-        const { service: settingService, prepareLegacyAccountConnections } =
+        const { service: settingService, readStrictSettings, prepareLegacyAccountConnections } =
           createSettingServiceWithMigrations();
-        const hostApiNetworkTransport = createHostApiNetworkTransport(async () => {
-          const settings = await settingService.get();
-          return {
-            httpProxy: settings.httpProxy,
-            noProxy: settings.httpProxyNoProxy,
-            caCertPath: settings.httpProxyCaCertPath,
-          };
-        });
+        const hostApiNetworkTransport = createHostApiNetworkTransportForSettings(readStrictSettings);
         const services = await initializeHostApiNetworkTransportOwner({
           transport: hostApiNetworkTransport,
           log: (message, details) => logger.warn(message, details),
@@ -2818,6 +2811,7 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
               piControlExtensionPath: fileURLToPath(new URL("../pi-control-bridge.mjs", import.meta.url)),
               parentPort,
               settingService,
+              readStrictSettings,
               prepareLegacyAccountConnections,
               hostApiNetworkTransport,
               authorizeLocalMediaPreviewPath,

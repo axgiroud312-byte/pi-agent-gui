@@ -126,6 +126,7 @@ PI14-F2 继续使用原生 `WorkspaceFileTree`、`PreviewPane`、`MentionPlugin`
 | ID | 原生入口/行为 | Pi 产品行为 | 必要性 / 状态 |
 | --- | --- | --- | --- |
 | PI27-D1 | 保留原生帮助菜单、错误横幅等“问题上报”入口；原厂商反馈中心已按 Pi-first 范围退出 | 同一入口打开本地原生 Dialog，仅读 GUI 构建版本、提交及当前固定 Pi 公开桥版本；分别由用户点击复制诊断或打开 GitHub，预览本身不外发。About 文字导出不再含主机名 | #27/P33/V12 要求用户外发前可见且无凭据。纯白名单合同注入未知字段、堆栈、目录名、密钥样式值验证排除；隔离源码生产入口原生 GUI、固定 Pi 0.87.0 和受控推理在 `D:/Temp/pi-diagnostics-gui-20260928-b/pi-diagnostics-gui-report.json` 通过：实际页面预览与系统剪贴板按 Windows LF→CRLF 规范化后全文一致、外部边界仅在显式点击后收到裸 Issue URL，页面错误与残留进程均为零。原版同状态成对截图、包内运行及最终人工验收仍待做。 |
+| PI27-D2 | 原生 RootShell 的错误横幅与项目恢复入口 | `setting.json` 有效 JSON 但字段损坏，或发生非 ENOENT 读取错误时，桌面仍显示原生界面及明确的文件路径和修复入口；暂时默认值仅供界面显示，普通设置写入、目录迁移、新 Pi 会话启动及 Host API 网络请求均拒绝。非 JSON 文件先同目录备份为 `setting.json.corrupt-<时间戳>`；仅有此备份、没有原文件的下次启动仍保持拒绝，手工恢复有效 `setting.json` 后重新读取并重启可恢复项目与会话。 | #27/P32/D06。隔离固定 Pi 服务合同 `settings-corrupt-guard.test.mjs` 验证原字节、读权限故障、备份失败、跨重启写入拦截、首次安装及正常旧设置迁移；`settings-corrupt-host-pi.test.mjs` 经真实 Host 注入 seam 验证两次装配中 Pi `createSession` 拒绝且受控模型请求数为零，Host API 代理配置损坏、已缓存直连后损坏、仅存备份重启时均不发网络请求。两阶段原生 GUI `D:/Temp/pi-settings-corrupt-gui-green-20260928-a/pi-desktop-settings-corrupt-gui-report.json` 见证横幅、原字节不变、外部修复后项目与固定 Pi 请求恢复，两次退出均 `graceful=true`、`forced=[]`、`survivors=[]`。原版同状态成对截图、包内运行及最终人工验收待做。 |
 
 ## #4 Pi shell 入口（开发增量，视觉待验）
 

@@ -14,6 +14,34 @@ export interface HostApiNetworkTransport {
   disposeAndWait(): Promise<void>;
 }
 
+/** The desktop Host owns this callback and must supply a strict settings read. */
+export function createHostApiNetworkTransportForSettings(
+  readStrictSettings: () => Promise<{
+    httpProxy?: string;
+    httpProxyNoProxy?: string;
+    httpProxyCaCertPath?: string;
+  }>,
+): HostApiNetworkTransport {
+  const transport = createHostApiNetworkTransport(async () => {
+    const settings = await readStrictSettings();
+    return {
+      httpProxy: settings.httpProxy,
+      noProxy: settings.httpProxyNoProxy,
+      caCertPath: settings.httpProxyCaCertPath,
+    };
+  });
+  return {
+    ...transport,
+    async fetch(input, init) {
+      // The underlying dispatcher caches a verified route. Recheck the file
+      // before every request so a later external corruption cannot reuse a
+      // previously direct route and silently bypass a saved proxy choice.
+      await readStrictSettings();
+      return transport.fetch(input, init);
+    },
+  };
+}
+
 type HostProxyRoute =
   | { kind: "direct"; noProxyMatched?: boolean }
   | { kind: "proxy"; proxyUrl: string }

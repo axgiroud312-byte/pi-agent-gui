@@ -231,6 +231,7 @@ export {
 export { createNodeApiClient, NodeApiClient } from "./providers/api/nodeApiClient.js";
 export {
   createHostApiNetworkTransport,
+  createHostApiNetworkTransportForSettings,
   type HostApiNetworkTransport,
 } from "./providers/api/nodeApiNetwork.js";
 export {
@@ -420,7 +421,7 @@ import {
 import { createLocalPromptAttachmentTransferService } from "./prompt-attachment-transfer/promptAttachmentTransferService.js";
 import { createNodeApiClient } from "./providers/api/nodeApiClient.js";
 import {
-  createHostApiNetworkTransport,
+  createHostApiNetworkTransportForSettings,
   type HostApiNetworkTransport,
 } from "./providers/api/nodeApiNetwork.js";
 import type {
@@ -1286,6 +1287,8 @@ export function createLocalServices(options: {
   parentPort?: Parameters<typeof createBroadcastService>[0];
   /** Host 装配层注入的设置权威；与网络 transport 必须来自同一 Window Host 生命周期。 */
   settingService?: ISettingService;
+  /** Required with an injected setting service; Pi and network must reject degraded UI defaults. */
+  readStrictSettings?: ISettingService["get"];
   /** 与注入的本地 Setting 共用写队列；外部远端 Setting 不传，由其权威 Host 完成迁移。 */
   prepareLegacyAccountConnections?: ReturnType<
     typeof createSettingServiceWithMigrations
@@ -1371,7 +1374,10 @@ export function createLocalServices(options: {
   };
   /** Windows desktop-local Host 的 CUA turn 状态投影；其它 authority 会在装配层拒绝。 */
   cuaOperationStateReporter?: CuaOperationStateReporter;
-}): ServiceCollection {
+} & (
+  | { settingService: ISettingService; readStrictSettings: ISettingService["get"] }
+  | { settingService?: undefined; readStrictSettings?: undefined }
+)): ServiceCollection {
   const isDesktopAttachedRemote = options?.serviceAuthorityMode === "desktop-attached-remote";
   // host / remote server 以前直接沿用当前进程环境启动后续服务。
   // GUI 启动的 desktop、SSH/WSL/Docker 拉起的 remote server 往往拿不到用户 login shell 里的 PATH，
@@ -1398,6 +1404,7 @@ export function createLocalServices(options: {
   }
 
   const localSettings = options?.settingService ? null : createSettingServiceWithMigrations();
+  const readStrictSettings = options.readStrictSettings ?? localSettings!.readStrictSettings;
   const settingService = createObservableSettingService(
     options?.settingService ?? localSettings!.service,
   );
@@ -1420,14 +1427,7 @@ export function createLocalServices(options: {
   const gitCheckpointService = createGitCheckpointService();
   const hostApiNetworkTransport =
     options?.hostApiNetworkTransport ??
-    createHostApiNetworkTransport(async () => {
-      const settings = await settingService.get();
-      return {
-        httpProxy: settings.httpProxy,
-        noProxy: settings.httpProxyNoProxy,
-        caCertPath: settings.httpProxyCaCertPath,
-      };
-    });
+    createHostApiNetworkTransportForSettings(readStrictSettings);
   const zcodeJwtLogoutHandlerRef: {
     current: ((input: string | URL, headers: Headers) => void) | null;
   } = { current: null };
@@ -2088,7 +2088,10 @@ export function createLocalServices(options: {
     ? createPiAgentService(options.piAgentRpcEntry,
       new PiSessionSupervisor({ piEntry: options.piAgentRpcEntry,
         launchPreferences: async () => {
-          const settings = await settingService.get();
+          // A degraded desktop setting.json is shown with temporary UI
+          // defaults. It must never silently turn a saved Pi offline choice
+          // into inherited network access for a newly spawned Pi process.
+          const settings = await readStrictSettings();
           return { offline: settings.piOfflineMode ?? "inherit",
             versionCheck: settings.piVersionCheckMode ?? "inherit" };
         },

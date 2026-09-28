@@ -1,4 +1,5 @@
-import { access, readFile, mkdir, rename } from "node:fs/promises";
+import { access, readFile, readdir, mkdir, rename } from "node:fs/promises";
+/* eslint-disable max-lines -- Keep desktop settings read, migration and atomic write safety in one audited boundary. */
 import { join } from "node:path";
 import { homedir } from "node:os";
 import type {
@@ -12,7 +13,7 @@ import {
   formatLogPrefix,
   formatZodError,
 } from "@zcode/shared";
-import type { ISettingService } from "./setting.js";
+import type { ISettingService, SettingsReadStatus } from "./setting.js";
 import { normalizeSettingsPatch } from "#src/setting/normalizeSettingsPatch.js";
 import { copyDataDirectory, getDataBaseDir, validateDataBaseDirTarget } from "../paths.js";
 import { isEffectiveDevelopmentNodeEnv } from "../runtime-tools/nodeEnv.js";
@@ -70,14 +71,15 @@ function buildCorruptSettingsBackupPath(settingsFile: string): string {
   return `${settingsFile}.corrupt-${timestamp}`;
 }
 
-async function quarantineCorruptSettingsFile(settingsFile: string, error: unknown): Promise<void> {
+async function quarantineCorruptSettingsFile(settingsFile: string, error: unknown): Promise<string | null> {
   const backupPath = buildCorruptSettingsBackupPath(settingsFile);
   try {
     // 用户手动编辑或远端磁盘异常可能把 setting.json 写成非 JSON（例如 ":wq"）。
-    // 如果只返回默认值不隔离坏文件，每次启动都会重复解析失败；这里保留备份后让后续 update 重建合法配置。
+    // 保留备份供用户恢复；备份存在且原文件缺失时，后续启动仍保持降级和写入拒绝。
     maybeThrowInjectedFsFault({ operation: "rename", path: settingsFile });
     await rename(settingsFile, backupPath);
     log("invalid settings json backed up:", backupPath, "error:", error);
+    return backupPath;
   } catch (renameError) {
     if (
       renameError &&
@@ -88,9 +90,10 @@ async function quarantineCorruptSettingsFile(settingsFile: string, error: unknow
       // 启动时多个服务可能同时读取同一个坏 setting.json。
       // 第一个读取已经完成隔离后，后续读取再 rename 会遇到 ENOENT；这是并发下的预期结果，不应当按备份失败刷错误日志。
       log("invalid settings json already quarantined by another reader, returning defaults");
-      return;
+      return null;
     }
-    log("invalid settings json backup failed, returning defaults. error:", renameError);
+    throw new Error(`Invalid settings JSON could not be backed up at ${settingsFile}; ` +
+      "the original file was preserved and settings cannot be edited until it is repaired", { cause: renameError });
   }
 }
 
@@ -112,6 +115,8 @@ function shouldPersistSettingsMigrations(rawValue: unknown): boolean {
 interface ReadSettingsResult {
   settings: AppSettings;
   needsMigrationPersist: boolean;
+  source: "valid" | "missing" | "backed-up";
+  backupPath?: string | null;
 }
 
 async function readSettingsWithMeta(): Promise<ReadSettingsResult> {
@@ -138,28 +143,25 @@ async function readSettingsWithMeta(): Promise<ReadSettingsResult> {
         }
       }
       if (rawValue === undefined) {
-        await quarantineCorruptSettingsFile(settingsFile, lastParseError);
+        const backupPath = await quarantineCorruptSettingsFile(settingsFile, lastParseError);
         return {
           settings: defaultSettings(),
           needsMigrationPersist: false,
+          source: "backed-up",
+          backupPath,
         };
       }
     }
     const result = appSettingsSchema.safeParse(migrateLegacyAccountConnectionSettings(rawValue));
     if (!result.success) {
-      log(
-        "read failed schema validation, returning defaults. error:",
-        formatZodError(result.error),
-      );
-      return {
-        settings: defaultSettings(),
-        needsMigrationPersist: false,
-      };
+      throw new Error(`Invalid desktop settings at ${settingsFile}: ${formatZodError(result.error)}. ` +
+        "The original file was preserved; repair it before editing settings.");
     }
     debugLog("read result:", JSON.stringify(result.data));
     return {
       settings: result.data,
       needsMigrationPersist: shouldPersistSettingsMigrations(rawValue),
+      source: "valid",
     };
   } catch (err) {
     if (
@@ -168,24 +170,41 @@ async function readSettingsWithMeta(): Promise<ReadSettingsResult> {
       "code" in err &&
       (err as { code?: string }).code === "ENOENT"
     ) {
+      // A prior Host may have moved malformed JSON to a .corrupt backup.
+      // Treat that backup as a durable recovery marker across restarts. A
+      // genuinely fresh installation has no setting.json and no such backup.
+      let backups: string[] = [];
+      try {
+        backups = (await readdir(getSettingsDir()))
+          .filter((name) => name.startsWith("setting.json.corrupt-"))
+          .sort();
+      } catch (backupScanError) {
+        if (!(backupScanError && typeof backupScanError === "object" &&
+          "code" in backupScanError && backupScanError.code === "ENOENT")) {
+          throw new Error(`Cannot inspect desktop settings recovery backups at ${settingsFile}`, {
+            cause: backupScanError,
+          });
+        }
+      }
+      if (backups.length > 0) {
+        return { settings: defaultSettings(), needsMigrationPersist: false,
+          source: "backed-up", backupPath: join(getSettingsDir(), backups.at(-1)!) };
+      }
       debugLog("settings file missing, using defaults");
       return {
         settings: defaultSettings(),
         needsMigrationPersist: false,
+        source: "missing",
       };
     }
 
-    // 文件解析失败等异常兜底返回默认值
-    log("read failed, returning defaults. error:", err);
-    return {
-      settings: defaultSettings(),
-      needsMigrationPersist: false,
-    };
+    // Non-ENOENT I/O and schema failures may be transient or affect only one
+    // field. Returning defaults would let the next ordinary update replace the
+    // still-existing file and silently discard unrelated projects/settings.
+    throw new Error(`Cannot safely read desktop settings at ${settingsFile}; ` +
+      "the original file was preserved. Repair or restore it before editing settings. " +
+      (err instanceof Error ? err.message : String(err)), { cause: err });
   }
-}
-
-async function readSettings(): Promise<AppSettings> {
-  return (await readSettingsWithMeta()).settings;
 }
 
 async function writeSettings(
@@ -236,6 +255,8 @@ export function createSettingService(): ISettingService {
 /** Host 私有迁移入口，不加入 Setting RPC；普通 get/update 从不等待 OAuth 查询。 */
 export function createSettingServiceWithMigrations(): {
   service: ISettingService;
+  /** Host network requests and Pi startup must never infer policy from degraded UI defaults. */
+  readStrictSettings: () => Promise<AppSettings>;
   prepareLegacyAccountConnections: (
     resolveOrganization: (connection: LegacyTeamConnection) => Promise<string | null>,
   ) => Promise<readonly ProviderFamilyDomain[]>;
@@ -243,6 +264,41 @@ export function createSettingServiceWithMigrations(): {
   let updateQueue = Promise.resolve();
   let commitQueue = Promise.resolve();
   let writeQueueGeneration = 0;
+  let readStatus: SettingsReadStatus = { kind: "ready" };
+  const hasReadIssue = () => readStatus.kind === "degraded";
+
+  const recordedRead = async (): Promise<ReadSettingsResult> => {
+    try {
+      const result = await readSettingsWithMeta();
+      if (result.source === "valid") readStatus = { kind: "ready" };
+      else if (result.source === "backed-up") {
+        readStatus = { kind: "degraded", settingsFile: getSettingsFile(),
+          ...(result.backupPath ? { backupPath: result.backupPath } : {}),
+          message: `Desktop settings were damaged at ${getSettingsFile()}. ` +
+            (result.backupPath ? `The original was backed up to ${result.backupPath}. ` :
+              "The file changed during backup; check the settings directory. ") +
+            "Repair or restore setting.json, then restart before editing settings or starting Pi." };
+      }
+      // A missing file is normal on first launch. After a detected failure it
+      // cannot clear the warning: the bad JSON may have just been quarantined.
+      return result;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      readStatus = { kind: "degraded", settingsFile: getSettingsFile(), message };
+      throw error;
+    }
+  };
+
+  const readStrict = async (): Promise<AppSettings> => {
+    const result = await recordedRead();
+    if (readStatus.kind === "degraded") throw new Error(readStatus.message);
+    return result.settings;
+  };
+
+  const readStrictSettings = async (): Promise<AppSettings> => {
+    await updateQueue;
+    return readStrict();
+  };
 
   const runSettingsCommit = async (commit: () => Promise<void>) => {
     const queued = commitQueue.then(commit, commit);
@@ -278,29 +334,38 @@ export function createSettingServiceWithMigrations(): {
       // 设置切换后可能立即创建或冷恢复 Session；读取若越过已入队写入，
       // runtime 会固定旧开关值。先等待现有写队列，保证启动偏好读取到已提交的选择。
       await updateQueue;
-      const result = await readSettingsWithMeta();
+      let result: ReadSettingsResult;
+      try { result = await recordedRead(); }
+      catch { return defaultSettings(); }
+      if (hasReadIssue()) return result.settings;
       if (!result.needsMigrationPersist) {
         return result.settings;
       }
 
-      await enqueueSettingsWrite(async (shouldCommit, enterCommitPhase) => {
-        const latest = await readSettingsWithMeta();
-        if (!latest.needsMigrationPersist) {
-          return;
-        }
+      try {
+        await enqueueSettingsWrite(async (shouldCommit, enterCommitPhase) => {
+          const latest = await recordedRead();
+          if (hasReadIssue() || !latest.needsMigrationPersist) return;
 
-        // 初始化原因：旧版设置可能已把无法区分来源的默认值落盘；升级后按 schema 统一迁移一次。
-        // 迁移写盘必须进入 updateQueue，并在队列内重读最新文件，避免覆盖并发保存的其他设置。
-        await writeSettings(latest.settings, shouldCommit, runSettingsCommit, enterCommitPhase);
-      });
+          // Migrate only after a second healthy read. A damaged source must
+          // never be replaced by a benign-looking default snapshot.
+          await writeSettings(latest.settings, shouldCommit, runSettingsCommit, enterCommitPhase);
+        });
+        return await readStrictSettings();
+      } catch (error) {
+        if (hasReadIssue()) return defaultSettings();
+        throw error;
+      }
+    },
 
-      return readSettings();
+    async getReadStatus(): Promise<SettingsReadStatus> {
+      return readStatus;
     },
 
     async update(patch: Partial<AppSettings>, expectedAccountSettings): Promise<void> {
       const runUpdate = async (shouldCommit: () => boolean, enterCommitPhase: () => void) => {
         const validatedPatch = appSettingsPatchSchema.parse(normalizeSettingsPatch(patch));
-        const current = await readSettings();
+        const current = await readStrict();
         if (expectedAccountSettings) {
           // 账号查询期间用户可能已手动切换。必须在同一写队列内校验，不能靠调用方先读再写。
           const expected = appSettingsPatchSchema.parse(expectedAccountSettings);
@@ -338,6 +403,8 @@ export function createSettingServiceWithMigrations(): {
     },
 
     async updateDataBaseDir(newDir: string | undefined): Promise<void> {
+      await updateQueue;
+      await readStrict();
       const currentBaseDir = getDataBaseDir();
       const targetBaseDir =
         newDir?.trim() || process.env.ZCODE_DESKTOP_PROFILE_HOME?.trim() || homedir();
@@ -382,11 +449,13 @@ export function createSettingServiceWithMigrations(): {
   let migrationComplete = false;
   return {
     service,
+    readStrictSettings,
     prepareLegacyAccountConnections(resolveOrganization) {
       // 已完成导入后不让每次请求鉴权重复读迁移文件。恢复旧备份需要重启 Host。
       if (migrationComplete) return Promise.resolve([]);
       if (inFlight) return inFlight;
       const run = async (): Promise<readonly ProviderFamilyDomain[]> => {
+        await readStrictSettings();
         await service.get();
         const original = await readLegacyAccountConnectionSettingsFile(getSettingsFile());
         const incomplete = readIncompleteLegacyTeamConnections(original);
