@@ -113,7 +113,30 @@ function installMemoryIndexedDb(): Map<string, unknown> {
 
 const rows = installMemoryIndexedDb();
 
+test("damaged text draft record does not erase saved image bytes or another workspace", async () => {
+  rows.clear();
+  window.localStorage.clear();
+  const workspace = `C:\\fixture-${randomUUID()}`;
+  const scopeKey = `${workspace}\0session-A`;
+  const imageId = randomUUID();
+  await saveComposerImageDraft(scopeKey, { id: imageId, fileName: "unsent.png", mimeType: "image/png",
+    file: new File([new Uint8Array([1, 2, 3, 4])], "unsent.png", { type: "image/png" }) });
+  const textKey = `zcode-v4-composer-drafts:v1:${encodeURIComponent(workspace)}`;
+  window.localStorage.setItem(textKey, '{"version":1,"scopes":');
+
+  assert.equal(persistV4ComposerDraft(workspace, undefined, "session-A", { text: "new text" }), false);
+  assert.equal(window.localStorage.getItem(textKey), '{"version":1,"scopes":');
+  const restored = await readComposerImageDrafts(scopeKey);
+  assert.deepEqual(restored.map(item => item.id), [imageId]);
+  assert.equal("error" in restored[0]!, false);
+  const other = `${workspace}-other`;
+  assert.equal(persistV4ComposerDraft(other, undefined, "session-A", { text: "other" }), true);
+  assert.equal(readV4ComposerDraft(other, undefined, "session-A")?.text, "other");
+});
+
 test("profile-wide image count is bounded without silently evicting any project", async () => {
+  rows.clear();
+  window.localStorage.clear();
   const prefix = randomUUID();
   for (let index = 0; index < 64; index++) {
     await saveComposerImageDraft(`${prefix}:project-${index}\0__draft__`, {

@@ -4359,6 +4359,8 @@ const enUS: Record<string, string> = {
   "chat.queue.recoveryDiscardConfirm": "This permanently removes the withdrawal backup. If the message is absent from Pi's queue and history, its text and images may be unrecoverable. Check them first, and send or clear the composer draft.",
   "chat.queue.recoveryDiscardDraftConflict": "The composer still has content or is busy. Send or clear the draft before deleting this backup so its images survive a restart.",
   "chat.queue.recoveryStorageError": "Withdrawal recovery storage could not be read. Pi's queue was not changed. Keep the app data and check the logs.",
+  "chat.composer.draftDamaged": "This project's saved text drafts are damaged. The original record remains on this device, and new text cannot be saved reliably. Export the original record before repairing or recovering drafts. It may contain unsent text from every session in this project; do not share it.",
+  "chat.composer.exportDamagedDraft": "Export original draft record",
   "chat.queue.recoveryConflict": "The composer has content. The backup remains below this session. Send or clear the draft, then restore it.",
   "chat.queue.recoveryRetainedAfterReject": "Pi did not confirm the withdrawal. The original text and images remain in the backup below this session. Refresh the queue before restoring or discarding it.",
   "chat.queue.recoveryReady": "The queued message is back in the composer. Its backup remains until you delete it.",

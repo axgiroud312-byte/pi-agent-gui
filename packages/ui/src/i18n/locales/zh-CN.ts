@@ -4087,6 +4087,8 @@ const zhCN: Record<string, string> = {
   "chat.queue.recoveryDiscardConfirm": "这会永久删除这份撤回保护副本。如果 Pi 队列和历史里都没有原消息，图文可能无法再取回。请先核对，并确认输入框草稿已发送或清空。",
   "chat.queue.recoveryDiscardDraftConflict": "当前输入框仍有内容或正在处理。为防止重启后丢图，先发送或清空草稿，再删除保护副本。",
   "chat.queue.recoveryStorageError": "撤回保护存储无法读取。Pi 队列未被更改；请保留应用数据并检查日志。",
+  "chat.composer.draftDamaged": "此项目的文字草稿记录已损坏。原始记录仍留在本机；新输入无法可靠保存。请先导出原始记录，再修复或恢复草稿。导出文件可能包含本项目所有会话的未发送文字，请勿分享。",
+  "chat.composer.exportDamagedDraft": "导出原始草稿记录",
   "chat.queue.recoveryConflict": "当前输入框已有内容，保护副本仍在本会话下方。请先发送或清空草稿，再点击取回。",
   "chat.queue.recoveryRetainedAfterReject": "Pi 未确认撤回；原图文保护副本仍在本会话下方。刷新队列后可再次取回或明确删除。",
   "chat.queue.recoveryReady": "队列消息已取回输入框；保护副本保留至你确认删除。",

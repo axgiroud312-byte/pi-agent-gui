@@ -89,6 +89,7 @@ import {
   buildDraftCreateConfigPayload,
   useDraftConfigControl,
 } from "@/v4/composer/useDraftConfigControl.js";
+import { ComposerDraftDamageBanner } from "@/v4/composer/ComposerDraftDamageBanner.js";
 import type { ModelSelectionSource } from "@/v4/composer/V4ComposerToolbar.js";
 import { formatModelChangeLabel } from "@/v4/composer/modelTriggerDisplay.js";
 import { resolveAppFollowupMode } from "@/v4/composer/followupModeSettings.js";
@@ -4884,6 +4885,7 @@ export function SessionPane({
       ) : null}
       {sessionId && snapshot ? <PiExtensionUiPanel state={snapshot.piExtensionUi} placement="aboveEditor"
         onApplyEditorText={!readOnly ? restorePiTreeEditor : undefined} /> : null}
+      <ComposerDraftDamageBanner workspacePath={workspacePath} workspaceIdentity={workspaceIdentity} />
       {composerNode}
       {sessionId && snapshot ? <PiExtensionUiPanel state={snapshot.piExtensionUi} placement="belowEditor" /> : null}
       {/* 办公模式显示主动任务推荐；编程模式保留原有小型场景入口。 */}

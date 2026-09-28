@@ -99,26 +99,35 @@ function writeScopeFallback(key: string, scopeId: string, draft: V4ComposerDraft
   }
 }
 
-function readDraftFile(key: string): V4DraftFile {
+function readDraftFile(key: string): { file: V4DraftFile | null; damagedRaw: string | null } {
   const storage = getStorage();
+  let raw: string | null = null;
   try {
-    const raw = storage?.getItem(key);
-    if (!raw) return { version: 1, scopes: {} };
+    raw = storage?.getItem(key) ?? null;
+    if (!raw) return { file: { version: 1, scopes: {} }, damagedRaw: null };
     const parsed: unknown = JSON.parse(raw);
     if (!isRecord(parsed) || parsed.version !== 1 || !isRecord(parsed.scopes)) {
-      return { version: 1, scopes: {} };
+      throw new Error("Saved composer draft record has an unsupported structure");
     }
-    const scopes = Object.fromEntries(
-      Object.entries(parsed.scopes).flatMap(([scopeId, value]) => {
-        const draft = readDraft(value);
-        return draft ? [[scopeId, draft]] : [];
-      }),
-    );
-    return { version: 1, scopes };
+    const scopes: Array<[string, V4ComposerDraft]> = [];
+    for (const [scopeId, value] of Object.entries(parsed.scopes)) {
+      const draft = readDraft(value);
+      if (!draft) throw new Error("Saved composer draft scope is damaged");
+      scopes.push([scopeId, draft]);
+    }
+    return { file: { version: 1, scopes: Object.fromEntries(scopes) }, damagedRaw: null };
   } catch (error) {
     warnStorageFailure(key, error);
-    return { version: 1, scopes: {} };
+    return { file: null, damagedRaw: raw };
   }
+}
+
+/** The raw workspace record is retained in place until the user explicitly removes the project. */
+export function readDamagedV4ComposerDraftRecord(
+  workspacePath: string,
+  workspaceIdentity?: string,
+): string | null {
+  return readDraftFile(getV4ComposerDraftStorageKey(workspacePath, workspaceIdentity)).damagedRaw;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -203,7 +212,7 @@ export function readV4ComposerDraft(
   scopeId: string,
 ): V4ComposerDraft | null {
   const key = getV4ComposerDraftStorageKey(workspacePath, workspaceIdentity);
-  const primary = readDraftFile(key).scopes[scopeId] ?? null;
+  const primary = readDraftFile(key).file?.scopes[scopeId] ?? null;
   const fallback = readScopeFallback(key, scopeId);
   const draft = fallback && fallback.updatedAt >= (primary?.updatedAt ?? 0)
     ? fallback.draft : primary;
@@ -220,7 +229,8 @@ export function persistV4ComposerDraft(
   draft: Omit<V4ComposerDraft, "updatedAt">,
 ) {
   const key = getV4ComposerDraftStorageKey(workspacePath, workspaceIdentity);
-  const file = readDraftFile(key);
+  const file = readDraftFile(key).file;
+  if (!file) return false;
   const fallback = readScopeFallback(key, scopeId);
   const updatedAt = Math.max(Date.now(), (file.scopes[scopeId]?.updatedAt ?? 0) + 1,
     (fallback?.updatedAt ?? 0) + 1);
@@ -272,7 +282,8 @@ export function clearV4ComposerDraft(
   scopeId: string,
 ) {
   const key = getV4ComposerDraftStorageKey(workspacePath, workspaceIdentity);
-  const file = readDraftFile(key);
+  const file = readDraftFile(key).file;
+  if (!file) return false;
   const fallback = readScopeFallback(key, scopeId);
   if (!(scopeId in file.scopes) && !fallback?.draft) {
     return true;
