@@ -24,6 +24,7 @@ import {
   pendingUserInputToViewModel,
 } from "@/v4/pendingInteractionAdapter.js";
 import { V4UserInputDialog } from "@/v4/V4UserInputDialog.js";
+import { usePiUserInputFocus } from "@/v4/usePiUserInputFocus.js";
 import { useV4Conversation } from "@/v4/V4ConversationContext.js";
 
 interface V4InteractionDialogsProps {
@@ -35,6 +36,7 @@ interface V4InteractionDialogsProps {
   snapshot: ConversationSnapshot | null;
   onCommandSettled?: (commandId: string) => void;
   onPlanInteractionAccepted?: (interactionId: string) => void;
+  onStop?: () => void;
 }
 
 function getCurrentSessionInteractionSnapshot(
@@ -87,6 +89,7 @@ export function V4InteractionDialogs({
   snapshot,
   onCommandSettled,
   onPlanInteractionAccepted,
+  onStop,
 }: V4InteractionDialogsProps) {
   const { sendCommand } = useV4Conversation();
   const connectWorkspaceHookCommands = useWorkspaceHookReviewStore((state) => state.connect);
@@ -165,6 +168,8 @@ export function V4InteractionDialogs({
   ]);
   const autoResolutionIntentRef = useRef(createInteractionAutoResolutionIntentTracker());
   const loggedSnoozeSourceIdsRef = useRef(new Set<string>());
+  const { capture: captureUserInputReturnFocus, restore: restoreUserInputReturnFocus } =
+    usePiUserInputFocus(Boolean(pending));
   const [permissionResponse, setPermissionResponse] = useState<{
     interactionId: string;
     pending: boolean;
@@ -393,10 +398,12 @@ export function V4InteractionDialogs({
   });
   return (
     <V4UserInputDialog
+      key={pending.interactionId}
       model={model}
-      onSubmit={(answer) => {
-        void resolveInteraction(pending.interactionId, answer);
-      }}
+      onSubmit={(answer) => resolveInteraction(pending.interactionId, answer)}
+      onCaptureReturnFocus={captureUserInputReturnFocus}
+      onRestoreReturnFocus={restoreUserInputReturnFocus}
+      onStop={model.method && currentSnapshot?.control.canStop ? onStop : undefined}
     />
   );
 }

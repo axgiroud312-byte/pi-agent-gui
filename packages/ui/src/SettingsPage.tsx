@@ -55,6 +55,8 @@ import {
 } from "@/lib/accountProviderAccess.js";
 import { buildUsageEntitlementCacheKey } from "@/lib/usageEntitlementCache.js";
 import { ModelProviderSection } from "@/settings/ModelProviderSection.js";
+import { PiSettingsSection } from "@/settings/PiSettingsSection.js";
+import { PiAuthSection } from "@/settings/PiAuthSection.js";
 import { useCodingPlanUpgradeDialog } from "@/settings/CodingPlanUpgradeDialogProvider.js";
 import { useEnterpriseCodingPlanProducts } from "@/settings/model-provider-section/useEnterpriseCodingPlanProducts.js";
 import { UsageStatsSection, type UsageStatsSectionTab } from "@/settings/UsageStatsSection.js";
@@ -318,6 +320,7 @@ export function SettingsPage({
     writeLastSettingsSectionPreference(visibleInitialSection);
     return visibleInitialSection;
   });
+  const [modelProviderTab, setModelProviderTab] = useState<"models" | "piAuth">("models");
   const [pluginTab, setPluginTab] = useState(() => consumePendingSettingsPluginTab());
   const [pluginNavigationOrigin, setPluginNavigationOrigin] = useState(() =>
     consumePendingSettingsPluginOrigin(),
@@ -1808,18 +1811,30 @@ export function SettingsPage({
                           <ShortcutSettingsSection isDesktop={Boolean(isDesktop)} />
                         ) : activeSection === "modelProvider" ? (
                           <ServiceProvider services={localHostServices}>
-                            {/* 模型配置属于本机全局事实源；激活远端 workspace 时也不能注入远端 Host。 */}
-                            <ModelProviderSection
-                              workspacePath={activeWorkspacePath ?? captionWorkspacePath ?? ""}
-                              connectivityWorkspacePath={
-                                localModelProviderConnectivityWorkspacePath
-                              }
-                              connectivityWorkspaceRequired={isRemoteModelProviderWorkspace}
-                              pendingModelProviderTarget={pendingModelProviderTarget}
-                              onConsumePendingModelProviderTarget={() =>
-                                setPendingModelProviderTarget(undefined)
-                              }
-                            />
+                            <div className="space-y-4">
+                              {isDesktop ? <div className="flex gap-2" role="group" aria-label="模型设置类别">
+                                <Button type="button" variant={modelProviderTab === "models" ? "secondary" : "ghost"}
+                                  onClick={() => setModelProviderTab("models")}>模型配置</Button>
+                                <Button type="button" variant={modelProviderTab === "piAuth" ? "secondary" : "ghost"}
+                                  onClick={() => setModelProviderTab("piAuth")}>Pi 认证</Button>
+                              </div> : null}
+                              {isDesktop && modelProviderTab === "piAuth" ?
+                                <PiAuthSection service={localHostServices.zcodeAgentService}
+                                  workspacePath={activeWorkspacePath ?? captionWorkspacePath ?? ""} /> :
+                                <>
+                                  {isDesktop ? <PiSettingsSection workspacePath={activeWorkspacePath ?? captionWorkspacePath ?? ""} /> : null}
+                                  {/* 模型配置属于本机全局事实源；激活远端 workspace 时也不能注入远端 Host。 */}
+                                  <ModelProviderSection
+                                    workspacePath={activeWorkspacePath ?? captionWorkspacePath ?? ""}
+                                    connectivityWorkspacePath={localModelProviderConnectivityWorkspacePath}
+                                    connectivityWorkspaceRequired={isRemoteModelProviderWorkspace}
+                                    pendingModelProviderTarget={pendingModelProviderTarget}
+                                    onConsumePendingModelProviderTarget={() =>
+                                      setPendingModelProviderTarget(undefined)
+                                    }
+                                  />
+                                </>}
+                            </div>
                           </ServiceProvider>
                         ) : activeSection === "memory" ? (
                           <ServiceProvider services={localHostServices}>

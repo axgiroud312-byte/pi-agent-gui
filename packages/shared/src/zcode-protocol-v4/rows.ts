@@ -104,6 +104,7 @@ export const userInputRowSchema = z.object({
   // text 从此下标起是引擎附加文本（dwf ask 尾注 /
   // nudge），GUI 把它折进默认收起的披露；0 = 整条都是；缺席 = 无（老转录、非工作流会话）。
   epilogueStart: z.number().int().nonnegative().optional(),
+  epilogueKind: z.enum(["workflow", "piFileSnapshots"]).optional(),
   // workflowLaunch：中枢直接启动轮的用户可见行。
   // 消息文本仍进 text（旧客户端 / TUI 的降级呈现就是那句规范英文）；新客户端用下方
   // workflowLaunch 元数据画轮尾 run 卡而非气泡。闭集加值的偏斜同 turnHeader.origin 注释。
@@ -165,6 +166,38 @@ export const assistantTextRowSchema = z.object({
 });
 export type AssistantTextRow = z.infer<typeof assistantTextRowSchema>;
 
+// Pi custom messages remain usable when their registered renderer only runs in the TUI.
+// Images are opaque refs into the owned Pi JSONL; details and unknown blocks are retained.
+export const extensionMessageRowSchema = z.object({
+  ...rowBaseFields,
+  kind: z.literal("extensionMessage"),
+  customType: z.string(),
+  parts: z.array(z.discriminatedUnion("type", [
+    z.object({ type: z.literal("text"), text: z.string() }),
+    z.object({ type: z.literal("image"), ref: z.string(), mimeType: z.string(),
+      bytes: z.number().int().nonnegative(), attachmentIndex: z.number().int().nonnegative() }),
+    z.object({ type: z.literal("unknown"), value: z.unknown() }),
+  ])),
+  attachments: userInputRowSchema.shape.attachments,
+  details: z.unknown().optional(),
+});
+export type ExtensionMessageRow = z.infer<typeof extensionMessageRowSchema>;
+
+// Direct Pi RPC `bash` is a session message, not an assistant tool call.
+// Keep Pi's recorded output and context choice together on one native row.
+export const bashExecutionRowSchema = z.object({
+  ...rowBaseFields,
+  kind: z.literal("bashExecution"),
+  command: z.string(),
+  output: z.string(),
+  exitCode: z.number().int().nullable().optional(),
+  cancelled: z.boolean(),
+  truncated: z.boolean(),
+  fullOutputPath: z.string().optional(),
+  excludeFromContext: z.boolean(),
+});
+export type BashExecutionRow = z.infer<typeof bashExecutionRowSchema>;
+
 export const reasoningRowSchema = z.object({
   ...rowBaseFields,
   kind: z.literal("reasoning"),
@@ -200,6 +233,13 @@ export const toolCallRowSchema = z.object({
   input: z.unknown().optional(),
   cuaApp: cuaAppIdentitySchema.optional(),
   output: toolOutputSchema.optional(),
+  // Fixed Pi toolResult content/details are authoritative even when a TUI-only
+  // custom renderer is unavailable. Refs point back to the owned Pi JSONL.
+  piResult: z.object({
+    parts: extensionMessageRowSchema.shape.parts,
+    attachments: extensionMessageRowSchema.shape.attachments,
+    details: extensionMessageRowSchema.shape.details,
+  }).optional(),
   display: toolCallDisplaySchema.optional(),
   // status=error 时必带。
   error: z.object({ code: z.string(), message: z.string() }).optional(),
@@ -419,6 +459,8 @@ export const conversationRowSchema = z.discriminatedUnion("kind", [
   turnHeaderRowSchema,
   userInputRowSchema,
   assistantTextRowSchema,
+  extensionMessageRowSchema,
+  bashExecutionRowSchema,
   reasoningRowSchema,
   toolCallRowSchema,
   artifactRowSchema,

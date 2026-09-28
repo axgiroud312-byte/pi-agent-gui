@@ -1,0 +1,88 @@
+
+> @zcode/desktop@ bundle C:\Users\niilo\AppData\Local\Temp\opencode\pi-native-pi-34\packages\desktop
+> node scripts/bundle.mjs "--" "--os" "win" "--arch" "x64" "--skip-prepare" "--skip-build"
+
+[bundle] target=win/x64
+[bundle] skipPrepare=true skipBuild=true
+[ci][timer] bundle:electron-builder start
+[bundle] > pnpm exec electron-builder --config electron-builder.config.js --win --x64
+(node:35540) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+  • electron-builder  version=26.8.1 os=10.0.26200
+  • loaded configuration  file=C:\Users\niilo\AppData\Local\Temp\opencode\pi-native-pi-34\packages\desktop\electron-builder.config.js
+  • @electron/rebuild already used by electron-builder, please consider to remove excess dependency from devDependencies
+
+To ensure your native dependencies are always matched electron version, simply add script `"postinstall": "electron-builder install-app-deps" to your `package.json`
+[ci][timer] beforePack:restoreTargetNodePtyPrebuild start
+[beforePack] node-pty prebuild restore skipped for win32-x64
+[ci][timer] beforePack:restoreTargetNodePtyPrebuild end duration_ms=0
+[ci][timer] beforePack:patchNsisInstallSection start
+[ci][timer] beforePack:patchNsisInstallSection end duration_ms=2
+  • skipped dependencies rebuild  reason=npmRebuild is set to false
+  • packaging       platform=win32 arch=x64 electron=41.0.3 appOutDir=D:\Temp\pi34-final-bundle-2\win-unpacked
+  • packageManager not detected by file, falling back to environment detection  resolvedPackageManager=pnpm detected=C:\Users\niilo\AppData\Local\Temp\opencode\pi-native-pi-34\packages\desktop
+  • packageManager not detected by file, falling back to environment detection  resolvedPackageManager=pnpm detected=C:\Users\niilo\AppData\Local\Temp\opencode\pi-native-pi-34\packages\desktop
+  • detected workspace root for project using process environment  pm=pnpm config=undefined resolved=undefined projectDir=C:\Users\niilo\AppData\Local\Temp\opencode\pi-native-pi-34\packages\desktop
+  • searching for node modules  pm=pnpm searchDir=C:\Users\niilo\AppData\Local\Temp\opencode\pi-native-pi-34\packages\desktop
+(node:37192) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+  • dependency not found on disk  dependencies=["chalk@6.0.0","semver@7.8.5","undici@8.10.2","minimatch@10.2.6","brace-expansion@5.0.12","@radix-ui/react-primitive@2.1.4","@radix-ui/react-slot@1.2.4","marked@17.0.6","pngjs@5.0.0","commander@14.0.3","fs-extra@11.3.4","diff@8.0.3","diff@8.0.4","jiti@2.7.0","get-east-asian-width@1.6.0","marked@18.0.11","hosted-git-info@9.0.3","signal-exit@3.0.7","immer@10.2.0","tslib@2.3.0","yargs@15.4.1","zod@3.25.76","kleur@3.0.3","execa@9.6.1","commander@11.1.0","execa@5.1.1","get-stream@6.0.1","human-signals@2.1.0","is-stream@2.0.1","signal-exit@3.0.7","strip-final-newline@2.0.0","npm-run-path@4.0.1","open@11.0.0","wrap-ansi@7.0.0","ora@8.2.0","ts-morph@26.0.0","semver@6.3.1","@shikijs/types@3.23.0","retry@0.12.0","esbuild@0.28.2","tslib@2.3.0","y18n@4.0.3","yargs-parser@18.1.3","cliui@6.0.0","find-up@4.1.0","is-obj@3.0.0","ajv@8.18.0","human-signals@8.0.1","strip-final-newline@4.0.0","get-stream@9.0.1","npm-run-path@6.0.0","ast-types@0.16.1","semver@6.3.1","which@4.0.0","wsl-utils@0.3.1","cookie@1.1.1","path-to-regexp@6.3.0","type-fest@5.5.0","strip-ansi@6.0.1","ansi-styles@4.3.0","chalk@5.6.2","log-symbols@6.0.0","emoji-regex@10.6.0","@ts-morph/common@0.27.0","semver@6.3.1","picomatch@2.3.2","@esbuild/aix-ppc64@0.28.2","@esbuild/android-arm@0.28.2","@esbuild/android-arm64@0.28.2","@esbuild/android-x64@0.28.2","@esbuild/darwin-arm64@0.28.2","@esbuild/darwin-x64@0.28.2","@esbuild/freebsd-arm64@0.28.2","@esbuild/freebsd-x64@0.28.2","@esbuild/linux-arm@0.28.2","@esbuild/linux-arm64@0.28.2","@esbuild/linux-ia32@0.28.2","@esbuild/linux-loong64@0.28.2","@esbuild/linux-mips64el@0.28.2","@esbuild/linux-ppc64@0.28.2","@esbuild/linux-riscv64@0.28.2","@esbuild/linux-s390x@0.28.2","@esbuild/linux-x64@0.28.2","@esbuild/netbsd-arm64@0.28.2","@esbuild/netbsd-x64@0.28.2","@esbuild/openbsd-arm64@0.28.2","@esbuild/openbsd-x64@0.28.2","@esbuild/openharmony-arm64@0.28.2","@esbuild/sunos-x64@0.28.2","@esbuild/win32-arm64@0.28.2","@esbuild/win32-ia32@0.28.2","@esbuild/win32-x64@0.28.2","@types/unist@2.0.11","locate-path@5.0.0","path-key@4.0.0","mimic-fn@2.1.0","resolve-from@4.0.0","onetime@7.0.0","lru-cache@5.1.1","p-locate@4.1.0","brace-expansion@5.0.5","yallist@3.1.1","escape-string-regexp@5.0.0","p-limit@2.3.0"]
+[bundle][heartbeat] electron-builder running elapsed_ms=30001 idle_ms=18820
+  • updating asar integrity executable resource  executablePath=D:\Temp\pi34-final-bundle-2\win-unpacked\Pi Agent IDE Preview.exe
+  • signing with signtool.exe  path=D:\Temp\pi34-final-bundle-2\win-unpacked\resources\tools\ugrep\ugrep.exe
+  • signing with signtool.exe  path=D:\Temp\pi34-final-bundle-2\win-unpacked\resources\tools\ripgrep\rg.exe
+[ci][timer] afterPack:injectHoistedRuntimeModulesIntoAsar start
+[ci][timer] afterPack:scan-missing-runtime-modules start
+[bundle][heartbeat] electron-builder running elapsed_ms=60003 idle_ms=35
+[ci][timer] afterPack:scan-missing-runtime-modules end duration_ms=619
+[afterPack] missing runtime modules count=99
+[ci][timer] afterPack:asar-extract start
+[ci][timer] afterPack:asar-extract end duration_ms=24351
+[ci][timer] afterPack:copy-runtime-modules start
+[ci][timer] afterPack:copy-runtime-modules end duration_ms=3537
+[ci][timer] afterPack:asar-pack start
+[bundle][heartbeat] electron-builder running elapsed_ms=90004 idle_ms=1528
+[bundle][heartbeat] electron-builder running elapsed_ms=120005 idle_ms=31529
+[ci][timer] afterPack:asar-pack end duration_ms=58809
+[bundle][heartbeat] electron-builder running elapsed_ms=150008 idle_ms=2722
+[ci][timer] afterPack:injectHoistedRuntimeModulesIntoAsar end duration_ms=90869
+[ci][timer] afterPack:stripPackagedSourcemapReferences start
+[ci][timer] afterPack:sourcemap-cleanup:asar-extract start
+[bundle][heartbeat] electron-builder running elapsed_ms=180016 idle_ms=29178
+[ci][timer] afterPack:sourcemap-cleanup:asar-extract end duration_ms=33041
+[afterPack] stripped sourceMappingURL references=7361 files=7337 maps=2444
+[ci][timer] afterPack:sourcemap-cleanup:asar-pack start
+[bundle][heartbeat] electron-builder running elapsed_ms=210020 idle_ms=15732
+[ci][timer] afterPack:sourcemap-cleanup:asar-pack end duration_ms=29108
+[afterPack] resources sourcemap cleanup references=0 files=0 maps=0
+[ci][timer] afterPack:stripPackagedSourcemapReferences end duration_ms=76136
+[ci][timer] afterPack:assertPackagedNativeResourcePolicy start
+[ci][timer] afterPack:assertPackagedNativeResourcePolicy end duration_ms=294
+[ci][timer] afterPack:assertPackagedNodePtyPrebuild start
+[ci][timer] afterPack:assertPackagedNodePtyPrebuild end duration_ms=0
+[ci][timer] afterPack:writeWindowsInstallManifest start
+[ci][timer] afterPack:writeWindowsInstallManifest end duration_ms=6
+  • signing with signtool.exe  path=D:\Temp\pi34-final-bundle-2\win-unpacked\Pi Agent IDE Preview.exe
+  • signing with signtool.exe  path=D:\Temp\pi34-final-bundle-2\win-unpacked\resources\app.asar.unpacked\node_modules\ssh2\util\pagent.exe
+  • signing with signtool.exe  path=D:\Temp\pi34-final-bundle-2\win-unpacked\resources\app.asar.unpacked\node_modules\node-pty\third_party\conpty\1.23.251008001\win10-x64\OpenConsole.exe
+  • signing with signtool.exe  path=D:\Temp\pi34-final-bundle-2\win-unpacked\resources\app.asar.unpacked\node_modules\node-pty\third_party\conpty\1.23.251008001\win10-arm64\OpenConsole.exe
+  • signing with signtool.exe  path=D:\Temp\pi34-final-bundle-2\win-unpacked\resources\app.asar.unpacked\node_modules\node-pty\prebuilds\win32-x64\winpty-agent.exe
+  • signing with signtool.exe  path=D:\Temp\pi34-final-bundle-2\win-unpacked\resources\app.asar.unpacked\node_modules\node-pty\prebuilds\win32-x64\conpty\OpenConsole.exe
+  • signing with signtool.exe  path=D:\Temp\pi34-final-bundle-2\win-unpacked\resources\app.asar.unpacked\node_modules\@esbuild\win32-x64\esbuild.exe
+  • signing with signtool.exe  path=D:\Temp\pi34-final-bundle-2\win-unpacked\resources\app.asar.unpacked\node_modules\@esbuild\win32-arm64\esbuild.exe
+  • building        target=nsis file=D:\Temp\pi34-final-bundle-2\Pi Agent IDE Preview-3.14.0-win-x64_TEST.exe archs=x64 oneClick=false perMachine=false
+  • signing with signtool.exe  path=D:\Temp\pi34-final-bundle-2\win-unpacked\resources\elevate.exe
+[bundle][heartbeat] electron-builder running elapsed_ms=240027 idle_ms=12239
+  • signing with signtool.exe  path=D:\Temp\pi34-final-bundle-2\Pi Agent IDE Preview-3.14.0-win-x64_TEST.__uninstaller.exe
+  • signing with signtool.exe  path=D:\Temp\pi34-final-bundle-2\Pi Agent IDE Preview-3.14.0-win-x64_TEST.exe
+  • building block map  blockMapFile=D:\Temp\pi34-final-bundle-2\Pi Agent IDE Preview-3.14.0-win-x64_TEST.exe.blockmap
+[ci][timer] bundle:electron-builder end duration_ms=251625
+[ci][timer] bundle:verify-runtime-dependencies start
+[ci][timer] bundle:verify-runtime-dependencies end duration_ms=1020
+[ci][timer] bundle:audit-bundle-size start
+[bundle] > C:\Program Files\nodejs\node.exe C:\Users\niilo\AppData\Local\Temp\opencode\pi-native-pi-34\packages\desktop\scripts\audit-bundle-size.mjs --artifact-path D:\Temp\pi34-final-bundle-2\Pi Agent IDE Preview-3.14.0-win-x64_TEST.exe
+Artifact: D:\Temp\pi34-final-bundle-2\Pi Agent IDE Preview-3.14.0-win-x64_TEST.exe
+Type: .exe
+Size: 170.5 MiB
+Limit: 500 MiB
+[ci][timer] bundle:audit-bundle-size end duration_ms=47

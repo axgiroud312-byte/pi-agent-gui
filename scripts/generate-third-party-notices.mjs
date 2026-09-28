@@ -51,7 +51,10 @@ export async function generateThirdPartyNotices(root = repositoryRoot, options =
     textRecords.set(sha256, record);
     return sha256;
   }
-  for (const record of overrides) if (record.file) await readInput(record.file);
+  for (const record of overrides) {
+    if (record.file) await readInput(record.file);
+    if (record.sourceProvenance?.file) await readInput(record.sourceProvenance.file);
+  }
   const packageInventory = packages.map(({ notices, ...item }) => ({
     ...item,
     notices: notices.map(({ member, bytes }) => ({
@@ -136,6 +139,8 @@ export async function generateThirdPartyNotices(root = repositoryRoot, options =
     ...overrides
       .filter((item) => item.evidenceKind)
       .map((item) => `- ${item.package}: ${item.source}`),
+    ...overrides.filter((item) => item.sourceProvenance).map((item) =>
+      `- Supplemental code-origin notice for ${item.package}: ${item.sourceProvenance.explanation} Evidence: ${item.sourceProvenance.file}. Source: ${item.source}`),
     "The original import revisions of copied components are not recorded in the current checkout. Pinned license references below do not establish the original copy revision. They cover upstream-derived portions only; local adaptations do not change the upstream terms.",
     "## Copied source and assets",
     ...copied.map(

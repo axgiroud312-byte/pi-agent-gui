@@ -1,0 +1,552 @@
+diff --git a/dist/core/agent-session.d.ts b/dist/core/agent-session.d.ts
+index 5620ac326bd3885819f4dbca401522c3058a640b..d55960aff2c88a12a51ed19dbb977639ccf6c2bc 100644
+--- a/dist/core/agent-session.d.ts
++++ b/dist/core/agent-session.d.ts
+@@ -50,6 +50,11 @@ export type AgentSessionEvent = Exclude<AgentEvent, {
+     type: "queue_update";
+     steering: readonly string[];
+     followUp: readonly string[];
++} | {
++    type: "pi_gui_queue_update_v1";
++    revision: number;
++    steering: readonly { id: string; text: string; imageCount: number }[];
++    followUp: readonly { id: string; text: string; imageCount: number }[];
+ } | {
+     type: "compaction_start";
+     reason: "manual" | "threshold" | "overflow";
+@@ -159,7 +164,9 @@ export interface PromptOptions {
+     /** Source of input for extension input event handlers. Defaults to "interactive". */
+     source?: InputSource;
+     /** Internal hook used by RPC mode to observe prompt preflight acceptance or rejection. */
+-    preflightResult?: (success: boolean) => void;
++    preflightResult?: (success: boolean, disposition?: "handled" | "queued" | "run", effectiveText?: string) => void;
++    /** Pinned GUI queue resume: input was already processed when Pi admitted the queued item. */
++    piQueueResume?: boolean;
+ }
+ /** Options for model/thinking mutations. */
+ export interface ModelMutationOptions {
+@@ -434,7 +441,7 @@ export declare class AgentSession {
+      */
+     steer(text: string, images?: ImageContent[], options?: {
+         source?: InputSource;
+-    }): Promise<void>;
++    }): Promise<string | undefined>;
+     /**
+      * Queue a follow-up message to be processed after the agent finishes.
+      * Delivered only when agent has no more tool calls or steering messages.
+@@ -445,7 +452,7 @@ export declare class AgentSession {
+      */
+     followUp(text: string, images?: ImageContent[], options?: {
+         source?: InputSource;
+-    }): Promise<void>;
++    }): Promise<string | undefined>;
+     private _queueSteer;
+     private _queueFollowUp;
+     /**
+diff --git a/dist/core/agent-session.js b/dist/core/agent-session.js
+index 36fdb31c121d1121cebc51c6f0d61d09cf07bae0..f40afe421f04787deaa25c878094e9cb8929f34c 100644
+--- a/dist/core/agent-session.js
++++ b/dist/core/agent-session.js
+@@ -147,6 +147,7 @@ export class AgentSession {
+     _runSystemPromptOptions;
+     constructor(config) {
+         this.agent = config.agent;
++        this.agent.onQueueChange = () => this._emitQueueUpdate();
+         this.sessionManager = config.sessionManager;
+         this.settingsManager = config.settingsManager;
+         this._scopedModels = config.scopedModels ?? [];
+@@ -500,10 +501,18 @@ export class AgentSession {
+         }
+     }
+     _emitQueueUpdate() {
++        const snapshot = this.agent.queueSnapshot();
+         this._emit({
+             type: "queue_update",
+-            steering: [...this._steeringMessages],
+-            followUp: [...this._followUpMessages],
++            steering: snapshot.steering.map((item) => item.text),
++            followUp: snapshot.followUp.map((item) => item.text),
++        });
++        this._emit({
++            type: "pi_gui_queue_update_v1",
++            revision: snapshot.revision,
++            paused: this.agent.queueCatalog().paused,
++            steering: snapshot.steering.map(({ id, text, images }) => ({ id, text, imageCount: images.length })),
++            followUp: snapshot.followUp.map(({ id, text, images }) => ({ id, text, imageCount: images.length })),
+         });
+     }
+     async _emitSessionCompactFailed(event) {
+@@ -554,27 +563,10 @@ export class AgentSession {
+     }
+     /** Internal handler for agent events - shared by subscribe and reconnect */
+     _handleAgentEvent = async (event) => {
+-        // When a user message starts, check if it's from either queue and remove it BEFORE emitting
+-        // This ensures the UI sees the updated queue state
++        // The Pi core queue emits at the atomic drain boundary. Matching by text
++        // here would remove the wrong item when two messages have identical text.
+         if (event.type === "message_start" && event.message.role === "user") {
+             this._overflowRecoveryAttempted = false;
+-            const messageText = contentText(event.message.content, "");
+-            if (messageText) {
+-                // Check steering queue first
+-                const steeringIndex = this._steeringMessages.indexOf(messageText);
+-                if (steeringIndex !== -1) {
+-                    this._steeringMessages.splice(steeringIndex, 1);
+-                    this._emitQueueUpdate();
+-                }
+-                else {
+-                    // Check follow-up queue
+-                    const followUpIndex = this._followUpMessages.indexOf(messageText);
+-                    if (followUpIndex !== -1) {
+-                        this._followUpMessages.splice(followUpIndex, 1);
+-                        this._emitQueueUpdate();
+-                    }
+-                }
+-            }
+         }
+         // Emit to extensions first, then notify public listeners.
+         await this._emitExtensionEvent(event);
+@@ -1212,6 +1204,7 @@ export class AgentSession {
+         const expandPromptTemplates = options?.expandPromptTemplates ?? true;
+         const preflightResult = options?.preflightResult;
+         let messages;
++        let effectiveUserText;
+         try {
+             // Handle extension commands first (execute immediately, even during streaming)
+             // Extension commands manage their own LLM interaction via pi.sendMessage()
+@@ -1219,7 +1212,7 @@ export class AgentSession {
+                 const handled = await this._tryExecuteExtensionCommand(text);
+                 if (handled) {
+                     // Extension command executed, no prompt to send
+-                    preflightResult?.(true);
++                    preflightResult?.(true, "handled");
+                     return;
+                 }
+             }
+@@ -1227,9 +1220,11 @@ export class AgentSession {
+                 throw new Error("Cannot submit a prompt while compaction is in progress. Wait for compaction to finish and retry.");
+             }
+             // Emit input event for extension interception (before skill/template expansion)
+-            const processedInput = await this._runInputHandlers(text, options?.images, options?.source ?? "interactive", this.isStreaming ? options?.streamingBehavior : undefined);
++            const processedInput = options?.piQueueResume === true
++                ? { text, images: options?.images }
++                : await this._runInputHandlers(text, options?.images, options?.source ?? "interactive", this.isStreaming ? options?.streamingBehavior : undefined);
+             if (!processedInput) {
+-                preflightResult?.(true);
++                preflightResult?.(true, "handled");
+                 return;
+             }
+             const { text: currentText, images: currentImages } = processedInput;
+@@ -1250,7 +1245,7 @@ export class AgentSession {
+                 else {
+                     await this._queueSteer(expandedText, currentImages);
+                 }
+-                preflightResult?.(true);
++                preflightResult?.(true, "queued");
+                 return;
+             }
+             // Flush any pending bash and custom messages before the new prompt
+@@ -1290,6 +1285,7 @@ export class AgentSession {
+                 result.systemPromptOptions.selectedTools = this.getActiveToolNames();
+             const normalized = await this._normalizePromptImages(currentImages);
+             const userText = normalized.hints.length > 0 ? `${expandedText}\n\n${normalized.hints.join("\n")}` : expandedText;
++            effectiveUserText = userText;
+             // Build messages only after hooks and image normalization have completed.
+             messages = [];
+             const userContent = [{ type: "text", text: userText }];
+@@ -1327,7 +1323,7 @@ export class AgentSession {
+         if (!messages) {
+             return;
+         }
+-        preflightResult?.(true);
++        preflightResult?.(true, "run", effectiveUserText);
+         await this._runAgentPrompt(messages);
+     }
+     /**
+@@ -1397,10 +1393,10 @@ export class AgentSession {
+         let expandedText = this._expandSkillCommand(processedInput.text);
+         expandedText = expandPromptTemplate(expandedText, [...this.promptTemplates]);
+         if (behavior === "steer") {
+-            await this._queueSteer(expandedText, processedInput.images);
++            return this._queueSteer(expandedText, processedInput.images);
+         }
+         else {
+-            await this._queueFollowUp(expandedText, processedInput.images);
++            return this._queueFollowUp(expandedText, processedInput.images);
+         }
+     }
+     /**
+@@ -1413,7 +1409,7 @@ export class AgentSession {
+      * @throws Error if text is an extension command
+      */
+     async steer(text, images, options) {
+-        await this._queueUserInput(text, images, "steer", options?.source ?? "interactive");
++        return this._queueUserInput(text, images, "steer", options?.source ?? "interactive");
+     }
+     /**
+      * Queue a follow-up message to be processed after the agent finishes.
+@@ -1424,19 +1420,17 @@ export class AgentSession {
+      * @throws Error if text is an extension command
+      */
+     async followUp(text, images, options) {
+-        await this._queueUserInput(text, images, "followUp", options?.source ?? "interactive");
++        return this._queueUserInput(text, images, "followUp", options?.source ?? "interactive");
+     }
+     /**
+      * Internal: Queue a steering message (already expanded, no extension command check).
+      */
+     async _queueSteer(text, images) {
+-        this._steeringMessages.push(text);
+-        this._emitQueueUpdate();
+         const content = [{ type: "text", text }];
+         if (images) {
+             content.push(...images);
+         }
+-        this.agent.steer({
++        return this.agent.steer({
+             role: "user",
+             content,
+             timestamp: Date.now(),
+@@ -1446,13 +1440,11 @@ export class AgentSession {
+      * Internal: Queue a follow-up message (already expanded, no extension command check).
+      */
+     async _queueFollowUp(text, images) {
+-        this._followUpMessages.push(text);
+-        this._emitQueueUpdate();
+         const content = [{ type: "text", text }];
+         if (images) {
+             content.push(...images);
+         }
+-        this.agent.followUp({ role: "user", content, timestamp: Date.now() });
++        return this.agent.followUp({ role: "user", content, timestamp: Date.now() });
+     }
+     /**
+      * Throw an error if the text is an extension command.
+@@ -1579,25 +1571,24 @@ export class AgentSession {
+      * @returns Object with steering and followUp arrays
+      */
+     clearQueue() {
+-        const steering = [...this._steeringMessages];
+-        const followUp = [...this._followUpMessages];
+-        this._steeringMessages = [];
+-        this._followUpMessages = [];
++        const snapshot = this.agent.queueSnapshot();
++        const steering = snapshot.steering.map((item) => item.text);
++        const followUp = snapshot.followUp.map((item) => item.text);
+         this.agent.clearAllQueues();
+-        this._emitQueueUpdate();
+         return { steering, followUp };
+     }
+     /** Number of pending messages (includes both steering and follow-up) */
+     get pendingMessageCount() {
+-        return this._steeringMessages.length + this._followUpMessages.length;
++        const snapshot = this.agent.queueSnapshot();
++        return snapshot.steering.length + snapshot.followUp.length;
+     }
+     /** Get pending steering messages (read-only) */
+     getSteeringMessages() {
+-        return this._steeringMessages;
++        return this.agent.queueSnapshot().steering.map((item) => item.text);
+     }
+     /** Get pending follow-up messages (read-only) */
+     getFollowUpMessages() {
+-        return this._followUpMessages;
++        return this.agent.queueSnapshot().followUp.map((item) => item.text);
+     }
+     get resourceLoader() {
+         return this._resourceLoader;
+diff --git a/dist/modes/rpc/rpc-mode.js b/dist/modes/rpc/rpc-mode.js
+index f6c667c8ed48515f1830abe7ffc32e688d668b5e..bbf3bed234e121b29574e2ac1d59c6a549332a16 100644
+--- a/dist/modes/rpc/rpc-mode.js
++++ b/dist/modes/rpc/rpc-mode.js
+@@ -42,6 +42,7 @@ export async function runRpcMode(runtimeHost) {
+     // Shutdown request flag
+     let shutdownRequested = false;
+     let shuttingDown = false;
++    let queuePromotionPending = false;
+     const signalCleanupHandlers = [];
+     /** Helper for dialog methods with signal/timeout support */
+     function createDialogPromise(opts, defaultValue, request, parseResponse) {
+@@ -304,10 +305,12 @@ export async function runRpcMode(runtimeHost) {
+                     images: command.images,
+                     streamingBehavior: command.streamingBehavior,
+                     source: "rpc",
+-                    preflightResult: (didSucceed) => {
++                    preflightResult: (didSucceed, disposition, effectiveText) => {
+                         if (didSucceed) {
+                             preflightSucceeded = true;
+-                            output(success(id, "prompt"));
++                            output(success(id, "prompt", { disposition,
++                                ...(typeof effectiveText === "string" ? { effectiveTextHash: crypto.createHash("sha256")
++                                    .update(effectiveText).digest("hex") } : {}) }));
+                         }
+                     },
+                 })
+@@ -319,20 +322,141 @@ export async function runRpcMode(runtimeHost) {
+                 return undefined;
+             }
+             case "steer": {
+-                await session.steer(command.message, command.images, { source: "rpc" });
+-                return success(id, "steer");
++                const queueItemId = await session.steer(command.message, command.images, { source: "rpc" });
++                return success(id, "steer", { queueItemId });
+             }
+             case "follow_up": {
+-                await session.followUp(command.message, command.images, { source: "rpc" });
+-                return success(id, "follow_up");
++                const queueItemId = await session.followUp(command.message, command.images, { source: "rpc" });
++                return success(id, "follow_up", { queueItemId });
+             }
+             case "abort": {
+                 await session.abort();
+                 return success(id, "abort");
+             }
+             case "clear_queue": {
++                if (queuePromotionPending)
++                    return error(id, command.type, "Pi queue promotion is in progress");
+                 return success(id, "clear_queue", session.clearQueue());
+             }
++            case "pi_gui_queue_capabilities_v1": {
++                if (typeof session.agent.queueCatalog !== "function" ||
++                    typeof session.agent.queueReadItem !== "function" ||
++                    typeof session.agent.queueSetPaused !== "function" ||
++                    typeof session.agent.queueMutate !== "function" ||
++                    typeof session.agent.queueTakeAll !== "function") {
++                    return error(id, command.type, "Pinned Pi queue core compatibility patch is missing");
++                }
++                return success(id, command.type, {
++                    protocol: "pi-gui-queue/1",
++                    codingAgent: "0.87.0",
++                    agentCore: "0.87.1",
++                    stableItemIds: true,
++                    atomicRevision: true,
++                    images: true,
++                });
++            }
++            case "pi_gui_queue_catalog_v1": {
++                return success(id, command.type, session.agent.queueCatalog());
++            }
++            case "pi_gui_queue_set_paused_v1": {
++                if (queuePromotionPending)
++                    return error(id, command.type, "Pi queue promotion is in progress");
++                if (!Number.isSafeInteger(command.expectedRevision) || command.expectedRevision < 0 ||
++                    typeof command.paused !== "boolean") {
++                    return error(id, command.type, "Invalid Pi queue pause request");
++                }
++                return success(id, command.type,
++                    session.agent.queueSetPaused(command.expectedRevision, command.paused));
++            }
++            case "pi_gui_queue_resume_v1": {
++                if (queuePromotionPending)
++                    return error(id, command.type, "Pi queue promotion is in progress");
++                const catalog = session.agent.queueCatalog();
++                if (!Number.isSafeInteger(command.expectedRevision) || command.expectedRevision !== catalog.revision)
++                    return error(id, command.type, "Pi queue revision changed");
++                if (!catalog.paused)
++                    return success(id, command.type, { catalog, promotedId: null });
++                const head = catalog.steering[0] ?? catalog.followUp[0];
++                if (!head || session.isStreaming) {
++                    return success(id, command.type, {
++                        catalog: session.agent.queueSetPaused(catalog.revision, false), promotedId: null,
++                    });
++                }
++                const item = session.agent.queueReadItem(catalog.revision, head.id);
++                queuePromotionPending = true;
++                let admitted = false;
++                void session.prompt(item.text, {
++                    images: item.images,
++                    source: "rpc",
++                    expandPromptTemplates: false,
++                    piQueueResume: true,
++                    preflightResult: (didSucceed) => {
++                        if (!didSucceed)
++                            return;
++                        admitted = true;
++                        try {
++                            const current = session.agent.queueCatalog();
++                            const taken = session.agent.queueMutate(current.revision, { kind: "take", id: head.id });
++                            const resumed = session.agent.queueSetPaused(taken.snapshot.revision, false);
++                            output(success(id, command.type, { catalog: resumed, promotedId: head.id }));
++                        }
++                        catch (e) {
++                            output(error(id, command.type, `Pi accepted resume but queue reconciliation failed: ${e.message}`));
++                        }
++                        finally {
++                            queuePromotionPending = false;
++                        }
++                    },
++                }).catch((e) => {
++                    queuePromotionPending = false;
++                    if (!admitted)
++                        output(error(id, command.type, e.message));
++                });
++                return undefined;
++            }
++            case "pi_gui_queue_read_item_v1": {
++                if (!Number.isSafeInteger(command.expectedRevision) || command.expectedRevision < 0 ||
++                    typeof command.queueItemId !== "string") {
++                    return error(id, command.type, "Invalid Pi queue item read request");
++                }
++                return success(id, command.type,
++                    session.agent.queueReadItem(command.expectedRevision, command.queueItemId));
++            }
++            case "pi_gui_queue_mutate_v1": {
++                if (queuePromotionPending)
++                    return error(id, command.type, "Pi queue promotion is in progress");
++                if (!Number.isSafeInteger(command.expectedRevision) || command.expectedRevision < 0 ||
++                    !command.operation || typeof command.operation.id !== "string") {
++                    return error(id, command.type, "Invalid Pi queue mutation request");
++                }
++                const operation = command.operation;
++                if (operation.kind === "move" && operation.beforeId !== null && typeof operation.beforeId !== "string") {
++                    return error(id, command.type, "Invalid Pi queue move target");
++                }
++                if (operation.kind === "replace" && (typeof operation.text !== "string" ||
++                    (operation.images !== undefined && (!Array.isArray(operation.images) ||
++                        operation.images.some((image) => image?.type !== "image" ||
++                            typeof image.data !== "string" || typeof image.mimeType !== "string"))))) {
++                    return error(id, command.type, "Invalid Pi queue replacement content");
++                }
++                const mutation = session.agent.queueMutate(command.expectedRevision, operation);
++                return success(id, command.type, {
++                    catalog: session.agent.queueCatalog(),
++                    ...(mutation.taken ? { takenId: mutation.taken.id } : {}),
++                });
++            }
++            case "pi_gui_queue_take_all_v1": {
++                if (queuePromotionPending)
++                    return error(id, command.type, "Pi queue promotion is in progress");
++                if (!Number.isSafeInteger(command.expectedRevision) || command.expectedRevision < 0) {
++                    return error(id, command.type, "Invalid Pi queue take-all revision");
++                }
++                const taken = session.agent.queueTakeAll(command.expectedRevision);
++                return success(id, command.type, {
++                    takenIds: [...taken.steering, ...taken.followUp].map((item) => item.id),
++                    catalog: session.agent.queueCatalog(),
++                });
++            }
+             case "new_session": {
+                 const options = command.parentSession ? { parentSession: command.parentSession } : undefined;
+                 const result = await runtimeHost.newSession(options);
+diff --git a/dist/modes/rpc/rpc-types.d.ts b/dist/modes/rpc/rpc-types.d.ts
+index 82b5793d34cb04c1772e0ca0e664ece6b0a5c7ce..d154d9918414c1a76d57621f45e9fba257a7089a 100644
+--- a/dist/modes/rpc/rpc-types.d.ts
++++ b/dist/modes/rpc/rpc-types.d.ts
+@@ -4,7 +4,7 @@
+  * Commands are sent as JSON lines on stdin.
+  * Responses and events are emitted as JSON lines on stdout.
+  */
+-import type { AgentMessage, ThinkingLevel } from "@earendil-works/pi-agent-core";
++import type { AgentMessage, PiGuiQueueCatalogV1, PiGuiQueueItemV1, PiGuiQueueOperationV1, ThinkingLevel } from "@earendil-works/pi-agent-core";
+ import type { ImageContent, Model } from "@earendil-works/pi-ai";
+ import type { SessionStats } from "../../core/agent-session.ts";
+ import type { BashResult } from "../../core/bash-executor.ts";
+@@ -33,6 +33,32 @@ export type RpcCommand = {
+ } | {
+     id?: string;
+     type: "clear_queue";
++} | {
++    id?: string;
++    type: "pi_gui_queue_capabilities_v1" | "pi_gui_queue_catalog_v1";
++} | {
++    id?: string;
++    type: "pi_gui_queue_set_paused_v1";
++    expectedRevision: number;
++    paused: boolean;
++} | {
++    id?: string;
++    type: "pi_gui_queue_resume_v1";
++    expectedRevision: number;
++} | {
++    id?: string;
++    type: "pi_gui_queue_read_item_v1";
++    expectedRevision: number;
++    queueItemId: string;
++} | {
++    id?: string;
++    type: "pi_gui_queue_take_all_v1";
++    expectedRevision: number;
++} | {
++    id?: string;
++    type: "pi_gui_queue_mutate_v1";
++    expectedRevision: number;
++    operation: PiGuiQueueOperationV1;
+ } | {
+     id?: string;
+     type: "new_session";
+@@ -164,16 +190,19 @@ export type RpcResponse = {
+     type: "response";
+     command: "prompt";
+     success: true;
++    data: { disposition: "handled" | "queued" | "run"; effectiveTextHash?: string };
+ } | {
+     id?: string;
+     type: "response";
+     command: "steer";
+     success: true;
++    data: { queueItemId?: string };
+ } | {
+     id?: string;
+     type: "response";
+     command: "follow_up";
+     success: true;
++    data: { queueItemId?: string };
+ } | {
+     id?: string;
+     type: "response";
+@@ -188,6 +217,42 @@ export type RpcResponse = {
+         steering: string[];
+         followUp: string[];
+     };
++} | {
++    id?: string;
++    type: "response";
++    command: "pi_gui_queue_capabilities_v1";
++    success: true;
++    data: { protocol: "pi-gui-queue/1"; codingAgent: "0.87.0"; agentCore: "0.87.1"; stableItemIds: true; atomicRevision: true; images: true };
++} | {
++    id?: string;
++    type: "response";
++    command: "pi_gui_queue_catalog_v1" | "pi_gui_queue_set_paused_v1";
++    success: true;
++    data: PiGuiQueueCatalogV1;
++} | {
++    id?: string;
++    type: "response";
++    command: "pi_gui_queue_resume_v1";
++    success: true;
++    data: { catalog: PiGuiQueueCatalogV1; promotedId: string | null };
++} | {
++    id?: string;
++    type: "response";
++    command: "pi_gui_queue_read_item_v1";
++    success: true;
++    data: PiGuiQueueItemV1;
++} | {
++    id?: string;
++    type: "response";
++    command: "pi_gui_queue_take_all_v1";
++    success: true;
++    data: { catalog: PiGuiQueueCatalogV1; takenIds: string[] };
++} | {
++    id?: string;
++    type: "response";
++    command: "pi_gui_queue_mutate_v1";
++    success: true;
++    data: { catalog: PiGuiQueueCatalogV1; takenId?: string };
+ } | {
+     id?: string;
+     type: "response";
+diff --git a/package.json b/package.json
+index eae863020d53a464421d9d5540cf9890e8a64935..e94d6d304503be19c2e94d2d1268eb8ed2c6e416 100644
+--- a/package.json
++++ b/package.json
+@@ -17,7 +17,7 @@
+ 			"import": "./dist/index.js"
+ 		},
+ 		"./rpc-entry": {
+-			"import": "./dist/bundle/rpc-entry.js"
++			"import": "./dist/rpc-entry.js"
+ 		},
+ 		"./client": {
+ 			"source": "./src/client/index.ts"

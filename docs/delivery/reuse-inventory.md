@@ -25,7 +25,53 @@ worktree 父目录：`C:\Users\niilo\AppData\Local\Temp\opencode`。以下提交
 
 证据分别在各 worktree 的 `docs/delivery/issue-*-evidence.md`（认证为 `issue-7-auth-evidence.md`）。旧测试计数/截图属于这些提交，迁入后必须复验。旧 #32 之前的本地“完成”评论保留作历史，当前正文和重建评论覆盖其路线。
 
+### #6 原生服务移植记录（2026-09-27，隔离分支待整合）
+
+对照旧 `43289a0` 的 `pi-bridge-extension.ts`、`bridge-controller.ts` 和真 Pi 测试，保留了版本化 slash command、`get_commands` 发现、notify 关联结果、会话代次和 `reload` 后新绑定确认这些公共 API 用法。本次在原生 `PiSessionSupervisor` 的一会话一 Pi 进程及 JSONL 租约下重写为 `packages/services/src/pi-agent/pi-control-{protocol,bridge,bridge-extension}.ts`；旧 App、preload、session switch/newSession 和自建 UI 没有移植。树与 entries 由 Pi RPC 读取，跳转用 `ExtensionCommandContext.navigateTree`，标签用 `pi.setLabel`，重载用 `ctx.reload`。`PiTreeDialog` 接入原生 `SessionPane`，并以原生 `ComposerRestoreRequest` 恢复用户输入文本。
+
+跳转后若不产生新消息，Pi 0.87.0 的内存叶子在进程重启时会回到 JSONL 最末条。因此成功跳转后使用公开 `pi.appendEntry` 在当前分支写入不参与模型上下文的自定义导航节点；重启回归验证书签和当前分支都由 Pi JSONL 恢复。固定 Pi 0.87.0 来源为仓库已声明的 `@earendil-works/pi-coding-agent`，版权与许可证沿用 `THIRD_PARTY_NOTICES.md` 的 Pi 声明。受控本地 provider 的测试结果不计在线 provider 或 GUI 视觉验收。
+
+### #12 原生资源管理增量（2026-09-27）
+
+沿用上述 `pi-control` 桥及原生 `SessionPane`、Dialog/Button，没有迁入历史原型的资源界面。固定 Pi `@earendil-works/pi-coding-agent@0.87.0` 的公开根导出 `DefaultPackageManager`、`SettingsManager`、扩展 `pi.getCommands()` / `ctx.getSystemPromptOptions()` / `ctx.reload()` 和 RPC `get_commands` 是实现依据；包的安装、移除、更新与过滤交给 Pi，自身只加版本化控制与文件哈希冲突保护。Pi `config-selector` 的 `+/-` 资源覆盖规则仅作为行为参考，未复制源码。固定来源为 [Pi v0.87.0](https://github.com/earendil-works/pi/tree/16787ad5b2dc748047f314ca1bfe7708f30f54f3/packages/coding-agent)，许可证 MIT，声明仍见 `THIRD_PARTY_NOTICES.md`。临时 Git 测试仓库、受控本地模型和源代码 UI 编译不等于最终桌面 GUI/在线 provider/包内验收。
+
+2026-09-28 的 #12 增量保留 Pi 包管理器为唯一安装/更新实现；`pi-control` 版本 1.4.0 仅把它的离线及固定 npm 跳过语义映射为可诊断的更新状态/拒绝。没有复制上游包管理算法或运行 Git 更新；原生 Dialog 中新增状态文案，详情见 [原生 UI 差异](native-ui-parity.md)。
+
 另有 #2 的 `issue-2-rpc-transport`、`issue-2-renderer`、`issue-2-e2e` 工作树，内容已进入 #31，不重复领取。`integration/first-release` 停在 `46c34f1`，不继续旧批次整合。
+
+### #7/#8 原生认证与扩展交互移植记录（2026-09-27，隔离分支待整合）
+
+对照旧 #7 `bde41fc` 的 ModelRuntime 认证、取消和凭据状态测试，仅沿用固定 Pi 公开 API 的做法；旧私有 loopback、旧 Settings UI 和自有 provider 状态源没有移植。新实现是 `packages/services/src/pi-agent/pi-auth-manager.ts`，使用 Pi 0.87.0 `ModelRuntime` 管理 RPC 子进程实际 `PI_CODING_AGENT_DIR` 内的 `auth.json` / `models.json`，在原生 Settings 的模型提供商页显示非秘密状态。认证写入后由版本化公开控制桥在同一 Pi RPC 会话调用 `ctx.modelRegistry.refresh({allowNetwork:false})`；不能把宿主侧保存成功冒充为在线推理通过。公开桥版本从 1.0.0 增至 1.1.0，Pi 协议版本仍为 1。
+
+对照旧 #8 `7d9e407` 的 TUI 兼容研究，本次只移植 RPC 可序列化的 `select`、`confirm`、`input`、`editor` 交互合同和真 Pi 顺序测试；旧 headless TUI 宿主、CLI 补丁、组件渲染器和第二会话没有移植。原生 `V4InteractionDialogs` / `V4UserInputDialog` 复用已有弹窗路径，具体类别边界见 [扩展 UI 兼容表](pi-extension-ui-compatibility.md)。这些增量代码使用固定 Pi 的公开接口；版权与许可证沿用 `THIRD_PARTY_NOTICES.md` 的 Pi 声明。
+
+### #13 扩展状态和工具原生移植记录（2026-09-27，隔离分支待整合）
+
+对照旧 #8 `7d9e407` 的 TUI 兼容研究，只取固定 Pi 0.87.0 RPC 可序列化的
+`notify`、`setStatus`、`setWidget(string[])`、`setTitle`、`setEditorText`；
+没有移入旧 headless TUI 宿主或组件 factory。原生 `SessionPane` 底部 dock 复用现有
+`Button`、弹窗、空草稿恢复门禁；公开桥在同一 Pi 会话读回动态工具目录与启用状态。
+`setEditorText` 采用显式应用，避免覆盖未发送草稿；这与 TUI 自动写编辑器有差异。
+Pi 的 MIT 来源及固定版本见 `THIRD_PARTY_NOTICES.md` 与
+[上游参考](../references/upstream-and-ui.md)，原生组件来自当前 ZCode 底座。
+
+### #9 Pi fork/clone 原生纵向切片（2026-09-27，隔离分支待整合）
+
+沿用原生 `SessionPane`、`PiTreeDialog` 和 V4 命令/会话选择，不迁入旧原型的会话列表或 Agent 状态。固定 Pi 0.87.0 公开 RPC 的 `get_entries`、`fork(entryId)`、`clone()`、`get_state` 与 Pi JSONL 是分支事实；Host 只维护原生命令回执、进程及文件租约。`get_fork_messages` 只列有文字的用户输入，不能作为纯图片 entry 的授权门槛。Pi 成功替换会话后，旧 RPC 进程完整退出再恢复新会话，防止同一进程写着 child 却仍用父会话身份。取消返回 `noop`，不创建 child；不确定的交付阻止自动重试。Pi 来源与 MIT 声明见固定上游参考及 `THIRD_PARTY_NOTICES.md`。
+
+图片 fork 沿用同一原生会话树和 Lexical composer：Pi 仍独占分支事实；Host 从固定 Pi 的 `get_entries` 按用户选中的 `entryId` 和图片块序号取原 JSONL 字节，经带同源会话身份的分块引用恢复到 child 的现有 IndexedDB 草稿。没有搬入旧原型附件系统，也没有增加 Agent 队列。重复图片及 off-branch entry 必须按精确 entry ID 读取，不能按图片字节搜索当前行；重启和显式发送由原生 GUI 验证。冷 Pi session 确认删除后，清理的仍是现有本地文字与图片草稿存储。
+
+### #9 Pi 导入、导出与主动分享纵向切片（2026-09-28，隔离分支待整合）
+
+继续沿用原生 `SessionPane`、Dialog/Button、文件/目录选择器和会话选择，未迁入旧原型的分享 UI 或任务索引。固定 Pi 0.87.0 公开 RPC 的 `get_last_assistant_text`、`export_html`、根导出 `SessionManager.forkFrom` 和 Pi JSONL 是实现来源；Pi TUI `/share` 的 `gh gist create --public=false` 仅作为外发协议参考，GUI 不调用私有 TUI 组件。Pi MIT 声明见 `THIRD_PARTY_NOTICES.md`。宿主仅做受限 JSONL 字节/版本/树校验、原文件未变化校验与本地导出复制；分享保留 Pi HTML 原字节，必须由用户预览和勾选后才调用 `gh`。测试注入本地发布器，不会产生远程 Gist；Windows 目标目录的 ACL 由用户选择，不能把 POSIX `0600` 宣称为 Windows ACL 隔离。
+
+### #10 Pi 设置来源修正（2026-09-28，隔离分支待整合）
+
+继续复用原生 Settings 两栏、现有 Pi JSON 编辑器和固定 Pi 0.87.0 根导出 `SettingsManager`、`ProjectTrustStore`；没有迁入旧路线设置页或另建配置存储。依据固定包的 `settings-manager.js` 全局 getter 与 `main.js` 的 HTTP proxy 引用，项目文件中的 `cacheWarming`、`defaultProjectTrust`、`httpProxy` 不投影为实际生效值，但原始文件保留。嵌套值按现有 `sourcePaths` 逐叶展示来源，避免把混合用户/项目的 `retry` 总体标成项目来源。Pi MIT 来源及许可证见 [上游参考](../references/upstream-and-ui.md) 和 `THIRD_PARTY_NOTICES.md`；固定版本之外的设置语义尚未承诺。
+
+### #9 Pi 历史编辑与重试纵向切片（2026-09-28，隔离分支待整合）
+
+保留原生 `PiTreeDialog`、`SessionPane`、Lexical composer 和 V4 命令 ledger。固定 Pi 0.87.0 的公开 `get_entries`、扩展 `ctx.navigateTree` 和 RPC `prompt` 是唯一历史与回合来源；没有移植旧原型的行复制、Agent loop 或队列。编辑仅将可无损表示的纯文字交给原生 composer，图片和文件快照明确阻止；重试从 Pi 原 entry 取图文并在同一 Pi 会话分支上发出。公开控制桥版本由 1.2.0 提升到 1.3.0，`mode: retry` 明确不把图片误当文字编辑。Pi 来源及 MIT 声明见固定上游参考与 `THIRD_PARTY_NOTICES.md`。
 
 ## 已知外部验收差额
 

@@ -1,0 +1,35 @@
+命令面板
+
+搜索并执行当前工作区可用的命令。
+
+新建任务
+Ctrl+N
+搜索
+Ctrl+K
+自动化
+插件市场
+分组
+项目
+项目
+parity-workspace
+暂无任务
+任务
+还没有任务
+π
+Pi Agent IDE
+
+上午好呀，有什么想让我帮忙的吗
+
+parity-workspace
+master
+
+Native keyboard draft
+中文输入​
+
+添加上下文
+Pi 工具直接执行
+新供应商/parity-controlled
+开启
+关闭
+开启
+发送

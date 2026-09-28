@@ -1,0 +1,225 @@
+✔ uninstalled AIX optional is recorded, not required by a Windows cross-platform install (1.3284ms)
+✔ missing current-platform and configured foreign-platform packages both fail (0.437ms)
+✔ platform constraints alone, package-name exceptions, and wrong versions cannot excuse required dependencies (0.8747ms)
+✔ host defaults, CPU, libc, negation and any follow platform metadata, not package names (0.1852ms)
+✔ every actually installed production version needs notices, including foreign optionals (0.2922ms)
+✔ checkout-index --force can retain old CRLF with correct cwd and new -text attributes (319.2416ms)
+✔ dry run is byte-read-only, including the index (286.0953ms)
+✔ repair writes exact current-index bytes, preserves branding, original CRLF and smoke, and is idempotent (536.6756ms)
+✔ an unstaged non-EOL source edit blocks every write (232.9928ms)
+✔ a wrong indexed license hash blocks repair rather than accepting the Git blob blindly (448.2789ms)
+✔ invalid UTF-8 byte changes cannot masquerade as EOL-only drift (279.4259ms)
+✔ unstaged metadata is preserved and cannot change the repair scope (149.6122ms)
+✔ foreign inherited Git root is rejected before reading a different repository (119.7144ms)
+✔ offline verification retains mixed notice bytes and reports unresolved material (29.7835ms)
+✔ missing vendored skill is a failure, not a skipped input (12.7317ms)
+✔ branding metadata needs regeneration but manifest CRLF alone does not (30.2353ms)
+✔ checkout line-ending corruption is rejected for THIRD-PARTY-NOTICES.md (12.6083ms)
+✔ checkout line-ending corruption is rejected for upstream (13.1353ms)
+✔ checkout line-ending corruption is rejected for native (12.2965ms)
+✔ checkout line-ending corruption is rejected for skill (12.1839ms)
+✔ modified provenance material is rejected: third-party/runtime/node-LICENSE.txt (13.7603ms)
+✔ modified provenance material is rejected: scripts/native-config.mjs (12.6265ms)
+✔ modified provenance material is rejected: patches/package.patch (13.2252ms)
+✔ read-only dependency reuse requires identical lockfile and every workspace manifest (27.681ms)
+✔ installed graph cannot supply notices for a different locked version (0.4613ms)
+✔ original fixture emits its actual Agent read contract (28.9008ms)
+✔ product fixture emits its actual Agent read contract (6.5851ms)
+✔ original waiting fixture retains AskUserQuestion and both answer options (3.7551ms)
+✔ Pi fixture fails rather than impersonating original waiting capability (3.7848ms)
+ℹ tests 29
+ℹ suites 0
+ℹ pass 29
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2452.5653
+(node:3108) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[2026-09-23 15:37:28.137] [pid:3108] [zcode-task-service] [zcode-task-service] 历史快照读取完成 {
+  clientMode: 'desktop-continuous',
+  durationMs: 7,
+  indexDurationMs: 0,
+  messageLimit: null,
+  projectionDurationMs: 1,
+  resumeDurationMs: 6,
+  snapshotKind: 'session',
+  stats: {
+    assistantMessages: 0,
+    bodyRefs: 0,
+    contentChars: 0,
+    fileChanges: 0,
+    historyTotalMessages: 0,
+    messages: 0,
+    slashCommands: 0,
+    thoughtChars: 0,
+    toolCalls: 0,
+    toolSliceMessages: 0,
+    truncatedBefore: false,
+    userMessages: 0
+  },
+  taskId: 'claude-import-example',
+  workspaceIdentity: 'example-remote-workspace',
+  workspacePath: '/example/workspace'
+}
+✔ previously imported Claude history becomes a real session for desktop-continuous (32.7419ms)
+[2026-09-23 15:37:28.151] [pid:3108] [zcode-task-service] [zcode-task-service] 历史快照读取完成 {
+  clientMode: 'web-remote-replayable',
+  durationMs: 2,
+  indexDurationMs: 0,
+  messageLimit: null,
+  projectionDurationMs: 0,
+  resumeDurationMs: 2,
+  snapshotKind: 'session',
+  stats: {
+    assistantMessages: 0,
+    bodyRefs: 0,
+    contentChars: 0,
+    fileChanges: 0,
+    historyTotalMessages: 0,
+    messages: 0,
+    slashCommands: 0,
+    thoughtChars: 0,
+    toolCalls: 0,
+    toolSliceMessages: 0,
+    truncatedBefore: false,
+    userMessages: 0
+  },
+  taskId: 'claude-import-example',
+  workspaceIdentity: 'example-remote-workspace',
+  workspacePath: '/example/workspace'
+}
+✔ previously imported Claude history becomes a real session for web-remote-replayable (12.2199ms)
+(node:46024) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ current Project Memory catalog and files remain readable (16.5381ms)
+✔ opening the task index leaves retired ACP IDs and user rows untouched (15.4697ms)
+[2026-09-23 15:37:29.025] [pid:46024] [zcode-task-service] [zcode-task-service] 历史快照读取完成 {
+  clientMode: 'desktop-continuous',
+  durationMs: 1,
+  indexDurationMs: 0,
+  messageLimit: null,
+  projectionDurationMs: 1,
+  resumeDurationMs: 0,
+  snapshotKind: 'session',
+  stats: {
+    assistantMessages: 0,
+    bodyRefs: 0,
+    contentChars: 0,
+    fileChanges: 0,
+    historyTotalMessages: 0,
+    messages: 0,
+    slashCommands: 1,
+    thoughtChars: 0,
+    toolCalls: 0,
+    toolSliceMessages: 0,
+    truncatedBefore: false,
+    userMessages: 0
+  },
+  taskId: 'wrapper-example',
+  workspaceIdentity: null,
+  workspacePath: '/example/workspace'
+}
+[2026-09-23 15:37:29.026] [pid:46024] [zcode-task-service] [zcode-task-service] 历史快照读取完成 {
+  clientMode: 'web-remote-replayable',
+  durationMs: 0,
+  indexDurationMs: 0,
+  messageLimit: null,
+  projectionDurationMs: 0,
+  resumeDurationMs: 0,
+  snapshotKind: 'session',
+  stats: {
+    assistantMessages: 0,
+    bodyRefs: 0,
+    contentChars: 0,
+    fileChanges: 0,
+    historyTotalMessages: 0,
+    messages: 0,
+    slashCommands: 1,
+    thoughtChars: 0,
+    toolCalls: 0,
+    toolSliceMessages: 0,
+    truncatedBefore: false,
+    userMessages: 0
+  },
+  taskId: 'wrapper-example',
+  workspaceIdentity: null,
+  workspacePath: '/example/workspace'
+}
+✔ missing sessions report the owner error even when a valid ACP snapshot exists (7.2819ms)
+✔ current session recovery preserves Desktop and replayable projections (6.3272ms)
+✔ current Provider configuration starts without an old config migration callback (39.5433ms)
+(node:31916) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ Host channel subscribes to real Pi lifecycle events without a legacy Agent (867.1667ms)
+[pi-agent] session bookmark failed Error
+[pi-agent] session bookmark failed Error
+✔ a bookmark failure after accepted Pi input is visible but never changes ACK to failed or replays input (15.4063ms)
+✔ Pi stream and final history produce native text/tool rows with cumulative output replacement (7.9182ms)
+✔ Pi read card opens the same workspace file that Pi read from its cwd (0.2435ms)
+✔ native v4 subscription and create/stop commands are backed by a real pinned Pi process (299.5748ms)
+✔ spawn readiness sends no command, carries cwd/env/literal args, and start is idempotent (54.7037ms)
+✔ request before start and start after disposal fail without launching a child (0.5973ms)
+✔ UTF-8 byte chunks, CRLF, LF, multiple records and Unicode separators survive the child boundary (940.6339ms)
+✔ stderr has its own incremental decoder and never becomes a protocol record (553.4852ms)
+✔ malformed stdout is diagnosed, primitives are rejected, and unknown object events are preserved (46.3549ms)
+✔ invalid and truncated UTF-8 are diagnosed and the next LF resynchronizes framing (45.5883ms)
+✔ oversized unterminated stdout is bounded, diagnosed once and discarded until LF (60.287ms)
+✔ responses correlate unique generated IDs even for simultaneous same-command requests (62.7189ms)
+✔ stdin preserves queue command order while responses may arrive in reverse order (46.4083ms)
+✔ prompt acceptance and agent_end do not manufacture agent_settled (78.1763ms)
+✔ events with request IDs remain events and do not settle the request (43.1778ms)
+✔ notify preserves extension response IDs and needs no command response (44.7069ms)
+✔ Pi rejection and cancelled session operations are responses, not transport failures (52.6371ms)
+✔ command mismatch and malformed response envelopes reject only the correlated request (47.8047ms)
+✔ missing, foreign, invalid and duplicate response IDs are diagnostics, never events (52.1718ms)
+✔ final response without LF resolves before exit, including CR and multibyte characters (43.9605ms)
+✔ final event without LF is emitted before exit and incomplete tail UTF-8 is diagnosed (101.9765ms)
+✔ timeout settles a sent request; a late response is not replayed or misrouted (291.654ms)
+✔ backpressure waits for the child; timed-out queued commands are removed before they can execute (735.1856ms)
+✔ outbound byte limit and queue bound reject overload without killing an otherwise live client (1221.8657ms)
+✔ pending request count is bounded even when stdin has room and no responses arrive (78.022ms)
+✔ notification count is bounded behind a backpressured write and disposal settles every write (109.5162ms)
+✔ notification write deadlines remove unsent notifications and report uncertain active delivery (634.789ms)
+✔ crash settles all in-flight requests and other client processes remain isolated (94.0243ms)
+✔ a child dying during a backpressured write settles notifications without unhandled pipe errors (210.99ms)
+✔ exit settles requests even when a descendant keeps stdout and stderr open (53.8539ms)
+✔ an immediate post-spawn exit is observable and the client cannot restart itself (45.5917ms)
+✔ missing executable and invalid cwd reject spawn, emit diagnostics, and can be disposed (3.3862ms)
+✔ disposal during spawn is cancellation-safe and cannot resurrect the client (13.0744ms)
+✔ disposal rejects pending requests, suppresses later records, and reaps a stubborn child (50.4237ms)
+✔ serialization failures and invalid deadlines do not poison the transport or leak requests (51.7199ms)
+✔ real Pi 0.87.0 lists resource commands, not TUI /compact; compact is a separate RPC (351.1229ms)
+✔ pinned Pi RPC runs two isolated native sessions (343.1399ms)
+✔ app bookmarks index only existing Pi JSONL histories and never copy their contents (9.5775ms)
+✔ only one Host process owns a Pi session file; dead owner recovery never replays a command (166.4695ms)
+✔ supervisor owns independent pinned Pi processes and stops one without affecting the other (295.2295ms)
+✔ Pi admission, retry, compaction, extension no-run and agent_settled have distinct native phases (6.4414ms)
+✔ Pi native draft and run facts produce schema-valid v4 snapshots without advertising missing capabilities (9.4781ms)
+✔ local provider baseline materializes only in the personal profile, not bundled resources (54.4566ms)
+✔ startup migrates published ZCode config into personal config without changing the source (68.4362ms)
+✔ startup preserves an existing personal config and never consults the legacy file (23.1843ms)
+✔ invalid legacy config is preserved and does not commit an empty personal config (23.3276ms)
+ℹ tests 54
+ℹ suites 0
+ℹ pass 54
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 15660.3853
+✔ current task metadata is accepted without upgrading third-party Agent identities (9.5ms)
+✔ obsolete Agent settings are stripped without dropping current user preferences (23.5551ms)
+✔ current question results work while Claude ACP text is no longer interpreted as answers (2.1923ms)
+✔ ZCode subagent identity wins over retired Codex nicknames (2.0592ms)
+✔ current tool errors remain available without Claude ACP status overrides (0.9357ms)
+✔ generic structured diffs still accept current tool content (0.2716ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3309.5036

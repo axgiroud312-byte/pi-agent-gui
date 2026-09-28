@@ -15,6 +15,8 @@ export function resolveDesktopProductionCleanPaths(cwd) {
   return [
     resolve(cwd, "out/bootstrap.mjs"),
     resolve(cwd, "out/bootstrap.mjs.map"),
+    resolve(cwd, "out/pi-control-bridge.mjs"),
+    resolve(cwd, "out/pi-control-bridge.mjs.map"),
     resolve(cwd, "out/.bootstrap-build-ready"),
     resolve(cwd, "out/main"),
     resolve(cwd, "out/host"),

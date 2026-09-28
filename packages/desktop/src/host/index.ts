@@ -15,6 +15,7 @@
  */
 import { createHostDatabaseStartup } from "./hostDatabaseStartup.js";
 import { randomUUID } from "node:crypto";
+import { fileURLToPath } from "node:url";
 import {
   MessagePortProtocol,
   ChannelServer,
@@ -57,7 +58,7 @@ import {
   OffPeakTaskService,
   createServiceLogger,
   buildTaskChangeSummary,
-  createHostApiNetworkTransport,
+  createHostApiNetworkTransportForSettings,
   createSettingServiceWithMigrations,
   OffPeakModelUnavailableError,
   OffPeakPermanentDispatchError,
@@ -1837,6 +1838,9 @@ function wireLocalResourceTelemetry(services: ServiceCollection): void {
     services,
     postMessage: (message) => parentPort?.postMessage(message),
     runtimeSurface: "local",
+    // Pi does not publish the old Agent/MCP resource telemetry. Do not
+    // subscribe to a legacy source or imply that unavailable samples exist.
+    telemetrySupported: false,
     onError: (error) => logger.warn("local resource telemetry subscription failed", error),
   });
 }
@@ -1869,7 +1873,7 @@ function createControllerRoutedTaskService(
     mutation:
       | { kind: "pin"; pinned: boolean }
       | { kind: "archive"; archived: boolean }
-      | { kind: "delete" }
+      | { kind: "delete"; expectedSessionFile?: string; expectedRevision?: string }
       | { kind: "mark-read"; expectedUnreadAt?: number }
       | { kind: "mark-unread" },
   ) =>
@@ -1908,7 +1912,8 @@ function createControllerRoutedTaskService(
       }
       if (property === "deleteTask") {
         return async (params: Parameters<IZCodeTaskService["deleteTask"]>[0]) => {
-          await route(params, { kind: "delete" });
+          await route(params, { kind: "delete", expectedSessionFile: params.expectedSessionFile,
+            expectedRevision: params.expectedRevision });
         };
       }
       if (property === "deleteArchivedTasks") {
@@ -2148,19 +2153,24 @@ async function disposeHostResources(reason: string): Promise<HostShutdownResult>
           name: "remote-registry-dispose",
           run: () => windowRemoteConnectionRegistry.dispose(),
           timeoutMs: 6_000,
+          mustComplete: true,
         },
         ...(servicesToDispose
           ? [
               {
                 name: "service-dispose",
                 run: () => disposeServiceResourcesAndWait(servicesToDispose),
-                timeoutMs: 3_500,
+                // clear_queue + abort + abort_bash + owned tree identity/force
+                // share this Host owner barrier; expiration only logs, never exits.
+                timeoutMs: 65_000,
+                mustComplete: true,
               },
             ]
           : []),
       ],
       {
         phaseTimeoutMs: 5_000,
+        concurrent: true,
         log: (message, details) => logger.warn(message, details),
       },
     );
@@ -2789,23 +2799,19 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
         activeSessionRealtimePort = createTaskRealtimeBridgeForHostInit(msg, parentPort);
         // 旧 Team 补组织必须与网络代理读取共用同一个 Setting 实例及写队列。
         // 只注入 service 会跳过默认装配分支，导致缺组织的升级用户永远无法恢复连接。
-        const { service: settingService, prepareLegacyAccountConnections } =
+        const { service: settingService, readStrictSettings, prepareLegacyAccountConnections } =
           createSettingServiceWithMigrations();
-        const hostApiNetworkTransport = createHostApiNetworkTransport(async () => {
-          const settings = await settingService.get();
-          return {
-            httpProxy: settings.httpProxy,
-            noProxy: settings.httpProxyNoProxy,
-            caCertPath: settings.httpProxyCaCertPath,
-          };
-        });
+        const hostApiNetworkTransport = createHostApiNetworkTransportForSettings(readStrictSettings);
         const services = await initializeHostApiNetworkTransportOwner({
           transport: hostApiNetworkTransport,
           log: (message, details) => logger.warn(message, details),
           establishOwner: () => {
             const initializedServices = createLocalServices({
+              piAgentRpcEntry: fileURLToPath(import.meta.resolve("@earendil-works/pi-coding-agent/rpc-entry")),
+              piControlExtensionPath: fileURLToPath(new URL("../pi-control-bridge.mjs", import.meta.url)),
               parentPort,
               settingService,
+              readStrictSettings,
               prepareLegacyAccountConnections,
               hostApiNetworkTransport,
               authorizeLocalMediaPreviewPath,
@@ -2902,6 +2908,10 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
   }
 });
 
+function rejectUnimplementedPiRemoteRuntime(): void {
+  throw new Error("Remote workspace Agent is not Pi-backed yet; this execution target is unavailable.");
+}
+
 async function setupRemoteConnection(
   target: RemoteTarget,
   remoteAssets: RemoteAssetDirs,
@@ -2911,6 +2921,10 @@ async function setupRemoteConnection(
   deployLockMode: DeployLockMode = "remote",
   signal?: AbortSignal,
 ): Promise<HostRemoteConnection> {
+  // The shipped remote zcode-server still constructs the old Agent. Until
+  // a Pi-owned remote target is implemented, fail before connecting rather
+  // than silently use the wrong engine. Keep the native UI entry and error.
+  rejectUnimplementedPiRemoteRuntime();
   // 延迟加载 remote backend，避免 local 模式下因 ssh2 依赖链进入 asar 后崩溃
   const { createRemoteBackend, connectRemote, pickRemoteRuntimeEnv } =
     await import("@zcode/server/remote");

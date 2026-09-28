@@ -477,6 +477,7 @@ export interface ZCodeAgentAttachmentTerminalParams extends ZCodeAgentSessionTar
 
 export interface ZCodeAgentAttachmentReadParams extends ZCodeAgentSessionTarget {
   ref: string;
+  queueItemId?: string;
   target?: ConversationRowTarget;
   attachmentIndex?: number;
   offset: number;
@@ -564,6 +565,59 @@ export interface ZCodeAgentStorageStartupSnapshot {
 }
 
 export interface IZCodeAgentService {
+  /** Fixed Pi JSONL/HTML transfer. Share publication has a separate explicit confirmation. */
+  readPiSessionTransfer(params: ZCodeAgentSessionTarget): Promise<import("../pi-agent/pi-session-transfer.js").PiSessionTransferPreview>;
+  exportPiSession(params: ZCodeAgentSessionTarget & { expectedRevision: string;
+    format: import("../pi-agent/pi-session-transfer.js").PiSessionExportFormat;
+    directory: string }): Promise<import("../pi-agent/pi-session-transfer.js").PiSessionExportResult>;
+  importPiSession(params: ZCodeAgentWorkspaceTarget & { sourcePath: string }): Promise<{ sessionId: string }>;
+  preparePiSessionShare(params: ZCodeAgentSessionTarget & { expectedRevision: string }): Promise<
+    import("../pi-agent/pi-native-v4-service.js").PiSharePreparation>;
+  publishPiSessionShare(params: ZCodeAgentSessionTarget & { token: string;
+    confirmed: boolean }): Promise<{ gistUrl: string; viewerUrl: string }>;
+  discardPiSessionShare(params: ZCodeAgentSessionTarget & { token: string }): Promise<void>;
+  /** Pi's user/project settings documents, effective values and external-edit CAS save. */
+  readPiSettings(params: ZCodeAgentWorkspaceTarget): Promise<import("../pi-agent/pi-settings-documents.js").PiSettingsSnapshot>;
+  savePiSettings(params: ZCodeAgentWorkspaceTarget & {
+    scope: import("../pi-agent/pi-settings-documents.js").PiSettingsScope;
+    expectedRevision: string;
+    text: string;
+  }): Promise<import("../pi-agent/pi-settings-documents.js").PiSettingsSnapshot>;
+  /** Fixed Pi 0.87 ModelRuntime management; inference remains in the owned RPC session. */
+  readPiAuth(params: ZCodeAgentWorkspaceTarget): Promise<import("../pi-agent/pi-auth-manager.js").PiAuthView>;
+  refreshPiAuth(params: ZCodeAgentWorkspaceTarget & { generation: string }): Promise<import("../pi-agent/pi-auth-manager.js").PiAuthView>;
+  startPiAuth(params: ZCodeAgentWorkspaceTarget & { generation: string; providerId: string;
+    action: import("../pi-agent/pi-auth-manager.js").PiAuthAction;
+    method?: import("../pi-agent/pi-auth-manager.js").PiAuthMethod }): Promise<string>;
+  answerPiAuth(params: ZCodeAgentWorkspaceTarget & { generation: string;
+    operationId: string; promptId: string; value: string }): Promise<void>;
+  cancelPiAuth(params: ZCodeAgentWorkspaceTarget & { generation: string;
+    operationId: string }): Promise<void>;
+  /** Fixed Pi public extension control, scoped to an active leased session. */
+  readPiControlTree(params: ZCodeAgentSessionTarget & { includeResourceContent?: boolean }): Promise<import("../pi-agent/pi-control-protocol.js").PiControlView>;
+  /** Read one bounded page of Pi's raw entries or current message projection. */
+  readPiContextInspection(params: ZCodeAgentSessionTarget & {
+    section: import("../pi-agent/pi-context-inspection.js").PiContextSection;
+    offset: number;
+    limit: number;
+  }): Promise<import("../pi-agent/pi-context-inspection.js").PiContextPage>;
+  runPiControlTree(params: ZCodeAgentSessionTarget & {
+    action: import("../pi-agent/pi-control-protocol.js").PiControlAction;
+    includeResourceContent?: boolean;
+  }): Promise<import("../pi-agent/pi-control-protocol.js").PiControlView>;
+  cancelPiTreeNavigation(params: ZCodeAgentSessionTarget): Promise<void>;
+  /** Candidate models from Pi ModelRuntime before a session, or exact RPC session afterwards. */
+  readPiModelCatalog(params: ZCodeAgentWorkspaceTarget & { sessionId?: string }):
+    Promise<import("@zcode/shared").ZCodeConfigOption>;
+  /** User shell executes in the owned fixed Pi RPC session and Pi records its history. */
+  runPiShell(params: ZCodeAgentSessionTarget & { command: string; excludeFromContext: boolean }):
+    Promise<import("../pi-agent/pi-session-supervisor.js").PiShellResult>;
+  readPiLlamaRouter(params: ZCodeAgentSessionTarget): Promise<import("../pi-agent/pi-llama-router-service.js").PiLlamaRouterView>;
+  runPiLlamaRouter(params: ZCodeAgentSessionTarget & {
+    action: import("../pi-agent/pi-llama-router-service.js").PiLlamaRouterAction;
+  }): Promise<import("../pi-agent/pi-llama-router-service.js").PiLlamaRouterView>;
+  cancelPiLlamaRouter(params: ZCodeAgentSessionTarget & { modelId: string }): Promise<import("../pi-agent/pi-llama-router-service.js").PiLlamaRouterView>;
+  onPiLlamaRouterProgress: Event<import("../pi-agent/pi-llama-router-service.js").PiLlamaRouterProgressEvent>;
   /** 控制面不需要账号或模型，且不发送普通协议请求。 */
   prepareStorage(params: ZCodeAgentWorkspaceTarget): Promise<void>;
   getStorageStartupState(

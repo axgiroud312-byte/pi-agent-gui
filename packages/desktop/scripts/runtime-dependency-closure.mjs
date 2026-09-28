@@ -2,13 +2,19 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, parse, resolve } from "node:path";
 import { createRequire } from "node:module";
 
-function findPackageRoot(entryPath) {
+function findPackageRoot(entryPath, moduleName) {
   let currentDir = dirname(entryPath);
   const root = parse(currentDir).root;
   while (currentDir !== root) {
     const packageJsonPath = resolve(currentDir, "package.json");
     if (existsSync(packageJsonPath)) {
-      return currentDir;
+      // ESM/CJS packages may place a second package.json below their root solely
+      // to set `type`. Only the manifest bearing this package's name owns its
+      // dependencies; stopping at the marker silently truncates the closure.
+      const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8"));
+      if (packageJson.name === moduleName) {
+        return currentDir;
+      }
     }
     currentDir = dirname(currentDir);
   }
@@ -20,7 +26,7 @@ function readRuntimePackage(moduleLookupRoots, moduleName, parentPackagePath = n
     try {
       const requireFromParent = createRequire(parentPackagePath);
       const entryPath = requireFromParent.resolve(moduleName);
-      const packageRoot = findPackageRoot(entryPath);
+      const packageRoot = findPackageRoot(entryPath, moduleName);
       if (packageRoot) {
         const packageJsonPath = resolve(packageRoot, "package.json");
         return {

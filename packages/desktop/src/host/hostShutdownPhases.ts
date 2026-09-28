@@ -2,6 +2,8 @@ interface HostShutdownPhase {
   name: string;
   run: () => Promise<void>;
   timeoutMs?: number;
+  /** An owner must not be abandoned on timeout while it can still hold children. */
+  mustComplete?: boolean;
 }
 
 export interface HostShutdownResult {
@@ -13,6 +15,18 @@ export interface HostShutdownResult {
 interface HostShutdownPhaseOptions {
   phaseTimeoutMs: number;
   log: (message: string, details: Record<string, unknown>) => void;
+  concurrent?: boolean;
+}
+
+function describeFailure(error: unknown, depth = 0): Record<string, unknown> {
+  if (!(error instanceof Error)) return { name: "UnknownFailure", message: String(error).slice(0, 400) };
+  return {
+    name: error.name,
+    message: error.message.slice(0, 400),
+    ...(depth < 3 && error instanceof AggregateError
+      ? { errors: error.errors.slice(0, 8).map(cause => describeFailure(cause, depth + 1)) } : {}),
+    ...(depth < 3 && error.cause ? { cause: describeFailure(error.cause, depth + 1) } : {}),
+  };
 }
 
 export async function runHostShutdownPhases(
@@ -22,7 +36,7 @@ export async function runHostShutdownPhases(
   const failedPhases: string[] = [];
   const timedOutPhases: string[] = [];
 
-  for (const phase of phases) {
+  const runPhase = async (phase: HostShutdownPhase): Promise<void> => {
     const startedAt = Date.now();
     const timeoutMs = Math.max(phase.timeoutMs ?? options.phaseTimeoutMs, 0);
     let timeout: ReturnType<typeof setTimeout> | undefined;
@@ -45,17 +59,27 @@ export async function runHostShutdownPhases(
         phase: phase.name,
         timeoutMs,
       });
-      continue;
+      if (!phase.mustComplete) return;
+      // A timeout is an alarm, not cancellation. In particular process.exit()
+      // must not run while the service still owns an active Pi/tool tree.
+      const final = await operation;
+      if (final.kind === "failed") {
+        failedPhases.push(phase.name);
+        options.log("host shutdown phase failed after timeout", { phase: phase.name, error: describeFailure(final.error) });
+      }
+      return;
     }
     if (result.kind === "failed") {
       failedPhases.push(phase.name);
       options.log("host shutdown phase failed", {
         elapsedMs: Date.now() - startedAt,
-        error: result.error,
+        error: describeFailure(result.error),
         phase: phase.name,
       });
     }
-  }
+  };
+  if (options.concurrent) await Promise.all(phases.map(runPhase));
+  else for (const phase of phases) await runPhase(phase);
 
   return {
     exitCode: failedPhases.length > 0 || timedOutPhases.length > 0 ? 1 : 0,

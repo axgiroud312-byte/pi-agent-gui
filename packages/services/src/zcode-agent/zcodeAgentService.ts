@@ -3320,6 +3320,29 @@ export function createZCodeAgentService(
   }
 
   return {
+    async readPiSessionTransfer() { throw new Error("Pi session transfer is unavailable in this runtime"); },
+    async exportPiSession() { throw new Error("Pi session transfer is unavailable in this runtime"); },
+    async importPiSession() { throw new Error("Pi session transfer is unavailable in this runtime"); },
+    async preparePiSessionShare() { throw new Error("Pi session sharing is unavailable in this runtime"); },
+    async publishPiSessionShare() { throw new Error("Pi session sharing is unavailable in this runtime"); },
+    async discardPiSessionShare() { throw new Error("Pi session sharing is unavailable in this runtime"); },
+    async readPiSettings() { throw new Error("Pi settings are unavailable in this runtime"); },
+    async savePiSettings() { throw new Error("Pi settings are unavailable in this runtime"); },
+    async readPiAuth() { throw new Error("Pi authentication is unavailable in this runtime"); },
+    async refreshPiAuth() { throw new Error("Pi authentication is unavailable in this runtime"); },
+    async startPiAuth() { throw new Error("Pi authentication is unavailable in this runtime"); },
+    async answerPiAuth() { throw new Error("Pi authentication is unavailable in this runtime"); },
+    async cancelPiAuth() { throw new Error("Pi authentication is unavailable in this runtime"); },
+    async readPiControlTree() { throw new Error("Pi public control bridge is unavailable in this runtime"); },
+    async readPiContextInspection() { throw new Error("Pi context inspection is unavailable in this runtime"); },
+    async runPiControlTree() { throw new Error("Pi public control bridge is unavailable in this runtime"); },
+    async cancelPiTreeNavigation() { throw new Error("Pi public control bridge is unavailable in this runtime"); },
+    async readPiModelCatalog() { throw new Error("Pi model catalog is unavailable in this runtime"); },
+    async runPiShell() { throw new Error("Pi shell is unavailable in this runtime"); },
+    async readPiLlamaRouter() { throw new Error("Pi llama.cpp router is unavailable in this runtime"); },
+    async runPiLlamaRouter() { throw new Error("Pi llama.cpp router is unavailable in this runtime"); },
+    async cancelPiLlamaRouter() { throw new Error("Pi llama.cpp router is unavailable in this runtime"); },
+    onPiLlamaRouterProgress: () => ({ dispose() {} }),
     async prepareStorage(params) {
       const client = await processManager.getClient(params);
       wireClient(client, params, "chat");
@@ -5172,6 +5195,7 @@ export function createZCodeAgentService(
       const wireParams = v4AttachmentReadParamsSchema.parse({
         sessionId: params.sessionId,
         ref: params.ref,
+        ...(params.queueItemId ? { queueItemId: params.queueItemId } : {}),
         ...(params.target ? { target: params.target } : {}),
         ...(params.attachmentIndex !== undefined
           ? { attachmentIndex: params.attachmentIndex }

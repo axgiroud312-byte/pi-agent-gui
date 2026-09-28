@@ -172,6 +172,8 @@ export type InputRouting = z.infer<typeof inputRoutingSchema>;
 // ── meta（会话级元信息：标题）。renameSession/自动标题落此。──
 export const sessionMetaStateSchema = z.object({
   title: z.string(),
+  /** A live Pi --no-session conversation has no resumable JSONL. */
+  temporary: z.boolean().optional(),
   // default = 未命名；generated = 模型自动生成；custom = 用户显式重命名（不再被自动标题覆盖）。
   titleSource: z.enum(["default", "generated", "custom"]),
 });
@@ -201,6 +203,8 @@ export const sessionUsageStateSchema = z.object({
     outputTokens: z.number(),
     cacheReadTokens: z.number(),
     cacheWriteTokens: z.number(),
+    /** Pi's billed session estimate, including usage before compaction. */
+    costUSD: z.number().finite().nonnegative().optional(),
   }),
 });
 export type SessionUsageState = z.infer<typeof sessionUsageStateSchema>;
@@ -457,6 +461,19 @@ export const rowsWindowSchema = z.object({
 });
 export type RowsWindow = z.infer<typeof rowsWindowSchema>;
 
+/** Ephemeral Pi RPC extension UI. Session history and Agent execution stay Pi-owned. */
+export const piExtensionUiStateSchema = z.object({
+  generation: z.string().optional(),
+  title: z.object({ id: z.string(), text: z.string() }).optional(),
+  editorText: z.object({ id: z.string(), text: z.string() }).optional(),
+  statuses: z.array(z.object({ key: z.string(), text: z.string() })).max(32),
+  widgets: z.array(z.object({ key: z.string(), lines: z.array(z.string()).max(32),
+    placement: z.enum(["aboveEditor", "belowEditor"]) })).max(16),
+  notices: z.array(z.object({ id: z.string(), message: z.string(),
+    type: z.enum(["info", "warning", "error"]), at: timestampSchema })).max(8),
+});
+export type PiExtensionUiState = z.infer<typeof piExtensionUiStateSchema>;
+
 // 软门禁(Soft Gate)：会话级待审核 hook 准入状态。
 // snapshot 与 StatePatch(delta.ts)共用,保证投影补丁与快照字段同构。
 export const workspaceHookAdmissionStateSchema = z.object({
@@ -489,6 +506,7 @@ export const conversationSnapshotSchema = z.object({
   usage: sessionUsageStateSchema,
   queue: queueStateSchema,
   pendingInteractions: z.array(pendingInteractionSchema),
+  piExtensionUi: piExtensionUiStateSchema.default({ statuses: [], widgets: [], notices: [] }),
   pendingCommands: z.array(commandStateSummarySchema),
   backgroundWorks: z.array(backgroundWorkSummarySchema),
   // optional 只服务旧快照 wire 兼容；新 CLI 的初始态和每次投影都始终携带该字段。

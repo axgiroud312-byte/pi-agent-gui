@@ -1,13 +1,16 @@
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { resolve as resolvePath } from "node:path";
-import { ZCODE_AGENT_RUNTIME } from "@zcode/shared";
+import { ZCODE_AGENT_RUNTIME, ZCODE_PACKAGED_RESOURCES_PATH_ENV } from "@zcode/shared";
 import { getApplicationProfileHome } from "@zcode/shared/node";
 
-const packagedResourcesPath =
-  typeof (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath === "string"
-    ? (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath
-    : null;
+export function resolvePackagedResourcesPath(
+  runtimeProcess: NodeJS.Process & { resourcesPath?: string } = process,
+): string | null {
+  const directPath = runtimeProcess.resourcesPath?.trim();
+  if (directPath) return directPath;
+  return runtimeProcess.env[ZCODE_PACKAGED_RESOURCES_PATH_ENV]?.trim() || null;
+}
 
 function resolveExistingPath(candidates: Array<string | null | undefined>): string | null {
   for (const candidate of candidates) {
@@ -44,6 +47,7 @@ function resolveLegacyBundledResourceRoots(moduleDir?: string): Array<string | n
 
 export function findZCodeAgentRuntimeBinary(): string | null {
   const runtime = ZCODE_AGENT_RUNTIME;
+  const packagedResourcesPath = resolvePackagedResourcesPath();
   const entrySegments = runtime.resolveEntrySegments(process.platform);
   const resourceSegments = [runtime.bundledResourceDir, ...entrySegments];
   const envPath = process.env[runtime.binaryEnvVar];
@@ -77,6 +81,7 @@ export function findZCodeAgentRuntimeBinary(): string | null {
  */
 export function findZCodeAgentRuntimeNodeBundle(): string | null {
   const runtime = ZCODE_AGENT_RUNTIME;
+  const packagedResourcesPath = resolvePackagedResourcesPath();
   const entrySegments = runtime.resolveNodeBundleSegments();
   const resourceSegments = [runtime.bundledResourceDir, ...entrySegments];
 

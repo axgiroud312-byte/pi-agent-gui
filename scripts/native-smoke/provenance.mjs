@@ -1,7 +1,8 @@
 import { readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { join, dirname, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { join, dirname, relative, resolve } from 'node:path';
 
 const pinned = '872ad960de7ec172591f7e1952f7849229f94521';
 const sha = data => createHash('sha256').update(data).digest('hex');
@@ -12,7 +13,9 @@ export async function provenance(f, filename = 'provenance.json') {
     dirty: git(f.root, 'status', '--short'), node: process.version, platform: process.platform,
     source: [], sourceMismatches: [], artifacts: [], baseline: f.baseline,
     installedDependencies: f.dependencies,
-    execution: 'original native Agent with controlled loopback OpenAI endpoint; NOT Pi; NOT live provider',
+    execution: f.baseline === 'original'
+      ? 'original native Agent with controlled loopback OpenAI endpoint; NOT Pi; NOT live provider'
+      : 'pinned Pi 0.87.0 RPC subprocess with real tools and controlled loopback model; NOT live provider',
   };
   let tree;
   for (const repo of [f.root, join(dirname(f.root), 'zcode-source-872ad96')]) {
@@ -45,11 +48,31 @@ export async function provenance(f, filename = 'provenance.json') {
     }
   }
   await walk(join(f.root, 'packages/desktop/out'));
-  const agent = join(f.root, 'packages/desktop/bundled-agents/win32-x64/glm/zcode.cjs');
-  try {
-    const data = await readFile(agent);
-    result.artifacts.push({ path: relative(f.root, agent).replaceAll('\\', '/'), bytes: data.length, sha256: sha(data) });
-  } catch { result.agentArtifact = 'Not available at pinned upstream Windows bundle path'; }
+  if (f.baseline === 'original') {
+    const agent = join(f.root, 'packages/desktop/bundled-agents/win32-x64/glm/zcode.cjs');
+    try {
+      const data = await readFile(agent);
+      result.artifacts.push({ path: relative(f.root, agent).replaceAll('\\', '/'), bytes: data.length, sha256: sha(data) });
+    } catch { result.agentArtifact = 'Not available at pinned upstream Windows bundle path'; }
+  } else {
+    const entry = fileURLToPath(import.meta.resolve('@earendil-works/pi-coding-agent/rpc-entry'));
+    const packageRoot = dirname(dirname(dirname(entry)));
+    const manifest = join(packageRoot, 'package.json');
+    const pkg = JSON.parse(await readFile(manifest, 'utf8'));
+    if (pkg.version !== '0.87.0') throw new Error(`Unexpected Pi version: ${pkg.version}`);
+    // Hash the complete package, including all RPC chunks and native resources.
+    const start = result.artifacts.length;
+    await walk(packageRoot);
+    if (f.env.PI_PACKAGE_DIR) {
+      const installed = result.artifacts.slice(start).map(a => [relative(packageRoot, resolve(f.root, a.path)), a.sha256]).sort();
+      const privateStart = result.artifacts.length;
+      await walk(f.env.PI_PACKAGE_DIR);
+      const staged = result.artifacts.slice(privateStart).map(a => [relative(f.env.PI_PACKAGE_DIR, resolve(f.root, a.path)), a.sha256]).sort();
+      if (JSON.stringify(installed) !== JSON.stringify(staged)) throw new Error('Private Pi package differs from installed bytes');
+    }
+    result.pi = { name: pkg.name, version: pkg.version, entry: 'dist/bundle/rpc-entry.js',
+      privatePackageByteVerified: Boolean(f.env.PI_PACKAGE_DIR) };
+  }
   result.artifactDigest = sha(JSON.stringify(result.artifacts.map(a => [a.path, a.sha256])));
   result.sourceDigest = sha(JSON.stringify(result.source.map(a => [a.path, a.sha256])));
   await writeFile(join(f.output, filename), JSON.stringify(result, null, 2));

@@ -6,48 +6,90 @@ import {
   testId,
 } from "@zcode/shared";
 import { Button } from "@/components/ui/button.js";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog.js";
 import { Input } from "@/components/ui/input.js";
+import { Textarea } from "@/components/ui/textarea.js";
 import type { V4UserInputViewModel } from "@/v4/pendingInteractionAdapter.js";
-import { runUserAction } from "@/lib/userActionTelemetry.js";
 
 interface V4UserInputDialogProps {
   model: V4UserInputViewModel;
-  onSubmit: (answer: { optionId?: string; freeText?: string }) => void;
+  onSubmit: (answer: {
+    optionId?: string;
+    freeText?: string;
+    action?: "cancel";
+  }) => Promise<boolean>;
+  onCaptureReturnFocus: () => void;
+  onRestoreReturnFocus: () => void;
+  /** Stop the owned Pi execution, distinct from cancelling only this dialog. */
+  onStop?: () => void;
 }
 
 /** v4 userInput 交互最小弹窗（竖切）。 */
-export function V4UserInputDialog({ model, onSubmit }: V4UserInputDialogProps) {
-  const [freeText, setFreeText] = useState("");
+export function V4UserInputDialog({
+  model,
+  onSubmit,
+  onCaptureReturnFocus,
+  onRestoreReturnFocus,
+  onStop,
+}: V4UserInputDialogProps) {
+  const [freeText, setFreeText] = useState(model.prefill ?? "");
+  const [responding, setResponding] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  const submit = useCallback(
+    async (answer: { optionId?: string; freeText?: string; action?: "cancel" }) => {
+      if (responding) return;
+      setResponding(true);
+      setFailed(false);
+      try {
+        if (!(await onSubmit(answer))) setFailed(true);
+      } catch {
+        setFailed(true);
+      } finally {
+        setResponding(false);
+      }
+    },
+    [onSubmit, responding],
+  );
 
   const handleOption = useCallback(
     (optionId: string) => {
-      runUserAction({
-        input: {
-          featureId: "conversation.blocking.user_input",
-          action: "select_option",
-          trigger: "button",
-        },
-        operation: () => onSubmit({ optionId }),
-        completed: { resultSource: "optimistic_projection" },
-        failureStage: "user_input_submit",
-      });
+      void submit({ optionId });
     },
-    [onSubmit],
+    [submit],
   );
 
   const handleFreeTextSubmit = useCallback(() => {
-    const trimmed = freeText.trim();
-    if (!trimmed && model.freeText) return;
-    onSubmit(model.freeText ? { freeText: trimmed } : { optionId: model.options[0]?.optionId });
-  }, [freeText, model.freeText, model.options, onSubmit]);
+    // Pi input and editor accept an empty string. Trim only legacy free-text
+    // elicitation, which historically requires a nonempty answer.
+    const value = model.method ? freeText : freeText.trim();
+    if (!value && model.freeText && !model.method) return;
+    void submit(model.freeText ? { freeText: value } : { optionId: model.options[0]?.optionId });
+  }, [freeText, model.freeText, model.method, model.options, submit]);
 
   return (
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4"
-      data-testid={TID_V4_USER_INPUT_DIALOG}
-    >
-      <div className="w-full max-w-lg rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-lg">
-        <p className="mb-3 text-ui-base text-[var(--color-foreground)]">{model.prompt}</p>
+    <Dialog open>
+      <DialogContent
+        data-testid={TID_V4_USER_INPUT_DIALOG}
+        aria-modal="true"
+        className="max-w-lg gap-0 rounded-xl border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-lg"
+        overlayClassName="bg-black/40 backdrop-blur-none"
+        showCloseButton={false}
+        onOpenAutoFocus={onCaptureReturnFocus}
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          onRestoreReturnFocus();
+        }}
+        onEscapeKeyDown={(event) => {
+          event.preventDefault();
+          if (model.method) void submit({ action: "cancel" });
+        }}
+        onPointerDownOutside={(event) => event.preventDefault()}
+      >
+        <DialogTitle className="mb-3 font-normal">{model.prompt}</DialogTitle>
+        <DialogDescription className={model.message ? "mb-3 text-ui-sm" : "sr-only"}>
+          {model.message ?? "请选择或输入后提交，或取消本次请求。"}
+        </DialogDescription>
         {model.options.length > 0 ? (
           <div className="mb-3 flex flex-col gap-2">
             {model.options.map((option) => (
@@ -56,6 +98,7 @@ export function V4UserInputDialog({ model, onSubmit }: V4UserInputDialogProps) {
                 type="button"
                 variant="outline"
                 data-testid={testId(TID_V4_USER_INPUT_OPTION, option.optionId)}
+                disabled={responding}
                 onClick={() => handleOption(option.optionId)}
               >
                 {option.label}
@@ -65,18 +108,55 @@ export function V4UserInputDialog({ model, onSubmit }: V4UserInputDialogProps) {
         ) : null}
         {model.freeText ? (
           <div className="flex flex-col gap-2">
-            <Input
-              type={model.sensitive ? "password" : "text"}
-              value={freeText}
-              onChange={(event) => setFreeText(event.target.value)}
-              data-testid={TID_V4_USER_INPUT_TEXT}
-            />
-            <Button type="button" onClick={handleFreeTextSubmit}>
+            {model.method === "editor" ? (
+              <Textarea
+                value={freeText}
+                onChange={(event) => setFreeText(event.target.value)}
+                data-testid={TID_V4_USER_INPUT_TEXT}
+                rows={8}
+                disabled={responding}
+              />
+            ) : (
+              <Input
+                type={model.sensitive ? "password" : "text"}
+                value={freeText}
+                onChange={(event) => setFreeText(event.target.value)}
+                placeholder={model.placeholder}
+                data-testid={TID_V4_USER_INPUT_TEXT}
+                disabled={responding}
+              />
+            )}
+            <Button type="button" onClick={handleFreeTextSubmit} disabled={responding}>
               提交
             </Button>
           </div>
         ) : null}
-      </div>
-    </div>
+        {model.method ? (
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={responding}
+              onClick={() => {
+                void submit({ action: "cancel" });
+              }}
+            >
+              取消
+            </Button>
+            {onStop ? (
+              <Button type="button" variant="outline" disabled={responding}
+                data-testid="pi-extension-stop" onClick={onStop}>
+                停止 Pi 运行
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+        {failed ? (
+          <p role="alert" className="text-ui-sm text-[var(--color-destructive)]">
+            回答未被 Pi 接收，请重试或取消。
+          </p>
+        ) : null}
+      </DialogContent>
+    </Dialog>
   );
 }

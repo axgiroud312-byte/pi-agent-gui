@@ -925,6 +925,8 @@ export const v4AttachmentReadParamsSchema = z
   .object({
     sessionId: z.string().min(1),
     ref: z.string().min(1),
+    /** Pi queued image: authorize against the current queue item, never an arbitrary catalog path. */
+    queueItemId: z.string().min(1).max(256).optional(),
     // 新 renderer 用稳定 row 身份 + 附件序号消除同一路径跨轮歧义；两者必须成对出现。
     target: conversationRowTargetSchema.optional(),
     attachmentIndex: z.number().int().nonnegative().optional(),
@@ -933,6 +935,12 @@ export const v4AttachmentReadParamsSchema = z
   })
   .strict()
   .superRefine((value, context) => {
+    if (value.queueItemId !== undefined) {
+      if (value.target === undefined && value.attachmentIndex !== undefined) return;
+      context.addIssue({ code: "custom", message: "queueItemId needs an image index without a row target",
+        path: ["queueItemId"] });
+      return;
+    }
     if ((value.target === undefined) === (value.attachmentIndex === undefined)) return;
     context.addIssue({
       code: "custom",

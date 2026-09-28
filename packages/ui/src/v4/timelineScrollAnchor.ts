@@ -94,8 +94,37 @@ const UNOBSERVED_SCROLL_EPSILON_PX = 2;
 
 export type TimelineUserScrollIntent = "none" | "awayFromBottom" | "towardBottom" | "unknown";
 
+/** 内层输出/输入框仍能滚动时，wheel 不属于时间线的阅读意图。 */
+export function nestedElementConsumesWheel(input: {
+  deltaY: number;
+  scrollTop: number;
+  scrollHeight: number;
+  clientHeight: number;
+  overflowY: string;
+  overscrollBehaviorY?: string;
+}): boolean {
+  if (
+    !Number.isFinite(input.deltaY) ||
+    input.deltaY === 0 ||
+    !["auto", "scroll", "overlay"].includes(input.overflowY)
+  ) {
+    return false;
+  }
+  const remaining = input.scrollHeight - input.clientHeight;
+  if (remaining <= 1) return false;
+  if (input.deltaY < 0 && input.scrollTop > 1) return true;
+  if (input.deltaY > 0 && remaining - input.scrollTop > 1) return true;
+  // An inner overscroll boundary can deliberately contain the wheel instead
+  // of chaining it to the timeline.
+  return input.overscrollBehaviorY === "contain" || input.overscrollBehaviorY === "none";
+}
+
 /** wheel 的 deltaY 与 scrollTop 同向：负值阅读更早内容，正值靠近底部。 */
-export function timelineWheelScrollIntent(deltaY: number): TimelineUserScrollIntent {
+export function timelineWheelScrollIntent(
+  deltaY: number,
+  nestedScrollableConsumesWheel = false,
+): TimelineUserScrollIntent {
+  if (nestedScrollableConsumesWheel) return "none";
   if (deltaY < 0) return "awayFromBottom";
   if (deltaY > 0) return "towardBottom";
   return "none";

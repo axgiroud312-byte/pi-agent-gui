@@ -1,0 +1,88 @@
+{
+  "sources": [
+    {
+      "file": "origin-LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/TooTallNate/proxy-agents/663669853ea993d66da628aea9f9902e1a6916d8/packages/https-proxy-agent/LICENSE",
+      "sha256": "8d8c55319c7729d57be811c747452636688d54f19701ee0752b6b15ad3771d9a",
+      "bytes": 1101
+    },
+    {
+      "file": "origin-index.ts",
+      "url": "https://raw.githubusercontent.com/TooTallNate/proxy-agents/663669853ea993d66da628aea9f9902e1a6916d8/packages/https-proxy-agent/src/index.ts",
+      "sha256": "8e00c8bddbd51ebfead74052b636862b91b9e7756e8ba0963ce2f4a8406ff63a",
+      "bytes": 10786
+    },
+    {
+      "file": "extracted-index.ts",
+      "url": "https://raw.githubusercontent.com/TooTallNate/proxy-agents/f6335213978d7b7da610cb8f768596bf40929605/packages/negotiate/src/index.ts",
+      "sha256": "e236e82f1e25a1aa4177b9ef5f697044e9e8f843a3fc82b0e8a84011d0c0b475",
+      "bytes": 1509
+    },
+    {
+      "file": "release-index.ts",
+      "url": "https://raw.githubusercontent.com/TooTallNate/proxy-agents/b7e5f7ccce1a3ac5b339cc4c587974e8989cbc16/packages/negotiate/src/index.ts",
+      "sha256": "e236e82f1e25a1aa4177b9ef5f697044e9e8f843a3fc82b0e8a84011d0c0b475",
+      "bytes": 1509
+    },
+    {
+      "file": "npm-metadata.json",
+      "url": "https://registry.npmjs.org/proxy-agent-negotiate/1.1.0",
+      "sha256": "41807d237c09eff6120e33932015c4ff9c230872c2df119010db48aa4ae0731e",
+      "bytes": 2316
+    },
+    {
+      "file": "npm.tgz",
+      "url": "https://registry.npmjs.org/proxy-agent-negotiate/-/proxy-agent-negotiate-1.1.0.tgz",
+      "sha256": "6eec23d5d381a8b0ffafe91c19876d3a052e463618695981a7529f3a8bca1997",
+      "bytes": 1924
+    }
+  ],
+  "npmIntegrityVerified": "sha512-N8IBcM3UgCVzz2L2Lqv8DVntDnnC8/hiV4nEDUPkqq72TPUgYWjQc+bdZlBPZK9LzPAvOY//gAt0S0DApoOXWQ==",
+  "extractedAndReleaseSourceByteIdentical": true,
+  "npmInstalledFiles": [
+    {
+      "file": "dist/index.js",
+      "sha256": "56f33d231c16933054a0dddc665abdc8514d952c84fa96b245e841875d05f5e5",
+      "matchesInstalled": true
+    },
+    {
+      "file": "package.json",
+      "sha256": "7b7c2579ea138d20d4f7699ca78ef16c526f35168dbf694f1d47cc861b0954d4",
+      "matchesInstalled": true
+    },
+    {
+      "file": "dist/index.d.ts.map",
+      "sha256": "4ade5fadd6dd7bcceb0663cf631e78dedca5a2243501e53b8a6c019a32f82bc5",
+      "matchesInstalled": true
+    },
+    {
+      "file": "dist/index.js.map",
+      "sha256": "cff70853e95eda06a4427db41c4cd5fa93d2d794ae4198c3ab4f7468450c3f9e",
+      "matchesInstalled": true
+    },
+    {
+      "file": "dist/index.d.ts",
+      "sha256": "3568fa0be646ebf28f9ead14e0c8fe3c7c6fb2bc846fc248f4161f02d7dbf423",
+      "matchesInstalled": true
+    }
+  ],
+  "npmLicense": "MIT",
+  "npmAuthor": {
+    "url": "http://n8.io/",
+    "name": "Nathan Rajlich",
+    "email": "nathan@tootallnate.net"
+  },
+  "sourceLineage": {
+    "upstreamPullRequest": "https://github.com/TooTallNate/proxy-agents/pull/420",
+    "extractionCommit": "https://github.com/TooTallNate/proxy-agents/commit/f6335213978d7b7da610cb8f768596bf40929605",
+    "extractionMessage": "refactor: extract shared Negotiate auth logic into proxy-agent-negotiate package",
+    "releaseTag": "proxy-agent-negotiate@1.1.0",
+    "annotatedTagObject": "04af2dd5365059650ad7209cc46457adca9b5ecb",
+    "releaseCommit": "b7e5f7ccce1a3ac5b339cc4c587974e8989cbc16",
+    "extractedAndReleasedSourceBlob": "502bac67155ebc9a79ffeadc0971f0173e3b5db1",
+    "originalSourceLicense": "Origin package LICENSE applies to the extracted implementation; this is not represented as a LICENSE shipped in proxy-agent-negotiate's npm archive.",
+    "extractionChanges": "Exported function; consolidated types; removed comments; added typeof string guard. Published package declares MIT independently."
+  },
+  "independentReview": "Pending; recorded provenance does not by itself approve PR merge or complete release licensing."
+
+}

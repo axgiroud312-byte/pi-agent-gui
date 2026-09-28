@@ -458,6 +458,7 @@ export function createAgentConversationTransport(
           ...workspace,
           sessionId: params.sessionId,
           ref: params.ref,
+          ...(params.queueItemId ? { queueItemId: params.queueItemId } : {}),
           ...(params.target ? { target: params.target } : {}),
           ...(params.attachmentIndex !== undefined
             ? { attachmentIndex: params.attachmentIndex }
@@ -509,6 +510,7 @@ export function createAgentConversationTransport(
         ...workspace,
         sessionId: params.sessionId,
         ref: params.ref,
+        ...(params.queueItemId ? { queueItemId: params.queueItemId } : {}),
         ...(params.target ? { target: params.target } : {}),
         ...(params.attachmentIndex !== undefined
           ? { attachmentIndex: params.attachmentIndex }

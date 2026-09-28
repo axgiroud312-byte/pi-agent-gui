@@ -98,6 +98,7 @@ function sessionOverlay(
     title: summary.title,
     ...(summary.titleSource ? { titleSource: summary.titleSource } : {}),
     updatedAt: summary.lastActivityAt,
+    createdAt: summary.createdAt,
     ...(summary.pendingInteraction
       ? {
           pendingInteraction: {
@@ -128,6 +129,31 @@ function liveStatusFromMeta(meta: ZCodeTaskMeta): WindowHostControllerTaskRow["l
   if (meta.status === "completed") return "completed";
   if (meta.status === "error") return "error";
   return "idle";
+}
+
+function taskListAddressKey(item: Pick<WindowHostControllerTaskListItem,
+  "taskId" | "workspacePath" | "workspaceIdentity" | "remoteSessionId">): string {
+  return JSON.stringify([item.remoteSessionId ?? null, item.workspaceIdentity ?? null,
+    item.workspacePath, item.taskId]);
+}
+
+function taskRowSourceScope(row: WindowHostControllerTaskRow): WindowHostControllerSourceScope {
+  return row.address.remoteSessionId
+    ? { kind: "remote", remoteSessionId: row.address.remoteSessionId,
+      workspacePath: row.address.workspacePath, workspaceIdentity: row.address.workspaceIdentity! }
+    : { kind: "local", workspacePath: row.address.workspacePath,
+      ...(row.address.workspaceIdentity ? { workspaceIdentity: row.address.workspaceIdentity } : {}) };
+}
+
+function taskRowListItem(row: WindowHostControllerTaskRow): WindowHostControllerTaskListItem {
+  return {
+    ...row.meta,
+    ...(row.address.remoteSessionId ? { remoteSessionId: row.address.remoteSessionId } : {}),
+    sourceAvailability: row.sourceAvailability,
+    liveStatus: row.liveStatus,
+    ...(row.activity ? { activity: row.activity } : {}),
+    ...(row.searchSnippets ? { searchSnippets: row.searchSnippets } : {}),
+  };
 }
 
 /**
@@ -238,6 +264,13 @@ export function createWindowHostControllerRuntime(options: {
         scope.kind === "remote" ? "远程 source 当前离线，禁止列表写操作" : "本地 source 当前不可用",
       );
     }
+    // A Pi-only row is projected from the native sessions index; legacy task
+    // mutations must never silently route that session into the ZCode engine.
+    if (!projection.hasTaskMembership(scope, address.taskId) &&
+      mutation.kind !== "open" && mutation.kind !== "resume" &&
+      !(mutation.kind === "delete" && mutation.expectedSessionFile && mutation.expectedRevision)) {
+      throw new Error(`Unsupported Pi session task mutation: ${mutation.kind}`);
+    }
     const service = current.taskService;
     const base = mutationParams(address);
     switch (mutation.kind) {
@@ -252,7 +285,8 @@ export function createWindowHostControllerRuntime(options: {
         }
         break;
       case "delete":
-        await service.deleteTask(base);
+        await service.deleteTask({ ...base, expectedSessionFile: mutation.expectedSessionFile,
+          expectedRevision: mutation.expectedRevision });
         break;
       case "delete-archived":
         return service.deleteArchivedTask(base);
@@ -485,6 +519,14 @@ export function createWindowHostControllerRuntime(options: {
     );
 
     const search = query.search?.trim();
+    if (search || query.refreshSessions) {
+      await Promise.all(resolvedSources
+        .filter(source => source.sourceAvailability === "online" && source.agentService != null)
+        .map(async source => {
+          try { await ensureSourceSessionObserver(source)?.refresh(); }
+          catch (error) { options.onSourceError?.(source.scope, "search", error); }
+        }));
+    }
     let items: WindowHostControllerTaskListItem[];
     if (search) {
       const results = await Promise.all(
@@ -492,7 +534,7 @@ export function createWindowHostControllerRuntime(options: {
           .filter((source) => source.sourceAvailability === "online" && source.taskService != null)
           .map(async (source) => {
             try {
-              const result = await source.taskService!.listTaskList({
+              const sourceQuery = {
                 ...query,
                 workspaceScopes: [
                   {
@@ -503,7 +545,11 @@ export function createWindowHostControllerRuntime(options: {
                   },
                 ],
                 limit: undefined,
-              });
+              };
+              // This controls the Controller's native index read, not the
+              // legacy task-index query forwarded to a local/remote source.
+              delete sourceQuery.refreshSessions;
+              const result = await source.taskService!.listTaskList(sourceQuery);
               return result.items.map((item) => {
                 const normalized = normalizeTaskMeta(item, source.scope);
                 const projected = projection
@@ -534,6 +580,25 @@ export function createWindowHostControllerRuntime(options: {
           }),
       );
       items = results.flat();
+      // Legacy full-text search cannot see a Pi CLI JSONL session because it
+      // has no task-index row. Match the live native index title as well, then
+      // keep indexed hits (and their body snippets) when both paths find one.
+      const searchedSources = new Set(resolvedSources
+        .filter(source => source.sourceAvailability === "online" && source.taskService != null)
+        .map(source => sourceKey(source.scope)));
+      const terms = search.toLocaleLowerCase().split(/\s+/u).filter(Boolean);
+      const seen = new Set(items.map(taskListAddressKey));
+      for (const row of projection.getTasks()) {
+        if (row.sourceAvailability !== "online" ||
+          !searchedSources.has(sourceKey(taskRowSourceScope(row))) ||
+          !matchesTaskListMembershipKind(row.membership, query.kind) ||
+          !terms.every(term => row.meta.title.toLocaleLowerCase().includes(term))) continue;
+        const item = taskRowListItem(row);
+        const key = taskListAddressKey(item);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        items.push(item);
+      }
     } else {
       const selectedSources = new Set<string>();
       for (const source of resolvedSources) {
@@ -549,33 +614,12 @@ export function createWindowHostControllerRuntime(options: {
       items = projection
         .getTasks()
         .filter((row) => {
-          const scope: WindowHostControllerSourceScope = row.address.remoteSessionId
-            ? {
-                kind: "remote",
-                remoteSessionId: row.address.remoteSessionId,
-                workspacePath: row.address.workspacePath,
-                workspaceIdentity: row.address.workspaceIdentity!,
-              }
-            : {
-                kind: "local",
-                workspacePath: row.address.workspacePath,
-                ...(row.address.workspaceIdentity
-                  ? { workspaceIdentity: row.address.workspaceIdentity }
-                  : {}),
-              };
           return (
-            selectedSources.has(sourceKey(scope)) &&
+            selectedSources.has(sourceKey(taskRowSourceScope(row))) &&
             matchesTaskListMembershipKind(row.membership, query.kind)
           );
         })
-        .map((row) => ({
-          ...row.meta,
-          ...(row.address.remoteSessionId ? { remoteSessionId: row.address.remoteSessionId } : {}),
-          sourceAvailability: row.sourceAvailability,
-          liveStatus: row.liveStatus,
-          ...(row.activity ? { activity: row.activity } : {}),
-          ...(row.searchSnippets ? { searchSnippets: row.searchSnippets } : {}),
-        }));
+        .map(taskRowListItem);
     }
     items.sort((left, right) => compareItems(left, right, query.sortBy));
     const total = items.length;

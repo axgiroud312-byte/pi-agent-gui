@@ -141,7 +141,7 @@ import type {
   ZCodeTaskIndexTerminalEvent,
 } from "./zcodeTaskIndexSyncer.js";
 import { readModelTrajectory } from "./modelTrajectory.js";
-import { errorAttributionSchema, type CommandPayloadMap } from "@zcode/shared/zcode-protocol-v4";
+import { errorAttributionSchema, type CommandPayloadMap, type SessionSummary } from "@zcode/shared/zcode-protocol-v4";
 import {
   assertV4CommandAckOk,
   createHostCommandEnvelope,
@@ -166,6 +166,7 @@ import {
 } from "./zcodeConfigOptions.js";
 import type { CuaProductMcpServerResolver } from "#src/cua-permission-broker/index.js";
 import { registerMemoryDiagnosticsProvider } from "#src/memoryDiagnostics.js";
+import { isPiSessionNotFoundError } from "#src/pi-agent/pi-session-errors.js";
 
 interface TaskOverlay {
   archived?: boolean;
@@ -177,6 +178,14 @@ interface TaskOverlay {
 
 interface CreateZCodeTaskServiceAdapterOptions {
   zcodeAgentService: IZCodeAgentService;
+  /** Pi JSONL owns session names; an app-only title must never mask a rejected Pi rename. */
+  piHistoryAuthoritative?: boolean;
+  piSessionSummary?: (params: ZCodeAgentWorkspaceTarget & { sessionId: string }) => Promise<SessionSummary>;
+  piSessionDeletionPreview?: (params: ZCodeAgentWorkspaceTarget & { sessionId: string }) => Promise<{
+    sessionFile: string; revision: string; title: string;
+  }>;
+  piSessionDelete?: (params: ZCodeAgentWorkspaceTarget & { sessionId: string;
+    expectedSessionFile: string; expectedRevision: string }) => Promise<void>;
   taskIndexRepo?: TaskIndexRepo;
   // syncer 现在持有 workspace emitter 和 broadcast 入口，adapter 必须共用同一实例，
   // 否则 desktop-continuous 路径和 task adapter 路径的事件订阅会分裂成两份，UI 收不全。
@@ -2805,6 +2814,18 @@ export function createZCodeTaskServiceAdapter(
     },
 
     async getTaskSessionFilePath(params) {
+      if (options.piHistoryAuthoritative) {
+        if (!options.piSessionDeletionPreview) throw new Error("Pi deletion preview is unavailable");
+        let preview: Awaited<ReturnType<NonNullable<typeof options.piSessionDeletionPreview>>>;
+        try {
+          preview = await options.piSessionDeletionPreview({ ...params, sessionId: params.taskId });
+        } catch (error) {
+          if (isPiSessionNotFoundError(error)) return { path: "", exists: false };
+          throw error;
+        }
+        return { path: preview.sessionFile, exists: true, revision: preview.revision,
+          title: preview.title };
+      }
       return {
         path: `${params.workspacePath}/${params.taskId}.zcode-session`,
         exists: false,
@@ -2816,6 +2837,17 @@ export function createZCodeTaskServiceAdapter(
     },
 
     async deleteTask(params): Promise<void> {
+      if (options.piHistoryAuthoritative) {
+        if (!options.piSessionDelete || !params.expectedSessionFile || !params.expectedRevision) {
+          throw new Error("Pi session deletion requires a confirmed file and revision");
+        }
+        await options.piSessionDelete({
+          workspacePath: params.workspacePath, workspaceIdentity: params.workspaceIdentity,
+          sessionId: params.taskId, expectedSessionFile: params.expectedSessionFile,
+          expectedRevision: params.expectedRevision,
+        });
+        return;
+      }
       setOverlay(params, { deleted: true });
       const meta = await updateIndexedTaskState(params, { deleted: true });
       // task_meta_changed 只会重拉普通 membership，不能表达持久删除语义；
@@ -2881,6 +2913,18 @@ export function createZCodeTaskServiceAdapter(
 
     async renameTask(params): Promise<ZCodeTaskMeta> {
       const renamedAt = Date.now();
+      const syncSessionName = async () => {
+        const ack = await options.zcodeAgentService.sendConversationCommandV4({
+          workspacePath: params.workspacePath,
+          workspaceIdentity: params.workspaceIdentity,
+          envelope: createHostCommandEnvelope({
+            type: "renameSession",
+            sessionId: params.taskId,
+            payload: { title: params.title },
+          }),
+        });
+        assertV4CommandAckOk("renameSession", ack, `session=${params.taskId}`);
+      };
       logger.info(undefined, "[ZCodeTaskService] renameTask start", {
         taskId: params.taskId,
         workspacePath: params.workspacePath,
@@ -2889,6 +2933,40 @@ export function createZCodeTaskServiceAdapter(
         titleLength: params.title.length,
       });
       try {
+        if (options.piHistoryAuthoritative) {
+          await syncSessionName();
+          if (!options.piSessionSummary) throw new Error("Pi session summary readback is unavailable");
+          const summary = await options.piSessionSummary({
+            workspacePath: params.workspacePath,
+            workspaceIdentity: params.workspaceIdentity,
+            sessionId: params.taskId,
+          });
+          if (
+            summary.sessionId !== params.taskId ||
+            summary.titleSource !== "custom" ||
+            summary.title !== params.title
+          ) throw new Error("Pi session name readback did not match the requested title");
+          const meta: ZCodeTaskMeta = {
+            taskId: summary.sessionId,
+            traceId: `session-${summary.sessionId}` as TraceId,
+            workspacePath: params.workspacePath,
+            ...(params.workspaceIdentity ? { workspaceIdentity: params.workspaceIdentity } : {}),
+            title: summary.title,
+            titleOverridden: true,
+            mode: "build",
+            createdAt: summary.createdAt,
+            updatedAt: summary.lastActivityAt,
+            ...(summary.phase === "running" || summary.phase === "prewarming"
+              ? { status: "running" as const }
+              : summary.phase === "error" ? { status: "error" as const }
+                : summary.phase === "draft" ? {} : { status: "completed" as const }),
+          };
+          // Pi CLI sessions have no ZCode task-index row. The v4 sessions-index
+          // already broadcasts the changed name; this mirrors it for the native
+          // task action result without seeding an old Agent task.
+          emitWorkspaceTaskListChanged(params, meta, "task_title_changed");
+          return meta;
+        }
         setOverlay(params, { title: params.title });
         logger.info(undefined, "[ZCodeTaskService] renameTask overlay set", {
           taskId: params.taskId,
@@ -2907,31 +2985,23 @@ export function createZCodeTaskServiceAdapter(
           updatedAt: meta.updatedAt,
           titleLength: meta.title.length,
         });
-        try {
-          const ack = await options.zcodeAgentService.sendConversationCommandV4({
-            workspacePath: params.workspacePath,
-            workspaceIdentity: params.workspaceIdentity,
-            envelope: createHostCommandEnvelope({
-              type: "renameSession",
-              sessionId: params.taskId,
-              payload: { title: params.title },
-            }),
-          });
-          assertV4CommandAckOk("renameSession", ack, `session=${params.taskId}`);
-        } catch (error) {
-          // 旧侧边栏 rename 过去只写 tasks-index；v4 sessions-index 读 CLI
-          // session store，导致手动标题在新侧边栏丢失。这里尽力同步 renameSession，
-          // 但历史/导入类 task 可能没有活跃 v4 session，不能因此破坏既有重命名。
-          logger.warn(
-            undefined,
-            "同步 task rename 到 v4 session store 失败，保留 task-index 标题",
-            {
-              taskId: params.taskId,
-              workspacePath: params.workspacePath,
-              workspaceIdentity: params.workspaceIdentity,
-              message: error instanceof Error ? error.message : String(error),
-            },
-          );
+        if (!options.piHistoryAuthoritative) {
+          try { await syncSessionName(); }
+          catch (error) {
+            // 旧侧边栏 rename 过去只写 tasks-index；v4 sessions-index 读 CLI
+            // session store，导致手动标题在新侧边栏丢失。这里尽力同步 renameSession，
+            // 但历史/导入类 task 可能没有活跃 v4 session，不能因此破坏既有重命名。
+            logger.warn(
+              undefined,
+              "同步 task rename 到 v4 session store 失败，保留 task-index 标题",
+              {
+                taskId: params.taskId,
+                workspacePath: params.workspacePath,
+                workspaceIdentity: params.workspaceIdentity,
+                message: error instanceof Error ? error.message : String(error),
+              },
+            );
+          }
         }
         // 手动重命名同样是标题变更，与 pin/archive/unread 归属无关，用专属 reason。
         emitWorkspaceTaskListChanged(params, meta, "task_title_changed");

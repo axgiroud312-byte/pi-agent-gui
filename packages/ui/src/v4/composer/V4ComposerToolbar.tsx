@@ -82,6 +82,8 @@ import { useCodingPlanUpgradeDialog } from "@/settings/CodingPlanUpgradeDialogPr
 import { useCodingPlanEntitlements } from "@/settings/model-provider-section/useCodingPlanEntitlements.js";
 import { decodeCustomModelValue, encodeCustomModelValue } from "@/lib/zcodeCustomModelValue.js";
 import { buildRegistryModelSelectGroups } from "@/lib/modelSelectionGroups.js";
+import { buildPiModelSelectGroups, findPiModel, type PiModelCandidate } from "@/v4/composer/piModelCatalog.js";
+import { PiSessionUsagePopover } from "@/v4/composer/PiSessionUsagePopover.js";
 import {
   buildCodingPlanUsageSources,
   type CodingPlanUsageSource,
@@ -324,6 +326,7 @@ export interface V4ComposerToolbarProps {
   workspacePath: string;
   workspaceIdentity?: string;
   modelSelectionView?: ModelSelectionView | null;
+  piModelCatalog?: readonly PiModelCandidate[];
   modelSelectionState?: ModelSelectionState;
   modelSelectionReload?: () => void;
   sessionId: string | null;
@@ -350,6 +353,8 @@ export interface V4ComposerToolbarProps {
     model: string,
     sourceModel: ModelSelectionSource | null,
   ) => void;
+  /** Ask the active Pi RPC session to choose its next effective model. */
+  onCycleModel?: () => void;
   /** 选中思考深度；modelContext 固定本次用户操作的目标模型。 */
   onSelectThought: (thought: string, modelContext: { provider: string; model: string }) => void;
   onSwitchMode: (mode: string) => void;
@@ -366,6 +371,7 @@ function V4ComposerModelControlsImpl({
   workspacePath,
   workspaceIdentity,
   modelSelectionView = null,
+  piModelCatalog = [],
   modelSelectionState = MODEL_SELECTION_LOADING_STATE,
   modelSelectionReload,
   provider,
@@ -377,6 +383,7 @@ function V4ComposerModelControlsImpl({
   activeConfigPicker,
   onConfigPickerOpenChange,
   onSelectModel,
+  onCycleModel,
   onSelectThought,
   onSendCompressionCommand,
   onRecoverCustomModelSelection,
@@ -428,7 +435,7 @@ function V4ComposerModelControlsImpl({
     [onConfigPickerOpenChange],
   );
 
-  const modelOption = modelSelectionView?.providers.some((provider) => provider.models.length > 0)
+  const modelOption = modelSelectionView?.providers.some((provider) => provider.models.length > 0) || piModelCatalog.length > 0
     ? ({
         id: "model",
         name: "Model",
@@ -730,8 +737,9 @@ function V4ComposerModelControlsImpl({
   }, [draftMode, effectiveConfig, modelSelectionView?.revision]);
 
   const modelSelectGroups = useMemo<ModelSelectGroup[]>(() => {
-    if (!modelSelectionView) return [];
-    return buildRegistryModelSelectGroups(displayProvider, modelSelectionView, {
+    const piGroups = buildPiModelSelectGroups(piModelCatalog);
+    if (!modelSelectionView) return piGroups;
+    const nativeGroups = buildRegistryModelSelectGroups(displayProvider, modelSelectionView, {
       apiKeyLabel: intl.formatMessage({ id: "settings.modelProvider.apiKey" }),
       apiKeyBadgeLabel: intl.formatMessage({
         id: "settings.modelProvider.connectionMode.apiKeyBadge",
@@ -755,7 +763,10 @@ function V4ComposerModelControlsImpl({
         id: "settings.modelProvider.connectionMode.teamPlan",
       }),
     });
-  }, [displayProvider, intl, modelSelectionView]);
+    const piProviders = new Set(piModelCatalog.map(model => model.providerId));
+    return [...nativeGroups.filter(group => !piProviders.has(group.key.replace(/^registry-provider:/, ""))),
+      ...piGroups];
+  }, [displayProvider, intl, modelSelectionView, piModelCatalog]);
 
   // 修复：恢复「管理模型」入口（老版 onManageModels = 打开设置页并定位模型供应商区）。
   const handleOpenModelProviderSettings = useCallback(() => {
@@ -772,12 +783,12 @@ function V4ComposerModelControlsImpl({
     if (!effectiveConfig || !effectiveConfig.model) return "";
     const providerExists = modelSelectionView?.providers.some(
       (candidate) => candidate.providerId === effectiveConfig.provider,
-    );
+    ) || piModelCatalog.some(candidate => candidate.providerId === effectiveConfig.provider);
     if (providerExists) {
       return encodeCustomModelValue(effectiveConfig.provider, effectiveConfig.model);
     }
     return effectiveConfig.model;
-  }, [effectiveConfig, modelSelectionView]);
+  }, [effectiveConfig, modelSelectionView, piModelCatalog]);
 
   // 触发器显示兜底——`<synthetic>`（Claude SDK 恢复合成模型）或当前模型
   // 不在可选组（失效/下线/退登）→ 回落占位/默认「选择模型」，不直显协议内部占位符或失效
@@ -801,7 +812,7 @@ function V4ComposerModelControlsImpl({
     const providerName =
       modelSelectionView?.providers.find(
         (candidate) => candidate.providerId === effectiveConfig?.provider,
-      )?.providerName ?? undefined;
+      )?.providerName ?? piModelCatalog.find(candidate => candidate.providerId === effectiveConfig?.provider)?.providerId;
     return resolveV4ModelTriggerDisplay({
       modelGroups: modelSelectGroups,
       normalizedValue: normalizedModelValue,
@@ -813,6 +824,7 @@ function V4ComposerModelControlsImpl({
     effectiveConfig?.provider,
     intl,
     modelSelectionView,
+    piModelCatalog,
     modelSelectGroups,
     normalizedModelValue,
     triggerDisplay.placeholder,
@@ -894,9 +906,14 @@ function V4ComposerModelControlsImpl({
             effectiveConfig.provider,
             effectiveConfig.model,
             modelSelectionView,
-          )
+          ) ?? (() => {
+            const piModel = findPiModel(piModelCatalog, effectiveConfig.provider, effectiveConfig.model);
+            return piModel ? { id: "thought_level", name: "Thought Level", category: "thought_level",
+              type: "select" as const, currentValue: "",
+              options: piModel.thoughtLevels.map(level => ({ value: level, name: level })) } : null;
+          })()
         : null,
-    [effectiveConfig, modelSelectionView],
+    [effectiveConfig, modelSelectionView, piModelCatalog],
   );
 
   // 候选档位只来自目标 Host 的 ModelSelectionView，已选档位只来自 Composer。
@@ -1020,6 +1037,18 @@ function V4ComposerModelControlsImpl({
         onSendCompressionCommand={onSendCompressionCommand}
         compressionDisabled={disabled || recoveryPending}
       />
+      {piModelCatalog.length > 0 && usage && !usage.contextWindow ? (
+        <span
+          className="px-1 text-ui-xs text-foreground-subtle"
+          data-testid="pi-context-usage-unknown"
+          title={intl.formatMessage({ id: "chat.contextUsage.piUnknownDetail" })}
+        >
+          {intl.formatMessage({ id: "chat.contextUsage.piUnknown" })}
+        </span>
+      ) : null}
+      {piModelCatalog.length > 0 && usage ? (
+        <PiSessionUsagePopover usage={usage} intl={intl} locale={locale} />
+      ) : null}
       {modelSelectionState.status === "error" && modelSelectionReload ? (
         <Button
           type="button"
@@ -1042,6 +1071,11 @@ function V4ComposerModelControlsImpl({
       ) : modelMenuVisible ? (
         <ModelConfigSelect
           modelGroups={modelSelectGroups}
+          footerActions={piModelCatalog.length > 0 && onCycleModel ? [{
+            key: "pi-cycle-model",
+            label: intl.formatMessage({ id: "chat.toolbar.model.cyclePi" }),
+            onSelect: onCycleModel,
+          }] : undefined}
           normalizedValue={normalizedModelValue}
           triggerLabel={modelTriggerDisplay.fullLabel}
           triggerLabelPrefix={modelTriggerDisplay.providerPrefix}
@@ -1069,6 +1103,9 @@ function V4ComposerModelControlsImpl({
           triggerIconClassName="inline-flex @sm/composer:hidden group-data-[composer-model-icon=true]/toolbar:inline-flex"
           focusSelectorOnClose={V4_COMPOSER_INPUT_SELECTOR}
           providerSubmenuClassName={providerSubmenuClassName}
+          searchPlaceholder={piModelCatalog.length > 0
+            ? intl.formatMessage({ id: "chat.toolbar.model.searchPlaceholder" }) : undefined}
+          searchEmptyMessage={intl.formatMessage({ id: "chat.toolbar.model.empty" })}
         />
       ) : null}
       {thoughtOption ? (

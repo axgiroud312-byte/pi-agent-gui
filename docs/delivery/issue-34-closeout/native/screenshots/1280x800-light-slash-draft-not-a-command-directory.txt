@@ -1,0 +1,44 @@
+命令面板
+
+搜索并执行当前工作区可用的命令。
+
+新建任务
+Ctrl+N
+搜索
+Ctrl+K
+自动化
+插件市场
+分组
+项目
+项目
+parity-workspace
+暂无任务
+任务
+还没有任务
+π
+Pi Agent IDE
+
+下午好呀，接下来交给我吧
+
+parity-workspace
+master
+命令
+没有匹配的命令
+技能
+Pi Agent service does not implement getSkillReferenceCatalog
+子智能体
+general-purpose
+Built-in · General-purpose agent for researching complex questions, searching for code, and executing multi-step tasks.
+Explore
+Built-in · Read-only search agent for broad fan-out searches.
+输入内容以搜索命令、技能或子智能体
+
+/
+
+添加上下文
+变更前确认
+新供应商/parity-controlled
+开启
+关闭
+开启
+发送

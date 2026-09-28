@@ -26,6 +26,8 @@ type SessionsIndexAgentService = Pick<
 
 export interface WindowHostSessionsIndexObserver {
   start(): Promise<void>;
+  /** Explicitly ask the owning Agent service for a fresh source snapshot. */
+  refresh(): Promise<void>;
   dispose(): void;
 }
 
@@ -74,6 +76,26 @@ export function createWindowHostSessionsIndexObserver(options: {
   let stagingOverflowed = false;
   let assemblyTimer: ReturnType<typeof setTimeout> | null = null;
   let recoveryTimer: ReturnType<typeof setTimeout> | null = null;
+  const refreshWaiters = new Set<{
+    subscriptionId: string;
+    resolve: () => void;
+    reject: (error: Error) => void;
+    timer: ReturnType<typeof setTimeout>;
+  }>();
+
+  const settleRefreshWaiters = (subscriptionId: string, error?: Error): void => {
+    for (const waiter of refreshWaiters) {
+      if (waiter.subscriptionId !== subscriptionId) continue;
+      refreshWaiters.delete(waiter);
+      clearTimeout(waiter.timer);
+      if (error) waiter.reject(error);
+      else waiter.resolve();
+    }
+  };
+
+  const rejectRefreshWaiters = (error: Error): void => {
+    for (const waiter of refreshWaiters) settleRefreshWaiters(waiter.subscriptionId, error);
+  };
 
   const publish = (): void => {
     options.onSessionsChange(Array.from(summaries.values()));
@@ -115,6 +137,7 @@ export function createWindowHostSessionsIndexObserver(options: {
       recovering = false;
       clearRecoveryTimer();
       publish();
+      if (activeSubscriptionId) settleRefreshWaiters(activeSubscriptionId);
       return;
     }
     if (!cursor || frame.fromSeq !== cursor.seq) {
@@ -197,6 +220,7 @@ export function createWindowHostSessionsIndexObserver(options: {
       })
       .catch((error) => {
         recovering = false;
+        settleRefreshWaiters(subscriptionId, error instanceof Error ? error : new Error(String(error)));
         if (!isRuntimeUnavailableError(error)) {
           options.onError?.(error);
           resubscribeAfterRecovery();
@@ -206,6 +230,8 @@ export function createWindowHostSessionsIndexObserver(options: {
 
   function resubscribeAfterRecovery(): void {
     const previousSubscriptionId = activeSubscriptionId;
+    if (previousSubscriptionId) settleRefreshWaiters(previousSubscriptionId,
+      new Error("Pi sessions index recovery did not complete"));
     generation += 1;
     activeSubscriptionId = null;
     cursor = null;
@@ -233,6 +259,7 @@ export function createWindowHostSessionsIndexObserver(options: {
     options.agentService.onDynamicSessionsIndexFrame(workspace)(stageOrAcceptWire);
 
   const invalidateRuntime = (): void => {
+    rejectRefreshWaiters(new Error("Pi sessions index runtime changed during refresh"));
     generation += 1;
     activeSubscriptionId = null;
     cursor = null;
@@ -332,9 +359,25 @@ export function createWindowHostSessionsIndexObserver(options: {
 
   return {
     start,
+    async refresh() {
+      await start();
+      const subscriptionId = activeSubscriptionId;
+      if (disposed || !subscriptionId) {
+        throw new Error("Pi sessions index is unavailable for refresh");
+      }
+      return new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => {
+          settleRefreshWaiters(subscriptionId, new Error("Pi sessions index refresh timed out"));
+        }, PROTOCOL_V4_LIMITS.logicalFrameAssemblyTimeoutMs * 2);
+        timer.unref?.();
+        refreshWaiters.add({ subscriptionId, resolve, reject, timer });
+        requestRecovery();
+      });
+    },
     dispose() {
       if (disposed) return;
       disposed = true;
+      rejectRefreshWaiters(new Error("Pi sessions index observer disposed during refresh"));
       generation += 1;
       const subscriptionId = activeSubscriptionId;
       activeSubscriptionId = null;

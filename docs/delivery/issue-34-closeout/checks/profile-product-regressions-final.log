@@ -1,0 +1,77 @@
+(node:30660) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ describe and validate never request an excluded official ZIP (21.4598ms)
+✔ official remote sources cannot bypass exclusion with another hostname (3.835ms)
+✔ describe cannot fetch a missing official manifest from a changed host (3.6348ms)
+✔ third-party describe/validation cannot download vendor CDN ZIPs (4.8268ms)
+✔ ZIP redirects are rejected before contacting the vendor host (1.7936ms)
+✔ manifest validation also blocks a redirect to the vendor CDN (0.8032ms)
+✔ bundled, directory and installed official plugins remain readable offline (19.0692ms)
+✔ ordinary third-party ZIP still downloads, verifies and exposes real plugin content (16.691ms)
+✔ bootstrap refresh-all skips an official record and refreshes custom records after it (14.1283ms)
+✔ error and task feedback toasts describe the actual manual GitHub flow in both locales (0.3625ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 10
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 5796.7644
+✔ product-service transport rejects before any outbound side effect, including a changed endpoint (14.2494ms)
+✔ direct excluded actions fail instead of pretending success (0.1518ms)
+✔ product artwork classification does not blacklist model providers or user hosts by name (0.111ms)
+✔ static branding happens before user interpolation and preserves the isolated engine identity (0.1188ms)
+✔ desktop identities keep Pi production, preview and development separate from upstream (0.1457ms)
+✔ native About keeps escaping and shows the Pi mark alongside upstream legal attribution (0.2367ms)
+✔ workspace deep links use the Pi product identity and keep encoded paths intact (0.5665ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 102.9872
+✔ default desktop reads only the Pi profile, ignoring a legacy redirect sentinel (7.8282ms)
+✔ explicit data base wins before any bootstrap read, including conflicting desktop HOME (0.9099ms)
+✔ Pi custom data directory restores while settings remain at the stable Pi anchor (3.7527ms)
+✔ invalid/blank Pi settings stay in profile; persisted relative paths use its anchor (0.7305ms)
+✔ host/scheduler and inherited Agent storage receive the same absolute root (0.662ms)
+✔ explicit app anchor normalizes independently of OS/test HOME and movable data root (0.6996ms)
+✔ malformed, relative and duplicate relaunch markers fail before changing the environment (0.9526ms)
+✔ production probe guard catches legacy access in main and an env-sanitizing child (102.5383ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 162.5163
+(node:49760) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ desktop app isolation preserves real Git global config, SSH aliases and terminal HOME/profile (1775.9458ms)
+✔ actual encrypted credentials and native SQLite history survive v2 data moves and relaunch (2398.8031ms)
+✔ explicit data override wins while settings and history keep their independent profile anchor (1159.0104ms)
+✔ standalone services and CLI keep upstream defaults (250.1627ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 5833.8209
+✔ Pi SaveWorkflow + GUI list/get/update/delete/move + run resolution never access the legacy archive (767.7013ms)
+✔ saved workflows preserve project defaults/shadowing and explicit homeDir option semantics (801.0155ms)
+✔ standalone saved workflow lifecycle still uses native HOME (757.456ms)
+✔ blank app profile preserves standalone saved workflow defaults (743.8519ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3710.6496

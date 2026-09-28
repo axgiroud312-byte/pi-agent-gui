@@ -6,8 +6,8 @@
 // 语义：scope = sessionId（draft 态 = "__draft__"）；保存 text + editorStateJson，外部预填在
 // Lexical 尚未挂载时额外保存 mention（保证重挂载不降级为纯文本）。
 // mode/modelSelection 与正文同 scope 保存；发送只清内容，显式清理才删除整个 scope。
-// 附件不入草稿（objectUrl/File 不可序列化，localPath 附件重启后归属难校验——
-// 与「v4 composer 不做附件草稿持久化」的裁决一致）。
+// 图片字节由 composerImageDraftStorage 独立保存在 profile 的 IndexedDB，本文字草稿
+// 只保存可同步序列化的输入与配置；发送后按同一 scope 清理两处草稿。
 import { logger } from "@/logger.js";
 import { modelSelectionSchema, type ModelSelection } from "@zcode/shared";
 import { submissionModeSchema, type SubmissionMode } from "@zcode/shared/zcode-protocol-v4";
@@ -35,6 +35,7 @@ interface V4DraftFile {
 }
 
 const STORAGE_KEY_PREFIX = "zcode-v4-composer-drafts:v1:";
+const SCOPE_FALLBACK_PREFIX = "zcode-v4-composer-scope-drafts:v1:";
 export const V4_DRAFT_SCOPE_ROOT = "__draft__";
 const warnedStorageKeys = new Set<string>();
 
@@ -63,26 +64,70 @@ function getV4ComposerDraftStorageKey(workspacePath: string, workspaceIdentity?:
   return `${STORAGE_KEY_PREFIX}${encodeURIComponent(workspaceKey)}`;
 }
 
-function readDraftFile(key: string): V4DraftFile {
-  const storage = getStorage();
+function getScopeFallbackKey(key: string, scopeId: string): string {
+  return `${SCOPE_FALLBACK_PREFIX}${encodeURIComponent(`${key}\0${scopeId}`)}`;
+}
+
+function readScopeFallback(key: string, scopeId: string): { draft: V4ComposerDraft | null; updatedAt: number } | null {
   try {
-    const raw = storage?.getItem(key);
-    if (!raw) return { version: 1, scopes: {} };
+    const raw = getStorage()?.getItem(getScopeFallbackKey(key, scopeId));
+    if (!raw) return null;
+    const value: unknown = JSON.parse(raw);
+    if (!isRecord(value) || value.version !== 1 || typeof value.updatedAt !== "number" ||
+      !Number.isFinite(value.updatedAt)) return null;
+    if (value.draft === null) return { draft: null, updatedAt: value.updatedAt };
+    const draft = readDraft(value.draft);
+    return draft ? { draft, updatedAt: value.updatedAt } : null;
+  } catch (error) {
+    warnStorageFailure(getScopeFallbackKey(key, scopeId), error);
+    return null;
+  }
+}
+
+function writeScopeFallback(key: string, scopeId: string, draft: V4ComposerDraft | null,
+  updatedAt: number): boolean {
+  const fallbackKey = getScopeFallbackKey(key, scopeId);
+  try {
+    const storage = getStorage();
+    if (!storage) return false;
+    storage.setItem(fallbackKey, JSON.stringify({ version: 1, draft, updatedAt }));
+    warnedStorageKeys.delete(fallbackKey);
+    return true;
+  } catch (error) {
+    warnStorageFailure(fallbackKey, error);
+    return false;
+  }
+}
+
+function readDraftFile(key: string): { file: V4DraftFile | null; damagedRaw: string | null } {
+  const storage = getStorage();
+  let raw: string | null = null;
+  try {
+    raw = storage?.getItem(key) ?? null;
+    if (!raw) return { file: { version: 1, scopes: {} }, damagedRaw: null };
     const parsed: unknown = JSON.parse(raw);
     if (!isRecord(parsed) || parsed.version !== 1 || !isRecord(parsed.scopes)) {
-      return { version: 1, scopes: {} };
+      throw new Error("Saved composer draft record has an unsupported structure");
     }
-    const scopes = Object.fromEntries(
-      Object.entries(parsed.scopes).flatMap(([scopeId, value]) => {
-        const draft = readDraft(value);
-        return draft ? [[scopeId, draft]] : [];
-      }),
-    );
-    return { version: 1, scopes };
+    const scopes: Array<[string, V4ComposerDraft]> = [];
+    for (const [scopeId, value] of Object.entries(parsed.scopes)) {
+      const draft = readDraft(value);
+      if (!draft) throw new Error("Saved composer draft scope is damaged");
+      scopes.push([scopeId, draft]);
+    }
+    return { file: { version: 1, scopes: Object.fromEntries(scopes) }, damagedRaw: null };
   } catch (error) {
     warnStorageFailure(key, error);
-    return { version: 1, scopes: {} };
+    return { file: null, damagedRaw: raw };
   }
+}
+
+/** The raw workspace record is retained in place until the user explicitly removes the project. */
+export function readDamagedV4ComposerDraftRecord(
+  workspacePath: string,
+  workspaceIdentity?: string,
+): string | null {
+  return readDraftFile(getV4ComposerDraftStorageKey(workspacePath, workspaceIdentity)).damagedRaw;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -167,7 +212,10 @@ export function readV4ComposerDraft(
   scopeId: string,
 ): V4ComposerDraft | null {
   const key = getV4ComposerDraftStorageKey(workspacePath, workspaceIdentity);
-  const draft = readDraftFile(key).scopes[scopeId];
+  const primary = readDraftFile(key).file?.scopes[scopeId] ?? null;
+  const fallback = readScopeFallback(key, scopeId);
+  const draft = fallback && fallback.updatedAt >= (primary?.updatedAt ?? 0)
+    ? fallback.draft : primary;
   if (!draft || typeof draft.text !== "string") {
     return null;
   }
@@ -181,7 +229,11 @@ export function persistV4ComposerDraft(
   draft: Omit<V4ComposerDraft, "updatedAt">,
 ) {
   const key = getV4ComposerDraftStorageKey(workspacePath, workspaceIdentity);
-  const file = readDraftFile(key);
+  const file = readDraftFile(key).file;
+  if (!file) return false;
+  const fallback = readScopeFallback(key, scopeId);
+  const updatedAt = Math.max(Date.now(), (file.scopes[scopeId]?.updatedAt ?? 0) + 1,
+    (fallback?.updatedAt ?? 0) + 1);
   if (
     !draft.text.trim() &&
     !draft.editorStateJson &&
@@ -190,11 +242,38 @@ export function persistV4ComposerDraft(
     !draft.modelSelection &&
     !draft.initializeFromNewTask
   ) {
-    delete file.scopes[scopeId];
-  } else {
-    file.scopes[scopeId] = { ...draft, updatedAt: Date.now() };
+    // Clearing needs a tombstone before dropping the workspace entry; a stale
+    // per-scope fallback must never resurrect already submitted text.
+    return clearV4ComposerDraft(workspacePath, workspaceIdentity, scopeId);
   }
-  return writeDraftFile(key, file);
+  file.scopes[scopeId] = { ...draft, updatedAt };
+  if (!writeDraftFile(key, file)) {
+    return writeScopeFallback(key, scopeId, file.scopes[scopeId] ?? null, updatedAt);
+  }
+  // The committed workspace file is newer than any fallback, even when the
+  // clock tick is shared. A failed cleanup cannot resurrect stale text.
+  try { getStorage()?.removeItem(getScopeFallbackKey(key, scopeId)); }
+  catch { /* The primary version has a strictly newer updatedAt. */ }
+  return true;
+}
+
+/** Pi gives forked user text back to the caller; seed the child scope before switching panes. */
+export function seedPiForkComposerDraft(
+  workspacePath: string,
+  workspaceIdentity: string | undefined,
+  childSessionId: string,
+  restoredText: string,
+): "stored" | "conflict" | "failed" {
+  if (!childSessionId.trim() || !restoredText.trim()) return "failed";
+  const existing = readV4ComposerDraft(workspacePath, workspaceIdentity, childSessionId);
+  if (existing?.text.trim() && existing.text !== restoredText) return "conflict";
+  if (existing?.text === restoredText) return "stored";
+  return persistV4ComposerDraft(workspacePath, workspaceIdentity, childSessionId, {
+    ...existing,
+    text: restoredText,
+    editorStateJson: undefined,
+    mention: undefined,
+  }) ? "stored" : "failed";
 }
 
 export function clearV4ComposerDraft(
@@ -203,10 +282,46 @@ export function clearV4ComposerDraft(
   scopeId: string,
 ) {
   const key = getV4ComposerDraftStorageKey(workspacePath, workspaceIdentity);
-  const file = readDraftFile(key);
-  if (!(scopeId in file.scopes)) {
+  const file = readDraftFile(key).file;
+  if (!file) return false;
+  const fallback = readScopeFallback(key, scopeId);
+  if (!(scopeId in file.scopes) && !fallback?.draft) {
     return true;
   }
+  const updatedAt = Math.max(Date.now(), (file.scopes[scopeId]?.updatedAt ?? 0) + 1,
+    (fallback?.updatedAt ?? 0) + 1);
+  if (!writeScopeFallback(key, scopeId, null, updatedAt)) return false;
   delete file.scopes[scopeId];
-  return writeDraftFile(key, file);
+  if (writeDraftFile(key, file)) {
+    try { getStorage()?.removeItem(getScopeFallbackKey(key, scopeId)); }
+    catch { /* The tombstone remains authoritative over any stale workspace entry. */ }
+  }
+  return true;
+}
+
+/** Call only after an actual project removal, never when closing or hiding a tab. */
+export function clearV4ComposerWorkspaceDrafts(
+  workspacePath: string,
+  workspaceIdentity?: string,
+): boolean {
+  const key = getV4ComposerDraftStorageKey(workspacePath, workspaceIdentity);
+  const storage = getStorage();
+  if (!storage) return false;
+  try {
+    const fallbackKeys: string[] = [];
+    for (let index = 0; index < storage.length; index += 1) {
+      const candidate = storage.key(index);
+      if (!candidate?.startsWith(SCOPE_FALLBACK_PREFIX)) continue;
+      let decoded: string;
+      try { decoded = decodeURIComponent(candidate.slice(SCOPE_FALLBACK_PREFIX.length)); }
+      catch { continue; }
+      if (decoded.startsWith(`${key}\0`)) fallbackKeys.push(candidate);
+    }
+    for (const fallbackKey of fallbackKeys) storage.removeItem(fallbackKey);
+    storage.removeItem(key);
+    return true;
+  } catch (error) {
+    warnStorageFailure(key, error);
+    return false;
+  }
 }

@@ -82,10 +82,13 @@ async function refreshSettingsStore(settingService: ISettingService | undefined)
   store.inflightRefresh = (async () => {
     try {
       const result = await settingService.get();
+      const readStatus = await settingService.getReadStatus?.().catch(() => null);
       store.snapshot = {
         settings: result,
         loading: false,
-        error: null,
+        error: readStatus?.kind === "degraded"
+          ? new Error(readStatus.message ?? "Desktop settings need repair before editing or starting Pi")
+          : null,
       };
       emitSettingsSnapshot(store);
     } catch (error) {

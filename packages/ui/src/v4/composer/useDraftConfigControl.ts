@@ -34,9 +34,13 @@ import {
   V4_DRAFT_SCOPE_ROOT,
   type V4ComposerDraft,
 } from "@/v4/composer/composerDraftStore.js";
+import { beginComposerImageDraftPromotion } from "@/v4/composer/composerImageDraftStorage.js";
 import { resolveAppFollowupMode } from "@/v4/composer/followupModeSettings.js";
 import { logger } from "@/logger.js";
+import type { ZCodeUiError } from "@/lib/zcodeUiError.js";
 import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
+import { findPiModel, resolvePiSessionModelSelection,
+  type PiModelCandidate } from "@/v4/composer/piModelCatalog.js";
 
 /** 目录水合单飞（per workspaceKey）：draft、已有 session 和严格模式双挂载共享一次 RPC。 */
 const workspaceCatalogHydrationFlights = new Map<string, Promise<void>>();
@@ -76,6 +80,8 @@ function shouldHydrateWorkspaceCatalog(params: {
 
 interface DraftConfigControl {
   modelSelectionRead: ModelSelectionRead;
+  /** Both persistent text stores failed; keep the error visible until a successful write. */
+  draftPersistenceError: ZCodeUiError | null;
   /** Renderer 下一次提交的配置；Session 只在 scope 首次初始化时提供种子。 */
   draftConfig: Partial<SessionConfigState>;
   /** 草稿已选 config（partial）；createSession 时经 buildDraftCreateConfigPayload 携带。 */
@@ -110,6 +116,9 @@ export function useDraftConfigControl(params: {
   /** provider registry 已通过 renderer readiness 门禁后才允许拉起 Agent。 */
   agentStartupAllowed?: boolean;
   modelSelectionService: IModelSelectionService | null;
+  piModelCatalog?: readonly PiModelCandidate[];
+  nativePiSession?: boolean;
+  piModelCatalogReady?: boolean;
 }): DraftConfigControl {
   const {
     workspacePath,
@@ -119,6 +128,9 @@ export function useDraftConfigControl(params: {
     sessionConfig,
     agentStartupAllowed = true,
     modelSelectionService,
+    piModelCatalog = [],
+    nativePiSession = false,
+    piModelCatalogReady = false,
   } = params;
   const workspaceKey = workspaceIdentity?.trim() || workspacePath;
   const displayProvider = provider ?? ZCODE_AGENT_PROVIDER;
@@ -127,6 +139,8 @@ export function useDraftConfigControl(params: {
   const appFollowupMode = resolveAppFollowupMode(sharedSettings);
   const scopeId = sessionId ?? V4_DRAFT_SCOPE_ROOT;
   const scopeKey = JSON.stringify([workspaceKey, scopeId]);
+  const [draftPersistenceError, setDraftPersistenceError] = useState<ZCodeUiError | null>(null);
+  useEffect(() => { setDraftPersistenceError(null); }, [scopeKey]);
   const loadedScope = useMemo(
     () => ({
       scopeKey,
@@ -151,7 +165,10 @@ export function useDraftConfigControl(params: {
   const modelSelectionView =
     modelSelectionRead.state.status === "ready" ? modelSelectionRead.state.view : null;
   const initializeAsNewTask = sessionId === null || draft.initializeFromNewTask === true;
-  if (!draft.mode && (initializeAsNewTask ? modelSelectionView !== null : sessionConfig != null)) {
+  const piSessionSeed = nativePiSession && sessionConfig && !sessionConfig.modelSelection
+    ? resolvePiSessionModelSelection(sessionConfig, piModelCatalog, piModelCatalogReady) : null;
+  if (!draft.mode && (initializeAsNewTask ? modelSelectionView !== null
+    : sessionConfig != null && (piSessionSeed?.ready ?? true))) {
     const mode = submissionModeSchema.safeParse(sessionConfig?.mode);
     // Recent 是初始化原意图，不先按旧 Provider 是否仍在候选中删掉；下一次输入读取
     // 由同一解析入口对应当前账号，或暂时留空。否则冷启动会绕过统一账号对应规则。
@@ -163,7 +180,7 @@ export function useDraftConfigControl(params: {
             ...draft,
             mode: mode.success && mode.data !== "plan" ? mode.data : "build",
             planEnabled: resolveExecutionState(sessionConfig ?? {}).planEnabled,
-            modelSelection: sessionConfig?.modelSelection,
+            modelSelection: sessionConfig?.modelSelection ?? piSessionSeed?.modelSelection,
           };
   }
   if (sessionConfig) {
@@ -176,9 +193,13 @@ export function useDraftConfigControl(params: {
   stateRef.current = currentState;
   // 原因：按 revision 清草稿会把短暂不可用永久写成空选择。这里只派生当前结果，
   // 正文/模式自动保存继续保存 draft 中的原意图；读取未就绪时保留展示，提交由 View 门禁阻断。
-  const effectiveSelection = modelSelectionView
-    ? (modelSelectionView.effectiveSelection ?? undefined)
-    : draft.modelSelection;
+  const piSelection = draft.modelSelection && findPiModel(piModelCatalog,
+    draft.modelSelection.providerId, draft.modelSelection.modelId);
+  const effectiveSelection = nativePiSession && sessionId !== null
+    ? draft.modelSelection
+    : piSelection
+    ? draft.modelSelection
+    : modelSelectionView ? (modelSelectionView.effectiveSelection ?? undefined) : draft.modelSelection;
   const draftConfig = useMemo<Partial<SessionConfigState>>(
     () => ({
       mode: draft.mode,
@@ -200,8 +221,13 @@ export function useDraftConfigControl(params: {
       stateRef.current.draft === draft &&
       stateRef.current.scopeKey === scopeKey
     ) {
-      persistV4ComposerDraft(workspacePath, workspaceIdentity, scopeId, draft);
-      lastPersistedDraftRef.current = draft;
+      if (persistV4ComposerDraft(workspacePath, workspaceIdentity, scopeId, draft)) {
+        lastPersistedDraftRef.current = draft;
+        setDraftPersistenceError(null);
+      } else {
+        setDraftPersistenceError({ code: "DRAFT_STORAGE_FAILED",
+          message: "Draft text could not be saved. Copy it before closing this window, then free storage and retry editing." });
+      }
     }
   }, [draft, scopeKey]);
   const updateComposerDraft = useCallback(
@@ -225,8 +251,13 @@ export function useDraftConfigControl(params: {
         thought: selection?.options?.reasoningLevel ?? "",
       };
       setStoredState(nextState);
-      persistV4ComposerDraft(workspacePath, workspaceIdentity, scopeId, next);
-      lastPersistedDraftRef.current = next;
+      if (persistV4ComposerDraft(workspacePath, workspaceIdentity, scopeId, next)) {
+        lastPersistedDraftRef.current = next;
+        setDraftPersistenceError(null);
+      } else {
+        setDraftPersistenceError({ code: "DRAFT_STORAGE_FAILED",
+          message: "Draft text could not be saved. Copy it before closing this window, then free storage and retry editing." });
+      }
     },
     [scopeKey, workspacePath, workspaceIdentity, scopeId],
   );
@@ -314,10 +345,21 @@ export function useDraftConfigControl(params: {
         targetSessionId,
         stateRef.current.draft,
       );
-      if (!written) return;
-      clearV4ComposerDraft(workspacePath, workspaceIdentity, V4_DRAFT_SCOPE_ROOT);
+      if (!written) {
+        setDraftPersistenceError({ code: "DRAFT_STORAGE_FAILED",
+          message: "Draft text could not be saved. Copy it before closing this window, then free storage and retry editing." });
+        return;
+      }
+      beginComposerImageDraftPromotion(
+        `${workspaceKey}\0${V4_DRAFT_SCOPE_ROOT}`,
+        `${workspaceKey}\0${targetSessionId}`,
+      );
+      if (!clearV4ComposerDraft(workspacePath, workspaceIdentity, V4_DRAFT_SCOPE_ROOT)) {
+        setDraftPersistenceError({ code: "DRAFT_STORAGE_FAILED",
+          message: "Old draft text could not be cleaned up. Copy the current text before closing this window." });
+      }
     },
-    [scopeId, scopeKey, workspaceIdentity, workspacePath],
+    [scopeId, scopeKey, workspaceIdentity, workspaceKey, workspacePath],
   );
 
   // ── workspace 目录水合（见文件头说明）──
@@ -415,6 +457,10 @@ export function useDraftConfigControl(params: {
       const modelSelection = modelSelectionView
         ? (completeNewModelSelection(modelSelectionView, parsedSelection) ?? parsedSelection)
         : parsedSelection;
+      const piCandidate = findPiModel(piModelCatalog, parsedSelection.providerId, parsedSelection.modelId);
+      const resolvedSelection = piCandidate
+        ? { ...parsedSelection, options: { reasoningLevel: piCandidate.thoughtLevels.at(-1) ?? "off" } }
+        : modelSelection;
       logger.debug("[v4-draft-config] select model", {
         modelProvider,
         model,
@@ -424,9 +470,9 @@ export function useDraftConfigControl(params: {
         workspacePath,
         workspaceIdentity: workspaceIdentity ?? null,
       });
-      updateDraftConfig((current) => applyDraftModelSelection(current, modelSelection));
+      updateDraftConfig((current) => applyDraftModelSelection(current, resolvedSelection));
     },
-    [modelSelectionView, updateDraftConfig, workspaceIdentity, workspacePath],
+    [modelSelectionView, piModelCatalog, updateDraftConfig, workspaceIdentity, workspacePath],
   );
 
   const handleDraftSelectThought = useCallback(
@@ -481,6 +527,7 @@ export function useDraftConfigControl(params: {
   );
 
   return {
+    draftPersistenceError,
     modelSelectionRead,
     draftConfig,
     draftConfigRef,

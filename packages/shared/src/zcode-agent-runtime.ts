@@ -1,5 +1,8 @@
 export type ZCodeAgentBinaryKind = "native-binary";
 
+/** Main passes Electron's trusted resources directory to utility processes through this key. */
+export const ZCODE_PACKAGED_RESOURCES_PATH_ENV = "ZCODE_PACKAGED_RESOURCES_PATH";
+
 export interface ZCodeAgentRuntimeDescriptor {
   binaryKind: ZCodeAgentBinaryKind;
   binaryEnvVar: string;

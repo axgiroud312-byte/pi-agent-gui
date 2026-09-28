@@ -72,6 +72,9 @@ import {
 import { useRemotePinnedTaskStore } from "@/store/remotePinnedTaskStore.js";
 import { useRemoteTimelineTaskStore } from "@/store/remoteTimelineTaskStore.js";
 import { logger } from "@/logger.js";
+import { forgetPiQueueEditRecoveriesForSession, markPiSessionRecoveryDeletionIntent,
+  readPiQueueEditRecoveries, retryPendingPiQueueRecoveryDeletions,
+  retryPendingPiQueueRecoveryPurges } from "@/v4/piQueueEditRecovery.js";
 import {
   RemoteSyncDialogs,
   RemoteSyncMenuItems,
@@ -89,6 +92,8 @@ import {
 } from "@/lib/workspaceRemovalSafety.js";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
 import { toast } from "@/components/ui/toast.js";
+import { removeTaskFromTaskCaches } from "@/lib/taskListMetaSync.js";
+import { cleanupConfirmedPiSessionDraft } from "@/v4/composer/composerSessionCleanup.js";
 
 export type SortableBindings = Pick<ReturnType<typeof useSortable>, "attributes" | "listeners">;
 
@@ -281,6 +286,26 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
       }
     };
   }, []);
+
+  useEffect(() => {
+    const retry = async () => {
+      try {
+        await retryPendingPiQueueRecoveryDeletions({ storage: window.localStorage,
+          sessionExists: async intent => (await baseServices.zcodeTaskService.getTaskSessionFilePath({
+            taskId: intent.sessionId, workspacePath: intent.workspacePath,
+            ...(intent.workspaceIdentity ? { workspaceIdentity: intent.workspaceIdentity } : {}),
+          })).exists });
+      } catch (error) {
+        logger.warn("[WorkspaceSidebarItem] prior Pi session recovery delete is unresolved", error);
+      }
+      try {
+        await retryPendingPiQueueRecoveryPurges({ storage: window.localStorage });
+      } catch (error) {
+        logger.warn("[WorkspaceSidebarItem] prior Pi queue recovery purge incomplete", error);
+      }
+    };
+    void retry();
+  }, [baseServices.zcodeTaskService]);
 
   const handleWorkspaceOpenChange = useCallback(
     (nextOpen: boolean) => {
@@ -624,6 +649,71 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
       zcodeTaskService,
     ],
   );
+
+  const handleDeletePiSession = useCallback(async (taskId: string): Promise<void> => {
+    if (readOnlyReason) return;
+    if (workspaceZCodeStateRef.current.activeTaskId === taskId) {
+      toast(intl.formatMessage({ id: "taskList.deletePiActive" }));
+      return;
+    }
+    const task = findCurrentTaskItem(taskId);
+    if (!task) return;
+    const target = { taskId, workspacePath: tab.workspacePath,
+      ...(tab.workspaceIdentity ? { workspaceIdentity: tab.workspaceIdentity } : {}) };
+    try {
+      const preview = await zcodeTaskService.getTaskSessionFilePath(target);
+      if (!preview.exists || !preview.path || !preview.revision) {
+        throw new Error("Pi session deletion preview is unavailable");
+      }
+      const workspaceKey = tab.workspaceIdentity?.trim() || tab.workspacePath;
+      const recoveryCopies = readPiQueueEditRecoveries(window.localStorage, workspaceKey, taskId);
+      const confirmed = await confirmDialog({
+        title: intl.formatMessage({ id: "taskList.deletePiTitle" }),
+        description: intl.formatMessage({ id: "taskList.deletePiDescription" }, {
+          title: preview.title ?? task.title, sessionId: taskId, workspacePath: tab.workspacePath,
+          sessionFile: preview.path, recoveryCount: String(recoveryCopies.length),
+        }),
+        confirmLabel: intl.formatMessage({ id: "taskList.deletePiSession" }),
+        cancelLabel: intl.formatMessage({ id: "common.cancel" }),
+        confirmVariant: "destructive",
+      });
+      if (!confirmed) return;
+      markPiSessionRecoveryDeletionIntent(window.localStorage, { workspaceKey,
+        workspacePath: tab.workspacePath, ...(tab.workspaceIdentity
+          ? { workspaceIdentity: tab.workspaceIdentity } : {}), sessionId: taskId });
+      await zcodeTaskService.deleteTask({ ...target, expectedSessionFile: preview.path,
+        expectedRevision: preview.revision });
+      let recoveryCleanupFailed = false;
+      try {
+        await forgetPiQueueEditRecoveriesForSession({ storage: window.localStorage,
+          workspaceKey, sessionId: taskId });
+      } catch (error) {
+        recoveryCleanupFailed = true;
+        logger.error("[WorkspaceSidebarItem] Pi session deleted; private recovery cleanup will retry", {
+          taskId, message: error instanceof Error ? error.message : String(error),
+        });
+      }
+      const draftCleanupErrors = await cleanupConfirmedPiSessionDraft(tab.workspacePath,
+        tab.workspaceIdentity, taskId);
+      removeTaskFromTaskCaches({ workspacePath: tab.workspacePath,
+        workspaceIdentity: tab.workspaceIdentity, taskId });
+      removeOptimisticTaskListItem(tab.workspacePath, taskId, tab.workspaceIdentity);
+      removeTaskState(tab.workspacePath, taskId, tab.workspaceIdentity);
+      if (recoveryCleanupFailed) toast(intl.formatMessage({ id: "taskList.deletePiRecoveryCleanupPending" }));
+      if (draftCleanupErrors.length) {
+        logger.error("[WorkspaceSidebarItem] deleted Pi session left local draft bytes", {
+          taskId, errors: draftCleanupErrors,
+        });
+        toast(intl.formatMessage({ id: "taskList.deletePiDraftCleanupFailed" }));
+      }
+    } catch (error) {
+      logger.error("[WorkspaceSidebarItem] Pi session deletion failed", {
+        taskId, message: error instanceof Error ? error.message : String(error),
+      });
+      toast(intl.formatMessage({ id: "taskList.deletePiFailed" }));
+    }
+  }, [confirmDialog, findCurrentTaskItem, intl, readOnlyReason, removeOptimisticTaskListItem,
+    removeTaskState, tab.workspaceIdentity, tab.workspacePath, zcodeTaskService]);
 
   const handleArchiveTask = useCallback(
     async (taskId: string) => {
@@ -1132,6 +1222,7 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
             onSetTaskPinned={handleSetTaskPinned}
             onArchiveTask={handleArchiveTask}
             onSetTaskUnread={handleSetTaskUnread}
+            onDeletePiSession={handleDeletePiSession}
             readOnlyReason={readOnlyReason}
           />
         </CollapsibleContent>

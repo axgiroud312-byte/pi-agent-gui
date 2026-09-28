@@ -30,10 +30,11 @@ function trimEpilogueLead(text: string): string {
   return text.replace(/^\s*(?:---[ \t]*\n)?/u, "").trimEnd();
 }
 
-export function ConversationUserInputEpilogue({ text }: { text: string }) {
+export function ConversationUserInputEpilogue({ text, kind }: { text: string; kind?: "workflow" | "piFileSnapshots" }) {
   const { intl } = useZCodeIntl();
   const [open, setOpen] = useState(false);
-  const label = intl.formatMessage({ id: "chat.userInput.epilogue.label" });
+  const label = intl.formatMessage({ id: kind === "piFileSnapshots"
+    ? "chat.userInput.epilogue.piFileSnapshots" : "chat.userInput.epilogue.label" });
   return (
     <div data-v4-user-input-epilogue="true" className="flex min-w-0 flex-col gap-1">
       <button

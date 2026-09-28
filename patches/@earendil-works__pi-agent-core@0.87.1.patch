@@ -1,0 +1,323 @@
+diff --git a/dist/agent.d.ts b/dist/agent.d.ts
+index 59ec7e8fa52502e881f57d83362fde822b574b20..3a0b29b4872c6b87a679867ea61e0ad3efc195a5 100644
+--- a/dist/agent.d.ts
++++ b/dist/agent.d.ts
+@@ -3,6 +3,26 @@ import type { AfterToolCallContext, AfterToolCallResult, AgentEvent, AgentLoopTu
+ export type { QueueMode } from "./types.ts";
+ /** Initial state for {@link Agent}. `systemPrompt` and `tools` become the leading system message unless `messages` already starts with one. */
+ export type AgentInitialState = Partial<Omit<AgentState, "pendingToolCalls" | "isStreaming" | "streamingMessage" | "errorMessage">>;
++export interface PiGuiQueueItemV1 {
++    id: string;
++    text: string;
++    images: ImageContent[];
++}
++export interface PiGuiQueueSnapshotV1 {
++    revision: number;
++    steering: PiGuiQueueItemV1[];
++    followUp: PiGuiQueueItemV1[];
++}
++export interface PiGuiQueueCatalogV1 {
++    revision: number;
++    paused: boolean;
++    steering: Array<{ id: string; text: string; images: Array<{ mimeType: string; bytes: number }> }>;
++    followUp: Array<{ id: string; text: string; images: Array<{ mimeType: string; bytes: number }> }>;
++}
++export type PiGuiQueueOperationV1 =
++    | { kind: "take"; id: string }
++    | { kind: "move"; id: string; beforeId: string | null }
++    | { kind: "replace"; id: string; text: string; images?: ImageContent[] };
+ /** Options for constructing an {@link Agent}. */
+ export interface AgentOptions {
+     initialState?: AgentInitialState;
+@@ -37,6 +57,11 @@ export declare class Agent {
+     private readonly listeners;
+     private readonly steeringQueue;
+     private readonly followUpQueue;
++    private queueRevision;
++    private queuePaused;
++    private queueSerial;
++    private queueNonce;
++    onQueueChange?: () => void;
+     convertToLlm: (messages: AgentMessage[]) => Message[] | Promise<Message[]>;
+     transformContext?: (messages: AgentMessage[], signal?: AbortSignal) => Promise<AgentMessage[]>;
+     streamFunction: StreamFn;
+@@ -85,9 +110,9 @@ export declare class Agent {
+     set followUpMode(mode: QueueMode);
+     get followUpMode(): QueueMode;
+     /** Queue a message to be injected after the current assistant turn finishes. */
+-    steer(message: AgentMessage): void;
++    steer(message: AgentMessage): string;
+     /** Queue a message to run only after the agent would otherwise stop. */
+-    followUp(message: AgentMessage): void;
++    followUp(message: AgentMessage): string;
+     /** Remove all queued steering messages. */
+     clearSteeringQueue(): void;
+     /** Remove all queued follow-up messages. */
+@@ -98,6 +123,12 @@ export declare class Agent {
+     hasQueuedMessages(): boolean;
+     /** Preview the messages selected for the next turn without consuming them. */
+     peekQueuedMessages(): AgentMessage[];
++    queueSnapshot(): PiGuiQueueSnapshotV1;
++    queueCatalog(): PiGuiQueueCatalogV1;
++    queueSetPaused(expectedRevision: number, paused: boolean): PiGuiQueueCatalogV1;
++    queueReadItem(expectedRevision: number, id: string): PiGuiQueueItemV1;
++    queueMutate(expectedRevision: number, operation: PiGuiQueueOperationV1): { snapshot: PiGuiQueueSnapshotV1; taken?: PiGuiQueueItemV1 };
++    queueTakeAll(expectedRevision: number): PiGuiQueueSnapshotV1;
+     /** Active abort signal for the current run, if any. */
+     get signal(): AbortSignal | undefined;
+     /** Abort the current run, if one is active. */
+diff --git a/dist/agent.js b/dist/agent.js
+index a2f462f84a260b6026252295e3e7bae220e09c53..ab9fa98b13ce5f7c3cb69625c2f4cf82421f2fac 100644
+--- a/dist/agent.js
++++ b/dist/agent.js
+@@ -60,28 +60,36 @@ function createMutableAgentState(initialState) {
+ class PendingMessageQueue {
+     messages = [];
+     mode;
+-    constructor(mode) {
++    onMutation;
++    constructor(mode, onMutation) {
+         this.mode = mode;
++        this.onMutation = onMutation;
+     }
+-    enqueue(message) {
+-        this.messages.push(message);
++    enqueue(id, message) {
++        this.messages.push({ id, message });
++        this.onMutation();
+     }
+     hasItems() {
+         return this.messages.length > 0;
+     }
+     peek() {
+         if (this.mode === "all")
+-            return this.messages.slice();
++            return this.messages.map((item) => item.message);
+         const first = this.messages[0];
+-        return first ? [first] : [];
++        return first ? [first.message] : [];
+     }
+     drain() {
+-        const drained = this.peek();
+-        this.messages = this.messages.slice(drained.length);
++        const count = this.mode === "all" ? this.messages.length : Math.min(this.messages.length, 1);
++        const drained = this.messages.splice(0, count).map((item) => item.message);
++        if (count > 0)
++            this.onMutation();
+         return drained;
+     }
+     clear() {
++        if (this.messages.length === 0)
++            return;
+         this.messages = [];
++        this.onMutation();
+     }
+ }
+ /**
+@@ -95,6 +103,11 @@ export class Agent {
+     listeners = new Set();
+     steeringQueue;
+     followUpQueue;
++    queueRevision = 0;
++    queuePaused = false;
++    queueSerial = 0;
++    queueNonce = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
++    onQueueChange;
+     convertToLlm;
+     transformContext;
+     streamFunction;
+@@ -134,8 +147,12 @@ export class Agent {
+         this.prepareRequest = runtimeOptions.prepareRequest;
+         this.prepareNextTurn = runtimeOptions.prepareNextTurn;
+         this.prepareNextTurnWithContext = runtimeOptions.prepareNextTurnWithContext;
+-        this.steeringQueue = new PendingMessageQueue(runtimeOptions.steeringMode ?? "one-at-a-time");
+-        this.followUpQueue = new PendingMessageQueue(runtimeOptions.followUpMode ?? "one-at-a-time");
++        const onQueueMutation = () => {
++            this.queueRevision++;
++            this.onQueueChange?.();
++        };
++        this.steeringQueue = new PendingMessageQueue(runtimeOptions.steeringMode ?? "one-at-a-time", onQueueMutation);
++        this.followUpQueue = new PendingMessageQueue(runtimeOptions.followUpMode ?? "one-at-a-time", onQueueMutation);
+         this.sessionId = runtimeOptions.sessionId;
+         this.thinkingBudgets = runtimeOptions.thinkingBudgets;
+         this.transport = runtimeOptions.transport ?? "auto";
+@@ -180,11 +197,15 @@ export class Agent {
+     }
+     /** Queue a message to be injected after the current assistant turn finishes. */
+     steer(message) {
+-        this.steeringQueue.enqueue(message);
++        const id = `${this.queueNonce}:${++this.queueSerial}`;
++        this.steeringQueue.enqueue(id, message);
++        return id;
+     }
+     /** Queue a message to run only after the agent would otherwise stop. */
+     followUp(message) {
+-        this.followUpQueue.enqueue(message);
++        const id = `${this.queueNonce}:${++this.queueSerial}`;
++        this.followUpQueue.enqueue(id, message);
++        return id;
+     }
+     /** Remove all queued steering messages. */
+     clearSteeringQueue() {
+@@ -201,12 +222,128 @@ export class Agent {
+     }
+     /** Returns true when either queue still contains pending messages. */
+     hasQueuedMessages() {
+-        return this.steeringQueue.hasItems() || this.followUpQueue.hasItems();
++        return !this.queuePaused && (this.steeringQueue.hasItems() || this.followUpQueue.hasItems());
+     }
+     /** Preview the messages selected for the next turn without consuming them. */
+     peekQueuedMessages() {
+         const steering = this.steeringQueue.peek();
+-        return steering.length > 0 ? steering : this.followUpQueue.peek();
++        return this.queuePaused ? [] : steering.length > 0 ? steering : this.followUpQueue.peek();
++    }
++    /** Pi-owned, versioned queue snapshot. IDs remain stable across edits and reorders. */
++    queueSnapshot() {
++        const project = (item) => {
++            const content = Array.isArray(item.message.content) ? item.message.content : [];
++            return {
++                id: item.id,
++                text: content.filter((part) => part.type === "text").map((part) => part.text).join(""),
++                images: content.filter((part) => part.type === "image").map((part) => ({ ...part })),
++            };
++        };
++        return {
++            revision: this.queueRevision,
++            steering: this.steeringQueue.messages.map(project),
++            followUp: this.followUpQueue.messages.map(project),
++        };
++    }
++    /** Small authoritative catalog; image bytes are fetched one item at a time. */
++    queueCatalog() {
++        const snapshot = this.queueSnapshot();
++        const project = (item) => ({
++            id: item.id,
++            text: item.text,
++            images: item.images.map((image) => ({
++                mimeType: image.mimeType,
++                bytes: Math.floor(image.data.length * 3 / 4) - (image.data.endsWith("==") ? 2 : image.data.endsWith("=") ? 1 : 0),
++            })),
++        });
++        return { revision: snapshot.revision,
++            paused: this.queuePaused,
++            steering: snapshot.steering.map(project), followUp: snapshot.followUp.map(project) };
++    }
++    queueSetPaused(expectedRevision, paused) {
++        if (expectedRevision !== this.queueRevision)
++            throw new Error("Pi queue revision changed");
++        if (typeof paused !== "boolean")
++            throw new Error("Invalid Pi queue pause state");
++        if (this.queuePaused !== paused) {
++            this.queuePaused = paused;
++            this.queueRevision++;
++            this.onQueueChange?.();
++        }
++        return this.queueCatalog();
++    }
++    queueReadItem(expectedRevision, id) {
++        if (expectedRevision !== this.queueRevision)
++            throw new Error("Pi queue revision changed");
++        const snapshot = this.queueSnapshot();
++        const item = [...snapshot.steering, ...snapshot.followUp].find((entry) => entry.id === id);
++        if (!item)
++            throw new Error("Pi queue item was consumed or removed");
++        return item;
++    }
++    /** Synchronous CAS mutation: the agent loop cannot drain between the check and edit. */
++    queueMutate(expectedRevision, operation) {
++        if (expectedRevision !== this.queueRevision)
++            throw new Error("Pi queue revision changed");
++        const queues = [this.steeringQueue, this.followUpQueue];
++        const source = queues.find((queue) => queue.messages.some((item) => item.id === operation.id));
++        if (!source)
++            throw new Error("Pi queue item was consumed or removed");
++        const index = source.messages.findIndex((item) => item.id === operation.id);
++        const item = source.messages[index];
++        let taken;
++        if (operation.kind === "take") {
++            source.messages.splice(index, 1);
++            taken = item;
++        }
++        else if (operation.kind === "move") {
++            const target = operation.beforeId == null ? source : queues.find((queue) => queue.messages.some((entry) => entry.id === operation.beforeId));
++            if (!target)
++                throw new Error("Pi queue move target was consumed or removed");
++            if (operation.beforeId === item.id)
++                throw new Error("Pi queue item cannot move before itself");
++            source.messages.splice(index, 1);
++            const targetIndex = operation.beforeId == null ? target.messages.length : target.messages.findIndex((entry) => entry.id === operation.beforeId);
++            target.messages.splice(targetIndex, 0, item);
++        }
++        else if (operation.kind === "replace") {
++            if (typeof operation.text !== "string" || !Array.isArray(operation.images ?? []))
++                throw new Error("Invalid Pi queue replacement");
++            const previous = this.queueSnapshot();
++            const previousItem = [...previous.steering, ...previous.followUp].find((entry) => entry.id === item.id);
++            item.message = {
++                ...item.message,
++                content: [{ type: "text", text: operation.text }, ...(operation.images ?? previousItem.images)],
++            };
++        }
++        else {
++            throw new Error("Unknown Pi queue mutation");
++        }
++        this.queueRevision++;
++        this.onQueueChange?.();
++        const result = { snapshot: this.queueSnapshot() };
++        if (taken) {
++            const content = Array.isArray(taken.message.content) ? taken.message.content : [];
++            result.taken = {
++                id: taken.id,
++                text: content.filter((part) => part.type === "text").map((part) => part.text).join(""),
++                images: content.filter((part) => part.type === "image").map((part) => ({ ...part })),
++            };
++        }
++        return result;
++    }
++    /** Atomically return and clear every item still pending in Pi. */
++    queueTakeAll(expectedRevision) {
++        if (expectedRevision !== this.queueRevision)
++            throw new Error("Pi queue revision changed");
++        const taken = this.queueSnapshot();
++        if (taken.steering.length === 0 && taken.followUp.length === 0)
++            return taken;
++        this.steeringQueue.messages = [];
++        this.followUpQueue.messages = [];
++        this.queueRevision++;
++        this.onQueueChange?.();
++        return taken;
+     }
+     /** Active abort signal for the current run, if any. */
+     get signal() {
+@@ -255,12 +392,12 @@ export class Agent {
+             throw new Error("No messages to continue from");
+         }
+         if (lastMessage.role === "assistant") {
+-            const queuedSteering = this.steeringQueue.drain();
++            const queuedSteering = this.queuePaused ? [] : this.steeringQueue.drain();
+             if (queuedSteering.length > 0) {
+                 await this.runPromptMessages(queuedSteering, { skipInitialSteeringPoll: true });
+                 return;
+             }
+-            const queuedFollowUps = this.followUpQueue.drain();
++            const queuedFollowUps = this.queuePaused ? [] : this.followUpQueue.drain();
+             if (queuedFollowUps.length > 0) {
+                 await this.runPromptMessages(queuedFollowUps);
+                 return;
+@@ -326,13 +463,14 @@ export class Agent {
+             transformContext: this.transformContext,
+             getApiKey: this.getApiKey,
+             getSteeringMessages: async () => {
++                if (this.queuePaused) return [];
+                 if (skipInitialSteeringPoll) {
+                     skipInitialSteeringPoll = false;
+                     return [];
+                 }
+                 return this.steeringQueue.drain();
+             },
+-            getFollowUpMessages: async () => this.followUpQueue.drain(),
++            getFollowUpMessages: async () => this.queuePaused ? [] : this.followUpQueue.drain(),
+         };
+     }
+     async runWithLifecycle(executor) {

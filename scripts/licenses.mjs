@@ -13,6 +13,7 @@
 // - 商用/半开放检查作用于全量实装包（prod+dev）
 import { generateThirdPartyNotices } from "./generate-third-party-notices.mjs";
 import { readVerifiedNotices } from "./third-party-notices.mjs";
+import { assertProductionNoticeCoverage } from "./third-party-platform.mjs";
 import { readFile } from "node:fs/promises";
 import {
   readWorkspaceProductionGraph,
@@ -35,7 +36,7 @@ if (command === "notices") {
 }
 
 // 标识门禁与声明生成共用 workspace 图和递归扫描，不按包名猜测生产范围。
-const { required, projects } = await readWorkspaceProductionGraph(ROOT);
+const { required, projects, allowedMissing } = await readWorkspaceProductionGraph(ROOT);
 const ownNames = new Set(projects.map((project) => project.name));
 const installed = new Map();
 const MANUAL_LICENSE = {
@@ -51,7 +52,7 @@ function normLicense(value) {
   return value?.type?.trim() || "(missing)";
 }
 const scanned = await scanInstalledPackages(ROOT, projects);
-missingProductionPackages(required, scanned);
+missingProductionPackages(required, scanned, allowedMissing);
 for (const [key, { pkg }] of scanned) {
   if (ownNames.has(pkg.name)) continue;
   installed.set(key, {
@@ -113,9 +114,9 @@ if (command === "check") {
     process.exit(1);
   }
   await readVerifiedNotices(ROOT, { requireComplete: process.argv.includes("--strict") });
-  const reviewRequired =
-    JSON.parse(await readFile(path.join(ROOT, "third-party/inventory.json"), "utf8"))
-      .reviewRequired ?? [];
+  const inventory = JSON.parse(await readFile(path.join(ROOT, "third-party/inventory.json"), "utf8"));
+  assertProductionNoticeCoverage(required, scanned, inventory);
+  const reviewRequired = inventory.reviewRequired ?? [];
   if (reviewRequired.length)
     console.warn(
       `待补齐/核验材料 ${reviewRequired.length} 项；发布前运行 node scripts/licenses.mjs check --strict，不得将基础检查通过视为合规完成。`,

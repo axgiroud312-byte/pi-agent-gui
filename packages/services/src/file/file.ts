@@ -33,6 +33,19 @@ export interface IFileService {
   createDefaultWorkspace(): Promise<{ path: string }>;
   createScratchWorkspace(params: { name: string }): Promise<{ path: string }>;
   readTextFile(params: { path: string; offset?: number; length?: number }): Promise<FileTextSlice>;
+  /** Bounded UTF-8 editor snapshot. The opaque version must be supplied on save. */
+  readEditableText(params: { rootPath: string; path: string }): Promise<{
+    path: string;
+    content: string;
+    version: string;
+  }>;
+  /** Fails with FILE_CHANGED when disk content or identity differs from the editor snapshot. */
+  saveEditableText(params: {
+    rootPath: string;
+    path: string;
+    expectedVersion: string;
+    content: string;
+  }): Promise<{ version: string }>;
   readMediaPreview(params: { path: string; maxBytes?: number }): Promise<FileMediaPreview>;
   /**
    * 按偏移读取文件的一段原始字节，供大二进制文件（如 PDF）按需分段加载。

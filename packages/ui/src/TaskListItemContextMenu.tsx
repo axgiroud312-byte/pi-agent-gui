@@ -16,6 +16,7 @@ export function TaskListItemContextMenu({
   onStartRenameTask,
   onArchiveTask,
   onMarkTaskAsUnread,
+  onDeletePiSession,
   onOpenInSplitPane,
   openInSplitPaneDisabled,
   onOpenTaskFeedback,
@@ -44,6 +45,7 @@ export function TaskListItemContextMenu({
   onStartRenameTask: () => void;
   onArchiveTask: () => void;
   onMarkTaskAsUnread: () => void;
+  onDeletePiSession?: () => void;
   /** 「在分屏打开」（仅桌面 shell 传入）。 */
   onOpenInSplitPane?: () => void;
   /** 叶子数达上限且该 session 未在任何 pane 时禁用。 */
@@ -85,6 +87,19 @@ export function TaskListItemContextMenu({
         disableTaskActions={disableTaskActions}
         disabledReason={disabledReason}
       />
+      {onDeletePiSession ? (
+        <>
+          <ContextMenuSeparator />
+          <ContextMenuItem
+            data-testid="pi-session-delete-menu"
+            className="text-destructive"
+            disabled={disableTaskActions}
+            onSelect={onDeletePiSession}
+          >
+            {intl.formatMessage({ id: "taskList.deletePiSession" })}
+          </ContextMenuItem>
+        </>
+      ) : null}
     </ContextMenuContent>
   );
 }

@@ -613,6 +613,10 @@ export interface IZCodeTaskService {
   }): Promise<{
     path: string;
     exists: boolean;
+    /** Pi JSONL identity and content revision for confirmed deletion. */
+    revision?: string;
+    /** Pi's current JSONL title, read with the deletion preview. */
+    title?: string;
   }>;
 
   /**
@@ -628,11 +632,13 @@ export interface IZCodeTaskService {
     bumpRuntimeEpoch?: boolean;
   }): Promise<void>;
 
-  /** 将已持久化 task 标记为列表不可见；CLI session 内容继续保留 */
+  /** Pi mode deletes a confirmed cold JSONL; legacy mode keeps task-index semantics. */
   deleteTask(params: {
     taskId: string;
     workspacePath: string;
     workspaceIdentity?: string;
+    expectedSessionFile?: string;
+    expectedRevision?: string;
   }): Promise<void>;
 
   /** 仅删除写入时仍归档的任务；已恢复、已删除或不存在时返回 false，不清理 CLI 会话。 */

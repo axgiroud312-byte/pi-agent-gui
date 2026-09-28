@@ -1,0 +1,619 @@
+{
+  "at": "2026-09-23T07:30:55.487Z",
+  "workspace": "D:\\Temp\\pi34-closeout\\pi-product-smoke-final\\fixture-NG59yI\\parity-workspace",
+  "pageErrors": [],
+  "modelBoundary": {
+    "endpoint": "http://127.0.0.1:60900/v1",
+    "api": "openai-completions",
+    "inference": "isolated deterministic loopback fixture, NOT an online provider",
+    "tools": "real pinned Pi 0.87.0 subprocess executes read against the isolated workspace"
+  },
+  "visibleButtons": [
+    "搜索Ctrl+K",
+    "自动化",
+    "插件市场",
+    "",
+    "",
+    "项目",
+    "",
+    "",
+    "任务",
+    "",
+    "",
+    "πPi Agent IDE",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "配置",
+    "",
+    "选择项目",
+    "添加上下文",
+    "变更前确认",
+    "管理模型",
+    "发送",
+    "",
+    "",
+    ""
+  ],
+  "title": "Pi Agent IDE",
+  "hostAlive": true,
+  "nativeComposerVisible": true,
+  "windowCount": 1,
+  "nativeProviderConfig": true,
+  "modelSelected": "选择模型\n管理模型\n新供应商/pi-native-test",
+  "composerText": "PI_TEXT: give me a short response",
+  "composerActive": true,
+  "sendEnabled": true,
+  "streamPartialVisible": true,
+  "afterSend": "命令面板\n\n搜索并执行当前工作区可用的命令。\n\n新建任务\nCtrl+N\n搜索\nCtrl+K\n自动化\n插件市场\n分组\n项目\n项目\nparity-workspace\n\nPI_TEXT: give me a short response\nPI_TEXT: give me a short response\n\n刚刚\n任务\n还没有任务\nπ\nPi Agent IDE\nPI_TEXT: give me a short response\n更改\n+6\n-0\nPI_TEXT: give me a short response\n复制\n已处理\n\nPI_TEXT_COMPLETE\n\n复制\n15:31\n\n\n\n\n提出后续修改要求\n添加上下文\n变更前确认\n新供应商/pi-native-test\n开启\n关闭\n开启\n发送",
+  "scrollComparison": {
+    "width": 1280,
+    "height": 800,
+    "theme": "dark"
+  },
+  "scrollAutoFollow": {
+    "top": 630,
+    "height": 1372,
+    "viewport": 743,
+    "gap": -1
+  },
+  "scrollManualBefore": {
+    "top": 0,
+    "height": 1397,
+    "viewport": 743,
+    "gap": 654
+  },
+  "scrollManualAfter": {
+    "top": 0,
+    "height": 1446,
+    "viewport": 743,
+    "gap": 703
+  },
+  "backToLatestVisible": true,
+  "scrollAfterLatest": {
+    "top": 780.6666870117188,
+    "height": 1523,
+    "viewport": 743,
+    "gap": -0.66668701171875
+  },
+  "historyTriggerCount": 1,
+  "nativeToolCardVisible": true,
+  "nativeToolCard": "读取\nREADME.md",
+  "nativeToolStatus": "completed",
+  "liveRowText": [
+    "PI_TEXT: give me a short response\n复制",
+    "PI_TEXT_COMPLETE",
+    "PI_SCROLL: demonstrate native scrolling while Pi streams\n复制",
+    "PI_SCROLL_START Line 0: native scrolling parity Line 1: native scrolling parity Line 2: native scrolling parity Line 3: native scrolling parity Line 4: native scrolling parity Line 5: native scrolling parity Line 6: native scrolling parity Line 7: native scrolling parity Line 8: native scrolling parity Line 9: native scrolling parity Line 10: native scrolling parity Line 11: native scrolling parity Line 12: native scrolling parity Line 13: native scrolling parity Line 14: native scrolling parity Line 15: native scrolling parity Line 16: native scrolling parity Line 17: native scrolling parity Line 18: native scrolling parity Line 19: native scrolling parity Line 20: native scrolling parity Line 21: native scrolling parity Line 22: native scrolling parity Line 23: native scrolling parity Line 24: native scrolling parity Line 25: native scrolling parity Line 26: native scrolling parity Line 27: native scrolling parity Line 28: native scrolling parity Line 29: native scrolling parity Line 30: native scrolling parity Line 31: native scrolling parity Line 32: native scrolling parity Line 33: native scrolling parity Line 34: native scrolling parity Line 35: native scrolling parity Line 36: native scrolling parity Line 37: native scrolling parity Line 38: native scrolling parity Line 39: native scrolling parity Line 40: native scrolling parity Line 41: native scrolling parity Line 42: native scrolling parity Line 43: native scrolling parity Line 44: native scrolling parity Line 45: native scrolling parity Line 46: native scrolling parity Line 47: native scrolling parity Line 48: native scrolling parity Line 49: native scrolling parity Line 50: native scrolling parity Line 51: native scrolling parity Line 52: native scrolling parity Line 53: native scrolling parity Line 54: native scrolling parity Line 55: native scrolling parity Line 56: native scrolling parity Line 57: native scrolling parity Line 58: native scrolling parity Line 59: native scrolling parity Line 60: native scrolling parity Line 61: native scrolling parity Line 62: native scrolling parity Line 63: native scrolling parity Line 64: native scrolling parity Line 65: native scrolling parity Line 66: native scrolling parity Line 67: native scrolling parity Line 68: native scrolling parity Line 69: native scrolling parity Line 70: native scrolling parity Line 71: native scrolling parity Line 72: native scrolling parity Line 73: native scrolling parity Line 74: native scrolling parity Line 75: native scrolling parity Line 76: native scrolling parity Line 77: native scrolling parity Line 78: native scrolling parity Line 79: native scrolling parity Line 80: native scrolling parity Line 81: native scrolling parity Line 82: native scrolling parity Line 83: native scrolling parity Line 84: native scrolling parity Line 85: native scrolling parity Line 86: native scrolling parity Line 87: native scrolling parity Line 88: native scrolling parity Line 89: native scrolling parity Line 90: native scrolling parity Line 91: native scrolling parity Line 92: native scrolling parity Line 93: native scrolling parity Line 94: native scrolling parity Line 95: native scrolling parity Line 96: native scrolling parity Line 97: native scrolling parity Line 98: native scrolling parity Line 99: native scrolling parity\n\nPI_SCROLL_FRAME_1: more native content PI_SCROLL_FRAME_2: more native content PI_SCROLL_FRAME_3: more native content PI_SCROLL_FRAME_4: more native content PI_SCROLL_FRAME_5: more native content PI_SCROLL_FRAME_6: more native content PI_SCROLL_FRAME_7: more native content PI_SCROLL_FRAME_8: more native content PI_SCROLL_FRAME_9: more native content PI_SCROLL_FRAME_10: more native content PI_SCROLL_FRAME_11: more native content PI_SCROLL_FRAME_12: more native content PI_SCROLL_FRAME_13: more native content PI_SCROLL_FRAME_14: more native content PI_SCROLL_FRAME_15: more native content PI_SCROLL_FRAME_16: more native content PI_SCROLL_FRAME_17: more native content PI_SCROLL_FRAME_18: more native content",
+    "PI_READ: read the workspace README.md\n复制",
+    "读取\nREADME.md",
+    "PI_READ_COMPLETE"
+  ],
+  "piRead": true,
+  "piStop": true,
+  "modelRequests": [
+    {
+      "scenario": "PI_TEXT",
+      "tools": [
+        "read",
+        "bash",
+        "edit",
+        "write"
+      ],
+      "toolResults": [],
+      "stream": true,
+      "closed": true
+    },
+    {
+      "scenario": "PI_SCROLL",
+      "tools": [
+        "read",
+        "bash",
+        "edit",
+        "write"
+      ],
+      "toolResults": [],
+      "stream": true,
+      "closed": true
+    },
+    {
+      "scenario": "PI_READ",
+      "tools": [
+        "read",
+        "bash",
+        "edit",
+        "write"
+      ],
+      "toolResults": [],
+      "stream": true,
+      "closed": true
+    },
+    {
+      "scenario": "PI_READ",
+      "tools": [
+        "read",
+        "bash",
+        "edit",
+        "write"
+      ],
+      "toolResults": [
+        "# Native parity fixture\n\nReal local workspace for Issue #32.\n\n**Preview marker: NATIVE_PARITY_PREVIEW**\n"
+      ],
+      "stream": true,
+      "closed": true
+    },
+    {
+      "scenario": "PI_STOP",
+      "tools": [
+        "read",
+        "bash",
+        "edit",
+        "write"
+      ],
+      "toolResults": [
+        "# Native parity fixture\n\nReal local workspace for Issue #32.\n\n**Preview marker: NATIVE_PARITY_PREVIEW**\n"
+      ],
+      "stream": true,
+      "closed": true
+    },
+    {
+      "scenario": "PI_HELLO",
+      "tools": [
+        "read",
+        "bash",
+        "edit",
+        "write"
+      ],
+      "toolResults": [
+        "# Native parity fixture\n\nReal local workspace for Issue #32.\n\n**Preview marker: NATIVE_PARITY_PREVIEW**\n"
+      ],
+      "stream": true,
+      "closed": true
+    },
+    {
+      "scenario": "PI_HELLO",
+      "tools": [
+        "read",
+        "bash",
+        "edit",
+        "write"
+      ],
+      "toolResults": [
+        "# Native parity fixture\n\nReal local workspace for Issue #32.\n\n**Preview marker: NATIVE_PARITY_PREVIEW**\n",
+        "Native parity file content\n"
+      ],
+      "stream": true,
+      "closed": true
+    },
+    {
+      "scenario": "PI_TEXT",
+      "tools": [
+        "read",
+        "bash",
+        "edit",
+        "write"
+      ],
+      "toolResults": [],
+      "stream": true,
+      "closed": true
+    }
+  ],
+  "afterStop": " give me a short response\nPI_TEXT: give me a short response\n\n刚刚\n任务\n还没有任务\nπ\nPi Agent IDE\nPI_TEXT: give me a short response\n更改\n+6\n-0\nPI_TEXT: give me a short response\n复制\n已处理\n\nPI_TEXT_COMPLETE\n\n复制\n15:31\nPI_SCROLL: demonstrate native scrolling while Pi streams\n复制\n已处理\n\nPI_SCROLL_START Line 0: native scrolling parity Line 1: native scrolling parity Line 2: native scrolling parity Line 3: native scrolling parity Line 4: native scrolling parity Line 5: native scrolling parity Line 6: native scrolling parity Line 7: native scrolling parity Line 8: native scrolling parity Line 9: native scrolling parity Line 10: native scrolling parity Line 11: native scrolling parity Line 12: native scrolling parity Line 13: native scrolling parity Line 14: native scrolling parity Line 15: native scrolling parity Line 16: native scrolling parity Line 17: native scrolling parity Line 18: native scrolling parity Line 19: native scrolling parity Line 20: native scrolling parity Line 21: native scrolling parity Line 22: native scrolling parity Line 23: native scrolling parity Line 24: native scrolling parity Line 25: native scrolling parity Line 26: native scrolling parity Line 27: native scrolling parity Line 28: native scrolling parity Line 29: native scrolling parity Line 30: native scrolling parity Line 31: native scrolling parity Line 32: native scrolling parity Line 33: native scrolling parity Line 34: native scrolling parity Line 35: native scrolling parity Line 36: native scrolling parity Line 37: native scrolling parity Line 38: native scrolling parity Line 39: native scrolling parity Line 40: native scrolling parity Line 41: native scrolling parity Line 42: native scrolling parity Line 43: native scrolling parity Line 44: native scrolling parity Line 45: native scrolling parity Line 46: native scrolling parity Line 47: native scrolling parity Line 48: native scrolling parity Line 49: native scrolling parity Line 50: native scrolling parity Line 51: native scrolling parity Line 52: native scrolling parity Line 53: native scrolling parity Line 54: native scrolling parity Line 55: native scrolling parity Line 56: native scrolling parity Line 57: native scrolling parity Line 58: native scrolling parity Line 59: native scrolling parity Line 60: native scrolling parity Line 61: native scrolling parity Line 62: native scrolling parity Line 63: native scrolling parity Line 64: native scrolling parity Line 65: native scrolling parity Line 66: native scrolling parity Line 67: native scrolling parity Line 68: native scrolling parity Line 69: native scrolling parity Line 70: native scrolling parity Line 71: native scrolling parity Line 72: native scrolling parity Line 73: native scrolling parity Line 74: native scrolling parity Line 75: native scrolling parity Line 76: native scrolling parity Line 77: native scrolling parity Line 78: native scrolling parity Line 79: native scrolling parity Line 80: native scrolling parity Line 81: native scrolling parity Line 82: native scrolling parity Line 83: native scrolling parity Line 84: native scrolling parity Line 85: native scrolling parity Line 86: native scrolling parity Line 87: native scrolling parity Line 88: native scrolling parity Line 89: native scrolling parity Line 90: native scrolling parity Line 91: native scrolling parity Line 92: native scrolling parity Line 93: native scrolling parity Line 94: native scrolling parity Line 95: native scrolling parity Line 96: native scrolling parity Line 97: native scrolling parity Line 98: native scrolling parity Line 99: native scrolling parity\n\nPI_SCROLL_FRAME_1: more native content PI_SCROLL_FRAME_2: more native content PI_SCROLL_FRAME_3: more native content PI_SCROLL_FRAME_4: more native content PI_SCROLL_FRAME_5: more native content PI_SCROLL_FRAME_6: more native content PI_SCROLL_FRAME_7: more native content PI_SCROLL_FRAME_8: more native content PI_SCROLL_FRAME_9: more native content PI_SCROLL_FRAME_10: more native content PI_SCROLL_FRAME_11: more native content PI_SCROLL_FRAME_12: more native content PI_SCROLL_FRAME_13: more native content PI_SCROLL_FRAME_14: more native content PI_SCROLL_FRAME_15: more native content PI_SCROLL_FRAME_16: more native content PI_SCROLL_FRAME_17: more native content PI_SCROLL_FRAME_18: more native content\n\n复制\n15:31\nPI_READ: read the workspace README.md\n复制\n已处理\n读取\nREADME.md\n\nPI_READ_COMPLETE\n\n复制\n15:31\nPI_STOP: keep streaming until I stop you\n复制\n已停止\n\nPI_STOP_PARTIAL\n\n\n\n\n提出后续修改要求\n添加上下文\n变更前确认\n新供应商/pi-native-test\n开启\n关闭\n开启\n发送",
+  "bookmarks": [
+    "9216da31-50e7-4033-a56d-af6996a89831.json"
+  ],
+  "firstCleanup": {
+    "owned": [
+      {
+        "ProcessId": 53276,
+        "ParentProcessId": 12260,
+        "CreationDate": "/Date(1790148655492)/"
+      },
+      {
+        "ProcessId": 21936,
+        "ParentProcessId": 53276,
+        "CreationDate": "/Date(1790148655516)/"
+      },
+      {
+        "ProcessId": 13132,
+        "ParentProcessId": 21936,
+        "CreationDate": "/Date(1790148656030)/"
+      },
+      {
+        "ProcessId": 33228,
+        "ParentProcessId": 21936,
+        "CreationDate": "/Date(1790148656171)/"
+      },
+      {
+        "ProcessId": 36896,
+        "ParentProcessId": 21936,
+        "CreationDate": "/Date(1790148656232)/"
+      },
+      {
+        "ProcessId": 35920,
+        "ParentProcessId": 21936,
+        "CreationDate": "/Date(1790148656326)/"
+      },
+      {
+        "ProcessId": 31612,
+        "ParentProcessId": 21936,
+        "CreationDate": "/Date(1790148656862)/"
+      },
+      {
+        "ProcessId": 7296,
+        "ParentProcessId": 21936,
+        "CreationDate": "/Date(1790148659127)/"
+      },
+      {
+        "ProcessId": 36464,
+        "ParentProcessId": 31612,
+        "CreationDate": "/Date(1790148668954)/"
+      },
+      {
+        "ProcessId": 41392,
+        "ParentProcessId": 21936,
+        "CreationDate": "/Date(1790148671001)/"
+      }
+    ],
+    "forced": [],
+    "survivors": []
+  },
+  "beforeHistoryOpen": "命令面板\n\n搜索并执行当前工作区可用的命令。\n\n新建任务\nCtrl+N\n搜索\nCtrl+K\n自动化\n插件市场\n分组\n项目\n项目\nparity-workspace\n\nPI_TEXT: give me a short response\nPI_TEXT: give me a short response\n\n刚刚\n任务\n还没有任务\nπ\nPi Agent IDE\n\n下午好呀，接下来交给我吧\n\nparity-workspace\nmaster\n\n\n\n\n向 Pi Agent IDE 提问，使用 @ 添加上下文，使用 / 选择命令或能力\n添加上下文\n变更前确认\n新供应商/pi-native-test\n开启\n关闭\n开启\n发送",
+  "afterRestart": "_TEXT: give me a short response\nPI_TEXT: give me a short response\n\n任务\n还没有任务\nπ\nPi Agent IDE\nPI_TEXT: give me a short response\n更改\n+6\n-0\nPI_TEXT: give me a short response\n复制\n已处理\n\nPI_TEXT_COMPLETE\n\n复制\n15:31\nPI_SCROLL: demonstrate native scrolling while Pi streams\n复制\n已处理\n\nPI_SCROLL_START Line 0: native scrolling parity Line 1: native scrolling parity Line 2: native scrolling parity Line 3: native scrolling parity Line 4: native scrolling parity Line 5: native scrolling parity Line 6: native scrolling parity Line 7: native scrolling parity Line 8: native scrolling parity Line 9: native scrolling parity Line 10: native scrolling parity Line 11: native scrolling parity Line 12: native scrolling parity Line 13: native scrolling parity Line 14: native scrolling parity Line 15: native scrolling parity Line 16: native scrolling parity Line 17: native scrolling parity Line 18: native scrolling parity Line 19: native scrolling parity Line 20: native scrolling parity Line 21: native scrolling parity Line 22: native scrolling parity Line 23: native scrolling parity Line 24: native scrolling parity Line 25: native scrolling parity Line 26: native scrolling parity Line 27: native scrolling parity Line 28: native scrolling parity Line 29: native scrolling parity Line 30: native scrolling parity Line 31: native scrolling parity Line 32: native scrolling parity Line 33: native scrolling parity Line 34: native scrolling parity Line 35: native scrolling parity Line 36: native scrolling parity Line 37: native scrolling parity Line 38: native scrolling parity Line 39: native scrolling parity Line 40: native scrolling parity Line 41: native scrolling parity Line 42: native scrolling parity Line 43: native scrolling parity Line 44: native scrolling parity Line 45: native scrolling parity Line 46: native scrolling parity Line 47: native scrolling parity Line 48: native scrolling parity Line 49: native scrolling parity Line 50: native scrolling parity Line 51: native scrolling parity Line 52: native scrolling parity Line 53: native scrolling parity Line 54: native scrolling parity Line 55: native scrolling parity Line 56: native scrolling parity Line 57: native scrolling parity Line 58: native scrolling parity Line 59: native scrolling parity Line 60: native scrolling parity Line 61: native scrolling parity Line 62: native scrolling parity Line 63: native scrolling parity Line 64: native scrolling parity Line 65: native scrolling parity Line 66: native scrolling parity Line 67: native scrolling parity Line 68: native scrolling parity Line 69: native scrolling parity Line 70: native scrolling parity Line 71: native scrolling parity Line 72: native scrolling parity Line 73: native scrolling parity Line 74: native scrolling parity Line 75: native scrolling parity Line 76: native scrolling parity Line 77: native scrolling parity Line 78: native scrolling parity Line 79: native scrolling parity Line 80: native scrolling parity Line 81: native scrolling parity Line 82: native scrolling parity Line 83: native scrolling parity Line 84: native scrolling parity Line 85: native scrolling parity Line 86: native scrolling parity Line 87: native scrolling parity Line 88: native scrolling parity Line 89: native scrolling parity Line 90: native scrolling parity Line 91: native scrolling parity Line 92: native scrolling parity Line 93: native scrolling parity Line 94: native scrolling parity Line 95: native scrolling parity Line 96: native scrolling parity Line 97: native scrolling parity Line 98: native scrolling parity Line 99: native scrolling parity\n\nPI_SCROLL_FRAME_1: more native content PI_SCROLL_FRAME_2: more native content PI_SCROLL_FRAME_3: more native content PI_SCROLL_FRAME_4: more native content PI_SCROLL_FRAME_5: more native content PI_SCROLL_FRAME_6: more native content PI_SCROLL_FRAME_7: more native content PI_SCROLL_FRAME_8: more native content PI_SCROLL_FRAME_9: more native content PI_SCROLL_FRAME_10: more native content PI_SCROLL_FRAME_11: more native content PI_SCROLL_FRAME_12: more native content PI_SCROLL_FRAME_13: more native content PI_SCROLL_FRAME_14: more native content PI_SCROLL_FRAME_15: more native content PI_SCROLL_FRAME_16: more native content PI_SCROLL_FRAME_17: more native content PI_SCROLL_FRAME_18: more native content\n\n复制\n15:31\nPI_READ: read the workspace README.md\n复制\n已处理\n\nPI_READ_COMPLETE\n\n复制\n15:31\nPI_STOP: keep streaming until I stop you\n复制\n已停止\n\nPI_STOP_PARTIAL\n\n\n\n\n提出后续修改要求\n添加上下文\n变更前确认\n新供应商/pi-native-test\n开启\n关闭\n开启\n发送\n添加项目\n添加项目",
+  "restoredToolCardVisible": true,
+  "restoredToolStatus": "completed",
+  "restoredRowText": [
+    "PI_TEXT: give me a short response\n复制",
+    "PI_TEXT_COMPLETE",
+    "PI_SCROLL: demonstrate native scrolling while Pi streams\n复制",
+    "PI_SCROLL_START Line 0: native scrolling parity Line 1: native scrolling parity Line 2: native scrolling parity Line 3: native scrolling parity Line 4: native scrolling parity Line 5: native scrolling parity Line 6: native scrolling parity Line 7: native scrolling parity Line 8: native scrolling parity Line 9: native scrolling parity Line 10: native scrolling parity Line 11: native scrolling parity Line 12: native scrolling parity Line 13: native scrolling parity Line 14: native scrolling parity Line 15: native scrolling parity Line 16: native scrolling parity Line 17: native scrolling parity Line 18: native scrolling parity Line 19: native scrolling parity Line 20: native scrolling parity Line 21: native scrolling parity Line 22: native scrolling parity Line 23: native scrolling parity Line 24: native scrolling parity Line 25: native scrolling parity Line 26: native scrolling parity Line 27: native scrolling parity Line 28: native scrolling parity Line 29: native scrolling parity Line 30: native scrolling parity Line 31: native scrolling parity Line 32: native scrolling parity Line 33: native scrolling parity Line 34: native scrolling parity Line 35: native scrolling parity Line 36: native scrolling parity Line 37: native scrolling parity Line 38: native scrolling parity Line 39: native scrolling parity Line 40: native scrolling parity Line 41: native scrolling parity Line 42: native scrolling parity Line 43: native scrolling parity Line 44: native scrolling parity Line 45: native scrolling parity Line 46: native scrolling parity Line 47: native scrolling parity Line 48: native scrolling parity Line 49: native scrolling parity Line 50: native scrolling parity Line 51: native scrolling parity Line 52: native scrolling parity Line 53: native scrolling parity Line 54: native scrolling parity Line 55: native scrolling parity Line 56: native scrolling parity Line 57: native scrolling parity Line 58: native scrolling parity Line 59: native scrolling parity Line 60: native scrolling parity Line 61: native scrolling parity Line 62: native scrolling parity Line 63: native scrolling parity Line 64: native scrolling parity Line 65: native scrolling parity Line 66: native scrolling parity Line 67: native scrolling parity Line 68: native scrolling parity Line 69: native scrolling parity Line 70: native scrolling parity Line 71: native scrolling parity Line 72: native scrolling parity Line 73: native scrolling parity Line 74: native scrolling parity Line 75: native scrolling parity Line 76: native scrolling parity Line 77: native scrolling parity Line 78: native scrolling parity Line 79: native scrolling parity Line 80: native scrolling parity Line 81: native scrolling parity Line 82: native scrolling parity Line 83: native scrolling parity Line 84: native scrolling parity Line 85: native scrolling parity Line 86: native scrolling parity Line 87: native scrolling parity Line 88: native scrolling parity Line 89: native scrolling parity Line 90: native scrolling parity Line 91: native scrolling parity Line 92: native scrolling parity Line 93: native scrolling parity Line 94: native scrolling parity Line 95: native scrolling parity Line 96: native scrolling parity Line 97: native scrolling parity Line 98: native scrolling parity Line 99: native scrolling parity\n\nPI_SCROLL_FRAME_1: more native content PI_SCROLL_FRAME_2: more native content PI_SCROLL_FRAME_3: more native content PI_SCROLL_FRAME_4: more native content PI_SCROLL_FRAME_5: more native content PI_SCROLL_FRAME_6: more native content PI_SCROLL_FRAME_7: more native content PI_SCROLL_FRAME_8: more native content PI_SCROLL_FRAME_9: more native content PI_SCROLL_FRAME_10: more native content PI_SCROLL_FRAME_11: more native content PI_SCROLL_FRAME_12: more native content PI_SCROLL_FRAME_13: more native content PI_SCROLL_FRAME_14: more native content PI_SCROLL_FRAME_15: more native content PI_SCROLL_FRAME_16: more native content PI_SCROLL_FRAME_17: more native content PI_SCROLL_FRAME_18: more native content",
+    "PI_READ: read the workspace README.md\n复制",
+    "读取\nREADME.md",
+    "PI_READ_COMPLETE",
+    "PI_STOP: keep streaming until I stop you\n复制",
+    "PI_STOP_PARTIAL"
+  ],
+  "restartReplayed": false,
+  "layoutMatrix": [
+    {
+      "size": {
+        "width": 1280,
+        "height": 800
+      },
+      "theme": "light",
+      "sidebar": true,
+      "composer": true,
+      "readCard": true,
+      "status": "completed"
+    },
+    {
+      "size": {
+        "width": 1280,
+        "height": 800
+      },
+      "theme": "dark",
+      "sidebar": true,
+      "composer": true,
+      "readCard": true,
+      "status": "completed"
+    },
+    {
+      "size": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "light",
+      "sidebar": true,
+      "composer": true,
+      "readCard": true,
+      "status": "completed"
+    },
+    {
+      "size": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "dark",
+      "sidebar": true,
+      "composer": true,
+      "readCard": true,
+      "status": "completed"
+    }
+  ],
+  "readFileChipClickable": true,
+  "readPreviewMarkerVisible": true,
+  "readPreviewText": "ng parity Line 78: native scrolling parity Line 79: native scrolling parity Line 80: native scrolling parity Line 81: native scrolling parity Line 82: native scrolling parity Line 83: native scrolling parity Line 84: native scrolling parity Line 85: native scrolling parity Line 86: native scrolling parity Line 87: native scrolling parity Line 88: native scrolling parity Line 89: native scrolling parity Line 90: native scrolling parity Line 91: native scrolling parity Line 92: native scrolling parity Line 93: native scrolling parity Line 94: native scrolling parity Line 95: native scrolling parity Line 96: native scrolling parity Line 97: native scrolling parity Line 98: native scrolling parity Line 99: native scrolling parity\n\nPI_SCROLL_FRAME_1: more native content PI_SCROLL_FRAME_2: more native content PI_SCROLL_FRAME_3: more native content PI_SCROLL_FRAME_4: more native content PI_SCROLL_FRAME_5: more native content PI_SCROLL_FRAME_6: more native content PI_SCROLL_FRAME_7: more native content PI_SCROLL_FRAME_8: more native content PI_SCROLL_FRAME_9: more native content PI_SCROLL_FRAME_10: more native content PI_SCROLL_FRAME_11: more native content PI_SCROLL_FRAME_12: more native content PI_SCROLL_FRAME_13: more native content PI_SCROLL_FRAME_14: more native content PI_SCROLL_FRAME_15: more native content PI_SCROLL_FRAME_16: more native content PI_SCROLL_FRAME_17: more native content PI_SCROLL_FRAME_18: more native content\n\n复制\n15:31\nPI_READ: read the workspace README.md\n复制\n已处理\n读取\nREADME.md\n\nPI_READ_COMPLETE\n\n复制\n15:31\nPI_STOP: keep streaming until I stop you\n复制\n已停止\n\nPI_STOP_PARTIAL\n\n\n\n\n提出后续修改要求\n添加上下文\n变更前确认\n新供应商/pi-native-test\n开启\n关闭\n开启\n发送\nREADME.md\nparity-workspace\nREADME.md\nNative parity fixture\n\nReal local workspace for Issue #32.\n\nPreview marker: NATIVE_PARITY_PREVIEW",
+  "helloDebug": {
+    "turn": "PI_HELLO: read the workspace hello.txt\n复制\n已处理\n\nPI_HELLO_COMPLETE\n\n复制\n15:31",
+    "triggers": 1,
+    "modelRequests": [
+      {
+        "scenario": "PI_HELLO",
+        "tools": [
+          "read",
+          "bash",
+          "edit",
+          "write"
+        ],
+        "toolResults": [
+          "# Native parity fixture\n\nReal local workspace for Issue #32.\n\n**Preview marker: NATIVE_PARITY_PREVIEW**\n"
+        ],
+        "stream": true,
+        "closed": true
+      },
+      {
+        "scenario": "PI_HELLO",
+        "tools": [
+          "read",
+          "bash",
+          "edit",
+          "write"
+        ],
+        "toolResults": [
+          "# Native parity fixture\n\nReal local workspace for Issue #32.\n\n**Preview marker: NATIVE_PARITY_PREVIEW**\n",
+          "Native parity file content\n"
+        ],
+        "stream": true,
+        "closed": true
+      }
+    ],
+    "card": "读取\nhello.txt",
+    "buttons": [
+      "hello.txt"
+    ],
+    "openPath": "D:\\Temp\\pi34-closeout\\pi-product-smoke-final\\fixture-NG59yI\\parity-workspace\\hello.txt"
+  },
+  "helloFirstClickTabs": [
+    "README.md",
+    "hello.txt"
+  ],
+  "helloFirstClickVisible": true,
+  "helloPreviewDebug": {
+    "markerVisible": true,
+    "tabs": [
+      {
+        "text": "README.md",
+        "state": "inactive",
+        "id": "code-viewer:file:D:\\Temp\\pi34-closeout\\pi-product-smoke-final\\fixture-NG59yI\\parity-workspace\\README.md"
+      },
+      {
+        "text": "hello.txt",
+        "state": "active",
+        "id": "code-viewer:file:D:\\Temp\\pi34-closeout\\pi-product-smoke-final\\fixture-NG59yI\\parity-workspace\\hello.txt"
+      }
+    ],
+    "paneText": "README.md\nhello.txt\nparity-workspace\nhello.txt",
+    "modelRequests": [
+      {
+        "scenario": "PI_HELLO",
+        "tools": [
+          "read",
+          "bash",
+          "edit",
+          "write"
+        ],
+        "toolResults": [
+          "# Native parity fixture\n\nReal local workspace for Issue #32.\n\n**Preview marker: NATIVE_PARITY_PREVIEW**\n"
+        ],
+        "stream": true,
+        "closed": true
+      },
+      {
+        "scenario": "PI_HELLO",
+        "tools": [
+          "read",
+          "bash",
+          "edit",
+          "write"
+        ],
+        "toolResults": [
+          "# Native parity fixture\n\nReal local workspace for Issue #32.\n\n**Preview marker: NATIVE_PARITY_PREVIEW**\n",
+          "Native parity file content\n"
+        ],
+        "stream": true,
+        "closed": true
+      }
+    ]
+  },
+  "tabOrderAfterDrag": [
+    "hello.txt",
+    "README.md"
+  ],
+  "postDragFirstClickActive": false,
+  "sidePaneWidth": {
+    "before": 739.802001953125,
+    "after": 814.802001953125
+  },
+  "tabCloseRetainsReadme": "README.md",
+  "sessionSwitch": {
+    "firstSessionId": "9216da31-50e7-4033-a56d-af6996a89831",
+    "secondSessionId": "497c121d-2f48-4e3b-a127-43fc9fb13dea",
+    "sidebarRows": [
+      "PI_TEXT: second Pi session is independentPI_TEXT: second Pi session is independent刚刚",
+      "PI_TEXT: give me a short responsePI_TEXT: give me a short response刚刚"
+    ],
+    "restoredFirst": "9216da31-50e7-4033-a56d-af6996a89831",
+    "restoredSecond": "497c121d-2f48-4e3b-a127-43fc9fb13dea",
+    "noReplay": true
+  },
+  "modelRequestsFinal": [
+    {
+      "scenario": "PI_TEXT",
+      "tools": [
+        "read",
+        "bash",
+        "edit",
+        "write"
+      ],
+      "toolResults": [],
+      "stream": true,
+      "closed": true
+    },
+    {
+      "scenario": "PI_SCROLL",
+      "tools": [
+        "read",
+        "bash",
+        "edit",
+        "write"
+      ],
+      "toolResults": [],
+      "stream": true,
+      "closed": true
+    },
+    {
+      "scenario": "PI_READ",
+      "tools": [
+        "read",
+        "bash",
+        "edit",
+        "write"
+      ],
+      "toolResults": [],
+      "stream": true,
+      "closed": true
+    },
+    {
+      "scenario": "PI_READ",
+      "tools": [
+        "read",
+        "bash",
+        "edit",
+        "write"
+      ],
+      "toolResults": [
+        "# Native parity fixture\n\nReal local workspace for Issue #32.\n\n**Preview marker: NATIVE_PARITY_PREVIEW**\n"
+      ],
+      "stream": true,
+      "closed": true
+    },
+    {
+      "scenario": "PI_STOP",
+      "tools": [
+        "read",
+        "bash",
+        "edit",
+        "write"
+      ],
+      "toolResults": [
+        "# Native parity fixture\n\nReal local workspace for Issue #32.\n\n**Preview marker: NATIVE_PARITY_PREVIEW**\n"
+      ],
+      "stream": true,
+      "closed": true
+    },
+    {
+      "scenario": "PI_HELLO",
+      "tools": [
+        "read",
+        "bash",
+        "edit",
+        "write"
+      ],
+      "toolResults": [
+        "# Native parity fixture\n\nReal local workspace for Issue #32.\n\n**Preview marker: NATIVE_PARITY_PREVIEW**\n"
+      ],
+      "stream": true,
+      "closed": true
+    },
+    {
+      "scenario": "PI_HELLO",
+      "tools": [
+        "read",
+        "bash",
+        "edit",
+        "write"
+      ],
+      "toolResults": [
+        "# Native parity fixture\n\nReal local workspace for Issue #32.\n\n**Preview marker: NATIVE_PARITY_PREVIEW**\n",
+        "Native parity file content\n"
+      ],
+      "stream": true,
+      "closed": true
+    },
+    {
+      "scenario": "PI_TEXT",
+      "tools": [
+        "read",
+        "bash",
+        "edit",
+        "write"
+      ],
+      "toolResults": [],
+      "stream": true,
+      "closed": true
+    }
+  ],
+  "conversationSplit": {
+    "nativeOriginal": "unavailable in fixed #32 original runtime; see issue-32-parity/evidence.json",
+    "entryVisible": true,
+    "enabled": false,
+    "unavailable": "Native task-menu split is not enabled; no hidden store activation"
+  },
+  "piPrivatePackageCleanupVerified": true,
+  "filesystemBlocked": [],
+  "cleanup": {
+    "owned": [
+      {
+        "ProcessId": 51364,
+        "ParentProcessId": 12260,
+        "CreationDate": "/Date(1790148680590)/"
+      },
+      {
+        "ProcessId": 1848,
+        "ParentProcessId": 51364,
+        "CreationDate": "/Date(1790148680601)/"
+      },
+      {
+        "ProcessId": 38124,
+        "ParentProcessId": 1848,
+        "CreationDate": "/Date(1790148681122)/"
+      },
+      {
+        "ProcessId": 52892,
+        "ParentProcessId": 1848,
+        "CreationDate": "/Date(1790148681231)/"
+      },
+      {
+        "ProcessId": 33780,
+        "ParentProcessId": 1848,
+        "CreationDate": "/Date(1790148681284)/"
+      },
+      {
+        "ProcessId": 6656,
+        "ParentProcessId": 1848,
+        "CreationDate": "/Date(1790148681380)/"
+      },
+      {
+        "ProcessId": 33532,
+        "ParentProcessId": 1848,
+        "CreationDate": "/Date(1790148681922)/"
+      },
+      {
+        "ProcessId": 54192,
+        "ParentProcessId": 1848,
+        "CreationDate": "/Date(1790148684080)/"
+      },
+      {
+        "ProcessId": 47504,
+        "ParentProcessId": 33532,
+        "CreationDate": "/Date(1790148686645)/"
+      },
+      {
+        "ProcessId": 47948,
+        "ParentProcessId": 1848,
+        "CreationDate": "/Date(1790148691557)/"
+      },
+      {
+        "ProcessId": 28432,
+        "ParentProcessId": 33532,
+        "CreationDate": "/Date(1790148693931)/"
+      }
+    ],
+    "forced": [],
+    "survivors": []
+  }
+}

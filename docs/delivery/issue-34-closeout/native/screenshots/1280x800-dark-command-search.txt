@@ -1,0 +1,100 @@
+命令面板
+
+搜索并执行当前工作区可用的命令。
+
+新建任务
+Ctrl+N
+搜索
+Ctrl+K
+自动化
+插件市场
+分组
+项目
+项目
+parity-workspace
+
+PARITY_RUNNING
+
+刚刚
+任务
+还没有任务
+π
+Pi Agent IDE
+返回任务
+parity-workspace
+.git
+.zcodeignore
+U
+hello.txt
+U
+pty-proof.txt
+README.md
+U
+
+下午好呀，接下来交给我吧
+
+parity-workspace
+master
+
+
+
+
+向 Pi Agent IDE 提问，使用 @ 添加上下文，使用 / 选择命令或能力
+添加上下文
+变更前确认
+新供应商/parity-controlled
+开启
+关闭
+开启
+发送
+终端
+PowerShell
+parity-workspace
+Windows PowerShell
+Copyright (C) Microsoft Corporation. All rights reserved.
+PS D:\Temp\pi34-closeout\split-product-smoke-final\fixture-YgYBzj\parity-workspace> echo NATIVE_PARITY_PTY > "D:\Temp\pi34-closeout\spl
+it-product-smoke-final\fixture-YgYBzj\parity-workspace\pty-proof.txt"
+PS D:\Temp\pi34-closeout\split-product-smoke-final\fixture-YgYBzj\parity-workspace> echo NATIVE_PARITY_PTY_VISIBLE
+NATIVE_PARITY_PTY_VISIBLE
+PS D:\Temp\pi34-closeout\split-product-smoke-final\fixture-YgYBzj\parity-workspace>  
+打开标签页
+
+选择要在侧边面板中打开的标签。
+
+审查
+终端
+浏览器
+全部
+操作
+任务
+文件
+最近任务
+New Pi session
+刚刚
+PARITY_RUNNING
+刚刚
+建议
+新任务
+Ctrl+N
+打开工作区
+Ctrl+O
+设置
+面板
+切换侧边栏
+Ctrl+B
+切换终端
+Ctrl+J
+切换预览
+添加终端标签
+添加浏览器标签
+添加审查标签
+配置
+设置
+切换主题到浅色
+技能
+MCP 服务器
+应用
+问题上报
+用户社群
+产品文档
+连接

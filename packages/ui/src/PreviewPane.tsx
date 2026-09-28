@@ -19,6 +19,7 @@ import {
   ExternalLinkIcon,
   FileCode2Icon,
   CopyIcon,
+  PencilIcon,
 } from "lucide-react";
 import { nanoid } from "nanoid";
 import { Button } from "@/components/ui/button.js";
@@ -65,6 +66,7 @@ import {
 } from "@/components/ui/dropdown-menu.js";
 import { readLastSelectedEditorId } from "@/lib/editorPreference.js";
 import { PreviewPaneContent } from "@/previewPaneContent.js";
+import { PreviewPaneTextEditor } from "@/PreviewPaneTextEditor.js";
 import {
   dispatchCodeCommentAddToChat,
   dispatchCodeCommentRemoveFromChat,
@@ -520,6 +522,8 @@ export function PreviewPane({
     source?.workspaceIdentity,
   );
   const [filePreview, setFilePreview] = useState<FileTextSlice | null>(null);
+  const [editingTextFile, setEditingTextFile] = useState(false);
+  const [filePreviewRefreshGeneration, setFilePreviewRefreshGeneration] = useState(0);
   const [fileTooLarge, setFileTooLarge] = useState(false);
   const [loadingInitial, setLoadingInitial] = useState(false);
   const [loadingImagePreview, setLoadingImagePreview] = useState(false);
@@ -594,6 +598,14 @@ export function PreviewPane({
     !mediaSource
       ? source
       : null;
+  const canEditTextFile = Boolean(
+    source?.type === "file" && fileSource && filePreview && !filePreview.isBinary &&
+    !fileTooLarge && sourceWorkspacePath && !isRemoteSource,
+  );
+
+  useEffect(() => {
+    setEditingTextFile(false);
+  }, [source?.path, sourceWorkspacePath]);
   const codeCommentBucket = useMemo(
     () =>
       source?.type !== "code-review" && source?.path && sourceWorkspacePath
@@ -932,7 +944,7 @@ export function PreviewPane({
     return () => {
       disposed = true;
     };
-  }, [fileService, fileSource, intl]);
+  }, [fileService, fileSource, filePreviewRefreshGeneration, intl]);
 
   useEffect(() => {
     let disposed = false;
@@ -1566,6 +1578,19 @@ export function PreviewPane({
         </div>
 
         <div className="flex shrink-0 pr-1.5 items-center gap-2">
+          {canEditTextFile ? (
+            <Button
+              type="button"
+              size="icon-md"
+              variant="ghost"
+              className="shrink-0 text-foreground-subtle hover:text-foreground"
+              aria-label={intl.formatMessage({ id: editingTextFile ? "codeViewer.edit.preview" : "codeViewer.edit.open" })}
+              title={intl.formatMessage({ id: editingTextFile ? "codeViewer.edit.preview" : "codeViewer.edit.open" })}
+              onClick={() => setEditingTextFile((current) => !current)}
+            >
+              <PencilIcon className="size-3.5" />
+            </Button>
+          ) : null}
           {canOpenDiffFilePreview ? (
             <Button
               type="button"
@@ -1727,7 +1752,18 @@ export function PreviewPane({
         </div>
       </div>
       <div className="min-h-0 flex-1">
-        {renderHeavyContent ? (
+        {editingTextFile && canEditTextFile && sourceWorkspacePath && source.path ? (
+          <PreviewPaneTextEditor
+            key={`${sourceWorkspacePath}:${source.path}`}
+            fileService={fileService}
+            rootPath={sourceWorkspacePath}
+            path={source.path}
+            onSaved={() => {
+              setEditingTextFile(false);
+              setFilePreviewRefreshGeneration((current) => current + 1);
+            }}
+          />
+        ) : renderHeavyContent ? (
           <PreviewPaneContent
             source={pptxSource ?? imageSource ?? pdfSource ?? mediaSource ?? source}
             filePreview={filePreview}

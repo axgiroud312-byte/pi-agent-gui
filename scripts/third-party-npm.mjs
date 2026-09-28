@@ -4,6 +4,7 @@ import { readFile, readdir, realpath } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { promisify } from "node:util";
 import { resolveSpawnRuntimeOptions } from "./spawn-command.mjs";
+import { platformOptionalPackages } from "./third-party-platform.mjs";
 
 const exec = promisify(execFile);
 async function listPnpm(root, args) {
@@ -16,11 +17,6 @@ async function listPnpm(root, args) {
 }
 const listWorkspace = (root) => listPnpm(root, ["-r", "ls", "--depth", "-1", "--json"]);
 export const hashBytes = (bytes) => createHash("sha256").update(bytes).digest("hex");
-const unsupportedCanvas = new Set([
-  "@napi-rs/canvas-android-arm64",
-  "@napi-rs/canvas-linux-arm-gnueabihf",
-  "@napi-rs/canvas-linux-riscv64-gnu",
-]);
 const noticeName =
   /(?:^|[._-])(?:licen[sc]es?|copying|notice|copyright|unlicense|third.party|ofl)(?:[._-]|$)/iu;
 
@@ -74,11 +70,11 @@ function productionPackages(projects) {
   return required;
 }
 
-export function assertProductionGraphs(lockedProjects, installedProjects) {
+export function assertProductionGraphs(lockedProjects, installedProjects, allowedMissing = new Map()) {
   const locked = productionPackages(lockedProjects);
   const installed = productionPackages(installedProjects);
   const missing = [...locked].filter(
-    ([key, item]) => !installed.has(key) && !unsupportedCanvas.has(item.name),
+    ([key]) => !installed.has(key) && !allowedMissing.has(key),
   );
   const stale = [...installed.keys()].filter((key) => !locked.has(key));
   if (missing.length || stale.length) {
@@ -117,8 +113,13 @@ export async function readWorkspaceProductionGraph(root) {
       target.push(...graph);
     }
   }
-  const required = assertProductionGraphs(locked, actual);
-  return { required, projects: actual };
+  // Lazy import keeps the pre-install provenance regressions Node-only.
+  const { parse } = await import("yaml");
+  const lockfile = parse(await readFile(join(root, "pnpm-lock.yaml"), "utf8"));
+  const workspaceConfig = parse(await readFile(join(root, "pnpm-workspace.yaml"), "utf8"));
+  const allowedMissing = platformOptionalPackages(lockfile, workspaceConfig.supportedArchitectures);
+  const required = assertProductionGraphs(locked, actual, allowedMissing);
+  return { required, projects: actual, allowedMissing };
 }
 
 export async function scanInstalledPackages(root, projects) {
@@ -161,13 +162,12 @@ export async function scanInstalledPackages(root, projects) {
   return installed;
 }
 
-export function missingProductionPackages(required, installed) {
-  const missing = [...required].filter(([key]) => !installed.has(key)).map(([, item]) => item);
-  for (const item of missing) {
-    if (!unsupportedCanvas.has(item.name))
-      throw new Error(`Missing installed dependency: ${item.name}@${item.version}`);
-  }
-  return missing;
+export function missingProductionPackages(required, installed, allowedMissing = new Map()) {
+  return [...required].filter(([key]) => !installed.has(key)).map(([key, item]) => {
+    const evidence = allowedMissing.get(key);
+    if (!evidence) throw new Error(`Missing installed dependency: ${key}`);
+    return { ...item, ...evidence };
+  });
 }
 
 // A provenance-only worktree can reuse an existing install read-only. Never pair a
@@ -194,7 +194,7 @@ export async function assertMatchingNoticeWorkspace(root, dependencyRoot, manife
 export async function collectNpmNotices(root, overrides, { dependencyRoot = root } = {}) {
   root = await realpath(root);
   dependencyRoot = await realpath(dependencyRoot);
-  const { required, projects } = await readWorkspaceProductionGraph(dependencyRoot);
+  const { required, projects, allowedMissing } = await readWorkspaceProductionGraph(dependencyRoot);
   const workspaceManifests = projects.map((project) =>
     relative(dependencyRoot, join(project.path, "package.json")).replaceAll("\\", "/"),
   );
@@ -210,7 +210,7 @@ export async function collectNpmNotices(root, overrides, { dependencyRoot = root
   const installed = await scanInstalledPackages(dependencyRoot, projects);
   const packages = [];
   const missing = [];
-  const notInstalled = missingProductionPackages(required, installed);
+  const notInstalled = missingProductionPackages(required, installed, allowedMissing);
   for (const [key, item] of [...required].sort(([a], [b]) => a.localeCompare(b, "en"))) {
     const installedPackage = installed.get(key);
     if (!installedPackage) {

@@ -1,0 +1,10 @@
+{
+  "fixedArchiveCommit": "317d286b88c41a4c696dc71428b6372c0b07840b",
+  "scope": "git tracked packages and apps/zcode-cli src files",
+  "checked": 4975,
+  "byteIdentical": 1183,
+  "CRLFOnly": 3792,
+  "missing": [],
+  "contentDifferences": [],
+  "note": "Windows archive has CRLF for some files; not byte-identical. No source semantic differences if contentDifferences empty."
+}

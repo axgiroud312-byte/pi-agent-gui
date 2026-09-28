@@ -11,6 +11,18 @@ import { resolveNativeSearchReleasePlan } from "../../scripts/native-search-tool
 import { getBuildMetadata } from "./scripts/build-metadata.mjs";
 import { collectRuntimeModuleClosureEntries } from "./scripts/runtime-dependency-closure.mjs";
 import {
+  copyFixedPiNestedPackages,
+  createAsarPackageManifestReader,
+  FIXED_PI_NESTED_PACKAGE_OWNERS,
+  FIXED_PI_PACKAGE_NAME,
+  FIXED_PI_PACKAGE_VERSION,
+  resolveFixedPiFamilyNestedPackagePlan,
+  resolvePiAiProxyAgentBasePlan,
+  resolveRootMinimatchNestedPackagePlan,
+  resolveRootRuntimePackageRepairs,
+  resolveRuntimeNestedPackagePlan,
+} from "./scripts/fixed-pi-nested-packages.mjs";
+import {
   resolvePackagedNodePtyPrebuildPath,
   restoreTargetNodePtyPrebuild,
 } from "./scripts/node-pty-package-assets.mjs";
@@ -64,9 +76,25 @@ import {
 } from "./scripts/desktop-native-package-policy.mjs";
 import { replaceAppAsarFromStaging } from "./scripts/app-asar-repack.mjs";
 import {
+  CHORD_PACKAGE_NAME,
+  copyChordEsbuildPackages,
+  copyChordPackageWithoutNestedModules,
+  filterChordEsbuildFromRootRuntimeModules,
+  pruneNonTargetEsbuildPlatforms,
+  resolveChordEsbuildPlan,
+} from "./scripts/chord-esbuild-package.mjs";
+import {
   patchNsisInstallSectionFile,
   restoreNsisInstallSectionFileSync,
 } from "./scripts/patch-nsis-install-section.mjs";
+import {
+  patchNsisMultiUserFile,
+  restoreNsisMultiUserFileSync,
+} from "./scripts/patch-nsis-multi-user.mjs";
+import {
+  patchNsisProcessCheckFile,
+  restoreNsisProcessCheckFileSync,
+} from "./scripts/patch-nsis-process-check.mjs";
 
 const buildMetadata = getBuildMetadata();
 const targetPlatform = getTargetPlatform();
@@ -98,16 +126,25 @@ const DEFAULT_ELECTRON_MIRROR = "https://npmmirror.com/mirrors/electron/";
 // Linux CI（pnpm hoisted）往往解析不到该二进制，`asar list` 未运行即 exit 1。
 // 显式依赖 @electron/asar 并用 Node 直接执行 CLI，避免跨平台找不齐 shim。
 const requireFromConfig = createRequire(import.meta.url);
-let nsisInstallSectionPatched = false;
+let nsisTemplatesPatched = false;
 let nsisInstallSectionOriginalSource = null;
 let nsisInstallSectionPath = null;
-const desktopElectronVersion = requireFromConfig("./package.json").devDependencies.electron;
+let nsisMultiUserOriginalSource = null;
+let nsisMultiUserPath = null;
+let nsisProcessCheckOriginalSource = null;
+let nsisProcessCheckPath = null;
+const desktopPackageJson = requireFromConfig("./package.json");
+const desktopElectronVersion = desktopPackageJson.devDependencies.electron;
+const asarApi = requireFromConfig("@electron/asar");
 const asarCliPath = resolve(
   dirname(requireFromConfig.resolve("@electron/asar/package.json")),
   "bin",
   "asar.js",
 );
 const REQUIRED_ASAR_RUNTIME_MODULES = [
+  // The product Host resolves this import-only export at runtime and spawns its bundled RPC entry.
+  // Hoisted development installs must not hide a missing Pi package in the installed app.
+  "@earendil-works/pi-coding-agent",
   "module-details-from-path",
   "@opentelemetry/api-logs",
   // Bugfix: telemetry 的 OTLP exporter 会在启动阶段加载 sdk-metrics。pnpm 开发态可从
@@ -303,13 +340,57 @@ function resolveMissingRuntimeModules(appAsarPath) {
     .split("\n")
     .map(normalizeAsarEntry)
     .filter(Boolean);
-  const asarEntrySet = new Set(asarEntries);
+  const readPackagedManifest = createAsarPackageManifestReader({
+    archivePath: appAsarPath,
+    asarEntries,
+    extractFile: asarApi.extractFile,
+  });
 
   const runtimeModules = collectRuntimeModuleClosureEntries(
     REQUIRED_ASAR_RUNTIME_MODULES,
     runtimeModuleLookupRoots,
   );
-  const resolvableRuntimeModules = runtimeModules.filter((entry) => {
+  if (desktopPackageJson.dependencies?.[FIXED_PI_PACKAGE_NAME] !== FIXED_PI_PACKAGE_VERSION) {
+    throw new Error(`Desktop must pin ${FIXED_PI_PACKAGE_NAME}@${FIXED_PI_PACKAGE_VERSION}`);
+  }
+  const chordSourcePackageRoot = runtimeModules.find(entry => entry.moduleName === CHORD_PACKAGE_NAME)?.sourceModulePath;
+  const chordEsbuildPlan = resolveChordEsbuildPlan({
+    sourceChordPackageRoot: chordSourcePackageRoot,
+    targetPlatformKey: targetPlatform.key,
+    readPackagedManifest,
+    asarEntries,
+  });
+  const sourcePackageRoots = new Map(runtimeModules
+    .filter(entry => FIXED_PI_NESTED_PACKAGE_OWNERS.includes(entry.moduleName))
+    .map(entry => [entry.moduleName, entry.sourceModulePath]));
+  const nestedPiPlan = resolveFixedPiFamilyNestedPackagePlan({
+    sourcePackageRoots,
+    expectedPiVersion: FIXED_PI_PACKAGE_VERSION,
+    readPackagedManifest,
+    allowMissingPackagedOwners: true,
+  });
+  const rootMinimatchPlan = resolveRootMinimatchNestedPackagePlan({
+    workspaceRoot,
+    readPackagedManifest,
+    allowMissingPackagedOwner: true,
+  });
+  const proxyAgentBasePlan = resolvePiAiProxyAgentBasePlan({
+    sourcePackageRoots,
+    workspaceRoot,
+    readPackagedManifest,
+  });
+  const runtimeNestedPlan = resolveRuntimeNestedPackagePlan({
+    runtimeModules,
+    readPackagedManifest,
+    // These owners have dedicated target/version policies below. In particular,
+    // copying Chord's whole nested tree would reintroduce every platform binary.
+    excludedOwnerPackageNames: [
+      ...FIXED_PI_NESTED_PACKAGE_OWNERS,
+      CHORD_PACKAGE_NAME,
+      "minimatch",
+    ],
+  });
+  const resolvableRuntimeModules = filterChordEsbuildFromRootRuntimeModules(runtimeModules).filter((entry) => {
     if (!entry.sourceModulePath) {
       // 不同平台/安装布局下，部分运行时依赖可能被裁剪或未落到本次打包工作区。
       // 之前这里直接在 copy 阶段抛错会中断整个平台出包；改为记录告警并跳过该模块，
@@ -323,19 +404,21 @@ function resolveMissingRuntimeModules(appAsarPath) {
     }
     return true;
   });
-  return resolvableRuntimeModules.filter((entry) => {
-    const { moduleName } = entry;
-    const moduleRoot = `/node_modules/${moduleName}`;
-    if (asarEntrySet.has(moduleRoot)) {
-      return false;
-    }
-    for (const entry of asarEntrySet) {
-      if (entry.startsWith(`${moduleRoot}/`)) {
-        return false;
-      }
-    }
-    return true;
+  const missingRootModules = resolveRootRuntimePackageRepairs({
+    runtimeModules: resolvableRuntimeModules,
+    workspaceRoot,
+    readPackagedManifest,
   });
+  return {
+    missingRootModules,
+    nestedModulesToCopy: [
+      ...nestedPiPlan.toCopy,
+      ...rootMinimatchPlan.toCopy,
+      ...proxyAgentBasePlan.toCopy,
+      ...runtimeNestedPlan.toCopy,
+    ],
+    chordEsbuildPlan,
+  };
 }
 
 async function injectHoistedRuntimeModulesIntoAsar(context) {
@@ -344,16 +427,17 @@ async function injectHoistedRuntimeModulesIntoAsar(context) {
     throw new Error(`打包产物缺少 app.asar: ${appAsarPath}`);
   }
 
-  const missingRuntimeModules = runTimedSync("afterPack:scan-missing-runtime-modules", () =>
+  const { missingRootModules, nestedModulesToCopy, chordEsbuildPlan } = runTimedSync("afterPack:scan-missing-runtime-modules", () =>
     resolveMissingRuntimeModules(appAsarPath),
   );
-  if (missingRuntimeModules.length === 0) {
+  if (missingRootModules.length === 0 && nestedModulesToCopy.length === 0 &&
+      chordEsbuildPlan.toCopy.length === 0 && chordEsbuildPlan.nonTargetPlatforms.length === 0) {
     // 之前 afterPack 每次都完整 extract/pack app.asar，即使运行时依赖已经齐全也会重复重写。
     // 这会把每次打包固定拉长十几秒到几十秒。先做缺失扫描，只有真的缺包才执行重写流程。
     console.log("[afterPack] runtime modules already complete, skip app.asar rewrite");
     return;
   }
-  console.log(`[afterPack] missing runtime modules count=${missingRuntimeModules.length}`);
+  console.log(`[afterPack] missing or invalid root runtime modules=${missingRootModules.length}, nested modules=${nestedModulesToCopy.length}, Chord esbuild=${chordEsbuildPlan.toCopy.length}, non-target esbuild=${chordEsbuildPlan.nonTargetPlatforms.length}`);
 
   // CI 会把 TMPDIR 指到项目内 .tmp，GitLab get_sources/clean 可能在脚本启动前清掉该目录。
   // afterPack 里重写 app.asar 同样依赖 mkdtempSync，必须自己兜底创建父目录，避免后续签名阶段只看到 .app 消失。
@@ -368,7 +452,7 @@ async function injectHoistedRuntimeModulesIntoAsar(context) {
     mkdirSync(stagingNodeModulesDir, { recursive: true });
 
     runTimedSync("afterPack:copy-runtime-modules", () => {
-      for (const runtimeModule of missingRuntimeModules) {
+      for (const runtimeModule of missingRootModules) {
         const { moduleName, sourceModulePath } = runtimeModule;
         const targetModulePath = resolve(stagingNodeModulesDir, moduleName);
 
@@ -389,8 +473,15 @@ async function injectHoistedRuntimeModulesIntoAsar(context) {
         // 所以在 afterPack 阶段直接重写 app.asar，先把这些运行时包补进去，再交给后续签名和出包。
         mkdirSync(dirname(targetModulePath), { recursive: true });
         rmSync(targetModulePath, { force: true, recursive: true });
-        cpSync(sourceModulePath, targetModulePath, { recursive: true });
+        if (moduleName === CHORD_PACKAGE_NAME) {
+          copyChordPackageWithoutNestedModules({ sourceModulePath, targetModulePath });
+        } else {
+          cpSync(sourceModulePath, targetModulePath, { recursive: true });
+        }
       }
+      copyFixedPiNestedPackages({ stagingDir, entries: nestedModulesToCopy });
+      copyChordEsbuildPackages({ stagingDir, entries: chordEsbuildPlan.toCopy });
+      pruneNonTargetEsbuildPlatforms({ stagingDir, targetPlatformKey: targetPlatform.key });
     });
 
     await runTimedAsync("afterPack:asar-pack", () =>
@@ -503,30 +594,62 @@ export default {
     runTimedSync("beforePack:restoreTargetNodePtyPrebuild", () =>
       restoreTargetNodePtyPrebuild({ desktopPackageRoot, targetPlatform }),
     );
-    if (context.electronPlatformName !== "win32" || nsisInstallSectionPatched) {
+    if (context.electronPlatformName !== "win32" || nsisTemplatesPatched) {
       return;
     }
 
-    nsisInstallSectionPath = resolve(
+    const nsisTemplateRoot = resolve(
       dirname(requireFromConfig.resolve("app-builder-lib/package.json")),
       "templates",
       "nsis",
-      "installSection.nsh",
     );
-    const patchResult = await runTimedAsync("beforePack:patchNsisInstallSection", () =>
-      patchNsisInstallSectionFile(nsisInstallSectionPath),
-    );
-    nsisInstallSectionPatched = true;
-    nsisInstallSectionOriginalSource = patchResult.originalSource;
-    if (patchResult.changed) {
-      // electron-builder 在当前进程内随后才会编译 NSIS；等整个构建进程退出后恢复 node_modules
-      // 中的上游模板，避免把一次打包的定制内容永久留在开发依赖里。
-      process.once("exit", () => {
+    nsisInstallSectionPath = resolve(nsisTemplateRoot, "installSection.nsh");
+    nsisMultiUserPath = resolve(nsisTemplateRoot, "multiUser.nsh");
+    nsisProcessCheckPath = resolve(nsisTemplateRoot, "include", "allowOnlyOneInstallerInstance.nsh");
+    const restoreNsisTemplates = () => {
+      if (nsisProcessCheckPath) {
+        restoreNsisProcessCheckFileSync({
+          filePath: nsisProcessCheckPath,
+          originalSource: nsisProcessCheckOriginalSource,
+        });
+        nsisProcessCheckOriginalSource = null;
+      }
+      if (nsisMultiUserPath) {
+        restoreNsisMultiUserFileSync({
+          filePath: nsisMultiUserPath,
+          originalSource: nsisMultiUserOriginalSource,
+        });
+        nsisMultiUserOriginalSource = null;
+      }
+      if (nsisInstallSectionPath) {
         restoreNsisInstallSectionFileSync({
           filePath: nsisInstallSectionPath,
           originalSource: nsisInstallSectionOriginalSource,
         });
-      });
+        nsisInstallSectionOriginalSource = null;
+      }
+    };
+
+    try {
+      const installSectionPatch = await runTimedAsync("beforePack:patchNsisInstallSection", () =>
+        patchNsisInstallSectionFile(nsisInstallSectionPath),
+      );
+      nsisInstallSectionOriginalSource = installSectionPatch.originalSource;
+      const multiUserPatch = await runTimedAsync("beforePack:patchNsisMultiUser", () =>
+        patchNsisMultiUserFile(nsisMultiUserPath),
+      );
+      nsisMultiUserOriginalSource = multiUserPatch.originalSource;
+      const processCheckPatch = await runTimedAsync("beforePack:patchNsisProcessCheck", () =>
+        patchNsisProcessCheckFile(nsisProcessCheckPath),
+      );
+      nsisProcessCheckOriginalSource = processCheckPatch.originalSource;
+      nsisTemplatesPatched = true;
+
+      // electron-builder 之后才编译 NSIS；进程结束时恢复三份上游模板。
+      process.once("exit", restoreNsisTemplates);
+    } catch (error) {
+      restoreNsisTemplates();
+      throw error;
     }
   },
   afterExtract: async (context) => {

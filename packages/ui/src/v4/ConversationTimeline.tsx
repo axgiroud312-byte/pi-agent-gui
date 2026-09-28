@@ -73,6 +73,7 @@ import {
   historyPrefetchTriggerPx,
   initialFollowing,
   isAtBottom,
+  nestedElementConsumesWheel,
   prependScrollAdjustment,
   prependVirtualAnchorAdjustment,
   reconcileFollowingForContentAnchor,
@@ -121,6 +122,33 @@ function isEditableScrollTarget(target: EventTarget | null): boolean {
     target.tagName === "TEXTAREA" ||
     target.tagName === "SELECT"
   );
+}
+
+function isWheelContainedByNestedScroller(
+  target: EventTarget | null,
+  timeline: HTMLElement,
+  deltaY: number,
+): boolean {
+  if (!(target instanceof Node) || !timeline.contains(target)) return false;
+  let element: Element | null = target instanceof Element ? target : target.parentElement;
+  while (element && element !== timeline) {
+    if (element instanceof HTMLElement && element.scrollHeight > element.clientHeight + 1) {
+      const style = getComputedStyle(element);
+      if (
+        nestedElementConsumesWheel({
+          deltaY,
+          scrollTop: element.scrollTop,
+          scrollHeight: element.scrollHeight,
+          clientHeight: element.clientHeight,
+          overflowY: style.overflowY,
+          overscrollBehaviorY: style.overscrollBehaviorY,
+        })
+      )
+        return true;
+    }
+    element = element.parentElement;
+  }
+  return false;
 }
 
 // v4 时间线重写滚动控件时把可访问名称误做成了可见文字，偏离旧版
@@ -820,7 +848,13 @@ function ConversationTimelineImpl({
 
   const handleWheelCapture = useCallback(
     (event: ReactWheelEvent<HTMLDivElement>) => {
-      markUserScrollIntent(timelineWheelScrollIntent(event.deltaY));
+      if (!(event.target instanceof Node) || !event.currentTarget.contains(event.target)) return;
+      markUserScrollIntent(
+        timelineWheelScrollIntent(
+          event.deltaY,
+          isWheelContainedByNestedScroller(event.target, event.currentTarget, event.deltaY),
+        ),
+      );
     },
     [markUserScrollIntent],
   );

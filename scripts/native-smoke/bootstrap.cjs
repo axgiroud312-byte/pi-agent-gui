@@ -3,7 +3,9 @@ const { join } = require('node:path');
 const { readFileSync } = require('node:fs');
 const { pathToFileURL } = require('node:url');
 const allowed = new Set(['PATH', 'SYSTEMROOT', 'WINDIR', 'PATHEXT', 'COMSPEC', 'TEMP', 'TMP',
-  'HOME', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'NODE_OPTIONS']);
+  'HOME', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'NODE_OPTIONS',
+  'PI_CODING_AGENT_DIR', 'PI_CODING_AGENT_SESSION_DIR', 'PI_PACKAGE_DIR', 'PI_OFFLINE',
+  'LLAMA_BASE_URL', 'LLAMA_API_KEY']);
 for (const key of Object.keys(process.env)) {
   if (!allowed.has(key.toUpperCase()) && !key.startsWith('NATIVE_SMOKE_') && !key.startsWith('ZCODE_')) delete process.env[key];
 }
@@ -32,7 +34,13 @@ for (const method of ['setAsDefaultProtocolClient', 'removeAsDefaultProtocolClie
 shell.openExternal = async url => { record('open-external-intercepted', { url }); };
 dialog.showOpenDialog = async (...args) => {
   const options = args.at(-1);
-  if (!options?.properties?.includes('openDirectory')) throw new Error('Unexpected non-directory chooser');
+  if (options?.properties?.includes('openFile') &&
+    (process.env.NATIVE_SMOKE_PICKED_FILE || process.env.NATIVE_SMOKE_PICKED_IMAGE)) {
+    const selected = process.env.NATIVE_SMOKE_PICKED_FILE || process.env.NATIVE_SMOKE_PICKED_IMAGE;
+    record('file-chooser', { properties: options.properties, selected });
+    return { canceled: false, filePaths: [selected] };
+  }
+  if (!options?.properties?.includes('openDirectory')) throw new Error('Unexpected chooser');
   record('directory-chooser', { properties: options.properties, selected: process.env.NATIVE_SMOKE_WORKSPACE });
   return { canceled: false, filePaths: [process.env.NATIVE_SMOKE_WORKSPACE] };
 };

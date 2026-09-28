@@ -99,17 +99,29 @@ export interface V4UserInputViewModel {
   freeText: boolean;
   sensitive?: boolean;
   options: ReadonlyArray<{ optionId: string; label: string }>;
+  method?: "select" | "confirm" | "input" | "editor";
+  placeholder?: string;
+  prefill?: string;
+  message?: string;
 }
 
 export function pendingUserInputToViewModel(
   interaction: PendingInteraction & { payload: UserInputRequestPayload },
 ): V4UserInputViewModel {
+  const input = interaction.payload.input && typeof interaction.payload.input === "object"
+    ? interaction.payload.input as Record<string, unknown> : {};
+  const method = ["select", "confirm", "input", "editor"].includes(String(input.method))
+    ? input.method as V4UserInputViewModel["method"] : undefined;
   return {
     interactionId: interaction.interactionId,
     prompt: interaction.payload.prompt,
     freeText: interaction.payload.freeText,
     sensitive: interaction.payload.sensitive,
     options: interaction.payload.options ?? [],
+    method,
+    placeholder: typeof input.placeholder === "string" ? input.placeholder : undefined,
+    prefill: typeof input.prefill === "string" ? input.prefill : undefined,
+    message: typeof input.message === "string" ? input.message : undefined,
   };
 }
 

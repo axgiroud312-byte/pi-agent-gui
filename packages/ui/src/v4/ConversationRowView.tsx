@@ -34,9 +34,11 @@ import type {
   AttachmentRef,
   ArtifactRow,
   AssistantTextRow,
+  BashExecutionRow,
   CommandAck,
   ConversationRow,
   ConversationRowTarget,
+  ExtensionMessageRow,
   HookInvocationRow,
   ReasoningRow,
   SubagentRow,
@@ -1262,7 +1264,7 @@ const UserInputRowView = memo(function UserInputRowView({
               />
             </ConversationUserInputBody>
           ) : null}
-          {epilogue === undefined ? null : <ConversationUserInputEpilogue text={epilogue} />}
+          {epilogue === undefined ? null : <ConversationUserInputEpilogue text={epilogue} kind={row.epilogueKind} />}
         </div>
       ) : null}
       {status ? (
@@ -2021,6 +2023,106 @@ const ToolCallRowView = memo(function ToolCallRowView({
           workflowRun={workflowRun}
           workflowDraft={context.workflowDraftByToolCallId?.get(row.toolCallId)}
         />
+        {row.piResult ? row.toolName === "read"
+          // The native Read card is a file-preview chip with no output toggle.
+          // Keep its familiar shell, but reveal Pi's actual result on demand.
+          // Ordinary file reads must not fill the timeline with file contents.
+          ? <details data-pi-tool-result={row.toolName}
+            className="mt-2 max-w-xl rounded-lg border border-border bg-surface p-3 text-ui-sm">
+            <summary className="cursor-pointer select-none">Pi 工具结果</summary>
+            <div className="mt-2 max-h-72 space-y-2 overflow-auto">
+              <PiRichParts parts={row.piResult.parts} attachments={row.piResult.attachments}
+                details={row.piResult.details} detailsLabel="原始工具详情"
+                rowId={row.rowId} entityId={row.entityId} context={context} />
+            </div>
+          </details>
+          : <div data-pi-tool-result={row.toolName}
+            className="mt-2 max-w-xl space-y-2 rounded-lg border border-border bg-surface p-3 text-ui-sm">
+            <PiRichParts parts={row.piResult.parts} attachments={row.piResult.attachments}
+              details={row.piResult.details} detailsLabel="原始工具详情"
+              rowId={row.rowId} entityId={row.entityId} context={context} />
+          </div> : null}
+      </div>
+    </RowShell>
+  );
+});
+
+function PiRichParts({ parts, attachments, details, detailsLabel, rowId, entityId, context }: {
+  parts: ExtensionMessageRow["parts"];
+  attachments?: ExtensionMessageRow["attachments"];
+  details?: unknown;
+  detailsLabel: string;
+  rowId: number;
+  entityId?: string;
+  context: ConversationRowRenderContext;
+}) {
+  return <>
+    {parts.map((part, index) => {
+      if (part.type === "image") {
+        const attachment = attachments?.[part.attachmentIndex];
+        return attachment ? <UserInputAttachmentList key={`${part.ref}:${index}`}
+          attachments={[attachment]} attachmentIndices={[part.attachmentIndex]}
+          attachmentKind="media" directItems rowId={rowId} entityId={entityId}
+          sessionId={context.sessionId ?? undefined} readAttachment={context.readAttachment}
+          readAttachmentRange={context.readAttachmentRange} /> : null;
+      }
+      const content = part.type === "text" ? part.text : JSON.stringify(part.value) ?? String(part.value);
+      return <pre key={index} className="max-h-64 overflow-auto whitespace-pre-wrap break-words">{content}</pre>;
+    })}
+    {details !== undefined ? <details>
+      <summary className="cursor-pointer">{detailsLabel}</summary>
+      <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words">
+        {JSON.stringify(details, null, 2) ?? String(details)}
+      </pre>
+    </details> : null}
+  </>;
+}
+
+const ExtensionMessageRowView = memo(function ExtensionMessageRowView({
+  row,
+  context,
+}: {
+  row: ExtensionMessageRow;
+  context: ConversationRowRenderContext;
+}) {
+  const unknownLabel = row.customType === "pi.unknown-assistant-content" ? "Pi 未知助手内容" :
+    row.customType === "pi.unknown-user-content" ? "Pi 未知用户内容" :
+      row.customType === "pi.unknown-message" ? "Pi 未知消息" : null;
+  if (unknownLabel) return <RowShell rowId={row.rowId}>
+    <details data-pi-extension-message={row.customType}
+      className="max-w-xl rounded-lg border border-border bg-surface p-3 text-ui-sm">
+      <summary className="cursor-pointer font-medium text-foreground-subtle">{unknownLabel} · 查看结构摘要</summary>
+      <div className="mt-2 max-h-64 overflow-auto">
+        <PiRichParts parts={row.parts} attachments={row.attachments} details={row.details}
+          detailsLabel="结构摘要" rowId={row.rowId} entityId={row.entityId} context={context} />
+      </div>
+    </details>
+  </RowShell>;
+  return (
+    <RowShell rowId={row.rowId}>
+      <div data-pi-extension-message={row.customType}
+        className="max-w-xl space-y-2 rounded-lg border border-border bg-surface p-3 text-ui-sm">
+        <div className="font-medium text-foreground-subtle">Pi 扩展消息 · {row.customType}</div>
+        <PiRichParts parts={row.parts} attachments={row.attachments} details={row.details}
+          detailsLabel="原始扩展详情" rowId={row.rowId} entityId={row.entityId} context={context} />
+      </div>
+    </RowShell>
+  );
+});
+
+const BashExecutionRowView = memo(function BashExecutionRowView({ row }: { row: BashExecutionRow }) {
+  const result = row.cancelled ? "已停止" : row.exitCode === undefined || row.exitCode === null
+    ? "退出码未知" : `退出码 ${row.exitCode}`;
+  return (
+    <RowShell rowId={row.rowId}>
+      <div data-pi-bash-execution className="max-w-xl space-y-2 rounded-lg border border-border bg-surface p-3 text-ui-sm">
+        <div className="font-medium text-foreground-subtle">Pi Shell · {row.excludeFromContext ? "不带上下文" : "带上下文"}</div>
+        <pre className="overflow-auto whitespace-pre-wrap break-words text-foreground">{row.command}</pre>
+        <div className="text-foreground-subtle">{result}{row.truncated ? " · 输出已截断" : ""}</div>
+        <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words">{row.output || "（无输出）"}</pre>
+        {row.fullOutputPath ? <div className="break-all text-foreground-subtle">
+          Pi 完整输出路径：{row.fullOutputPath}
+        </div> : null}
       </div>
     </RowShell>
   );
@@ -2093,6 +2195,10 @@ function ConversationRowViewImpl({
           codeCommentProjectionEnabled={assistantCodeCommentProjectionEnabled}
         />
       );
+    case "extensionMessage":
+      return <ExtensionMessageRowView row={row} context={context} />;
+    case "bashExecution":
+      return <BashExecutionRowView row={row} />;
     case "reasoning":
       // 关闭“显示思考过程”只隐藏每轮后续 reasoning；首条 reasoning
       // 是该轮最小必要思考提示，必须由 turn 全序派生的 rowId 保留下来。

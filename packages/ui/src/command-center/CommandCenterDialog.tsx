@@ -10,6 +10,7 @@ import {
   MessageSquareIcon,
   MessagesSquareIcon,
   RocketIcon,
+  RotateCwIcon,
   SearchIcon,
   Trash2Icon,
 } from "lucide-react";
@@ -441,6 +442,7 @@ export const CommandCenterDialog = memo(function CommandCenterDialogComponent({
   const [workspaceFilesLoading, setWorkspaceFilesLoading] = useState(false);
   const [workspaceFilesError, setWorkspaceFilesError] = useState<string | null>(null);
   const [loadedWorkspaceKey, setLoadedWorkspaceKey] = useState<string | null>(null);
+  const [refreshingHistory, setRefreshingHistory] = useState(false);
   // 性能修复：Command Center 关闭时不需要跟随 chat streaming 重算命令、任务和 recent changes。
   // 保留 hooks 顺序，但把关闭态输入降为空，避免隐藏弹窗在每个 token 批次重建结果区。
   const effectiveCommands = open ? commands : EMPTY_QUICK_PICK_COMMANDS;
@@ -487,6 +489,12 @@ export const CommandCenterDialog = memo(function CommandCenterDialogComponent({
         ? COMMAND_CENTER_TASK_RESULT_LIMIT + (activeTaskId ? 1 : 0)
         : COMMAND_CENTER_CONTEXT_SECTION_LIMIT + (activeTaskId ? 1 : 0),
   });
+  const refreshHistory = useCallback(() => {
+    if (refreshingHistory) return;
+    setRefreshingHistory(true);
+    void (hasSearchQuery ? taskList.refresh() : recentTaskList.refresh())
+      .finally(() => setRefreshingHistory(false));
+  }, [hasSearchQuery, recentTaskList.refresh, refreshingHistory, taskList.refresh]);
   const workspaceLabelByKey = useMemo(
     () =>
       new Map(
@@ -995,6 +1003,16 @@ export const CommandCenterDialog = memo(function CommandCenterDialogComponent({
               placeholder={intl.formatMessage({ id: "commandCenter.placeholder" })}
               className="min-w-0 flex-1 bg-transparent text-ui-base leading-5 text-foreground outline-none placeholder:text-foreground-subtlest"
             />
+            <button
+              type="button"
+              aria-label={intl.formatMessage({ id: "commandCenter.refreshHistory" })}
+              title={intl.formatMessage({ id: "commandCenter.refreshHistory" })}
+              disabled={refreshingHistory}
+              onClick={refreshHistory}
+              className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-foreground-subtle hover:bg-surface-hover disabled:opacity-50"
+            >
+              <RotateCwIcon className={cn("size-3.5", refreshingHistory && "animate-spin")} />
+            </button>
           </div>
           <div
             role="tablist"

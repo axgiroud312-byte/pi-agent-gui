@@ -2,6 +2,7 @@ import { resolveExecutionState, type ModelSelection } from "@zcode/shared";
 import { submissionModeSchema, type SubmissionMode } from "@zcode/shared/zcode-protocol-v4";
 import type { ModelSelectionView } from "@zcode/services";
 import { validateModelSelectionOptions } from "@zcode/provider";
+import { findPiModel, type PiModelCandidate } from "./piModelCatalog.js";
 
 export interface ComposerSubmissionConfig {
   modelSelection: ModelSelection;
@@ -16,6 +17,7 @@ export function createComposerSubmissionConfig(
     | null
     | undefined,
   view: ModelSelectionView | null,
+  piCatalog: readonly PiModelCandidate[] = [],
 ): ComposerSubmissionConfig | null {
   // 只读子会话和未挂载 Composer 的 SessionPane 不提供草稿；这类场景没有可提交配置，
   // 不能因为渲染提交门禁而读取 undefined 并让整个会话区域崩溃。
@@ -29,7 +31,11 @@ export function createComposerSubmissionConfig(
     view?.providers
       .find((provider) => provider.providerId === selection.providerId)
       ?.models.find((candidate) => candidate.modelId === selection.modelId);
-  if (!mode.success || !selection || !model || !validateModelSelectionOptions(model, selection).ok)
+  const piModel = selection && findPiModel(piCatalog, selection.providerId, selection.modelId);
+  const validPiModel = piModel && selection?.options?.reasoningLevel &&
+    piModel.thoughtLevels.includes(selection.options.reasoningLevel);
+  if (!mode.success || !selection ||
+    !(validPiModel || (model && validateModelSelectionOptions(model, selection).ok)))
     return null;
   // 不读取 Session 或显示别名；复制所有选择叶子，防止 await 后用户切模改变本次请求。
   return Object.freeze({

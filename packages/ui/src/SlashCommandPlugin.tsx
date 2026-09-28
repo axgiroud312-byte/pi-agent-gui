@@ -22,7 +22,6 @@ import {
   KEY_ESCAPE_COMMAND,
   KEY_TAB_COMMAND,
 } from "lexical";
-import { useSubagents } from "@/hooks/useSubagents.js";
 import { useSkills } from "@/hooks/useSkills.js";
 import { buildSlashApplyMentionPayload } from "@/lib/slashApplyMentionPayload.js";
 import { filterSkillsForProvider } from "@/lib/skillSourceFilter.js";
@@ -42,7 +41,6 @@ import { MentionPanel } from "./mentions/components/MentionPanel.js";
 import {
   buildAppSlashCommandSuggestions,
   buildSkillSuggestions,
-  buildSubagentSuggestions,
   buildSlashSuggestions,
   getTextAroundCursor,
   isAppSlashCommandSuggestion,
@@ -75,11 +73,6 @@ export function SlashCommandPlugin({
   // 这里只按 workspacePath 读取会落到 path 桶，表现为 ZCode Agent 已收到 available_commands_update 但 / 面板为空。
   const commands = useSlashCommands(workspacePath, workspaceIdentity);
   const {
-    agents,
-    loading: subagentsLoading,
-    error: subagentsError,
-  } = useSubagents(workspacePath, provider, workspaceIdentity);
-  const {
     skills,
     loading: skillsLoading,
     error: skillsError,
@@ -105,7 +98,6 @@ export function SlashCommandPlugin({
     );
     return [...cliSuggestions, ...appSuggestions];
   }, [appCommands, commands, excludedCommandNames]);
-  const subagentSuggestions = useMemo(() => buildSubagentSuggestions(agents), [agents]);
   const skillSuggestions = useMemo(
     () =>
       buildSkillSuggestions(
@@ -118,21 +110,13 @@ export function SlashCommandPlugin({
     () => filterPromptInputSuggestions(commandSuggestions, activeTrigger?.query ?? null),
     [commandSuggestions, activeTrigger?.query],
   );
-  const filteredSubagentSuggestions = useMemo(
-    () => filterPromptInputSuggestions(subagentSuggestions, activeTrigger?.query ?? null),
-    [subagentSuggestions, activeTrigger?.query],
-  );
   const filteredSkillSuggestions = useMemo(
     () => filterPromptInputSuggestions(skillSuggestions, activeTrigger?.query ?? null),
     [skillSuggestions, activeTrigger?.query],
   );
   const filteredSuggestions = useMemo(
-    () => [
-      ...filteredCommandSuggestions,
-      ...filteredSkillSuggestions,
-      ...filteredSubagentSuggestions,
-    ],
-    [filteredCommandSuggestions, filteredSkillSuggestions, filteredSubagentSuggestions],
+    () => [...filteredCommandSuggestions, ...filteredSkillSuggestions],
+    [filteredCommandSuggestions, filteredSkillSuggestions],
   );
   const activeSignature = useMemo(
     () => getPromptInputTriggerSignature(activeTrigger),
@@ -436,9 +420,6 @@ export function SlashCommandPlugin({
     filteredSkillSuggestions,
     skillsLoading,
     skillsError,
-    filteredSubagentSuggestions,
-    subagentsLoading,
-    subagentsError,
   );
 
   if (!isOpen || !container) {

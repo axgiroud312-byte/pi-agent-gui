@@ -83,6 +83,7 @@ export function createInitialConversationSnapshot(
     },
     queue: { items: [], autoDrain: true },
     pendingInteractions: [],
+    piExtensionUi: { statuses: [], widgets: [], notices: [] },
     pendingCommands: [],
     backgroundWorks: [],
     subagents: { revision: 0, childSessionIds: [], running: [], endedTotal: 0 },

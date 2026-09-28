@@ -21,6 +21,10 @@ export function createDesktopNativePackagePrunePatterns(targetPlatformKey) {
     // 只服务 Node 渲染；pnpm 跨平台安装的 8 套 Canvas native 不应带进桌面安装包。
     "!node_modules/@napi-rs/canvas/**",
     "!node_modules/@napi-rs/canvas-*/**",
+    // The target Chord/esbuild binary is installed in afterPack from its exact private dependency.
+    // Do not let electron-builder include the root or private multi-platform optional packages.
+    "!node_modules/@esbuild/**",
+    "!**/node_modules/@esbuild/**",
     // Linux prebuild 会在 beforePack 复制进 node-pty；源平台包本身不属于桌面运行时。
     "!node_modules/@lydell/node-pty-*/**",
     // 桌面运行时统一使用目标 prebuild，禁止把安装机现场编译物或 ABI bin 缓存带进跨平台包。
@@ -69,6 +73,12 @@ export function findDesktopNativePackageViolations(entries, targetPlatformKey) {
       path.startsWith("/node_modules/@napi-rs/canvas-")
     ) {
       violations.push(`不应打包 renderer 无需的 Canvas native: ${path}`);
+      continue;
+    }
+
+    const esbuildPlatform = /(?:^|\/)node_modules\/@esbuild\/([^/]+)(?:\/|$)/.exec(path)?.[1];
+    if (esbuildPlatform && esbuildPlatform !== targetPlatformKey) {
+      violations.push(`esbuild contains non-target platform package: ${path}`);
       continue;
     }
 

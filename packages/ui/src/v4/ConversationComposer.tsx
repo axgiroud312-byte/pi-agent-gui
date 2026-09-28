@@ -91,6 +91,7 @@ import { usePromptEditorDragState } from "@/prompt-editor/usePromptEditorDragSta
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { advanceComposerDraftRevision } from "@/v4/composer/composerDraftRevision.js";
 import type { AppSlashCommand } from "@/slashCommandHelpers.js";
+import type { PiModelCandidate } from "@/v4/composer/piModelCatalog.js";
 import { useOptionalServices } from "@/hooks/useServices.js";
 import { logger } from "@/logger.js";
 import { runUserAction, startUserAction } from "@/lib/userActionTelemetry.js";
@@ -299,6 +300,9 @@ export interface ComposerRestoreRequest {
   text: string;
   attachments: readonly AttachmentRef[];
   config?: Pick<V4ComposerDraft, "mode" | "planEnabled" | "modelSelection">;
+  /** A durable queue withdrawal must be consumed on a binding/draft conflict. */
+  durableQueueRecovery?: boolean;
+  recoveryQueueItemId?: string;
 }
 
 function applyComposerRestoreRequestToComposer({
@@ -397,6 +401,7 @@ interface ConversationComposerProps {
   remoteSessionId?: string;
   /** SessionPane 从目标 Host 原子读取的选择事实；Composer 不自行解析 Host。 */
   modelSelectionView?: ModelSelectionView | null;
+  piModelCatalog?: readonly PiModelCandidate[];
   modelSelectionState?: ModelSelectionState;
   /** Model Selection 首次读取失败后的显式重试入口。 */
   modelSelectionReload?: () => void;
@@ -426,6 +431,7 @@ interface ConversationComposerProps {
     model: string,
     sourceModel: ModelSelectionSource | null,
   ) => void;
+  onCycleModel?: () => void;
   /** 选中思考深度；同时带上用户操作时看到的模型，避免异步回流后把 thought 归到另一模型。 */
   onSelectThought: (thought: string, modelContext: { provider: string; model: string }) => void;
   onSwitchMode: (mode: string) => void;
@@ -468,6 +474,7 @@ interface ConversationComposerProps {
    */
   composerRestoreRequest?: ComposerRestoreRequest | null;
   onComposerRestoreApplied?: (requestId: number) => void;
+  onComposerRestoreDeferred?: (requestId: number) => void;
   /** 副屏会话不提供 goal 能力；协议层仍会拒绝直接调用。 */
   suppressGoalCommands?: boolean;
   /** App 层本地斜杠命令（如 `/side`），由 SessionPane 按门禁组装后透传。 */
@@ -502,6 +509,7 @@ function ConversationComposerImpl({
   workspaceIdentity,
   remoteSessionId,
   modelSelectionView = null,
+  piModelCatalog = [],
   modelSelectionState = MODEL_SELECTION_LOADING_STATE,
   modelSelectionReload,
   attachmentSessionId = null,
@@ -516,6 +524,7 @@ function ConversationComposerImpl({
   onDraftStateChange,
   onStop,
   onSelectModel,
+  onCycleModel,
   onSelectThought,
   onSwitchMode,
   onOpenRunningBackgroundWorks,
@@ -533,6 +542,7 @@ function ConversationComposerImpl({
   onExternalTextInsertApplied,
   composerRestoreRequest = null,
   onComposerRestoreApplied,
+  onComposerRestoreDeferred,
   suppressGoalCommands = false,
   appSlashCommands,
   onDropTargetControllerChange,
@@ -766,7 +776,15 @@ function ConversationComposerImpl({
     text: string;
     editorStateJson?: string;
   } => {
-    const currentText = textRef.current;
+    // Lexical may display the last keystroke before its onChange callback updates
+    // textRef. Read the visible editor during blur/pagehide so a quick close cannot
+    // replace an unsent draft with the older empty value.
+    let currentText = textRef.current;
+    try {
+      currentText = inputApiRef.current?.getMarkdown() ?? currentText;
+    } catch (error) {
+      logger.warn(`[v4-composer] 草稿 Markdown 读取失败，退最新回调文本: ${String(error)}`);
+    }
     let editorStateJson: string | undefined;
     try {
       const editorState = inputApiRef.current?.getEditorState();
@@ -875,17 +893,28 @@ function ConversationComposerImpl({
   useEffect(() => {
     if (!composerRestoreRequest) return;
     const applyRequest = () => {
+      if (appliedComposerRestoreRequestRef.current === composerRestoreRequest.requestId) return true;
+      const hasDraftContent =
+        textRef.current.length > 0 ||
+        attachmentsApi.attachments.length > 0 ||
+        codeCommentContexts.length > 0 ||
+        webElementContexts.length > 0 ||
+        pptxElementReferences.length > 0 ||
+        conversationSelectionReferences.length > 0;
+      if (composerRestoreRequest.durableQueueRecovery &&
+        (composerRestoreRequest.sessionId !== sessionId ||
+          composerRestoreRequest.workspaceKey !== workspaceKey || hasDraftContent)) {
+        // The authoritative Pi item is already deleted. Keep its durable copy,
+        // consume this request once, and never overwrite later user input.
+        appliedComposerRestoreRequestRef.current = composerRestoreRequest.requestId;
+        onComposerRestoreDeferred?.(composerRestoreRequest.requestId);
+        return true;
+      }
       const nextAppliedRequestId = applyComposerRestoreRequestToComposer({
         appliedRequestId: appliedComposerRestoreRequestRef.current,
         currentSessionId: sessionId,
         currentWorkspaceKey: workspaceKey,
-        hasDraftContent:
-          textRef.current.length > 0 ||
-          attachmentsApi.attachments.length > 0 ||
-          codeCommentContexts.length > 0 ||
-          webElementContexts.length > 0 ||
-          pptxElementReferences.length > 0 ||
-          conversationSelectionReferences.length > 0,
+        hasDraftContent,
         inputApi: inputApiRef.current,
         request: composerRestoreRequest,
         requestFocus: requestComposerFocus,
@@ -920,6 +949,7 @@ function ConversationComposerImpl({
     composerRestoreRequest,
     conversationSelectionReferences.length,
     onComposerRestoreApplied,
+    onComposerRestoreDeferred,
     replaceComposerDraft,
     requestComposerFocus,
     scheduleDraftPersist,
@@ -1132,7 +1162,8 @@ function ConversationComposerImpl({
     routingAllowsSend &&
     attachmentsReady &&
     submissionReady;
-  // 旧 UI 状态机：streaming + 空草稿 → Stop；有草稿 → 发送键（入队）。
+  // Busy + empty draft shows Stop; busy + draft shows both Stop and Send.
+  // A refused queue admission must not hide Stop or require discarding the draft.
   const showStopControl = canStop && !hasDraftToSubmit;
 
   useEffect(() => {
@@ -1149,6 +1180,10 @@ function ConversationComposerImpl({
       const trimmed = textRef.current.trim();
       const submittedQueueItemIds =
         snapshotRef.current?.queue.items.map((item) => item.queueItemId) ?? [];
+      // Capture the Pi-backed routing decision at click time, not later in the
+      // Host after another foreground command changes the runtime phase.
+      const routedDelivery = requestedDelivery ?? (snapshotRef.current?.inputRouting.mode === "enqueue"
+        ? "queue" : snapshotRef.current?.inputRouting.mode === "guide" ? "guide" : "startNow");
       const hasPendingAttachments = attachmentsApi.attachments.length > 0;
       const currentCodeCommentContexts = getCodeCommentContexts();
       const hasPendingCodeCommentContexts = currentCodeCommentContexts.length > 0;
@@ -1333,11 +1368,11 @@ function ConversationComposerImpl({
           }
         }
         claimSubmittedDraft();
-        if (requestedDelivery === "startNow") {
+        if (routedDelivery === "startNow") {
           // 原子抢占需要等旧 turn 退出并提交新 TurnStarted ACK；
           // 若编辑器也等整条链路才清空，用户会误以为快捷键未生效。
           // 先清空可见正文；命令拒绝时用冻结 editor state 原样恢复。
-          inputApiRef.current?.clear();
+          inputApiRef.current?.clearForOptimisticSubmit();
           updateText("");
           cleanupRevision = contentRevisionRef.current;
           editorClearedOptimistically = true;
@@ -1345,7 +1380,7 @@ function ConversationComposerImpl({
         const sendResult = await onSendText(promptText, {
           submission,
           telemetrySeed,
-          ...(requestedDelivery ? { requestedDelivery } : {}),
+          requestedDelivery: routedDelivery,
           ...(heldQueueDisposition ? { heldQueueDisposition } : {}),
           ...(expectedHeldQueueItemIds ? { expectedHeldQueueItemIds } : {}),
           ...(readyAttachmentRefs.length > 0 ? { attachments: readyAttachmentRefs } : {}),
@@ -1388,7 +1423,7 @@ function ConversationComposerImpl({
           setHeldQueueConfirmation({
             // 标记 queueConfirmed：确认后复用该 seed 落定，send_cost_ms 含用户在弹窗上的停留。
             telemetrySeed: { ...telemetrySeed, queueConfirmed: true },
-            ...(requestedDelivery ? { requestedDelivery } : {}),
+            requestedDelivery: routedDelivery,
             queueItemIds:
               latestQueueItemIds.length > 0 ? latestQueueItemIds : submittedQueueItemIds,
           });
@@ -1752,6 +1787,7 @@ function ConversationComposerImpl({
                           : "file"
                   }
                   data-testid={testId(TID_V4_ATTACHMENT, attachment.id)}
+                  title={attachment.filename}
                   data-upload-status={attachment.uploadStatus}
                   className={
                     isMediaAttachment
@@ -2043,6 +2079,7 @@ function ConversationComposerImpl({
             workspacePath={workspacePath}
             workspaceIdentity={workspaceIdentity}
             modelSelectionView={modelSelectionView}
+            piModelCatalog={piModelCatalog}
             modelSelectionState={modelSelectionState}
             modelSelectionReload={modelSelectionReload}
             sessionId={sessionId ?? null}
@@ -2055,12 +2092,28 @@ function ConversationComposerImpl({
             activeConfigPicker={activeConfigPicker}
             onConfigPickerOpenChange={handleConfigPickerOpenChange}
             onSelectModel={handleSelectModelTrace}
+            onCycleModel={onCycleModel}
             onSelectThought={onSelectThought}
             onSwitchMode={onSwitchMode}
             onRecoverCustomModelSelection={onRecoverCustomModelSelection}
             onSendCompressionCommand={onSendCompressionCommand}
           />
         </span>
+        {canStop && !showStopControl ? (
+          <ControlHintTooltip title={stopTooltipTitle} shortcut="Esc">
+            <Button
+              type="button"
+              variant="secondary"
+              size="icon-md"
+              onClick={handleStopClick}
+              data-testid={TID_V4_STOP}
+              aria-label={stopTooltipTitle}
+            >
+              <SquareIcon className="size-4 fill-current" />
+              <span className="sr-only">{stopTooltipTitle}</span>
+            </Button>
+          </ControlHintTooltip>
+        ) : null}
         {showStopControl ? (
           <ControlHintTooltip title={stopTooltipTitle} shortcut="Esc">
             <Button
@@ -2100,6 +2153,7 @@ function ConversationComposerImpl({
     ),
     [
       canSend,
+      canStop,
       activeConfigPicker,
       composerPhase,
       composerUsage,
@@ -2114,7 +2168,9 @@ function ConversationComposerImpl({
       modelSelectionReload,
       modelSelectionState,
       modelSelectionView,
+      piModelCatalog,
       onSelectThought,
+      onCycleModel,
       onRecoverCustomModelSelection,
       onSendCompressionCommand,
       onSwitchMode,

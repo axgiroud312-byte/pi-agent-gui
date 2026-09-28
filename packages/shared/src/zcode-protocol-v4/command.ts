@@ -44,6 +44,8 @@ export const commandPayloadSchemas = {
   // firstInput 缺省 → phase=draft 空会话；携带 → 直接 turnHeader+userInput rows。
   createSession: z.object({
     workspaceId: z.string(),
+    /** Pi desktop only: --no-session keeps history in the live Pi process. */
+    storageMode: z.enum(["persistent", "temporary"]).optional(),
     firstInput: z
       .object({
         text: z.string(),
@@ -147,6 +149,9 @@ export const commandPayloadSchemas = {
   compact: z.object({}),
   // running 时对稳定 assistant row 可用。
   forkAssistant: z.object({ target: conversationRowTargetSchema }),
+  forkPiEntry: z.object({ entryId: z.string().min(1) }),
+  clonePiSession: z.object({}),
+  retryPiEntry: z.object({ entryId: z.string().min(1) }),
   applyFileRewind: z.object({ target: conversationRowTargetSchema }),
   editUserQuery: z.object({
     target: conversationRowTargetSchema,
@@ -207,6 +212,8 @@ export const commandPayloadSchemas = {
     model: z.string(),
     thought: z.string(),
   }),
+  // Pi alone chooses the next model from its effective scoped/available list.
+  cycleModelConfig: z.object({}).strict(),
   // additive（冻结面按黄金测试背书演进）：agent 协作模式切换。
   // 值域 = core CollaborationMode 的可切换子集（auto 非用户可切，不进 UI 命令面）。
   switchCollaborationMode: z.object({
@@ -293,6 +300,9 @@ export const BACKGROUND_WORK_CANCEL_REJECTED_FAULT_PREFIX =
 export const COMMANDS_REQUIRING_BASE_REVISION: ReadonlySet<CommandType> = new Set([
   "applyFileRewind",
   "forkAssistant",
+  "forkPiEntry",
+  "clonePiSession",
+  "retryPiEntry",
   "editUserQuery",
   "retryTurn",
   "setAssistantFeedback",
@@ -302,6 +312,7 @@ export const COMMANDS_REQUIRING_BASE_REVISION: ReadonlySet<CommandType> = new Se
   "deleteQueueItem",
   "setAutoDrain",
   "switchModelConfig",
+  "cycleModelConfig",
   "switchCollaborationMode",
   "setFollowupMode",
   "pauseGoal",
@@ -311,6 +322,9 @@ export const COMMANDS_REQUIRING_BASE_REVISION: ReadonlySet<CommandType> = new Se
 export const ROW_TARGETING_COMMANDS: ReadonlySet<CommandType> = new Set([
   "applyFileRewind",
   "forkAssistant",
+  "forkPiEntry",
+  "clonePiSession",
+  "retryPiEntry",
   "editUserQuery",
   "retryTurn",
   "setAssistantFeedback",
@@ -366,8 +380,24 @@ export function parseCommandEnvelope(
 // ── ACK ──
 export const commandResultSchema = z.discriminatedUnion("type", [
   z.object({
+    type: z.literal("cycleModelConfig"),
+    provider: z.string().min(1),
+    model: z.string().min(1),
+    thinkingLevel: z.string().min(1),
+    isScoped: z.boolean(),
+  }),
+  z.object({
     type: z.enum(["createSession", "createSelectionSideSession", "forkAssistant"]),
     sessionId: z.string(),
+    restoredText: z.string().optional(),
+    /** Exact Pi source-entry handles. The fork ACK never carries image bytes. */
+    restoredImages: z.array(z.object({
+      ref: z.string().regex(/^pi-entry-image:[A-Za-z0-9._-]{1,256}:(0|[1-9]\d*)$/u),
+      fileName: z.string().min(1),
+      mimeType: z.enum(["image/png", "image/jpeg", "image/gif", "image/webp"]),
+      bytes: z.number().int().positive().max(20 * 1024 * 1024),
+      sha256: z.string().regex(/^[a-f0-9]{64}$/u),
+    })).max(8).optional(),
     input: z
       .object({
         delivery: z.enum(["startNow", "queue", "guide"]),

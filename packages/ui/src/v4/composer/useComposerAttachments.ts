@@ -29,6 +29,7 @@ import {
 import { useWhiteboardStore } from "@/store/whiteboardStore.js";
 import type { ChatComposerPasteEvent } from "@/LexicalChatInput.js";
 import type { IPromptAttachmentTransferService } from "@zcode/services";
+import type { IFileService } from "@zcode/services";
 import type { IPlatformService } from "@zcode/shared";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useServices } from "@/hooks/useServices.js";
@@ -43,6 +44,11 @@ import {
   type ComposerAttachmentUploadStatus,
 } from "@/store/composerAttachmentUploadStore.js";
 import { uploadComposerAttachment, type AttachmentPutFn } from "@/v4/composer/attachmentUpload.js";
+import { preparePromotedComposerAttachment } from "@/v4/composer/composerAttachmentPromotion.js";
+import { DAMAGED_IMAGE_DRAFT_ID, discardDamagedComposerImageDrafts, finishComposerImageDraftPromotion,
+  forgetComposerImageDrafts, listComposerImageDraftIds, markFailedComposerImageDraftPromotion,
+  moveComposerImageDrafts, pendingComposerImageDraftPromotionTarget, readComposerImageDrafts,
+  saveComposerImageDraft } from "@/v4/composer/composerImageDraftStorage.js";
 
 const COMPOSER_ATTACHMENT_UPLOAD_CONCURRENCY = 2;
 const COMPOSER_ATTACHMENT_AUTO_RETRY_DELAY_MS = 500;
@@ -54,6 +60,8 @@ const COMPOSER_ATTACHMENT_COMPLETE_VISIBLE_MS = 300;
 const COMPOSER_ATTACHMENT_REBUILD_RETRY_LIMIT = 5;
 const EMPTY_COMPOSER_ATTACHMENTS: ComposerAttachmentUploadItem[] = [];
 const REMOTE_ATTACHMENT_NOT_STAGED_ERROR_CODE = "remoteAttachmentNotStaged";
+const PI_IMAGE_DRAFT_MAX_BYTES = 20 * 1024 * 1024;
+const IMAGE_DRAFT_READ_CHUNK_BYTES = 1024 * 1024;
 export type {
   ComposerAttachmentUploadItem,
   ComposerAttachmentUploadStatus,
@@ -185,6 +193,45 @@ function isRemoteAttachmentTarget(
   return Boolean(target.remoteSessionId?.trim() || target.workspaceIdentity?.trim());
 }
 
+/** Snapshot bytes at selection, so a moved or modified source file cannot change the unsent prompt. */
+async function snapshotImageAttachment(attachment: ChatComposerAttachment,
+  fileService: Pick<IFileService, "readFileRange" | "stat">): Promise<ChatComposerAttachment> {
+  if (!attachment.mimeType.startsWith("image/")) return attachment;
+  let bytes: ArrayBuffer;
+  if (attachment.file) {
+    if (attachment.file.size > PI_IMAGE_DRAFT_MAX_BYTES) throw new Error("Image exceeds 20 MiB draft limit");
+    bytes = await attachment.file.arrayBuffer();
+  } else if (attachment.localPath) {
+    const before = await fileService.stat({ path: attachment.localPath });
+    if (before.type !== "file" || before.size === undefined || before.size <= 0 ||
+      before.size > PI_IMAGE_DRAFT_MAX_BYTES) throw new Error("Image draft file is unavailable or exceeds 20 MiB");
+    const content = new Uint8Array(before.size);
+    for (let offset = 0; offset < before.size; offset += IMAGE_DRAFT_READ_CHUNK_BYTES) {
+      const chunk = await fileService.readFileRange({ path: attachment.localPath, offset,
+        length: Math.min(IMAGE_DRAFT_READ_CHUNK_BYTES, before.size - offset) });
+      if (chunk.length !== Math.min(IMAGE_DRAFT_READ_CHUNK_BYTES, before.size - offset)) {
+        throw new Error("Image draft file changed while reading");
+      }
+      content.set(chunk, offset);
+    }
+    const after = await fileService.stat({ path: attachment.localPath });
+    if (after.type !== "file" || after.size !== before.size ||
+      (before.mtimeMs !== undefined && after.mtimeMs !== before.mtimeMs)) {
+      throw new Error("Image draft file changed while reading");
+    }
+    bytes = content.buffer;
+  } else {
+    throw new Error("Image draft has no readable bytes");
+  }
+  if (bytes.byteLength === 0 || bytes.byteLength > PI_IMAGE_DRAFT_MAX_BYTES) {
+    throw new Error("Image draft is empty or exceeds 20 MiB");
+  }
+  const file = new File([bytes], attachment.filename, { type: attachment.mimeType });
+  revokeChatComposerAttachment(attachment);
+  return { ...attachment, file, localPath: undefined, sizeBytes: file.size,
+    objectUrl: URL.createObjectURL(file) };
+}
+
 export function useComposerAttachments(
   options: UseComposerAttachmentsOptions,
 ): ComposerAttachmentsApi {
@@ -201,10 +248,20 @@ export function useComposerAttachments(
     listenAddToChatEvents = true,
   } = options;
   const platform = usePlatform();
-  const { promptAttachmentTransferService } = useServices();
+  const { fileService, promptAttachmentTransferService } = useServices();
   const { intl } = useZCodeIntl();
   const scopeKey = buildScopeKey(workspacePath, workspaceIdentity, scopeId);
   exposeComposerAttachmentScopeKeyForE2E(scopeKey);
+  const currentScopeKeyRef = useRef(scopeKey);
+  currentScopeKeyRef.current = scopeKey;
+  const hydratedScopesRef = useRef(new Set<string>());
+  const hydrationFlightsRef = useRef(new Map<string, Promise<void>>());
+  const addFlightRef = useRef<Promise<void>>(Promise.resolve());
+  const pendingAdmissionsRef = useRef(new Map<string, number>());
+  const [, setHydrationVersion] = useState(0);
+  const [, setAdmissionVersion] = useState(0);
+  const hydrationPending = !hydratedScopesRef.current.has(scopeKey);
+  const admissionPending = (pendingAdmissionsRef.current.get(scopeKey) ?? 0) > 0;
 
   const targetsRef = useRef(new Map<string, UploadTarget>());
   const uploadQueueRef = useRef<UploadQueueEntry[]>([]);
@@ -499,6 +556,62 @@ export function useComposerAttachments(
   }, [runUpload, updateItem]);
   pumpQueueRef.current = pumpQueue;
 
+  const ensureImageDraftHydrated = useCallback((targetScopeKey: string): Promise<void> => {
+    if (hydratedScopesRef.current.has(targetScopeKey)) return Promise.resolve();
+    const inFlight = hydrationFlightsRef.current.get(targetScopeKey);
+    if (inFlight) return inFlight;
+    const flight = readComposerImageDrafts(targetScopeKey).then(restored => {
+      if (restored.length === 0 || readComposerAttachmentScope(targetScopeKey).length > 0) return;
+      const target = targetsRef.current.get(targetScopeKey);
+      const items: ComposerAttachmentUploadItem[] = restored.map(saved => {
+        const failed = "error" in saved;
+        const attachment = failed ? null : createChatComposerAttachment(saved.file);
+        return { ...attachment, id: saved.id, filename: saved.fileName,
+          mimeType: failed ? "image/png" : saved.mimeType, sizeBytes: failed ? 0 : saved.file.size,
+          referenceOwnership: "composer", operationId: `prompt-attachment-${saved.id}`,
+          uploadStatus: failed ? "failed" : target?.sessionId ? "queued" : "waitingSession",
+          uploadProgress: 0,
+          ...(failed ? { uploadError: saved.error, uploadErrorKind: "permanent" as const } : {}),
+          autoRetryCount: 0, runtimeRebuildRetryCount: 0, staged: false, adopted: false,
+          showComplete: false, localZeroCopy: false };
+      });
+      commitScope(targetScopeKey, () => items);
+      if (restored.some(saved => "error" in saved) && currentScopeKeyRef.current === targetScopeKey) {
+        setAttachmentError("Some saved image drafts are damaged; remove and reattach only those images");
+      }
+      for (const item of items) if (item.uploadStatus === "queued") enqueueUpload(targetScopeKey, item.id);
+    }).catch(error => {
+      logger.warn("[v4-composer-attachments] 图片草稿恢复失败", error);
+      if (currentScopeKeyRef.current === targetScopeKey) {
+        setAttachmentError(intl.formatMessage({ id: "chat.attachments.readFailed" },
+          { message: error instanceof Error ? error.message : String(error) }));
+      }
+      // A damaged saved image must remain a removable, failed chip. Sending only the text
+      // would silently discard the user's intended input.
+      {
+        let ids: string[];
+        try { ids = listComposerImageDraftIds(targetScopeKey); }
+        catch { ids = [DAMAGED_IMAGE_DRAFT_ID]; }
+        if (ids.length > 0 && readComposerAttachmentScope(targetScopeKey).length === 0) {
+          commitScope(targetScopeKey, () => ids.map(id => ({ id, filename: "Unrestored image draft",
+            mimeType: "image/png", sizeBytes: 0, referenceOwnership: "composer" as const,
+            operationId: `prompt-attachment-${id}`, uploadStatus: "failed" as const,
+            uploadProgress: 0, uploadError: "Saved image draft is missing or damaged",
+            uploadErrorKind: "permanent" as const, autoRetryCount: 0, runtimeRebuildRetryCount: 0,
+            staged: false, adopted: false, showComplete: false, localZeroCopy: false })));
+        }
+      }
+    }).finally(() => {
+      hydratedScopesRef.current.add(targetScopeKey);
+      hydrationFlightsRef.current.delete(targetScopeKey);
+      if (currentScopeKeyRef.current === targetScopeKey) setHydrationVersion(version => version + 1);
+    });
+    hydrationFlightsRef.current.set(targetScopeKey, flight);
+    return flight;
+  }, [commitScope, enqueueUpload, intl]);
+
+  useEffect(() => { void ensureImageDraftHydrated(scopeKey); }, [ensureImageDraftHydrated, scopeKey]);
+
   useEffect(() => {
     const current = readComposerAttachmentScope(scopeKey);
     const remoteTargetReady =
@@ -515,6 +628,7 @@ export function useComposerAttachments(
       }
     }
   }, [
+    attachments,
     attachmentSessionId,
     enqueueUpload,
     remoteSessionId,
@@ -628,53 +742,83 @@ export function useComposerAttachments(
   const addPreparedAttachments = useCallback(
     (selectedAttachments: ChatComposerAttachment[]) => {
       if (selectedAttachments.length === 0) return;
-      const current = readComposerAttachmentScope(scopeKey);
-      const remainingSlots = MAX_CHAT_ATTACHMENTS - current.length;
-      if (remainingSlots <= 0) {
-        selectedAttachments.forEach(revokeChatComposerAttachment);
-        showAttachmentLimitWarning();
-        return;
-      }
-      const accepted = selectedAttachments.slice(0, remainingSlots);
-      selectedAttachments.slice(remainingSlots).forEach(revokeChatComposerAttachment);
-      const target = targetsRef.current.get(scopeKey);
-      const items: ComposerAttachmentUploadItem[] = accepted.map((attachment) => {
-        // 远端 identity 往往早于 remoteSessionId 注入；这段窗口不能退化为本地路径直读。
-        const localZeroCopy = Boolean(
-          attachment.localPath && target && !isRemoteAttachmentTarget(target),
-        );
-        return {
-          ...attachment,
-          referenceOwnership: "composer",
-          operationId: `prompt-attachment-${attachment.id}`,
-          uploadStatus: localZeroCopy ? "ready" : target?.sessionId ? "queued" : "waitingSession",
-          uploadProgress: localZeroCopy ? 100 : 0,
-          ...(localZeroCopy && attachment.localPath
-            ? {
-                attachmentRef: {
-                  ref: attachment.localPath,
-                  fileName: attachment.filename,
-                  mime: attachment.mimeType,
-                  bytes: attachment.sizeBytes,
-                },
-              }
-            : {}),
-          autoRetryCount: 0,
-          runtimeRebuildRetryCount: 0,
-          staged: false,
-          adopted: false,
-          showComplete: false,
-          localZeroCopy,
-        };
+      // Reserve admission synchronously. File reads and IndexedDB writes are async,
+      // so a second click/Enter must never submit the text without this image.
+      pendingAdmissionsRef.current.set(scopeKey, (pendingAdmissionsRef.current.get(scopeKey) ?? 0) + 1);
+      setAdmissionVersion(version => version + 1);
+      const run = async () => {
+        await ensureImageDraftHydrated(scopeKey);
+        const current = readComposerAttachmentScope(scopeKey);
+        const remainingSlots = MAX_CHAT_ATTACHMENTS - current.length;
+        if (remainingSlots <= 0) {
+          selectedAttachments.forEach(revokeChatComposerAttachment);
+          showAttachmentLimitWarning();
+          return;
+        }
+        const accepted = selectedAttachments.slice(0, remainingSlots);
+        selectedAttachments.slice(remainingSlots).forEach(revokeChatComposerAttachment);
+        const prepared: Array<{ attachment: ChatComposerAttachment; error?: string }> = [];
+        const errors: string[] = [];
+        for (const attachment of accepted) {
+          let snapshot = attachment;
+          let failure: string | undefined;
+          try {
+            snapshot = await snapshotImageAttachment(attachment, fileService);
+          } catch (error) {
+            failure = `Image draft admission failed: ${error instanceof Error ? error.message : String(error)}`;
+          }
+          if (!failure && snapshot.mimeType.startsWith("image/") && snapshot.file) {
+            try {
+              await saveComposerImageDraft(scopeKey, { id: snapshot.id, fileName: snapshot.filename,
+                mimeType: snapshot.mimeType, file: snapshot.file });
+            } catch (error) {
+              failure = `Image draft admission failed: saved bytes unavailable (${String(error)})`;
+            }
+          }
+          if (failure) errors.push(`${snapshot.filename}: ${failure}`);
+          prepared.push({ attachment: snapshot, ...(failure ? { error: failure } : {}) });
+        }
+        const target = targetsRef.current.get(scopeKey);
+        const items: ComposerAttachmentUploadItem[] = prepared.map(({ attachment, error }) => {
+          // A snapshotted image has no localPath; it must be re-uploaded from immutable bytes.
+          const localZeroCopy = Boolean(!error && attachment.localPath && target && !isRemoteAttachmentTarget(target));
+          return { ...attachment, referenceOwnership: "composer",
+            operationId: `prompt-attachment-${attachment.id}`,
+            uploadStatus: error ? "failed" : localZeroCopy ? "ready" : target?.sessionId ? "queued" : "waitingSession",
+            uploadProgress: localZeroCopy ? 100 : 0,
+            ...(error ? { uploadError: error, uploadErrorKind: "permanent" as const } : {}),
+            ...(localZeroCopy && attachment.localPath ? { attachmentRef: {
+              ref: attachment.localPath, fileName: attachment.filename,
+              mime: attachment.mimeType, bytes: attachment.sizeBytes } } : {}),
+            autoRetryCount: 0, runtimeRebuildRetryCount: 0, staged: false, adopted: false,
+            showComplete: false, localZeroCopy };
+        });
+        commitScope(scopeKey, existing => [...existing, ...items]);
+        setAttachmentError(errors.length ? errors.join("; ") : null);
+        if (selectedAttachments.length > remainingSlots) showAttachmentLimitWarning();
+        for (const item of items) if (item.uploadStatus === "queued") enqueueUpload(scopeKey, item.id);
+      };
+      addFlightRef.current = addFlightRef.current.then(run, run).catch(error => {
+        logger.warn("[v4-composer-attachments] 图片草稿保存失败", error);
+        setAttachmentError(error instanceof Error ? error.message : String(error));
+        commitScope(scopeKey, existing => {
+          const known = new Set(existing.map(item => item.id));
+          return [...existing, ...selectedAttachments.filter(item => !known.has(item.id)).map(item => ({
+            ...item, referenceOwnership: "composer" as const,
+            operationId: `prompt-attachment-${item.id}`, uploadStatus: "failed" as const,
+            uploadProgress: 0, uploadError: `Image draft admission failed: ${String(error)}`,
+            uploadErrorKind: "permanent" as const, autoRetryCount: 0, runtimeRebuildRetryCount: 0,
+            staged: false, adopted: false, showComplete: false, localZeroCopy: false,
+          }))];
+        });
+      }).finally(() => {
+        const remaining = (pendingAdmissionsRef.current.get(scopeKey) ?? 1) - 1;
+        if (remaining > 0) pendingAdmissionsRef.current.set(scopeKey, remaining);
+        else pendingAdmissionsRef.current.delete(scopeKey);
+        setAdmissionVersion(version => version + 1);
       });
-      commitScope(scopeKey, (existing) => [...existing, ...items]);
-      setAttachmentError(null);
-      if (selectedAttachments.length > remainingSlots) showAttachmentLimitWarning();
-      for (const item of items) {
-        if (item.uploadStatus === "queued") enqueueUpload(scopeKey, item.id);
-      }
     },
-    [commitScope, enqueueUpload, scopeKey, showAttachmentLimitWarning],
+    [commitScope, enqueueUpload, ensureImageDraftHydrated, fileService, scopeKey, showAttachmentLimitWarning],
   );
 
   const addAttachmentFiles = useCallback(
@@ -908,6 +1052,19 @@ export function useComposerAttachments(
       const current = readComposerAttachmentScope(scopeKey);
       const item = current.find((candidate) => candidate.id === id);
       if (!item) return;
+      if (item.mimeType.startsWith("image/")) {
+        try {
+          const cleanup = id === DAMAGED_IMAGE_DRAFT_ID
+            ? discardDamagedComposerImageDrafts(scopeKey)
+            : forgetComposerImageDrafts(scopeKey, [id]);
+          void cleanup.catch(error => {
+            logger.warn("[v4-composer-attachments] 删除图片草稿字节失败", error);
+          });
+        } catch (error) {
+          setAttachmentError(`Image draft could not be removed from storage: ${String(error)}`);
+          return;
+        }
+      }
       const key = `${scopeKey}\u0000${id}`;
       controllersRef.current.get(key)?.abort();
       controllersRef.current.delete(key);
@@ -939,6 +1096,14 @@ export function useComposerAttachments(
         (candidate) => candidate.id === id,
       );
       if (!current || current.uploadStatus !== "failed") return;
+      if (current.uploadError?.startsWith("Image draft admission failed:")) {
+        setAttachmentError("Remove and reattach this image after draft storage is available");
+        return;
+      }
+      if (!current.file && !current.localPath && !current.attachmentRef) {
+        setAttachmentError("Saved image bytes are unavailable; remove and reattach the image");
+        return;
+      }
       const target = targetsRef.current.get(scopeKey);
       void target?.transferService.cleanup(current.operationId).catch(() => {});
       updateItem(scopeKey, id, (item) => ({
@@ -966,6 +1131,17 @@ export function useComposerAttachments(
         (item) => !ids || ids.has(item.id),
       );
       const target = targetsRef.current.get(scopeKey);
+      let manifestForgot = true;
+      try {
+        void forgetComposerImageDrafts(scopeKey, current.filter(item => item.mimeType.startsWith("image/"))
+          .map(item => item.id)).catch(error => {
+          logger.warn("[v4-composer-attachments] 清理已发送图片草稿字节失败", error);
+        });
+      } catch (error) {
+        manifestForgot = false;
+        logger.warn("[v4-composer-attachments] 清理已发送图片草稿索引失败", error);
+        setAttachmentError(`Accepted by Pi, but saved image draft cleanup failed: ${String(error)}`);
+      }
       for (const item of current) {
         const key = `${scopeKey}\u0000${item.id}`;
         controllersRef.current.get(key)?.abort();
@@ -991,7 +1167,62 @@ export function useComposerAttachments(
         (entry) => entry.scopeKey !== scopeKey || (ids !== null && !ids.has(entry.attachmentId)),
       );
       commitScope(scopeKey, (items) => (ids ? items.filter((item) => !ids.has(item.id)) : []));
-      setAttachmentError(null);
+      const promotionTarget = pendingComposerImageDraftPromotionTarget(scopeKey);
+      if (promotionTarget) {
+        // A new picker/paste/drop can still be snapshotting bytes while the
+        // first send is awaiting Pi. Wait for that admission before moving the
+        // *remaining* IDs; submitted IDs were already removed above.
+        void addFlightRef.current.then(async () => {
+          const retained = readComposerAttachmentScope(scopeKey);
+          const savedIds = new Set(listComposerImageDraftIds(scopeKey));
+          const retainedImageIds = retained.filter(item => item.mimeType.startsWith("image/") && savedIds.has(item.id))
+            .map(item => item.id);
+          await moveComposerImageDrafts(scopeKey, promotionTarget, retainedImageIds);
+          for (const item of retained) {
+            const key = `${scopeKey}\u0000${item.id}`;
+            controllersRef.current.get(key)?.abort();
+            controllersRef.current.delete(key);
+            const completeTimer = completeTimersRef.current.get(key);
+            if (completeTimer !== undefined) window.clearTimeout(completeTimer);
+            completeTimersRef.current.delete(key);
+            const retryTimer = retryTimersRef.current.get(key);
+            if (retryTimer !== undefined) window.clearTimeout(retryTimer);
+            retryTimersRef.current.delete(key);
+            const oldTarget = targetsRef.current.get(scopeKey);
+            if (item.staged && !item.adopted) {
+              void oldTarget?.transferService.cleanup(item.operationId).catch(() => {});
+            }
+          }
+          uploadQueueRef.current = uploadQueueRef.current.filter(entry => entry.scopeKey !== scopeKey);
+          const moved = retained.map(preparePromotedComposerAttachment);
+          commitScope(promotionTarget, existing => {
+            const retainedIds = new Set(moved.map(item => item.id));
+            return [...existing.filter(item => !retainedIds.has(item.id)), ...moved];
+          });
+          commitScope(scopeKey, () => []);
+          finishComposerImageDraftPromotion(scopeKey);
+        }).catch(error => {
+          const failure = error instanceof Error ? error : new Error(String(error));
+          const retained = readComposerAttachmentScope(scopeKey);
+          try {
+            markFailedComposerImageDraftPromotion(promotionTarget,
+              retained.filter(item => item.mimeType.startsWith("image/")).map(item => item.id));
+          } catch (markError) {
+            logger.warn("[v4-composer-attachments] 图片草稿迁移失败标记写入失败", markError);
+          }
+          commitScope(promotionTarget, existing => {
+            const known = new Set(existing.map(item => item.id));
+            return [...existing, ...retained.filter(item => !known.has(item.id)).map(item => ({
+              ...item, uploadStatus: "failed" as const, uploadProgress: 0,
+              uploadError: `Image draft promotion failed: ${failure.message}`,
+              uploadErrorKind: "permanent" as const, attachmentRef: undefined,
+            }))];
+          });
+          finishComposerImageDraftPromotion(scopeKey, failure);
+          logger.warn("[v4-composer-attachments] 图片草稿跨会话迁移失败", failure);
+        });
+      }
+      if (manifestForgot) setAttachmentError(null);
     },
     [commitScope, scopeKey],
   );
@@ -1030,12 +1261,13 @@ export function useComposerAttachments(
   );
 
   const prepareForSend = useCallback(async (): Promise<AttachmentRef[] | null> => {
+    if (hydrationPending || (pendingAdmissionsRef.current.get(scopeKey) ?? 0) > 0) return null;
     const current = readComposerAttachmentScope(scopeKey);
     if (current.some((item) => item.uploadStatus !== "ready" || !item.attachmentRef)) {
       return null;
     }
     return current.flatMap((item) => (item.attachmentRef ? [item.attachmentRef] : []));
-  }, [scopeKey]);
+  }, [hydrationPending, scopeKey]);
 
   const adoptSentAttachments = useCallback(
     async (attachmentIds: readonly string[]): Promise<void> => {
@@ -1067,7 +1299,7 @@ export function useComposerAttachments(
       attachmentError,
       composerDragKind,
       hasAttachments: attachments.length > 0,
-      hasUnreadyAttachments: attachments.some((item) => item.uploadStatus !== "ready"),
+      hasUnreadyAttachments: hydrationPending || admissionPending || attachments.some((item) => item.uploadStatus !== "ready"),
       isDraggingOverComposer,
       attachmentInputRef,
       openAttachmentPicker,
@@ -1077,6 +1309,7 @@ export function useComposerAttachments(
       handleDragLeaveComposer,
       handleDropComposer,
       handleWhiteboardMentionSelected,
+      hydrationPending,
       removeAttachment,
       retryAttachment,
       clearAttachments,
@@ -1087,6 +1320,7 @@ export function useComposerAttachments(
     }),
     [
       attachmentError,
+      admissionPending,
       adoptSentAttachments,
       attachments,
       composerDragKind,

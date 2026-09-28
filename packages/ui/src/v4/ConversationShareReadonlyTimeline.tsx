@@ -64,6 +64,7 @@ import type { AssistantWorkRow, ConversationTurnFlowItem } from "@/v4/conversati
 import type { ConversationTurnWorkSegment } from "@/v4/conversationTurnWorkSegments.js";
 import { formatConversationWorkDuration } from "@/v4/conversationWorkDuration.js";
 import { normalizeConversationShareMarkdown } from "@/v4/conversationShareMarkdown.js";
+import { unsupportedShareRowsNotice } from "@/v4/conversationShareUnsupportedNotice.js";
 import { resolveToolCallIdentity } from "@/lib/toolIdentity.js";
 import {
   DEFAULT_CODE_PREVIEW_SETTINGS,
@@ -1105,7 +1106,7 @@ export function ConversationShareReadonlyTimeline({
           artifactPreview: "下载文件",
           markerCompact: "上下文已压缩",
           markerModelChange: "模型已切换",
-          unsupportedRows: "部分内容需要更新 ZCode 查看",
+          unsupportedRows: unsupportedShareRowsNotice(locale),
         }
       : {
           history: "Reasoning",
@@ -1116,7 +1117,7 @@ export function ConversationShareReadonlyTimeline({
           artifactPreview: "Download file",
           markerCompact: "Context compacted",
           markerModelChange: "Model switched",
-          unsupportedRows: "Some content requires a newer version of ZCode",
+          unsupportedRows: unsupportedShareRowsNotice(locale),
         };
   const artifactOpenContext = useMemo<ArtifactOpenContextValue | null>(() => {
     if (

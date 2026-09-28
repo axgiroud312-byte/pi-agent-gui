@@ -1,6 +1,6 @@
 import type { BrowserWindow, MessageBoxReturnValue } from "electron";
 import { existsSync, readFileSync } from "node:fs";
-import { arch, hostname, platform, release, type, version as osVersion } from "node:os";
+import { arch, platform, release, type, version as osVersion } from "node:os";
 import { join } from "node:path";
 import {
   DEFAULT_LOCALE,
@@ -34,7 +34,6 @@ interface AboutSnapshot {
   osRelease: string;
   osVersion: string;
   osArch: string;
-  hostname: string;
 }
 
 interface AboutSnapshotOptions {
@@ -48,7 +47,6 @@ interface AboutSnapshotOptions {
     release: string;
     version: string;
     arch: string;
-    hostname: string;
   };
 }
 
@@ -146,7 +144,6 @@ export function createAboutSnapshot(options: AboutSnapshotOptions = {}): AboutSn
     release: release(),
     version: osVersion(),
     arch: arch(),
-    hostname: hostname(),
   };
 
   return {
@@ -164,7 +161,6 @@ export function createAboutSnapshot(options: AboutSnapshotOptions = {}): AboutSn
     osRelease: normalizeValue(osInfo.release),
     osVersion: normalizeValue(osInfo.version),
     osArch: normalizeValue(osInfo.arch),
-    hostname: normalizeValue(osInfo.hostname),
   };
 }
 
@@ -186,7 +182,6 @@ export function formatAboutDetail(snapshot: AboutSnapshot): string {
     `OS Release: ${snapshot.osRelease}`,
     `OS Version: ${snapshot.osVersion}`,
     `OS Arch: ${snapshot.osArch}`,
-    `Hostname: ${snapshot.hostname}`,
   ].join("\n");
 }
 

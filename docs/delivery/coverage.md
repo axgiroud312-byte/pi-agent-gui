@@ -2,9 +2,90 @@
 
 当前合同为 [范围](pi-first-scope.md)、[scope.json](scope.json) 与 [tickets.json](tickets.json)。编号用于追踪，不以固定数量替代真实验收。任务覆盖不代表功能完成；历史原型证据不能自动计入原生 GUI。
 
-#34 已有本地闭环与增量修复/试用证据，但尚未提交与取得本次用户验收；#1/#28 和下列能力最终验收仍未完成。受控模型并不等于在线 provider。
+#34 已有本地闭环与增量修复证据；图片与队列的旧局部修复见 `1337c33`。本轮未发送图片恢复改动见下方最新增量记录，仍未取得用户验收；#1/#28 和下列能力最终验收仍未完成。受控模型并不等于在线 provider。
 
 实现路径图例：R = Pi RPC；B = 公开扩展桥；H = 必要本地宿主；C = 固定版本兼容适配。路径是实施方向，不是已支持声明。
+
+## 工程审计快照（持续更新，2026-09-28）
+
+本表逐项记录已整合到主分支的工程证据及其边界，行内旧提交作为对应能力的来源。下方原有“当前验收/结果”列仍表示**用户尚未最终验收**；源码原生 GUI、固定 Pi 0.87.0、受控模型、在线 provider、最终包和实际安装各自独立，不互相替代。`D:/Temp` 报告是本机证据路径，不属于发布包。
+
+`c2accc3` 是当前已推送的打包修复基线：`74d392f` 保留运行时嵌套依赖的真实版本，避免 `proper-lockfile@4.1.2` 错接根级 `signal-exit@4`；`db213dd` 将打包资源根显式传给 utility host，避免从中性工作目录启动时找不到固定 Pi Agent；`3b4fe27` 让包内 GUI 回归始终离开源码目录启动；`c2accc3` 移除 electron-builder NSIS 对 PowerShell 的错误预检，直接执行有界 CIM 查询，并在查询不可用时 fail closed。最终源码门禁已在该提交通过：固定 Pi 0.87.0 顺序全集 **265/265 PASS**（`D:/Temp/pi-main-sequential-c2accc3-20260928.log`）、typecheck、lint 0 error/69 个既有 warning、delivery 本地校验/7 项测试/`--github`、打包合同 24 PASS + 1 个需显式归档参数的 skip、Host/Pi 打包合同 6/6。
+
+`D:/Temp/pi-agent-gui-final-c2accc3-20260928/` 已完成一次不复用旧目录的完整 Windows 构建；NSIS SHA-256 `FC48352FDB3902B7DE0FA7249F1238E7576D7615B869B7D0E010A46D1B189C45`，unpacked exe SHA-256 `C6E4D9054230C6DCBCD8A965842BF49C2C8E6157C79A12240B52DFCF1DD440AF`，`app.asar` SHA-256 `BC041959DF8D9E415FAB493DA6CB5E6C959A93251B9DB3118885F7B21152E2E2`；包内元数据为 3.14.1、`buildCommitId=c2accc35`、固定 Pi 0.87.0。其 unpacked exe 从中性 cwd 跑完整原生 GUI，报告 `D:/Temp/pi-final-unpacked-c2accc3-neutral-20260928/pi-native-gui-report.json`（SHA-256 `56857EE498D3BD943A66B7554B6D23AF06E9EB25CCFE16C5AD5D588A380C4073`）：11 次受控模型请求、未发送图片冷重启恢复并按原字节发送、文本/图片/工具/流式/Stop、选择/粘贴/拖入、文件预览编辑与冲突、两会话/草稿/布局/历史恢复均通过，三轮退出 `graceful=true`、`forced=[]`、`survivors=[]`，页面错误和越界文件访问为零。
+
+与 `c2accc3` 相同安装器进程查询逻辑的隔离预打包件已完成受控 3.14.0→3.14.1 覆盖升级，退出码 0，日志 `D:/Temp/pi-agent-gui-process-fixed-upgrade-20260928.log`；升级后的 installed GUI 完整 smoke 通过，随后从注册的精确卸载器卸载成功。外部 `home`/Pi profile 的 155 个文件前后新增、删除、改变均为零，证据 `D:/Temp/pi-agent-gui-final-profile-uninstall-compare-20260928.json`（清单 SHA-256 `BF2C222807AF224914AB5ED6FFBEDC1F8373984CC09DB316C60DCF0CEEDC20A4`）。这证明修正后的安装/运行/卸载链；最终文档提交对应的精确 HEAD 仍须在新目录重建并重复该链，结果写入 `D:/Temp/pi-agent-gui-final-validation-20260928.json` 后才指定为统一试用包。
+
+历史故障链：`11f06ff` 的首轮全新 3.14.1 unpacked/NSIS 虽构建完成，**不得交付**：`D:/Temp/pi-final-unpacked-11f06ff2-20260928/pi-native-gui-report.json` 首窗超时，120 秒探针仍 0 窗口；asar 缺 `brace-expansion`，受控旧 3.14.0 安装基线另有用户读到同名 `ERR_MODULE_NOT_FOUND` 弹框。`9c461f7` 先红绿修正 `minimatch` 内层 `{type}` 标记误当包根；`d2bae49`/`3c4c905` 将固定 Pi 家族嵌套版本、根包清单纳入 afterPack 与 bundle 验证。`eb68918` 以旧包真 binary 红测定位 Chord `esbuild` API 0.28.2 对 Windows binary 0.27.7，又以小型 `app.asar` 真运行发现虚拟路径 `ENOENT`；改为 Chord 私有 API/目标平台 binary 配对及固定 Pi 子进程物理 sidecar 路径后，Electron Node `transformSync` 通过。旧 asar 827 个清单与 18,824 个 JS 文件只发现 Chord 直接使用 esbuild；第三方扩展的根包动态加载不在此审计内。旧 `11f06ff2` 产物仅作故障证据；上方 `c2accc3` 新包已经通过依赖闭包与包内 GUI，不得再交付或安装旧故障包。
+
+固定 Pi 0.87.0 顺序全集最新在 `c2accc3` 为 **265/265 PASS，exit 0**，日志 `D:/Temp/pi-main-sequential-c2accc3-20260928.log`。先前 260/261 的 fork 过期修订及队列 fixture 时序均由测试修正，未当作生产能力通过。独立 Standards/Spec 复核最新父子票和 P/D/V 共 52 项，未发现新的可复现 P0/P1；另补 #25 custom 消息 GUI 与 #4 队列 stale 恢复证据。Composer/Dialog 快照跨会话疑虑经三轮隔离固定 Pi GUI 未复现，仍按未来交错风险保留。最终精确 HEAD 包、覆盖升级和卸载证据须以后续 `D:/Temp/pi-agent-gui-final-validation-20260928.json` 的实际结果为准，不预报成功。
+
+2026-09-28 最终源码打包前增量：`2bdb342` 将 `SessionPane` 的 Pi 快照、队列、扩展状态/widget 和导入分享头部统一按当前会话 ID 门禁；主树 React 合同及固定 Pi 原生 GUI `D:/Temp/pi-session-scope-main-20260928-a/pi-session-snapshot-scope-gui-report.json` 通过，B 的每次 DOM mutation 均未显示 A 私有文本/队列，回 A 仍显示扩展状态，页面错误、强杀和残留进程均为零。`7639f8e` 在异步分享确认成功后按发起会话保存当前 renderer 的收据，切 B 不泄漏，回 A 可取得 viewer/Gist 链接；主树 headless 2/2、固定 Pi 原生 GUI `D:/Temp/pi-share-receipt-main-20260928-a/pi-share-receipt-gui-report.json` 通过，本地假发布器仅调用一次、HTML SHA-256 与字节数可核对、页面错误/强杀/残留为零。`D:/Temp/pi-transfer-main-20260928-a/pi-session-transfer-gui-report.json` 主树复验真实 Pi HTML/JSONL 导出、导入后 Pi 推理、源原字节不变及清洁退出。收据只在当前应用进程内存，重启后需从用户自己保存的链接或 GitHub Gist 找回；**实际远端 Gist 未创建**。这些新增证据不等同于最终包、在线 provider 或用户验收。
+
+`dc2037b` 修复 #3/P04 对未知用户/助手 content 块及未知消息角色的静默跳过：Pi JSONL 保留原始结构，原生时间线只收到最多 900 字符、默认折叠且隐藏私密值的结构摘要，正常 Pi `system` 内容仍不进入消息行。先红后绿的主树定向合同 14/14，`D:/Temp/pi-unknown-main-20260928-a/pi-unknown-message-gui-report.json` 用固定 Pi 0.87.0 `SessionManager` 在隔离 JSONL 写未来格式夹具，首开与完整 Electron 重启后 3 类行及原用户图片均可见、页面错误/强杀/残留为零，模型请求 0、原 JSONL 字节保留。未来格式由测试夹具写入，**并非模型实际生成**；旧图文扩展工具在主树 `D:/Temp/pi-rich-tool-main-final-20260928-a/pi-rich-tool-gui-report.json` 复绿，两次受控模型请求和进程清理通过。最终 Windows 包/安装器的运行证据由构建后生成的本机 `D:/Temp/pi-agent-gui-final-validation-20260928.json` 独立记录；此源码账本不预先声称其结果。
+
+| ID | 工程状态 | 具体证据（固定 Pi 0.87.0，除非另注） | 未验证边界 |
+| --- | --- | --- | --- |
+| P01 | 源码原生 GUI 代表路径通过 | `D:/Temp/pi-main-full-postresources-20260927/pi-native-gui-report.json` 证实选图、粘贴、拖入、跨重启原字节；资源 GUI 证实模板展开。 | 在线图片、更多大图组合和最终包待验。 |
+| P02 | 源码原生 GUI 代表路径通过，stale 恢复受限重试 | `pi-queue-main-415003e-20260928-b` 证实同一 Pi 双队列、图文取回/重排/立即发送、重启后显式恢复副本；`a36584a`/`7160d0f` 与 `pi-queue-handled-gui-20260928-c` 证实 handled 图文无悬空运行。`bc7e2de` 先红绿合同 5/5：只有同一会话、队列完整不变且权威修订同步时才对 stale ACK 有界重试，变化/失败明确提示；`D:/Temp/pi-queue-resume-ui-20260928-b/pi-queue-gui-report.json` 固定 Pi GUI 复验普通恢复、双队列图文和三次清洁退出。 | GUI 未强制触发 stale 竞态，其路径由合同测试覆盖；扩展 handled 图片不进普通 Pi JSONL/队列，只有扩展自行保存才可跨重启取回；长时压力和最终包待验。恢复副本不是自动重发的活队列。 |
+| P03 | 多运行态与首条扩展弹窗 Stop 源码 GUI 通过 | 队列报告及 `pi-shell-main-first-20260927`、`pi-retry-stop-main-20260928-a`、`pi-manual-compact-main-20260927` 分别证实 Stop/取消；`61f83b3` 的 green5 证实已有会话四类弹窗 Stop；`a0c7d0a` 的 `D:/Temp/pi-extension-firstinput-final-20260928/pi-extension-stop-gui-report.json` 证实首条 Stop、空 composer、同会话精确后续输入、重启同 JSONL 无重播；`dbcc690` 的 `D:/Temp/pi-extension-firstimage-jsonl-final-20260928/pi-extension-stop-gui-report.json` 证实首图原 PNG SHA/MIME 同时进入模型与 Pi JSONL，均清洁退出。 | 其它异常时点和最终包待验。 |
+| P04 | 代表消息/工具及未知结构安全回退源码 GUI 通过 | 图片 Pi JSONL/GUI 见 P01；`pi-rich-tool-main-final-20260928-a` 证实扩展图文/details；流式 thinking 见 P06。`dc2037b`/`pi-unknown-main-20260928-a` 证实固定 Pi JSONL 夹具的 3 类未知结构首开/冷恢复、图片保留、私密原值不进时间线、正常 system 不误投。 | 未知格式由夹具写入而非模型生成；所有标准事件/第三方扩展未知形状、最终包仍未逐类证明。 |
+| P05 | 选择、搜索与 Pi 权威循环源码 GUI 通过 | `D:/Temp/pi-model-thinking-gui-20260928-e/pi-model-thinking-gui-report.json` 证实搜索、选模并真实推理；`f44a5d1` 读取首次会话前固定 Pi 目录。`b8a9861` 的固定 Pi 双模型/单模型 `noop` 红绿合同及 `D:/Temp/pi-model-cycle-gui-green-20260928/pi-model-cycle-gui-report.json` 证实原生菜单调用 Pi `cycle_model` 后下一真实请求从 first→second，thinking/原搜索仍可用，清洁退出。 | scoped/defaults 全组合及最终包待验。 |
+| P06 | thinking 源码 GUI 代表路径通过 | 同一模型报告证实 `off/minimal/low/medium/high`、Ctrl+T 和下一请求 `reasoning_effort=minimal`。 | budget/defaults 的全配置效果及最终包待验。 |
+| P07 | 受控重试失败路径通过 | `D:/Temp/pi-retry-stop-main-20260928-a/pi-retry-stop-gui-report.json` 证实首个 503 后停止退避、无第二次请求。 | 完整重试参数、在线故障矩阵及最终包待验。 |
+| P08 | 手动/自动压缩受控路径通过 | `D:/Temp/pi-manual-compact-main-20260927/pi-manual-compact-gui-report.json` 与 `D:/Temp/pi-auto-compact-main-20260928/pi-auto-compact-gui-report.json` 证实摘要请求及 Stop。 | 更多 overflow/失败路径和最终包待验；无摘要时显示为空，不虚构内容。 |
+| P09 | 源码 GUI 通过，跨会话 Stop 归属复核通过 | `D:/Temp/pi-shell-main-first-20260927/pi-shell-gui-report.json` 证实带/不带模型上下文、退出码、长命令 Stop；`cae60b9` 与主树 `D:/Temp/pi-dialog-main-20260928-a/pi-dialog-session-isolation-gui-report.json` 证实 A 长 Shell 切到 B 不带入命令/结果/Stop，回切 A 精确 Stop。 | 最终包及更多 shell 环境待验；Stop settled 前立即再运行 Shell 会由 Pi 正确拒绝。 |
+| P10 | 源码 GUI 通过 | `D:/Temp/pi-session-rename-gui3-20260927/` 与 `D:/Temp/pi-long-scroll-two-sessions-main-e83956d-20260928/pi-long-scroll-gui-report.json` 证实命名、会话切换与交错输出。 | 最终包待验。 |
+| P11 | 源码 GUI 代表路径通过 | `D:/Temp/pi-cli-live-history-main-1b73705-20260928/pi-session-search-gui-report.json` 热发现 CLI 历史；`D:/Temp/pi-session-delete-gui6-20260927/pi-session-delete-gui-report.json` 证实确认删除。 | 排序/筛选所有组合、外部 CLI 并发窗口及最终包待验。 |
+| P12 | 部分，固定 Pi 图片 fork 有界 | `D:/Temp/pi-fork-clone-gui-20260928-c/pi-fork-clone-gui-report.json` 与 `D:/Temp/pi-history-edit-retry-main-20260928-a/pi-history-edit-retry-gui-report.json` 证实真实 fork/clone、原 JSONL 图片重试与编辑预填。 | Pi 0.87.0 `fork` 只给文字，图片 fork 明确拒绝；未知内容不可用纯文本编辑器，最终包待验。 |
+| P13 | 树/书签与跨会话隔离源码 GUI 通过 | `66e1763` 的固定 Pi bridge/原生 GUI 证实 tree/entries、书签、跳转；fork/clone 报告证实分支。`aa14fe4` 的原生 GUI 红测 B 短暂闪现 A 书签，`D:/Temp/pi-tree-main-aa14fe4-20260928/pi-tree-gui-report.json` 主树复绿为 `sawOldSession=false`，真实 Pi 导航/文本恢复与清洁退出仍通过。 | 增量/过滤所有路径及最终包待验。 |
+| P14 | 源码 GUI 通过，语义有界 | `4d2b80b`、`D:/Temp/pi-context-inspector-main-4d2b80b-20260928/pi-context-gui-report.json` 分开显示原始历史、当前消息、context edits 与空摘要。 | `get_messages` 是当前 Pi 会话投影，不是逐次 provider 请求快照；最终包待验。 |
+| P15 | Pi 用量投影通过 | `06c2365` 与模型 GUI 证实未知费用不抹掉 token/cache；在线 GUI `pi-online-provider-gui-main-20260928-d` 有 Pi JSONL 输出 token。 | 费用值仅 fixture 已证，不能称真实账单；最终包待验。 |
+| P16 | 本地导入/导出及跨会话预览/收据隔离通过，远端分享待验 | `200a51c` 与主树 `pi-transfer-main-20260928-a` 证实复制、Pi JSONL/HTML、预览、导入续接及源原字节保全；`b51adf4`/`pi-dialog-main-20260928-a` 证实迟到分享预览不会闪现 B；`7639f8e`/`D:/Temp/pi-share-receipt-main-20260928-a/pi-share-receipt-gui-report.json` 证实异步确认成功的本地假发布收据只在 A 可取回，发布调用仅一次，B 任一 DOM mutation 不见 A 链接。 | 未实际创建 Gist/取得真实链接；收据不跨应用重启持久化，真实链接需由用户保存或在 GitHub 找回；完整 HTML 需用户主动预览确认，最终包待验。 |
+| P17 | CLI/临时会话与自定义存储通过 | `d92ef45`、`1b73705` 的 CLI 热发现/临时会话 GUI 报告；`8761dc4`/`7fe7724` 的固定 Pi user/project/env/flag 存储优先级合同；`D:/Temp/pi-custom-session-dir-gui-20260928-g/pi-custom-session-dir-gui-report.json` 证实冷/热 CLI 历史、自定义目录新 Pi JSONL、重启同 ID/同文件续写、原字节前缀不变，清洁退出。 | `--no-session` 无 JSONL，不能续接、fork/clone、导出/分享；更多并发文件修改及最终包待验。 |
+| P18 | 本地认证与已有凭据在线推理通过，现场登录待验 | `pi-auth-manager.test.ts`、`pi-auth-service.test.ts` 与 `pi-auth-recovery-gui-20260928-b` 证实 API key 保存/隐藏/登出、损坏目录告警；`1250163`/`87b77df`/`93aea27` 和 `D:/Temp/pi-auth-extension-main-93aea27-20260928/pi-auth-extension-gui-report.json` 证实同一 Pi 动态目录及动作前重查；`D:/Temp/pi-online-provider-main-93aea27-20260928/pi-online-provider-gui-report.json` 用已有 OAuth 实际推理。 | 真实 key 账号、现场 browser/device/manual OAuth 回调/登出、动态扩展 provider GUI 登录均未验；最终包待验。 |
+| P19 | Pi 内建/本地自定义/动态只读目录通过 | `f44a5d1`、`pi-auth-service.test.ts` 与 `1250163`/`87b77df`/`93aea27` 证实同一 Pi 子进程动态 provider 元数据、覆盖内建 ID、忙/缺桥/超限时拒绝、动作前精确重查；认证源码 GUI 报告见 P18。 | 固定 Pi 0.87.0 无动态 `registerProvider` 的公开 GUI 登录/登出接口；headers/协议的真实在线矩阵与最终包待验。 |
+| P20 | 受控 router 路径、跨会话隔离与 503 取消恢复通过 | `736ea53` 的 HTTP/SSE fixture 加载、Pi 推理、卸载；`ceb21e8` 的 `router-green1` GUI 修复 A 迟到目录覆盖 B；`84e7685` 的 router 红 9/10→绿 10/10 与 `D:/Temp/pi-router-cancel-gui-green-20260928/pi-llama-gui-report.json` 证实 unload 503 时本地等待及时停止、界面反映远端仍 loading，二次取消才显示 unloaded，Pi 推理与会话隔离仍通过，进程清洁退出。 | 没有真实 llama.cpp+GGUF；真实下载、断线和实际 GGUF 会话不得称通过，最终包待验。 |
+| P21 | 固定 Pi 资源代表路径通过 | `packages/services/test/pi-resource-control.test.ts` 证实全局/项目 context、system prompt 替换/追加与来源，见下方 #12 增量。 | 来源优先级和错误全类、最终包待验。 |
+| P22 | 资源代表路径与跨会话编辑隔离源码 GUI 通过 | `D:/Temp/pi-resources-main-integrated-green2-20260927/pi-resources-gui-report.json` 证实模板编辑/重载、Skill/模板参数展开由固定 Pi 执行。`aeee0d4` 的原生 GUI 红测 B 带出 A 未保存编辑，`D:/Temp/pi-resources-main-aa14fe4-20260928/pi-resources-gui-report.json` 主树复绿为 `leakedEditor=0`、`leakedDraft=false`，编辑/停启/本地包过滤与清洁退出仍通过。 | 全部资源加载错误与最终包待验。 |
+| P23 | 动态及覆盖工具代表路径通过 | `2485cf7` 的动态工具 GUI 与主树 `50f3a52`、`D:/Temp/pi-read-override-main-93aea27-20260928/pi-read-override-gui-report.json` 证实同名 `read` 实际覆盖结果回到原生工具行。 | 全部内建工具逐类、扩展交错及最终包待验。 |
+| P24 | 输入变换等代表路径通过 | `2d01dc7`、`1af76e7` 与 `D:/Temp/pi-input-transform-main-72eae71-20260928/pi-extension-input-transform-gui-report.json` 证实 handled 无模型、两会话不同 PNG 原字节/有效文本进入 Pi JSONL、reload 生效；`d8d61db` 的源码 GUI 证实带图队列 handled 的原始 MIME/SHA 与明确立即处理状态；custom 消息见 P27。 | handled 消息是否持久化由扩展本身负责；动态 provider 认证及完整生命周期/错误矩阵待验，最终包待验。 |
+| P25 | 四类交互与首条/已有会话 Stop 源码 GUI 通过 | `D:/Temp/pi-dialog-focus-main-fixed-20260928/pi-dialog-focus-gui-report.json` 证实 select/confirm/input/editor 连续回答、取消、焦点和后续 Pi 推理；`pi-extension-stop-gui-green5-20260928` 与 `pi-extension-firstinput-final-20260928` 证实已有及首条弹窗 Stop、下一消息可发、重启不复活。 | 两会话并发/超时全部交错时序及最终包待验。 |
+| P26 | fire-and-forget 代表路径与会话切换隔离通过 | `D:/Temp/pi-extension-state-gui-20260927-d/pi-extension-state-gui-report.json` 证实通知、状态、widget、标题与输入建议、reload 清理；`2bdb342`/`D:/Temp/pi-session-scope-main-20260928-a/pi-session-snapshot-scope-gui-report.json` 证实 A 状态/widget 不闪现 B，回 A 可恢复。 | 全部清除/交错矩阵及最终包待验；输入建议需用户显式应用以保护草稿。 |
+| P27 | 已声明类别和限制有证，custom 图文冷恢复源码 GUI 通过 | `examples/pi-gui-compat/extension.ts`、`pi-rich-tool-gui-20260928-c` 与 [扩展兼容表](pi-extension-ui-compatibility.md) 证实代表交互、工具图文/details 与不兼容探针。`9ce8702` 新增真实固定 Pi 原生 GUI 回归 `D:/Temp/pi-custom-message-gui-20260928-c/pi-extension-custom-message-gui-report.json`：`display:true` custom 消息的有序文字、解码 PNG、折叠 details 在首开及完整 Electron 冷重启均可见，Pi `custom_message` 唯一、PNG 原字节 SHA-256 `479f4cf80a05958c3b20beb1afb2e01b4d6c8a6c060f2d153d54e8df31e16df9`、JSONL 冷恢复全字节相同、两次清洁退出；模型请求 0。 | 复杂 TUI factory/组件/widget 等不得声称任意第三方零适配；更多扩展、原版同状态成对截图与最终包待验。 |
+| P28 | 部分源码 GUI 与设置路径通过 | `pi-long-scroll-two-sessions-main-e83956d-20260928`、`pi-ime-main-b76d7f8-20260928` 证实主题视口、快捷键、焦点；#10 设置 GUI 证实显示配置保存。 | 帮助/changelog/退出各入口全矩阵、物理 IME、完整同状态原版对照及最终包待验。 |
+| P29 | 本机 npm 实际更新通过，Git 更新未验 | `72eae71`、`D:/Temp/pi-npm-package-update-main-72eae71-20260928/pi-npm-package-update-gui-report.json` 证实本机 registry 1.0.0→1.1.0、真实模板推理、重复更新无重载、卸载；本地包/Git tag 安装另见 #12。 | 固定 Pi 的 Git ref 更新会在自管 clone 用 `reset --hard`/`clean`，按用户禁令未运行；本机 registry 不代表公共 npm，最终包待验。 |
+| P30 | 重载/加载选项代表路径通过 | #6 bridge `66e1763` 与 #12 资源 GUI 证实 reload 后固定 Pi 命令目录重读、临时包过滤。 | theme/provider 目录刷新、旧 context 失效诊断和精确 flags 全矩阵待验，最终包待验。 |
+| P31 | 来源、冲突和 Pi 拒绝值保护通过，完整字段待验 | `ecd801b`、`D:/Temp/pi-settings-scope-gui-20260928-b/pi-settings-gui-report.json` 证实用户/项目来源、未知字段保留、外部写冲突拒绝；`3a433eb` 将来源表明确限定为文件已配置值，标出 Pi CLI TUI 专属项。`f31521c` 在写前用固定 Pi 设置读取器拒绝无效压缩参数；`4b10d6f` 在 Windows 暂时拒绝替换时保留原件、限次重试并逐次核对修订。主树 `D:/Temp/pi-settings-main-invalid-20260928-c/pi-settings-gui-report.json` 证实拒绝无效值、外部冲突、两项启动偏好及真实 Pi 推理，页面与进程清洁。 | 全部字段与在线行为未逐项验证；非协作写者的最终 SHA→rename 窗口非原子，最终包待验。 |
+| P32 | trust、新 Pi 网络偏好及坏桌面设置 fail-closed 通过 | #10 设置 GUI 证实未信任项目；`3a433eb` 与主树 `pi-settings-main-invalid-20260928-c` 证实三态选择持久化、真实 Pi 子进程环境/cwd 与推理。`1295a2f` 的 Host/Pi/网络合同 8/8 及主树 `D:/Temp/pi-settings-corrupt-main-20260928-c/pi-desktop-settings-corrupt-gui-report.json` 证实损坏原件可见且不覆盖、修复后恢复项目和真实 Pi。语法坏备份后的跨重启 Pi/网络拒绝由 Host 合同验证，GUI 未逐场景复现。 | 遥测、全部联网路径及桌面更新设置仍需分别验证；已运行会话不受新选择影响，最终包待验。 |
+| P33 | 版本/目录/隐私诊断代表路径通过 | `f44a5d1` 模型目录刷新；`9bfbaf2`、`8be4045` 的 `D:/Temp/pi-diagnostics-gui-20260928-b/pi-diagnostics-gui-report.json` 证实白名单预览、复制与用户主动打开页面。 | 报告未上传；Pi 维护/实际更新、最终包待验。 |
+| P34 | 启动/设置与自定义存储代表路径通过 | #10 的 `D:/Temp/pi-settings-main-integrated-20260927/pi-settings-gui-report.json` 证实用户/项目配置、信任与 Pi 新会话推理；`D:/Temp/pi-custom-session-dir-gui-20260928-g/pi-custom-session-dir-gui-report.json` 证实项目 sessionDir、CLI 热/冷互通和重启续接；`3a433eb` 证实新 Pi 子进程的两项网络偏好与目录解析共用同一次环境快照。 | 其余资源/Pi 路径和启动 flag 的真实 GUI 全矩阵未证；TUI/print/JSON 模式只属于 Pi CLI，最终包待验。 |
+| D01 | 源码 GUI 通过 | `D:/Temp/pi-main-full-postresources-20260927/pi-native-gui-report.json` 证实两项目选择、同名图片隔离。 | 最终包与用户实际项目待验。 |
+| D02 | 源码 GUI 通过，会话快照隔离复验通过 | 同一项目报告证实会话与布局恢复；`D:/Temp/pi-long-scroll-two-sessions-main-e83956d-20260928/pi-long-scroll-gui-report.json` 证实两会话交错；`2bdb342`/`pi-session-scope-main-20260928-a` 证实 A 队列/扩展投影不闪现 B。 | 最终包、完整同状态原版视觉对照待验。 |
+| D03 | 源码 GUI 代表路径与文字草稿损坏保全通过 | P01 图片草稿原字节与重启、`82eb531` 文件引用 Pi 输入及 `pi-ime-main-b76d7f8-20260928` 中文合成输入；`4202cae` 与主树 `D:/Temp/pi-composer-damage-main-20260928-a/pi-composer-draft-damage-gui-report.json` 证实坏草稿原记录保留、可由用户主动逐字节导出，后续输入不覆盖原件，固定 Pi 两次 RPC/冷重启与清洁退出。 | 物理 IME、异常断电和坏草稿人工修复仍由用户完成，最终包待验。 |
+| D04 | 预览/必要编辑及保存竞态恢复源码 GUI 通过 | `D:/Temp/pi-agent-integrated-green8-20260927/pi-native-gui-report.json` 证实有界 UTF-8 编辑/SHA 冲突与草稿恢复；`D:/Temp/pi-file-reference-gui-20260928-h/pi-file-reference-gui-report.json` 证实文件引用/预览。`9ae1413` 的 React 红绿覆盖保存中续写、跨文件、A→B→A 同内容及 FILE_CHANGED；`D:/Temp/pi-file-save-race-gui-green4-20260928/pi-file-save-race-gui-report.json` 固定 Pi 原生 GUI 证实真实 Host 保存 ACK 延迟 1800 ms 期间新草稿/磁盘/重开/再次保存及清洁退出。 | Office/其它媒体及未知格式外开、主树整合后 GUI 与最终包待验。 |
+| D05 | 设置与合成键盘路径通过，损坏设置可见提示通过 | `pi-settings-main-invalid-20260928-c`、`pi-settings-corrupt-main-20260928-c`、`pi-ime-main-b76d7f8-20260928` 与弹窗焦点报告。 | 物理中文 IME、完整快捷键/视觉矩阵及最终包待验。 |
+| D06 | 包内恢复、Host 构建及受控升级/卸载链通过，最终精确 HEAD 待复验 | `c2accc3` 全新 unpacked/NSIS 构建、包内 GUI 与清洁退出通过；相同修正逻辑的隔离预打包件完成受控 3.14.0→3.14.1、installed GUI、注册卸载器卸载及 155 个外部 profile 文件逐项不变。另有 `1295a2f` 坏设置保护和 `4202cae` 坏草稿导出恢复。 | 文档提交后的精确 HEAD 需在全新目录重建并重复安装链；用户旧运行目录和进程不得触碰。 |
+| V01 | c2accc3 Windows unpacked 完整链通过，安装链代表件通过 | `D:/Temp/pi-final-unpacked-c2accc3-neutral-20260928/pi-native-gui-report.json` 从中性 cwd 完成项目→固定 Pi→退出→冷恢复；安装链见 D06。 | 最终文档 HEAD 对应 exe 仍须重建复验；用户人工试用未签署。 |
+| V02 | 源码 GUI 代表路径和未知结构回退通过，最终包待验 | P01/P04/P06/P23 的 PNG 原字节、thinking、工具图文和错误路径报告；`pi-unknown-main-20260928-a` 的固定 Pi JSONL 未来格式夹具首开/冷恢复与原工具 GUI 复绿。 | 未知格式非模型生成；在线图片/工具全类、最终包与用户验收待验。 |
+| V03 | 源码 GUI 队列及首条/已有会话扩展 Stop 代表路径通过 | P02/P03/P07/P08 的 Pi 双队列、停止、重试、压缩报告；`bc7e2de` 的 stale 恢复合同与 `pi-queue-resume-ui-20260928-b` 的普通恢复/重启；`a36584a`/`7160d0f`/`d8d61db` 证实 handled 输入不留悬空运行；`61f83b3` 的四类弹窗与 `a0c7d0a` 的首条 Stop/重启；`pi-dialog-main-20260928-a` 证实跨会话 Shell Stop 归属 A、B 无 Stop。 | stale GUI 竞态未强制复现；长时压力、更多交错时序与最终包待验。 |
+| V04 | 源码 GUI、自定义存储续接与损坏草稿保护通过 | P10/P11/P17 的两项目两会话、CLI 热发现与草稿恢复报告，`pi-custom-session-dir-gui-20260928-g` 的冷/热 CLI、同 JSONL/ID 续写；`pi-composer-damage-main-20260928-a` 的损坏文字记录可见/可导出/不被覆盖。 | 临时会话的 JSONL 依赖能力不可用；更多并发修改及最终包待验。 |
+| V05 | 源码 GUI 树/书签/分支与跨会话隔离通过，有固定 Pi 边界 | P12/P13/P14 的真实树、书签、分支、fork/clone、context edits 和取消路径；`pi-tree-main-aa14fe4-20260928` 证实 B 不闪现 A 书签，原导航/恢复仍绿。 | 图片 fork 不支持；摘要仅在 Pi 实际存在时显示，取消全矩阵和最终包待验。 |
+| V06 | 已有凭据在线推理与动态只读目录通过，现场认证待验 | `D:/Temp/pi-online-provider-main-93aea27-20260928/pi-online-provider-gui-report.json` 有真实 `openai-codex/gpt-5.5` 回复；P05/P18/P19/P31 设置/目录证据。 | 现场登录/登出、动态扩展 provider GUI 认证、所有作用域与最终包待验。 |
+| V07 | 真实 GGUF 环境未完成，受控 router 取消恢复已验 | P20 的本地 router fixture 经固定 Pi 推理、A→B 隔离和 unload 503→远端状态刷新→二次取消。 | 真实 llama.cpp+GGUF 下载/加载/推理/卸载未做，最终包待验。 |
+| V08 | 源码 GUI 资源路径与跨会话编辑隔离通过，包/配置仍部分 | P21/P22/P29 的 Pi 模板/context、本机 npm 真实更新、trust 与 reload 报告；`pi-resources-main-aa14fe4-20260928` 证实 B 不继承 A 的未保存文本/草稿。 | Git ref 更新、目录刷新全类、启动 flags、最终包待验。 |
+| V09 | 声明的代表扩展类别、Stop 和跨会话状态隔离通过 | P23–P27 的四类交互、状态/widget、动态/覆盖工具、输入变换与兼容表；`pi-custom-message-gui-20260928-c` 证实 Pi custom 图文/details 首开与冷重启；green5/firstinput-final 证实弹窗 Stop 和恢复；`pi-session-scope-main-20260928-a` 证实 A 扩展状态/widget 不闪现 B。 | 复杂 TUI 有明确不支持/受限项；并行/Stop 全矩阵、原版同状态成对截图和最终包待验。 |
+| V10 | 本地转移、分享预览与异步收据隔离通过，实际分享未做 | P16 的主树 `pi-transfer-main-20260928-a` 证实 JSONL/HTML/复制/导入续接；`pi-dialog-main-20260928-a` 证实 A 私密预览不泄漏到 B；`pi-share-receipt-main-20260928-a` 证实假发布成功后回 A 取回收据且 B 不见 A 链接。 | 未由用户主动创建真实 Gist 和取得链接；收据仅当前进程内存，最终包待验。 |
+| V11 | 文件代表路径及保存竞态源码 GUI 通过 | D04 的真实文件引用进入 Pi、预览、保存冲突与草稿恢复 GUI；`9ae1413`/`pi-file-save-race-gui-green4-20260928` 证实保存 ACK 迟到时仍保留后续编辑和持久草稿。 | 工具回链和未知格式的全矩阵、最终包待验。 |
+| V12 | 源码 GUI 的合成 UX/诊断/损坏恢复及 c2accc3 包内主链通过 | `pi-long-scroll-two-sessions-main-e83956d-20260928` 的 24 回合/120 行/24 帧与 p95 10.5ms；P28、P33 的 IME/诊断报告；包内主链和清洁退出见 V01/D06。 | 物理 IME、空/运行/等待/失败完整同状态人工对照、最终精确 HEAD 安装器和用户体验待验。 |
+
+### 本次补录的聚焦增量
+
+- `4d2b80b`：P14 原始 Pi 历史、当前上下文投影、context edits 与空摘要在主树固定 Pi 和源码原生 GUI 通过；报告 `D:/Temp/pi-context-inspector-main-4d2b80b-20260928/pi-context-gui-report.json`。
+- `2d01dc7`、`1af76e7`：P24 输入变换的 `handled`、两会话不同 PNG 原字节/有效文本和 reload 在固定 Pi GUI 通过；`disposition/effectiveTextHash` 来自同一 Pi RPC 子进程，报告 `D:/Temp/pi-input-transform-main-72eae71-20260928/pi-extension-input-transform-gui-report.json`。
+- `72eae71`：P29 本机 npm registry 版本 1.0.0→1.1.0 实际更新及模板推理通过；报告 `D:/Temp/pi-npm-package-update-main-72eae71-20260928/pi-npm-package-update-gui-report.json`。没有运行 Git ref 更新。
+- `8b47391`：D06 构建期精确修补 NSIS 同名进程查询，无法精确识别时终止安装流程，不回退按映像名结束用户进程；连同旧 manifest/known-folder 合同主树 14/14。仍未实际运行最终安装器。
+- `50f3a52`：P23 固定 Pi 同名 `read` 覆盖工具的权威结果进入原生工具行；报告 `D:/Temp/pi-read-override-gui-20260928-c/pi-read-override-gui-report.json`。仅代表该工具类别，不证明全部内建工具。
 
 ## 能力与实施责任
 
@@ -67,6 +148,151 @@
 | V10 | 会话导入/导出/复制与用户主动分享 | #9 | 待最终验收 |
 | V11 | 文件引用、预览、工具文件回链及保存冲突 | #14 | 待最终验收 |
 | V12 | 原生 UI、中文/键盘/长记录、打包及诊断 | #26, #27 | 待最终验收 |
+
+## 2026-09-28 05:00 主分支继续开发增量（截至 `d625cba`，非统一验收）
+
+| 能力 / Issue | 当前可核证事实 | 独立未完成项 |
+| --- | --- | --- |
+| P11、P17 / #9 | `d92ef45` 使原生命令中心搜索与空查询刷新重扫固定 Pi CLI JSONL，`1b73705` 用固定 Pi `--no-session` 建原生临时会话。主分支真实 Pi GUI `D:/Temp/pi-cli-live-history-main-1b73705-20260928/pi-session-search-gui-report.json` 找到运行中新增的两份 CLI 历史且模型请求 0；`D:/Temp/pi-temporary-session-main-1b73705-20260928/pi-temporary-session-gui-report.json` 一次真实 Pi 回复、JSONL 0、重启未恢复。两者均页面错误 0、正常退出、无强杀或残留；定向 Pi/Host 5/5、typecheck、完整源码 build PASS。 | 临时会话的未发送草稿仍持久保存；固定 Pi 无 JSONL 时无法续接/fork/clone/导出/分享。自定义存储、包内和人工验收待做。 |
+| P28、D02、D03、D05 / #26 | `6450e23`、`d625cba` 扩展原生 GUI 回归；`D:/Temp/pi-long-scroll-two-sessions-main-e83956d-20260928/pi-long-scroll-gui-report.json`：i7-14650HX/32 GiB、24 回合、120 行工具输出、24 帧续流，10 次 Chromium keydown 到第二帧 p95 10.5ms，内/外滚动保持各自位置，返回最新与 Ctrl+M/Escape 焦点正常；首 Pi 会话续流 19 帧时第二 Pi 会话独立回答，切回未重放。1280×800 深色/1920×1080 浅色 IME 合成 GUI `D:/Temp/pi-ime-main-b76d7f8-20260928/pi-ime-gui-report.json` 通过。固定原版 1280×800 深色滚动行为 `D:/Temp/pi-original-scroll-main-comparison-20260928/original-native-scroll-report.json` 通过。 | 自动化 keydown→帧不是物理中文 IME 或真人体感；更大历史、空/运行/等待/失败同状态成对截图、最终包内和用户验收待做。 |
+| D06 / #27 | `e83956d` 以真实 makensis 红测复现旧清单通过 junction 误删隔离目录外哨兵，再按安装根与逐级父目录 reparse 属性拒绝；主分支 NSIS 执行合同 4/4 加上已知文件夹崩溃补丁静态合同 5/5，合计 9/9 PASS。 | 旧 3.14.0 隔离基线实际已安装；最终整合源码的 3.14.1 unpacked/NSIS、包内 GUI、覆盖升级、卸载及用户验收仍未运行。路径检查与删除之间有并发替换窗口，不宣称原子防护。 |
+
+下节 `0e44cad` 是先前提交的状态快照；其全套固定 Pi 223/228 为首次失败记录，不能替代最终顺序复验。
+
+## 2026-09-28 04:30 主分支增量（HEAD `0e44cad`，非统一验收）
+
+| 能力 / Issue | 当前可核证事实 | 独立未完成项 |
+| --- | --- | --- |
+| P02、P03 / #4 | `d581cc1`、`d1cd064` 令队列撤回编辑先保留 IndexedDB 原图文，拒绝/过期 ACK、草稿冲突、重启或 Pi 接受发送未落盘时不退休唯一副本；`b4693fc`、`0715953` 仅在固定 Pi revision、运行状态、书签、JSONL 与逐文件复核稳定后回收无引用 queue-media。纯测 6/6、会话删除 4/4。主分支原生 GUI `D:/Temp/pi-queue-main-415003e-20260928-b/pi-queue-gui-report.json` 通过两 lane、重排、Stop、立即发送、含图撤回/重启/恢复/精确 SHA；页面错误和进程残留均零。 | 更长压力、扩展等待全部 Stop 状态、最终包内 GUI 与统一用户验收未做；受控离线模型不等于在线 provider。 |
+| P05、P15、P18、P19 / #3、#7 | `06c2365` 令 Pi 未给费用时 token/cache 仍可查；`f44a5d1` 让首次建会话前的模型目录读取固定 Pi ModelRuntime，会话后由 RPC 接管。认证固定 Pi 9/9。在线原生 GUI `D:/Temp/pi-online-provider-gui-main-20260928-d/pi-online-provider-gui-report.json` 经已有 OAuth 隔离副本实际运行 `openai-codex/gpt-5.5`，GUI 有回复、Pi JSONL `stop` / 15 output tokens，凭据副本已删除、无页面错误/残留。 | 用户现场 browser/device/manual OAuth 登录/登出、动态扩展 provider OAuth、真实 API key 账号、费用与最终包内 UI 未据此验收。 |
+| P29 / #12 | `99dfad0` 使用固定 Pi 公开包目录对同身份 user/project 双作用域执行 fail-closed 更新检查。固定 Pi/纯测 9/9，原生 GUI `D:/Temp/pi-package-scope-main-f5a17e5-20260928-b/pi-package-update-scope-gui-report.json` 两行均警告且禁用更新、Pi generation 未变化、无更新调用或进程残留。 | 真实 npm/Git ref 更新、全部来源/重载诊断与包内 GUI 未跑；拒绝危险更新不是“更新成功”。 |
+| D06 / #27 | `f5a17e5` 精确构建期补丁规避 electron-builder 26.8.1 `multiUser.nsh` 本机 `System.dll c0000005`；静态 5/5、typecheck、隔离 3.14.1 unpacked+NSIS 构建通过。诊断版 3.14.0 已在隔离目标实际安装并留下 HKCU Preview 注册。 | 最终源码 3.14.1 的包内 GUI、安装、覆盖升级、卸载、数据保留及用户验收都未跑。 |
+
+固定 Pi 0.87.0 主分支顺序全套初跑 `D:/Temp/pi-agent-gui-pi-suite-main-20260928.log` 为 **223/228**：#4 GC 后过时的删除测试断言已更新并单测 4/4；其余 4 个控制桥/耐久 admission/扩展/历史重试用例在隔离树已聚焦修正并 cherry-pick 为 `0e44cad`，仍须重跑整套。typecheck 与生产源码 build 已通过；完整 lint、delivery plan 本地/测试/`--github` 与最终 HEAD 回归后补。各 P/D/V 表的“待验收”指尚未由用户对最终统一版本验收，不否认本节局部工程证据。
+
+## 2026-09-27 增量验证（局部证据，均非最终验收）
+
+| 能力 / 场景 | 目前实测 | 未完成 / 不得宣称 |
+| --- | --- | --- |
+| P01、P04、D03 / V02 | 固定 Pi 0.87.0 + 离线受控模型：原生 GUI 图片选择经 Host 分块上传，模型收到真实 PNG，Pi JSONL 的 user row 图片可预览并在重启后恢复。测试 `pi-native-image-upload.test.ts` 与 `scripts/pi-native-gui-smoke.mjs`。 | 拖入/粘贴各自完整矩阵、未知消息、在线模型图片仍未验收；本表的旧包尚未包含下方新草稿修复。 |
+| P02、P03 / V03 | GUI 运行中纯文本自动路由到 Pi 队列；Stop 先清队列，再取消运行；返回的文本在 GUI/重启后只读可见、不自动重发。运行中图片入队被拒且保留草稿及 Stop，避免 `clear_queue` 仅返文本而静默丢图。 | 双队列逐项编辑/删除/重排/立即发送、图片队列的无损取回、shell/retry/compaction/扩展等待的 GUI Stop 矩阵均**未完成**（#4）。 |
+| D06 / V01 | 本次生产源码入口及隔离的 Windows unpacked 包均通过原生 GUI→宿主→固定 Pi 图片/队列/停止/恢复，进程树检查无幸存；本地 TypeScript、lint、Pi 单测及桌面 production build 通过。NSIS 未安装产物已生成并通过依赖/大小检查。 | **未实际安装** NSIS、覆盖升级、卸载、在线 provider 或用户实际验收（#27/#28）；当前预览包不能当作统一最终交付。 |
+| P18、P19、P33 / V06（#7 局部） | 固定 Pi 0.87.0 `ModelRuntime` 的 API key 保存/解析/登出与合成 OAuth 回调/刷新/取消合同通过；真实 Pi RPC 子进程同一 PID 在保存 key 后经公开桥 1.1.0 刷新模型快照，登出后恢复原模型可见性。原生 Settings 页接入非秘密状态和输入。测试 `pi-auth-manager.test.ts`、`pi-auth-service.test.ts`。 | 在线 provider 推理、真实 OAuth 账号/人工回调、扩展注册 provider 的认证、原生 GUI/包内 UI 与用户验收未完成；保存成功不可冒充在线模型成功。 |
+| P27 / V09（#8 局部） | 固定 Pi 同一 RPC 会话扩展连续发出 select/confirm/input/editor，宿主对四类请求回传，拒绝非法选项与 Stop/重载后旧回答；原生弹窗保留正文、预填、多行和取消。测试 `pi-extension-native-interaction.test.ts`、`piExtensionProjection.test.ts`。 | notify/status/widget/title/editor text 未投影；复杂 TUI factory 无 RPC 等价合同。GUI、包内及键盘/焦点待验，逐类边界见 [兼容表](pi-extension-ui-compatibility.md)。 |
+
+本地原始输出位于 `test-results/pi-*.log`、`test-results/native-parity/product/`（ignored，非提交证据）；`1337c33` 的隔离增量包位于 `D:/Temp/pi-agent-gui-preview-20260927-b/`（不是最终用户试用包）：`win-unpacked/Pi Agent IDE Preview.exe` 已实际运行，`Pi Agent IDE Preview-3.14.0-win-x64_TEST.exe` 仅已生成、未安装。对应实现与差异见 `packages/services/src/pi-agent/`、`scripts/native-smoke/` 及 [原生 UI 差异登记](native-ui-parity.md)。受控模型不等于在线供应商。下表所有“待逐项验收”维持原状。
+
+## 2026-09-27 当前开发增量：#5 未发送图片（`77481f1`，技术回归，非最终验收）
+
+| 能力 / 场景 | 已观察结果 | 仍未完成 |
+| --- | --- | --- |
+| P01、D03、D06 / V02、V04 | 先用生产入口 Windows 原生 GUI 复现：会话草稿文字重启后存在、未发送图片消失。修复后将图片原始字节和哈希存入 profile IndexedDB，按工作区/会话保存顺序索引；同一会话及新建任务的图片和文字在完整退出/重启后恢复，发送时受控模型通过固定 Pi 收到原字节。源文件选择器选图后被修改，模型仍收到选择时字节；损坏一张图片时另一张独立恢复、损坏张阻断发送并可手动移除。脚本 `scripts/pi-native-gui-smoke.mjs`，通过证据 `D:/Temp/pi-agent-draft-corrupt-green2-20260927/`；页面异常、强制退出、进程残留均为零。 | 尚需两项目两会话同名图、粘贴/拖入、会话删除/项目移除的存储生命周期、单侧文字存储失败和打包应用复测。用户未验收。 |
+| P01、P03 / V02 | 延迟浏览器读图后立即按 Enter 的红测曾把纯文字送到模型；同步 admission 门禁后桌面 GUI 阻止了这次错误发送。图片落盘失败变成失败 chip，不再作为 ready 图发送。 | 强制关机/崩溃发生在落盘之前的行为仍需单独界定；Stop/队列多状态矩阵未完成。 |
+| P01 / V02 | 单张 20 MiB 的 base64 Pi JSONL 经真实子进程边界通过；32 MiB record 上限与按总量预核算相配。两张 13 MiB 图在读入前按聚合限制拒绝。 | 多张大图不能放入同一条 Pi 0.87.0 JSONL prompt；发送前错误须在最终 GUI 中确认草稿保留。 |
+
+上述改动尚未形成最终 Windows 包；历史 `D:/Temp/pi-agent-gui-preview-20260927-b/` 不能代表它。所有 P/D/V 总表状态继续保持“待逐项验收”。
+
+## 2026-09-27 后续集成证据（截至 `46c3e73`，仍非最终验收）
+
+上方“图片入队拒绝、队列只读”描述是 `1337c33` 时的历史状态；以下实测取代该限制。固定 Pi 0.87.0 的原始 RPC 仍只返回文本，因此 `af924d4` 等提交给**同一 Pi 进程**加载版本化公开扩展，用 Pi 内存中的带 ID、revision 和原始图片引用的双队列作为权威；宿主没有第二条执行队列。
+
+| 能力 / Issue | 实测与证据 | 仍开放 |
+| --- | --- | --- |
+| #4：P02、P03 / V03 | `D:/Temp/pi-queue-gui-main-20260927/pi-queue-gui-report.json`：生产入口原生 GUI→Host→固定 Pi→离线受控模型。相同文本的两张不同图片按 Pi ID 分别排入 follow-up；取回编辑保留原字节；steering/follow-up 分别重排、立即发送、Stop 后保留、手动恢复按 Pi 顺序执行。重启后 Pi 内存队列为空，恢复副本明确提示、没有自动重发。两轮完整退出 `graceful=true`，`forced=[]`、`survivors=[]`，`pageErrors=[]`。5 项定向真实 Pi/投影测试通过。 | shell、retry、compaction、扩展等待各运行态 Stop 矩阵及更长压力测试未完成；重启恢复副本不是活队列，用户需显式重新提交。 |
+| #13：P23、P26 / V09（局部） | 隔离源码原生 GUI `D:/Temp/pi-extension-state-gui-20260927-d/pi-extension-state-gui-report.json`：固定 Pi 0.87.0 + 离线受控模型，启动通知/状态/widget/标题/输入建议可见，显式应用草稿、动态工具启停后的 Pi 读回及 reload 清理旧状态均通过；`pageErrors=[]`、`graceful=true`、`forced=[]`、`survivors=[]`。真实 Pi 顺序测试与纯合同覆盖键控清除、去重、内部回复保密。 | 尚无包含本批次的包内 GUI；扩展建议输入采用显式应用以保护现有草稿。覆盖工具、输入变换、provider、复杂 TUI 和多扩展交错生命周期未逐项验收；P23/P24/P26 不标完成。 |
+| #5：P01、D03 / V02、V04 | `D:/Temp/pi-agent-integrated-postsnapshot-20260927/pi-native-gui-report.json`：当前源码 `87a25b5` 的快速关窗文本快照已在生产入口原生 GUI 重跑。选择、粘贴、拖入，两个项目的同名未发图片与文字跨完整重启独立恢复；分别发送后固定 Pi 收到各自 SHA-256 原字节。第一项目两会话切换不重放，文件草稿及布局也恢复。`error=null`、`pageErrors=[]`，所有退出 `graceful=true`、`forced=[]`、`survivors=[]`，私有 Pi 包清理通过。 | 会话/项目删除后图片生命周期、文字单侧写失败、首次发送同时添加附件及最终包内复测仍开放。 |
+| #6：P13、P24 / V05、V09 | `66e1763` 将 tree/entries、书签、跳转、reload 接到同一 Pi 的公开扩展 bridge；定向真实 Pi 合同与独立原生 GUI 已通过。 | fork/clone 与扩展完整生命周期、包内 GUI 仍开放。 |
+| #9：P10、P11、P17 / V04 | `46c3e73` 用固定 Pi `SessionManager.list` 发现 CLI JSONL 历史；隔离 GUI `D:/Temp/pi-cli-history-gui3-20260927/pi-cli-history-gui-report.json` 验证 CLI→GUI→CLI 同一 session ID/JSONL 续接，退出无残留。定向测试 5/5 中包含实际固定 Pi 历史恢复。 | 主分支整合后的 GUI 复测、目录管理、fork/clone/编辑/重试、导入导出与主动分享仍开放。 |
+| #10：P05、P06、P07、P08、P19、P28、P31、P32、P34、D05 / V06、V08 | `9fc89ef`、`bd5d373`、`b576b25` 把固定 Pi 的用户/项目 `settings.json`、生效值来源、信任/离线/会话目录展示在原生设置页；JSON 编辑保留未知字段，用原始字节 SHA、Pi 锁目录及原子替换防并发覆盖。隔离 GUI `D:/Temp/pi-settings-gui4-20260927/pi-settings-gui-report.json` 验证保存、外部改动冲突、未信任项目和固定 Pi 新会话推理，`error=null`、`pageErrors=[]`、`graceful=true`、`forced=[]`、`survivors=[]`；整合后定向测试 10/10 和 Pi 包路径回归 1/1 PASS。 | 主分支整合后的 GUI 复测、全部设置字段与实际在线 provider/OAuth 行为仍待验证。 |
+| #14：D04 / V11 | `8910b33` 的有界 UTF-8 编辑与 SHA 版本冲突保护已在同一次 `green8` 原生 GUI 中验证：未保存草稿切换/重启恢复、外部改动阻断覆盖、用户明确比较后保存。 | 文件引用、更多预览类型和最终包内 GUI 未完成。 |
+| #12：P21、P22、P24、P29、P30、P32 / V08（隔离分支待整合） | 固定 Pi 0.87.0 的公开扩展桥与 `DefaultPackageManager` 已接原生会话资源入口；顺序真实 Pi 测试验证全局 Skill、项目模板与上下文、参数展开、文件版本冲突、system prompt 替换/追加、本地包启停/过滤/卸载，以及临时 Git daemon 固定 tag 包的安装/卸载。没有另建资源加载器；重载后命令目录由 Pi 再读。 | 生产 GUI/原版成对截图尚未运行；真实 npm 包、Git 固定 ref 更新、资源加载错误全类、theme/provider 目录刷新与旧 context 诊断仍需补证；在线 provider/包内/安装器/用户验收独立待验。 |
+| #25：P27、P28 / V09（代表样例） | 固定 Pi 0.87.0 的真实 RPC 子进程运行 `examples/pi-gui-compat/extension.ts`；四种回答在同一 PID 继续，取消不记成功，status/widget 发送清理事件。原始 custom message 的文字、图片引用与 details 在原生行 live/restore 保留，工作区隔离读取图片字节；独立不兼容探针确认 `hasUI=true` 仍不能使用 `custom`，组件 factory 无请求，主题切换返回失败。逐类边界见 [兼容表](pi-extension-ui-compatibility.md)。 | #13 的 GUI 状态展示、工具 image/details、两会话与 Stop/reload 清理、包内 GUI 和用户验收未验证；不宣称复杂第三方 TUI 零适配。 |
+
+`660999f` 时主分支 `pnpm run typecheck`、`pnpm run lint`（0 error / 70 既有 warning）、`pnpm run build:bootstrap`、固定 Pi 顺序 127/127、delivery plan、本地测试 7/7 和 `--github` 均通过。#10 整合后定向测试已通过；完整 Pi 顺序、类型/静态、原生 GUI 和最终包内回归须在后续集成后重跑。离线受控模型、在线 provider、实际 GGUF/router、NSIS 安装和用户验收仍是独立结果。
+
+## 2026-09-27 21:19 主分支新增实测（覆盖上方旧的“尚未整合/GUI 未运行”描述）
+
+| 能力 / Issue | 当前主分支证据 | 尚待完成 |
+| --- | --- | --- |
+| #5：P01、D03、D06 / V02、V04 | `b25afc5`、`0b237ee` 增加图片草稿的全 profile 数量/容量边界、单侧文字写失败时同 scope 保留、首发接受后按图片 ID 迁移，失败 chip 不会成为 ready 发送。定向测试 `composerImageDraftStorage`、`composerAttachmentPromotion` 与带 UI tsconfig 的 `composerDraftStoreFailure` 均绿。主分支 `D:/Temp/pi-main-full-postresources-20260927/pi-native-gui-report.json`：选择/粘贴/拖入、未发送图重启原字节恢复、两项目同名图隔离、两会话与布局、真实 Pi 发送和 Stop 通过；`pageErrors=[]`、退出无残留。 | 包内复测、异常断电边界、用户验收仍开放。 |
+| #7：P18、P19、P33 / V06 | `D:/Temp/pi-auth-main-integrated-20260927/pi-auth-extension-gui-report.json`：原生 Settings 保存/隐藏/登出 API key，固定 Pi 同一会话观察刷新；页面错误、强制退出和进程残留均为零。 | 在线 provider 真实推理与账号、人工 OAuth 回调、包内及用户验收未做。 |
+| #8：P25、P27 / V09 | 同一 GUI 报告：固定 Pi 扩展 select/confirm/input/editor 四类交互返回预期值，原生弹窗与取消可见；完整进程清理。 | notify/status/widget/title/editor text 在 #13；复杂 TUI factory 明确不承诺原样运行；键盘/焦点、包内仍待测。 |
+| #9：P10、P11、P17 / V04 | `e729e5c`、`760232f` 在 Pi JSONL ACK 后重命名，无旧任务索引也可成功；`6532beb` 将原生会话纳入命令中心搜索。隔离 GUI `D:/Temp/pi-session-rename-gui3-20260927/`、`D:/Temp/pi-session-search-gui2-20260927/` 均无页面错误或残留。 | 主分支 GUI 复测、确认删除、fork/clone、导入导出、分享、正文检索未完成。 |
+| #10：P05–P08、P19、P28、P31、P32、P34、D05 / V06、V08 | `D:/Temp/pi-settings-main-integrated-20260927/pi-settings-gui-report.json`：主分支原生 GUI Pi 设置保存/外部冲突/未信任与固定 Pi 推理，`error=null`、`pageErrors=[]`、`graceful=true`、`forced=[]`、`survivors=[]`。 | 全字段、在线 provider/OAuth 及包内仍待验。 |
+| #11：P20 / V07 | `736ea53` 把同一 Pi 会话实时模型目录接到原生菜单；`D:/Temp/pi-llama-main-postresources-20260927/pi-llama-gui-report.json`：加载/经固定 Pi 推理/卸载各 1 次，`pageErrors=[]`，进程全部正常清理。 | 本地 HTTP/SSE router fixture 不是实际 llama-server/GGUF；真实模型、下载/断线 GUI 矩阵、包内仍待验。 |
+| #12：P21、P22、P24、P29、P30、P32 / V08 | `1398a6a`、`197e853` 保留 Pi 原生资源与包管理，默认树视图不披露资源内容。`D:/Temp/pi-resources-main-integrated-green2-20260927/pi-resources-gui-report.json`：原生 GUI 模板编辑与重载、停启、本地包安装/过滤/卸载。2026-09-28 隔离增量先红测确认缺少更新状态，固定 Pi 源码确认离线更新静默返回及固定 npm 版本跳过，后在版本化桥中拒绝无操作更新，资源页显示离线/固定版本/固定 Git ref 的准确状态；固定 Pi 合同 5/5、typecheck、定向 lint 0/0、桌面 production build、`D:/Temp/pi-resources-update-gui-20260928-a/pi-resources-gui-report.json` 均通过，GUI `pageErrors=[]`、`graceful=true`、`forced=[]`、`survivors=[]`。 | 在线 npm 实际更新、Git ref 变更、资源加载错误全类、theme/provider 目录刷新、原版成对截图、包内及用户验收仍待测。固定 Pi 的 Git update 会在自管 clone 的 ref 变动时执行 reset/clean，本轮遵守用户保护要求未运行；不将固定 ref 安装/卸载算作更新。 |
+| #26：P28、D03、D05 / V12（隔离分支待整合） | IME 候选 Enter、Chromium `keyCode=229` 与 `compositionend` 紧邻 Enter 的红测先失败，修复后定向测试通过；保留原生 Lexical 输入框并只在其 contenteditable 阻断误提交。最终隔离源码 GUI `D:/Temp/pi-ime-gui-20260927-d/pi-ime-gui-report.json`：固定 Pi 0.87.0、1280×800 深色和 1920×1080 浅色，候选 Enter 不发送且草稿保留，随后普通 Enter 与显式按钮各发送中文原文；`pageErrors=[]`、`graceful=true`、`forced=[]`、`survivors=[]`。 | 物理中文 IME、原版成对截图、弹窗焦点、快捷键全路径、包内与用户验收仍开放。 |
+| #26：长历史/工具输出滚动与焦点（隔离分支待整合） | 内层滚轮误将时间线标记为用户离底的红测先失败，修复后定向测试 4/4、UI typecheck、定向 lint 与桌面 production build 通过。`D:/Temp/pi-long-scroll-gui-20260927-e/pi-long-scroll-gui-report.json`：固定 Pi 0.87.0 经 24 回合历史、真实 bash 120 行输出及 24 帧续流；内层滚动 2340→2270 时外层保持跟随，外层滚轮上滚后续流不夺回阅读位置，返回最新恢复吸底；1280×800 深色与 1920×1080 浅色下 Ctrl+M 打开模型菜单、Escape 焦点回到 composer，`pageErrors=[]`、`graceful=true`、`forced=[]`、`survivors=[]`。 | 这是确定性 loopback provider 与单机样本；更大历史规模、更多弹窗/快捷键/焦点路径、物理 IME、原版成对截图、包内及用户验收仍待测。 |
+| #26：Pi 弹窗焦点/快捷键（隔离分支待整合） | 固定 Pi 0.87.0 的 select/confirm/input/editor 连续交互先在 select 初始焦点及结束后 BODY 复现红测；改用原生 Dialog 并限制 Ctrl+M 作用域，结束后仅恢复到可用控件。`D:/Temp/pi-dialog-focus-gui-20260928-n/pi-dialog-focus-gui-report.json`：select 首项自动聚焦、Shift+Tab/Tab 困在弹窗、Ctrl+M 不穿透、Escape 由 Pi 取消 select/input、confirm=false、editor 预填后回传多行编辑，最终旧基线 composer 为 `contenteditable=false` 时焦点稳定回退模型按钮；`pageErrors=[]`、`graceful=true`、`forced=[]`、`survivors=[]`。定向快捷键 1/1、UI typecheck、定向 lint 和 production build 均通过。 | 焦点回退不修复旧基线 extension slash 命令后的 `noRun` 会话闭锁；主分支对应语义修复整合后须重跑 composer 可编辑焦点。其余弹窗/快捷键矩阵、原版成对截图、物理 IME、包内及用户验收仍待测。 |
+
+此轮主分支固定 Pi 顺序测试 160/160、typecheck、桌面 production build、交付计划本地/7 项测试/`--github` 均通过；lint 为 0 error / 70 既有 warning。#12 首次 GUI 报告 `pi-resources-main-integrated-20260927` 在异步保存未完成时读旧 generation，修正测试等待后重跑绿色。上述源码 GUI 与本地受控模型证据均不得替代在线 provider、实际 GGUF、包内 GUI、NSIS 安装或用户验收；P/D/V 总表仍为待最终统一验收。
+
+## 2026-09-27 23:30 后续整合与待复验
+
+| 能力 / Issue | 已验证的技术增量 | 尚待完成 |
+| --- | --- | --- |
+| #4：P03、P07、P08、P09 / V03 | 主分支 `324a344` 直接使用固定 Pi `bash`，原生 GUI `D:/Temp/pi-shell-main-first-20260927/pi-shell-gui-report.json` 验证真实输出/退出码、后续模型只收到未排除的 shell 上下文、长命令 Stop 及进程清理。手动压缩 Stop 的固定 Pi 延迟摘要合同 `pi-manual-compaction-fixed.test.ts`、启动竞态测试 `pi-manual-compaction-stop.test.ts` 通过；`D:/Temp/pi-manual-compact-main-20260927/pi-manual-compact-gui-report.json` 从原生 `/compact` 经固定 Pi 0.87.0 请求摘要，Stop 取消摘要且保留前两轮历史，没有后续重试。自动 retry 的固定 Pi 退避取消合同 `pi-retry-stop-fixed.test.ts` 1/1 PASS；`D:/Temp/pi-retry-stop-main-20260928-a/pi-retry-stop-gui-report.json` 验证首个 503 后原生 Stop、延迟过后无第二次模型请求，`pageErrors=[]`、`graceful=true`、`forced=[]`、`survivors=[]`。 | 自动 overflow 压缩、扩展等待 Stop 矩阵、更长压力、包内 GUI、用户验收仍开放。 |
+| #9：P11 / V04 | `a33a4a0`、`4d54ba4` 让原生侧栏对冷 Pi JSONL 做真实确认删除，删除后非关键清理失败不误报未删除。隔离最终源码 GUI `D:/Temp/pi-session-delete-gui6-20260927/pi-session-delete-gui-report.json` 验证取消/活动保护、仅删除选中 JSONL、重启不复活、三次进程退出无残留；主分支定向固定 Pi/删除测试 8/8 通过。 | 主分支整合后 GUI 与包内复测、外部 CLI 与最终 unlink 的极短竞争窗、fork/clone/导入导出/主动分享及用户验收仍开放。 |
+| #13、#25：P23–P27 / V09 | `2485cf7`、`7b5c8ce` 已整合 Pi 扩展状态/widget/标题/动态工具和原始 custom 消息、图片/details、shell 历史行；合并时保留资源隐私过滤。整合后定向固定 Pi 测试 14/14、typecheck、相关 lint 通过；隔离 GUI `D:/Temp/pi-extension-state-gui-20260927-d/pi-extension-state-gui-report.json` 通过且无页面错误/进程残留。 | 主分支与包内 GUI、工具图片/details、扩展多会话交错/Stop、复杂 TUI 逐类最终验收仍开放；复杂 TUI 不宣称零适配。 |
+| #26：P28、D03、D05 / V12 | `6dc84e7` 已整合 Lexical 中文 IME 提交保护；隔离最终源码 GUI `D:/Temp/pi-ime-gui-20260927-d/pi-ime-gui-report.json` 在 1280×800 深色/1920×1080 浅色与固定 Pi 下验证候选 Enter 不发送、普通 Enter/按钮发送中文原文；`pageErrors=[]`、`forced=[]`、`survivors=[]`。 | 物理 IME、主分支/包内 GUI、滚动/长历史/焦点矩阵、原版同状态截图和用户验收仍开放。 |
+| #14：D03、D04 / V11 | `82eb531` 将原生文件 mention 的工作区内有界 UTF-8、图片与目录快照加入同一次 Pi prompt；图片原字节与 MIME、引用文本、JSONL 历史均由固定 Pi 保存，发送后磁盘变动不篡改历史。缺失/越界/超大/不支持引用在投递前给本地化失败横幅，乐观清空失败后 Lexical 草稿恢复；会话标题不包含内部 snapshot 尾注。隔离最终源码 GUI `D:/Temp/pi-file-reference-gui-20260928-h/pi-file-reference-gui-report.json` 含真实 Pi、冷重启、预览、错误草稿保留，`pageErrors=[]`、两轮 `graceful=true`、`forced=[]`、`survivors=[]`；隔离固定 Pi 1/1、主分支纯测试 8/8 PASS。 | 原版成对截图、Office/其它媒体与未知格式外开、主分支/包内 GUI、用户验收仍开放。 |
+
+这些技术证据仍是源代码与离线受控模型验证，不能替代在线 provider、真实 GGUF/router、安装器或最终人工验收。后续整合须重跑完整 Pi 顺序、typecheck、lint、delivery 校验和生产包验证。
+## 2026-09-28 #9 导入、导出与主动分享增量（隔离分支，非最终验收）
+
+| 能力 / 场景 | 已观察结果 | 仍待完成 |
+| --- | --- | --- |
+| P16 / V10 | 固定 Pi 0.87.0 合同使用 `get_last_assistant_text`、`export_html`、`SessionManager.forkFrom`：原始 JSONL 导出逐字节一致，Pi HTML 内嵌完整会话数据可解码审阅，导入新 Pi ID 后 `get_state.model` 恢复并经 Pi 推理，源文件成功/拒绝时均不变；未知 entry 字段保留。本地假发布器验证分享确认前零外发、确认后上传的 HTML Buffer 与预览原字节一致。`pi-session-transfer.test.ts` 3/3、`pi-fork-clone.test.ts` 1/1、`piModelCatalog.test.ts` 3/3。生产源码入口原生 GUI 报告 `D:/Temp/pi-agent-gui-fork-clone-20260927/test-results/native-parity/product/pi-session-transfer-gui-report.json`：复制、JSONL/HTML 导出、完整分享预览和导入后推理通过；`pageErrors=[]`、`graceful=true`、`forced=[]`、`survivors=[]`。 | 真实 GitHub 登录/Gist 外发未执行，用户须逐字审阅可能含 system prompt、工具输出和凭据的完整 HTML，勾选后才能创建持链接者可访问的秘密 Gist。分享预览限 8 MiB，导入仅接受 Pi 0.87 当前 v3 JSONL；Windows 导出目标继承用户所选目录 ACL。包内 GUI、在线 provider、原版同状态视觉与统一人工验收未完成。 |
+
+本增量 `pnpm run build:bootstrap`、`node node_modules/typescript/bin/tsc -b packages/services packages/ui --pretty false`、lint 与差异检查通过。上述受控 loopback 模型的推理不算在线 provider；P16/V10 总表仍为待最终验收。
+
+## 2026-09-28 01:34 主分支整合与固定 Pi GUI 复验（仍非最终验收）
+
+| 能力 / Issue | 本次已验证 | 仍开放 |
+| --- | --- | --- |
+| #13、#26：P27、D03 / V09、V12 | `29a1a9d` 的红测复现：Pi 已确认扩展命令处理完成，原生快照仍把无 Agent 回合的命令标为未完成，输入框变只读。修复后假 Pi 合同和固定 Pi 0.87.0 原生 GUI `D:/Temp/pi-dialog-focus-main-fixed-20260928/pi-dialog-focus-gui-report.json` 通过：四类连续弹窗的焦点与取消语义、命令后 composer 可编辑并获焦点、同一 Pi 会话下一条模型输入成功；`pageErrors=[]`、`graceful=true`、`forced=[]`、`survivors=[]`。首次红色 GUI 留在 `D:/Temp/pi-dialog-focus-main-integrated-20260928/`。 | 原版成对截图、更多第三方扩展和包内 GUI 待验证；复杂 TUI 限制仍依兼容表。 |
+| #4：P07、P08 / V03 | `9d664fa` 加入受控 400 超窗模型 fixture。固定 Pi 合同 1/1 和生产源码入口原生 GUI `D:/Temp/pi-auto-compact-main-20260928/pi-auto-compact-gui-report.json` 通过：第三轮真实 Pi 自动请求摘要，Stop 取消 held summary，没有迟到重试，前两轮及触发超窗的用户历史保留；GUI `pageErrors=[]`、`graceful=true`、`forced=[]`、`survivors=[]`。定向 admission+auto 合计 18/18、typecheck、全仓 lint 0 error/69 既有 warning、production build 均通过。 | 包内 GUI、长时压力及其它运行态矩阵待最终复验；受控模型不等于在线 provider。 |
+| #9：P16 / V10 | `200a51c` 已整合前表的原生 Pi JSONL/HTML 导入导出、复制及明确确认后 secret Gist 分享实现；主分支纯测试 4/4、typecheck、lint、production build 通过。隔离精确源码 GUI 证据仍见前表，源 JSONL 未被改写。 | 主分支整合 GUI、真实 GitHub Gist 发布、包内及人工验收分别待验证。 |
+| #27：D01、D02 / V01 | `9bfbaf2`、`8be4045` 已整合本地诊断预览和独立复制/打开 GitHub 操作；预览只含本地白名单版本，不带主机名、目录、日志、会话 ID 或凭据。隔离固定 Pi GUI `D:/Temp/pi-diagnostics-gui-20260928-b/pi-diagnostics-gui-report.json` 验证剪贴板等于预览（Windows 换行归一化）、只有显式点击才外开，`pageErrors=[]`、`graceful=true`、`forced=[]`、`survivors=[]`。主分支纯测试 4/4、typecheck、lint、production build 通过。 | 主分支整合/包内 GUI、Windows NSIS 实际安装、覆盖升级、卸载和人工验收未完成。 |
+
+## 2026-09-28 #25 扩展工具原始结果增量（已整合主分支，非最终验收）
+
+| 能力 / 场景 | 已观察结果 | 仍待完成 |
+| --- | --- | --- |
+| P27 / V09：公开扩展工具的图文与 details | 先以 `pi-message-rows.test.ts` 红测复现工具图像/details 在原生行丢失，再由固定 Pi 0.87.0 真实子进程执行 `examples/pi-gui-compat/extension.ts` 的 `gui_rich_probe`：Pi JSONL 保留文字、PNG 原字节和 details；原生行只传不含图像字节的 opaque ref，冷投影一致，错误行/工作区拒读。隔离生产源码 GUI `D:/Temp/pi-rich-tool-gui-20260928-c/pi-rich-tool-gui-report.json` 验证模型确实调用工具并收到 PNG、原生工具组展开后有序文字/解码图像/details 可见；`pageErrors=[]`、`graceful=true`、`forced=[]`、`survivors=[]`。旧公共分享投影遇富工具行先拒绝；Pi HTML/Gist 路径展示完整内容，须由用户预览并明确确认。 | 当前只验证一个代表工具；两会话交错、Stop/reload、非消息 entry、复杂第三方 TUI、原版同状态成对截图、包内 GUI、在线 provider 与用户验收仍开放。 |
+
+`1c78fd6` 已将此切片整合进主分支；主分支纯投影 9/9、UI 行 3/3、typecheck、lint（0 error / 69 warning）及 delivery plan 本地校验通过。隔离树固定 Pi 新合同 1/1、既有扩展样例 4/4、桌面 `build:no-runtime-assets`、delivery plan 7 项测试和 `--github` PASS。GUI 首两轮 a/b 是测试文案与模型请求记录形状的断言失误，均正常退出且无残留，未当作产品失败。受控 loopback 模型不是在线 provider，源码入口 GUI 不是包内 GUI；整合后 GUI 尚需复验。
+
+## 2026-09-28 #10 设置来源与并发冲突修正（已整合主分支，非最终验收）
+
+| 能力 / 场景 | 已观察结果 | 仍待完成 |
+| --- | --- | --- |
+| P31、P32 / V06、V08 | 固定 Pi 0.87.0 的 `SettingsManager` 对缓存预热与默认项目信任只读用户文件，入口 HTTP proxy 也只读用户文件；项目同名键现在保留原文并提示未生效。原生 Settings 生效值表按 `/retry/enabled` 等叶子显示用户/项目来源。用户/项目未知字段的作用域保存保持不变；在临时文件准备后注入外部写入，提交前第二次 SHA 检查拒绝覆盖并保留外部原字节。红测先复现，隔离树定向 13/13 与 `build:bootstrap` PASS；`D:/Temp/pi-settings-scope-gui-20260928-b/pi-settings-gui-report.json` 经原生 GUI、Host、固定 Pi 子进程验证来源、未知字段、外部写冲突和不受信项目，`pageErrors=[]`、`graceful=true`、`forced=[]`、`survivors=[]`。`ecd801b` 已整合，主分支新增纯测试 3/3 与 typecheck PASS。 | 主分支整合后 GUI、包内 GUI、在线 provider、全部设置字段及用户验收未复验。Pi 锁可协调遵守锁的写者；不遵守锁的外部写者在最终 SHA 检查与 rename 之间仍有极短竞争窗，不能宣称跨进程绝对 CAS。 |
+
+## 2026-09-28 02:26 #3 模型与 thinking 整合、#4 图片缓存审查（非最终验收）
+
+| 能力 / Issue | 本轮结果 | 仍开放 |
+| --- | --- | --- |
+| #3：P05、P06、P15 / V02、V06 | `802c8e2` 至 `28b4871` 整合模型搜索、未知 context 明示、Pi session token/cache/费用、原生搜索焦点和选模后 thinking 目录刷新。隔离固定 Pi 0.87.0 原生 GUI `D:/Temp/pi-model-thinking-gui-20260928-e/pi-model-thinking-gui-report.json`：完整键盘搜索，真实选模推理，`off/minimal/low/medium/high` 与下一请求 `reasoning_effort=minimal`，退出 `graceful=true`、`forced=[]`、`survivors=[]`。主分支服务 22/22、UI 4/4、typecheck、lint 0 error/69 既有 warning、完整桌面源码 build PASS。 | 主分支整合后 GUI、最终包内、在线 provider/计费真实性、用户验收待做；显示的费用是固定 Pi 返回的测试 fixture 值。 |
+| #4、#9：队列图片私有缓存 / V03、V04 | 独立只读审查指出确认删除 Pi JSONL 后 `queue-media` 原字节仍残留。`pi-session-delete.test.ts` 先红再绿；`2dac7d1` 在已确认的冷会话删除前，仅清除该 session 下本 Store 生成的图片文件，另一会话图片不动。测试 3/3、定向 lint 0/0、typecheck PASS。 | 队列项取回编辑后的图片仍由 composer 引用，不能按 Pi 队列快照立即删；同一只读审查发现 ACK 后切会话/新草稿及重启会丢图文，#4 正在独立红绿修复。缓存按会话持有期间的回收边界仍需验。 |
+
+## 2026-09-28 #9 历史编辑与重试增量（已整合主分支，非最终验收）
+
+| 能力 / 场景 | 已观察结果 | 仍待完成 |
+| --- | --- | --- |
+| #9：P11、P17 / V04 | `ad02452` 整合固定 Pi 0.87.0 合同：真实旧图片 entry 的 base64 原字节被同一 Pi 新回合接收，旧 JSONL 原字节前缀不变；纯文字编辑只回填原生 composer，显式发送后才有新模型请求；扩展取消不产生回合。主分支固定 Pi 与纯合同合计 5/5、typecheck、定向 lint 0/0、完整桌面 build 与 delivery plan 本地校验通过。整合后的原生 GUI `D:/Temp/pi-history-edit-retry-main-20260928-a/pi-history-edit-retry-gui-report.json` 验证 Pi 同一 JSONL 历史重试、编辑预填和显式发送，`pageErrors=[]`、`graceful=true`、`forced=[]`、`survivors=[]`。隔离源码 GUI 另见 `D:/Temp/pi-history-edit-retry-gui-20260928-a/pi-history-edit-retry-gui-report.json`。 | Pi 固定版本 `fork` 仅返回文字，图片 fork 仍入 Pi 前拒绝；图片与未知 content 不进入纯文字编辑器。树跳转与 prompt 两个公开调用之间的失败需要检查当前 leaf；包内 GUI、原版成对截图、在线 provider 和统一人工验收仍待做。 |
+
+## 2026-09-28 #9 临时 Pi 会话增量（隔离分支，非最终验收）
+
+| 能力 / 场景 | 已观察结果 | 仍待完成 |
+| --- | --- | --- |
+| P17 / V04 | 固定 Pi 0.87.0 以 `--no-session` 运行，`get_state` 有会话 ID、无 `sessionFile`；原生新任务可选择临时模式，同一 Pi RPC 会话完成受控模型回合。真实服务顺序合同 12/12、typecheck、定向 lint 0/0、完整桌面源码 build 与 delivery plan 本地/7 项测试通过。隔离生产入口 GUI `D:/Temp/pi-temporary-session-gui-20260928-c/pi-temporary-session-gui-report.json` 验证请求 1 次、显示回答与临时标识、无 Pi JSONL、重启不恢复、无页面错误，两次退出均 `graceful=true`、`forced=[]`、`survivors=[]`。意外 Pi 退出合同还验证会话变为不可续发、从索引移除、私有队列图片缓存删除。 | 临时模式只约束 Pi 历史；未发送的原生 composer 草稿仍按普通规则保存。固定 Pi 的临时会话不支持依赖 JSONL 的续接、fork/clone、导出及主动分享；自定义存储、原版同状态成对截图、在线 provider、包内 GUI 与最终人工验收仍待做。 |
+
+## 2026-09-28 #7 本地认证目录错误与设备码期限（隔离分支，非最终验收）
+
+| 能力 / 场景 | 已观察结果 | 仍待完成 |
+| --- | --- | --- |
+| P18、P19 / V06 | `pi-auth-manager.test.ts` 先以 2 项红测复现认证运行时首次创建失败后永久缓存拒绝，以及损坏 `models.json` 时自定义 provider 静默消失；第三项红测复现 `device_code.expiresInSeconds=0` 被当作没有期限。修复后 Pi 0.87.0 进程内 6/6 PASS，自定义 `models.json` provider 的认证解析使用 Pi 公开接口且 key 不进入 renderer。真实 Pi RPC 子进程 `pi-auth-service.test.ts` 2/2 PASS，确认同一 profile 的 custom provider 与保存/登出后目录同步。隔离生产源码 GUI `D:/Temp/pi-auth-recovery-gui-20260928-b/pi-auth-extension-gui-report.json` 通过 API key 保存/隐藏/登出、目录损坏警告、修复后 custom provider 恢复和四类扩展交互，`pageErrors=[]`、`graceful=true`、`forced=[]`、`survivors=[]`；产品错误状态截图 `pi-auth-catalog-error.png`。typecheck、lint 0 error/69 既有 warning、`build:bootstrap`、delivery 本地/7 项测试通过。 | 首轮隔离 GUI `D:/Temp/pi-auth-recovery-gui-20260928-a/` 因该工作树缺 gitignored Agent bundle 在 storage preparation 阶段失败，运行 `pnpm --dir packages/desktop prepare:agent-bundle` 后重跑全绿；不把首次失败归为认证逻辑。扩展运行时动态 `registerProvider` 的 OAuth 登录不在独立宿主 `ModelRuntime` 的公开目录中，不能声称可用。设备码实际时钟跨期 GUI、在线账号、真实人工 OAuth 回调/推理/登出、包内 GUI、原版同状态成对截图与用户验收未完成。 |
 
 ## 回填要求
 

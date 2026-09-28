@@ -70,6 +70,7 @@ interface ToolbarShortcutState {
   hasAnyOption: boolean;
   toolbarDisabled: boolean;
   modelMenuDisabled: boolean;
+  modalOpen?: boolean;
   modelOption?: ZCodeConfigOption;
   modeOption?: ZCodeConfigOption;
   thoughtOption?: ZCodeConfigOption;
@@ -83,13 +84,14 @@ type ToolbarShortcutAction = "openModelMenu" | "cycleSessionMode" | "cycleThough
  * 对 "Ctrl+m" / "Ctrl+Shift+m" / "Ctrl+t" 的语义一致）；原 option 归属与 disabled
  * 门控保持不变。事件与生效表由调用方传入，纯函数可独立单测。
  */
-function resolveToolbarShortcutAction(
+export function resolveToolbarShortcutAction(
   event: ToolbarShortcutKeyboardEvent,
   effective: EffectiveShortcutBindings,
   {
     hasAnyOption,
     toolbarDisabled,
     modelMenuDisabled,
+    modalOpen,
     modelOption,
     modeOption,
     thoughtOption,
@@ -98,6 +100,7 @@ function resolveToolbarShortcutAction(
   if (
     !hasAnyOption ||
     toolbarDisabled ||
+    modalOpen ||
     event.defaultPrevented ||
     event.repeat ||
     event.isComposing
@@ -200,6 +203,11 @@ export function useToolbarShortcutBindings(params: {
         hasAnyOption,
         toolbarDisabled,
         modelMenuDisabled,
+        modalOpen: Boolean(
+          document.querySelector(
+            '[role="dialog"][aria-modal="true"], [data-slot="dialog-content"][data-state="open"]',
+          ),
+        ),
         modelOption,
         modeOption,
         thoughtOption,

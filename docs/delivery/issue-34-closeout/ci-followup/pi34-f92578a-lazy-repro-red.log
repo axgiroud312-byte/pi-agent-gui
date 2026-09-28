@@ -1,0 +1,22 @@
+✖ workspace index is lazy: opening one history starts only its Pi child, exit is recovered without resending (17.7738ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 815.0548
+
+✖ failing tests:
+
+test at test\pi-lazy-history.test.ts:1:659
+✖ workspace index is lazy: opening one history starts only its Pi child, exit is recovered without resending (17.7738ms)
+  Error: Pi get_state omitted session identity
+      at PiSessionSupervisor.start (C:\Users\niilo\AppData\Local\Temp\opencode\pi-native-pi-34\packages\services\src\pi-agent\pi-session-supervisor.ts:212:15)
+      at async <anonymous> (C:\Users\niilo\AppData\Local\Temp\opencode\pi-native-pi-34\packages\services\src\pi-agent\pi-native-v4-service.ts:261:16)
+      at async PiNativeV4Service.loadSession (C:\Users\niilo\AppData\Local\Temp\opencode\pi-native-pi-34\packages\services\src\pi-agent\pi-native-v4-service.ts:311:11)
+      at async PiNativeV4Service.subscribeConversationV4 (C:\Users\niilo\AppData\Local\Temp\opencode\pi-native-pi-34\packages\services\src\pi-agent\pi-native-v4-service.ts:785:5)
+      at async TestContext.<anonymous> (C:\Users\niilo\AppData\Local\Temp\opencode\pi-native-pi-34\packages\services\test\pi-lazy-history.test.ts:69:5)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:358:3)

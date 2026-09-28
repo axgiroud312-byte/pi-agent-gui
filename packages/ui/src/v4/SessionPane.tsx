@@ -89,6 +89,7 @@ import {
   buildDraftCreateConfigPayload,
   useDraftConfigControl,
 } from "@/v4/composer/useDraftConfigControl.js";
+import { ComposerDraftDamageBanner } from "@/v4/composer/ComposerDraftDamageBanner.js";
 import type { ModelSelectionSource } from "@/v4/composer/V4ComposerToolbar.js";
 import { formatModelChangeLabel } from "@/v4/composer/modelTriggerDisplay.js";
 import { resolveAppFollowupMode } from "@/v4/composer/followupModeSettings.js";
@@ -97,6 +98,7 @@ import {
   type ComposerSubmissionConfig,
 } from "@/v4/composer/composerSubmissionConfig.js";
 import { useDraftSessionPrewarm } from "@/v4/composer/useDraftSessionPrewarm.js";
+import { restorePiForkComposerDraft } from "@/v4/composer/piForkComposerRestore.js";
 import { projectSessionConfigToTaskConfigOptions } from "@/v4/composer/sessionConfigTaskCache.js";
 import { useDraftRuntimeRebuildGate } from "@/v4/composer/useDraftRuntimeRebuildGate.js";
 import { useDraftModelReadinessGate } from "@/v4/composer/useDraftModelReadinessGate.js";
@@ -124,7 +126,23 @@ import { shouldIgnoreEscapeForStopGeneration } from "@/v4/composer/escapeStop.js
 import { ConversationDraftEmptyState } from "@/v4/ConversationDraftEmptyState.js";
 import { ConversationDraftSuggestedPromptsContainer } from "@/v4/ConversationDraftSuggestedPromptsContainer.js";
 import { ConversationHeader, type PaneWorkspaceBadge } from "@/v4/ConversationHeader.js";
+import { PiTreeDialog } from "@/v4/PiTreeDialog.js";
+import { PiContextDialog } from "@/v4/PiContextDialog.js";
+import { PiSessionTransferDialog } from "@/v4/PiSessionTransferDialog.js";
+import { PiExtensionUiPanel } from "@/v4/PiExtensionUiPanel.js";
+import { PiLlamaRouterDialog } from "@/v4/PiLlamaRouterDialog.js";
+import { extractPiModelCatalog } from "@/v4/composer/piModelCatalog.js";
+import { PI_AUTH_CATALOG_CHANGED_EVENT } from "@/lib/piAuthCatalogEvent.js";
+import { PiResourcesDialog } from "@/v4/PiResourcesDialog.js";
+import { PiShellDialog } from "@/v4/PiShellDialog.js";
 import { ConversationQueuePanel } from "@/v4/ConversationQueuePanel.js";
+import { resumeUnchangedPiQueue, type PiQueueResumeResult } from "@/v4/piQueueResume.js";
+import { PiQueueEditRecoveryBanner } from "@/v4/PiQueueEditRecoveryBanner.js";
+import { canDiscardPiQueueEditRecovery, decidePiQueueEditRestore,
+  discardPiQueueEditRecovery, preparePiQueueEditRecovery,
+  markPiQueueEditRecoveryState, readPiQueueEditRecoveries, restorePiQueueEditRecoveryRefs,
+  settlePiQueueEditDelete, shouldDiscardPiQueueRecoveryAfterSend,
+  type PiQueueEditRecovery } from "@/v4/piQueueEditRecovery.js";
 import { projectPendingGuideQueue } from "@/v4/pendingGuideProjection.js";
 import { ConversationQuotaBanner } from "@/v4/ConversationQuotaBanner.js";
 import { PendingCommandRecoveryBanner } from "@/v4/PendingCommandRecoveryBanner.js";
@@ -229,6 +247,7 @@ import {
 import { useSlashCommands } from "@/hooks/useSlashCommands.js";
 import { useV4Conversation } from "@/v4/V4ConversationContext.js";
 import { useConversationProjection } from "@/v4/useConversationProjection.js";
+import { currentSessionSnapshot } from "@/v4/currentSessionSnapshot.js";
 import { usePendingCommandRecovery } from "@/v4/usePendingCommandRecovery.js";
 import { useV4SessionQuotaBanner } from "@/v4/useV4SessionQuotaBanner.js";
 import { resolveMcpUnavailableNotice } from "@/v4/mcpUnavailableBannerNotice.js";
@@ -476,6 +495,24 @@ function shouldRestoreQueuedComposerFromAck(status: CommandAck["status"]): boole
   return status === "accepted" || status === "duplicate";
 }
 
+function imageFileBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const value = reader.result;
+      if (typeof value !== "string") {
+        reject(new Error("Image recovery read did not return a data URL"));
+        return;
+      }
+      const comma = value.indexOf(",");
+      if (comma < 0) { reject(new Error("Image recovery read did not return base64")); return; }
+      resolve(value.slice(comma + 1));
+    };
+    reader.onerror = () => reject(reader.error ?? new Error("Image recovery read failed"));
+    reader.readAsDataURL(file);
+  });
+}
+
 /**
  * 单 pane 竖切：订阅 → 渲染 rows → composer 发送 / stop。
  *
@@ -553,7 +590,7 @@ export function SessionPane({
     fileRewindPreview,
   } = useV4Conversation();
   const platform = useOptionalPlatform();
-  const { conversationShareService, modelSelectionService, zcodeSessionService, zcodeTaskService } =
+  const { conversationShareService, modelSelectionService, zcodeAgentService, zcodeSessionService, zcodeTaskService } =
     useServices();
   const { intl, locale } = useZCodeIntl();
   const slashCommands = useSlashCommands(workspacePath, workspaceIdentity);
@@ -591,6 +628,9 @@ export function SessionPane({
     );
   }, [conversationTelemetry, conversationTelemetryForegroundEnabled, sessionId, telemetryVisible]);
   const [lease, setLease] = useState<SessionLease | null>(null);
+  // A no-prewarm first send must expose its newly created Pi session while
+  // the authoritative sendText ACK is still waiting on extension UI input.
+  const [pendingFirstInputSessionId, setPendingFirstInputSessionId] = useState<string | null>(null);
   const state = useConversationProjection(lease);
   const snapshot = state.snapshot;
   const newlyCreatedSessionIdRef = useRef<string | null>(null);
@@ -1091,6 +1131,12 @@ export function SessionPane({
   queueEditOperationRef.current = queueEditOperation;
   const [composerRestoreRequest, setComposerRestoreRequest] =
     useState<ComposerRestoreRequest | null>(null);
+  const composerRestoreRequestRef = useRef(composerRestoreRequest);
+  composerRestoreRequestRef.current = composerRestoreRequest;
+  const activeQueueRecoveryRef = useRef<{
+    queueItemId: string; sessionId: string; workspaceKey: string;
+    text: string; refs: readonly AttachmentRef[];
+  } | null>(null);
   const nextComposerRestoreRequestIdRef = useRef(1);
   const timelineScrollToBottomRef = useRef<(() => void) | null>(null);
   const timelineScrollToQueryRef = useRef<
@@ -1113,9 +1159,84 @@ export function SessionPane({
   );
 
   const workspaceKey = workspaceIdentity?.trim() || workspacePath;
+  const draftSessionId = useZCodeSessionStore(
+    (store) => store.getWorkspaceState(workspacePath, workspaceIdentity).draftSessionId,
+  );
+  const temporaryDraftKey = JSON.stringify([workspaceKey, paneId, draftSessionId ?? "draft"]);
+  const [temporaryDraftChoice, setTemporaryDraftChoice] = useState({ key: "", selected: false });
+  const temporaryDraftSelected = sessionId === null && temporaryDraftChoice.key === temporaryDraftKey &&
+    temporaryDraftChoice.selected;
+  useEffect(() => {
+    if (sessionId) setTemporaryDraftChoice((current) => current.selected ? { key: "", selected: false } : current);
+  }, [sessionId]);
+  const [queueRecoveryVersion, setQueueRecoveryVersion] = useState(0);
+  const [queueEditRecoveries, setQueueEditRecoveries] = useState<PiQueueEditRecovery[]>([]);
+  const [queueRecoveryStorageError, setQueueRecoveryStorageError] = useState(false);
+  useEffect(() => {
+    if (!sessionId) {
+      setQueueEditRecoveries([]);
+      setQueueRecoveryStorageError(false);
+      return;
+    }
+    try {
+      setQueueEditRecoveries(readPiQueueEditRecoveries(window.localStorage, workspaceKey, sessionId));
+      setQueueRecoveryStorageError(false);
+    } catch (error) {
+      logger.warn("[v4-pane] Pi queue withdrawal recovery index unavailable", error);
+      setQueueEditRecoveries([]);
+      setQueueRecoveryStorageError(true);
+    }
+  }, [queueRecoveryVersion, sessionId, workspaceKey]);
   const workspaceConfigOptions = useZCodeSessionStore(
     (store) => store.getWorkspaceState(workspacePath, workspaceIdentity).configOptions,
   );
+  const piCatalogKey = isDesktop && !remoteSessionId && workspacePath
+    ? JSON.stringify([workspaceKey, sessionId ?? "draft"]) : null;
+  const [piCatalogRead, setPiCatalogRead] = useState<{ key: string; catalog: ReturnType<typeof extractPiModelCatalog> } | null>(null);
+  const piCatalogRequestRef = useRef(0);
+  const refreshPiModelCatalog = useCallback(async () => {
+    if (!isDesktop || remoteSessionId || !piCatalogKey) return;
+    const request = ++piCatalogRequestRef.current;
+    const option = await zcodeAgentService.readPiModelCatalog({ ...(sessionId ? { sessionId } : {}), workspacePath,
+      ...(workspaceIdentity ? { workspaceIdentity } : {}) });
+    if (request === piCatalogRequestRef.current) {
+      setPiCatalogRead({ key: piCatalogKey, catalog: extractPiModelCatalog([option]) });
+    }
+  }, [isDesktop, piCatalogKey, remoteSessionId, sessionId, workspaceIdentity, workspacePath, zcodeAgentService]);
+  useEffect(() => {
+    let active = true;
+    if (piCatalogKey) void refreshPiModelCatalog().catch(error => {
+      if (active) logger.warn("[pi-model-catalog] Pi candidate read failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
+    return () => { active = false; };
+  // Pi exposes thinking levels for the currently selected model. After set_model,
+  // read that model's levels from the same session instead of retaining the
+  // previous model's picker options.
+  // Settings keeps the workspace mounted but removes foreground focus. An
+  // auth refresh can finish while that layer is open, after an earlier read
+  // projected an empty Pi catalog. Re-read the same Pi child on return even
+  // if the settings notification was missed while the pane was inactive.
+  }, [focused, piCatalogKey, refreshPiModelCatalog, snapshot?.config.provider, snapshot?.config.model]);
+  useEffect(() => {
+    if (!piCatalogKey) return;
+    const refresh = () => { void refreshPiModelCatalog().catch(error => {
+      logger.warn("[pi-model-catalog] Pi auth refresh failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }); };
+    window.addEventListener(PI_AUTH_CATALOG_CHANGED_EVENT, refresh);
+    window.addEventListener("focus", refresh);
+    return () => {
+      window.removeEventListener(PI_AUTH_CATALOG_CHANGED_EVENT, refresh);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [piCatalogKey, refreshPiModelCatalog]);
+  const piModelCatalog = useMemo(() => !isDesktop || remoteSessionId ? [] :
+    piCatalogKey ? piCatalogRead?.key === piCatalogKey ? piCatalogRead.catalog : [] :
+      extractPiModelCatalog(workspaceConfigOptions ?? []),
+  [isDesktop, piCatalogKey, piCatalogRead, remoteSessionId, workspaceConfigOptions]);
   useEffect(() => {
     if (
       !sessionId ||
@@ -1238,6 +1359,7 @@ export function SessionPane({
   // Composer 保存下一次 Submission 的 renderer intent；prewarm session 仅承载草稿预热。
   const {
     composerDraft,
+    draftPersistenceError,
     modelSelectionRead,
     draftConfig,
     draftConfigRef,
@@ -1257,6 +1379,9 @@ export function SessionPane({
     sessionConfig: snapshot?.sessionId === sessionId ? snapshot.config : null,
     agentStartupAllowed: draftAgentStartupAllowed,
     modelSelectionService,
+    piModelCatalog,
+    nativePiSession: isDesktop && !remoteSessionId && sessionId !== null,
+    piModelCatalogReady: piCatalogRead?.key === piCatalogKey,
   });
   const modelSelectionView =
     modelSelectionRead.state.status === "ready" ? modelSelectionRead.state.view : null;
@@ -1285,12 +1410,12 @@ export function SessionPane({
   }, [draftConfigRef, modelSelectionView?.revision, sessionId, workspaceIdentity, workspacePath]);
   const recommendStartPlan = useStartPlanRecommendation(modelSelectionView);
   const createSubmissionFromComposer = useCallback(
-    () => createComposerSubmissionConfig(draftConfigRef.current, modelSelectionView),
-    [draftConfigRef, modelSelectionView],
+    () => createComposerSubmissionConfig(draftConfigRef.current, modelSelectionView, piModelCatalog),
+    [draftConfigRef, modelSelectionView, piModelCatalog],
   );
   const composerSubmissionReady = useMemo(
-    () => createComposerSubmissionConfig(draftConfig, modelSelectionView) !== null,
-    [draftConfig, modelSelectionView],
+    () => createComposerSubmissionConfig(draftConfig, modelSelectionView, piModelCatalog) !== null,
+    [draftConfig, modelSelectionView, piModelCatalog],
   );
   const codingPlanUpgradeDialog = useOptionalCodingPlanUpgradeDialog();
   const openSettingsTab = useOptionalTabStore((state) => state.openSettingsTab);
@@ -2279,9 +2404,10 @@ export function SessionPane({
   // pane 未绑定会话时后台建 phase=draft 会话作预热载体：配置写 CAS 直达、首发复用。
   // 对外绑定语义不变（shell activeTaskId 仍 null），预热会话只是 pane 内部 effective 订阅目标。
   const { binding: prewarmBinding } = useDraftSessionPrewarm({
-    enabled: sessionId === null && draftAgentStartupAllowed,
+    enabled: sessionId === null && !pendingFirstInputSessionId && draftAgentStartupAllowed,
     workspaceKey,
     paneId,
+    storageMode: temporaryDraftSelected ? "temporary" : "persistent",
     invalidationVersion: draftRuntimeInvalidationVersion,
     // SessionDataLayer 来自 workspace connection registry：同 transport generation 的 pane/remount
     // 共享 identity；provider wrapper 重建产生的新 sendCommand 函数不能误判为 transport 换代。
@@ -2306,7 +2432,16 @@ export function SessionPane({
   const ensureDraftPrewarmConfigBeforeSendRef = useRef<(targetSessionId: string) => Promise<void>>(
     async () => undefined,
   );
-  const effectiveSessionId = sessionId ?? prewarmSessionId;
+  const effectiveSessionId = sessionId ?? pendingFirstInputSessionId ?? prewarmSessionId;
+  const activeSessionIdRef = useRef(effectiveSessionId);
+  activeSessionIdRef.current = effectiveSessionId;
+  const activeSessionGenerationRef = useRef({ sessionId: effectiveSessionId, generation: 0 });
+  if (activeSessionGenerationRef.current.sessionId !== effectiveSessionId) {
+    activeSessionGenerationRef.current = {
+      sessionId: effectiveSessionId,
+      generation: activeSessionGenerationRef.current.generation + 1,
+    };
+  }
   const showModelChangeNotice = useCallback(
     (sourceModel: ModelSelectionSource | null, targetModel: ModelSelectionSource) => {
       // Bug 原因：草稿尚未形成实际会话，模型选择本身已经在 composer 中可见；
@@ -2710,7 +2845,8 @@ export function SessionPane({
         );
         const createAck = await dispatchSubmissionCommand(
           "createSession",
-          { workspaceId: workspaceKey, ...draftConfigPayload },
+          { workspaceId: workspaceKey, ...draftConfigPayload,
+            ...(temporaryDraftSelected ? { storageMode: "temporary" } : {}) },
           null,
         );
         if (createAck.status !== "accepted") {
@@ -2734,6 +2870,11 @@ export function SessionPane({
         return;
       }
       if (!sessionId) {
+        if (pendingFirstInputSessionId) {
+          // The prior create already has a real Pi identity. A failed or
+          // unknown send ACK must be inspected there before any new admission.
+          throw new Error(`首次发送尚未确认。请从左侧打开 Pi 会话 ${pendingFirstInputSessionId} 核对历史；不会自动重复发送。`);
+        }
         // 草稿附件在 composer 中已绑定预热 session 完成预传。
         // 这里只提交 ready ref，禁止在 send click 内再启动上传。
         const prewarm = prewarmBindingRef.current;
@@ -2789,42 +2930,15 @@ export function SessionPane({
           { ...draftConfigRef.current, modelSelection: submission.modelSelection },
           appFollowupMode,
         );
-        if (readyAttachments.length === 0 && !sharedContextRefs?.length) {
-          const ack = await dispatchSubmissionCommand(
-            "createSession",
-            {
-              workspaceId: workspaceKey,
-              firstInput: { text: effectiveText, ...submission },
-              ...draftConfigPayload,
-            },
-            null,
-            undefined,
-            undefined,
-            options?.telemetrySeed,
-            undefined,
-            createSourceAtSend,
-          );
-          if (ack.status !== "accepted") {
-            throw new Error(ack.reasonCode ?? "createSession 被拒绝");
-          }
-          const result = ack.result;
-          if (!result || result.type !== "createSession") {
-            throw new Error("createSession 缺少 sessionId");
-          }
-          handleDraftSessionCreated(
-            result.sessionId,
-            groupedDraftTaskAtSend,
-            createSourceAtSend,
-            ack.commandId,
-          );
-          return;
-        }
-        // 本地 desktop localPath 是零拷贝 ready，不依赖 attachment transaction；极短窗口内
-        // 预热 session 可能还未返回。此时仍可先创建空 session，再提交现成 ref，发送点击内
-        // 不做任何附件上传，也不会让非 ready 附件绕过 composer 门禁。
+        // A pending Pi extension can hold the first prompt RPC until its GUI
+        // answer. Obtain the session ID before sending, including text-only
+        // first inputs; the composer still waits for the sendText ACK before
+        // promotion, so an unknown delivery cannot clear its draft or replay.
+        // Local ready attachments use this same existing two-command path.
         const createAck = await dispatchSubmissionCommand(
           "createSession",
-          { workspaceId: workspaceKey, ...draftConfigPayload },
+          { workspaceId: workspaceKey, ...draftConfigPayload,
+            ...(temporaryDraftSelected ? { storageMode: "temporary" } : {}) },
           null,
         );
         if (createAck.status !== "accepted") {
@@ -2835,6 +2949,7 @@ export function SessionPane({
           throw new Error("createSession 缺少 sessionId");
         }
         const newSessionId = createResult.sessionId;
+        setPendingFirstInputSessionId(newSessionId);
         const sendAck = await dispatchSubmissionCommand(
           "sendText",
           {
@@ -2857,6 +2972,7 @@ export function SessionPane({
           createSourceAtSend,
           sendAck.commandId,
         );
+        setPendingFirstInputSessionId(null);
         return;
       }
       // 附件 ref 已在 composer 预传状态机中收口。
@@ -2889,6 +3005,9 @@ export function SessionPane({
       if (ack.status !== "accepted") {
         throw new Error(ack.reasonCode ?? "sendText 被拒绝");
       }
+      if (ack.reasonCode === "pi.inputHandledByExtension") {
+        toast(intl.formatMessage({ id: "chat.queue.handledImmediately" }));
+      }
       if (heldQueueDisposition === "clearQueueAndSend") {
         settleCurrentQueueInputs(sessionId);
       }
@@ -2908,9 +3027,11 @@ export function SessionPane({
       handleOpenSelectionSideConversationWithPrompt,
       intl,
       lease,
+      pendingFirstInputSessionId,
       resolveInitialDraftConfig,
       createSubmissionFromComposer,
       sessionId,
+      temporaryDraftSelected,
       settleCurrentQueueInputs,
       workspaceIdentity,
       workspaceKey,
@@ -2977,6 +3098,23 @@ export function SessionPane({
           return sendResult;
         }
         setSendSubmissionError(null);
+        const recovered = activeQueueRecoveryRef.current;
+        if (recovered && shouldDiscardPiQueueRecoveryAfterSend(recovered, {
+          sessionId, text, attachments: options?.attachments, result: "sent",
+          // dispatchSendText only reports admission. Pi's in-memory queue and
+          // an unflushed JSONL are not a durable receipt after a host crash.
+          durablePiRecord: false,
+        })) {
+          // Only a future verified durable Pi receipt can retire this copy.
+          activeQueueRecoveryRef.current = null;
+          void discardPiQueueEditRecovery({ storage: window.localStorage,
+            workspaceKey: recovered.workspaceKey, sessionId: recovered.sessionId,
+            queueItemId: recovered.queueItemId }).then(() => {
+            setQueueRecoveryVersion(value => value + 1);
+          }).catch(error => {
+            logger.warn("[v4-pane] Pi queued edit recovery cleanup after send failed", error);
+          });
+        }
         if (shouldFocusLatest) {
           focusTimelineToLatest();
         }
@@ -3014,11 +3152,44 @@ export function SessionPane({
   }, []);
   const handleComposerRestoreApplied = useCallback(
     (requestId: number) => {
+      const request = composerRestoreRequestRef.current;
+      if (request?.requestId === requestId && request.durableQueueRecovery &&
+        request.recoveryQueueItemId) {
+        activeQueueRecoveryRef.current = { queueItemId: request.recoveryQueueItemId,
+          sessionId: request.sessionId, workspaceKey: request.workspaceKey,
+          text: request.text, refs: request.attachments };
+        try {
+          markPiQueueEditRecoveryState({ storage: window.localStorage,
+            workspaceKey: request.workspaceKey, sessionId: request.sessionId,
+            queueItemId: request.recoveryQueueItemId, state: "restored" });
+          setQueueRecoveryVersion(value => value + 1);
+        } catch (error) {
+          logger.warn("[v4-pane] Pi queued edit recovery state could not be marked", error);
+        }
+        toast(intl.formatMessage({ id: "chat.queue.recoveryReady" }));
+      }
       setComposerRestoreRequest((current) => (current?.requestId === requestId ? null : current));
       clearQueueEditOperation();
     },
-    [clearQueueEditOperation],
+    [clearQueueEditOperation, intl],
   );
+  const handleComposerRestoreDeferred = useCallback((requestId: number) => {
+    setComposerRestoreRequest((current) => (current?.requestId === requestId ? null : current));
+    clearQueueEditOperation();
+    toast(intl.formatMessage({ id: "chat.queue.recoveryConflict" }));
+  }, [clearQueueEditOperation, intl]);
+
+  const beforePiTreeNavigate = useCallback(() => {
+    if (composerDraftStateRef.current.hasContent || composerDraftStateRef.current.busy) {
+      throw new Error("先发送或清空当前草稿，再跳转 Pi 历史节点");
+    }
+  }, []);
+  const restorePiTreeEditor = useCallback((text: string) => {
+    beforePiTreeNavigate();
+    if (!sessionId) throw new Error("当前会话已关闭；请复制恢复文本");
+    setComposerRestoreRequest({ requestId: nextComposerRestoreRequestIdRef.current++,
+      sessionId, workspaceKey, inputKind: "sendText", text, attachments: [] });
+  }, [beforePiTreeNavigate, sessionId, workspaceKey]);
 
   const handleFork = useCallback(
     (target: ConversationRowTarget) => {
@@ -3044,6 +3215,43 @@ export function SessionPane({
     },
     [dispatchCommand, onSessionCreated, sessionId],
   );
+
+  const handlePiBranch = useCallback(async (operation: "fork" | "clone", entryId?: string): Promise<boolean> => {
+    const current = snapshotRef.current;
+    if (!sessionId || !current) throw new Error("当前 Pi 会话已关闭");
+    const ack = await dispatchCommand(operation === "fork" ? "forkPiEntry" : "clonePiSession",
+      operation === "fork" ? { entryId: entryId! } : {}, sessionId, current.revision, current.logEpoch);
+    if (ack.status === "noop" && ack.reasonCode === "pi.branchCancelled") return false;
+    if ((ack.status !== "accepted" && ack.status !== "duplicate") || ack.result?.type !== "forkAssistant") {
+      throw new Error(ack.message ?? `Pi ${operation} failed: ${ack.reasonCode ?? ack.status}`);
+    }
+    if (operation === "fork") {
+      try {
+        await restorePiForkComposerDraft({ workspacePath, workspaceIdentity,
+          sourceSessionId: sessionId, childSessionId: ack.result.sessionId,
+          restoredText: ack.result.restoredText ?? "", images: ack.result.restoredImages ?? [],
+          readImage: attachmentRead });
+      } catch (error) {
+        throw new Error(`Pi 已创建子会话 ${ack.result.sessionId}，但输入草稿未完整恢复：${String(error)}。` +
+          "原会话 JSONL 保留；请在侧栏打开原会话恢复该输入，不要把子会话当作完整副本。");
+      }
+    }
+    onSessionCreated?.(ack.result.sessionId);
+    return true;
+  }, [attachmentRead, dispatchCommand, onSessionCreated, sessionId, workspaceIdentity, workspacePath]);
+
+  const handlePiRetryEntry = useCallback(async (entryId: string): Promise<boolean> => {
+    const current = snapshotRef.current;
+    if (!sessionId || !current) throw new Error("当前 Pi 会话已关闭");
+    const ack = await dispatchCommand("retryPiEntry", { entryId }, sessionId,
+      current.revision, current.logEpoch);
+    if (ack.status === "noop" && ack.reasonCode === "pi.branchCancelled") return false;
+    if ((ack.status !== "accepted" && ack.status !== "duplicate") ||
+      ack.result?.type !== "inputAccepted") {
+      throw new Error(ack.message ?? `Pi 历史重试失败：${ack.reasonCode ?? ack.status}`);
+    }
+    return true;
+  }, [dispatchCommand, sessionId]);
 
   const handleEdit = useCallback(
     async (
@@ -3160,6 +3368,67 @@ export function SessionPane({
     [dispatchCommand, sessionId],
   );
 
+  const restoreQueueRecoveryToComposer = useCallback(async (entry: PiQueueEditRecovery): Promise<boolean> => {
+    const before = composerBindingRef.current;
+    if (decidePiQueueEditRestore("accepted", entry, before,
+      composerDraftStateRef.current.hasContent || composerDraftStateRef.current.busy) !== "restore") {
+      toast(intl.formatMessage({ id: "chat.queue.recoveryConflict" }));
+      return false;
+    }
+    const refs = await restorePiQueueEditRecoveryRefs({ entry, workspaceKey,
+      upload: async ({ sessionId: targetSessionId, file }) => attachmentPut({
+        sessionId: targetSessionId, fileName: file.name, mime: file.type,
+        dataBase64: await imageFileBase64(file),
+      }),
+    });
+    const after = composerBindingRef.current;
+    if (decidePiQueueEditRestore("accepted", entry, after,
+      composerDraftStateRef.current.hasContent || composerDraftStateRef.current.busy) !== "restore") {
+      toast(intl.formatMessage({ id: "chat.queue.recoveryConflict" }));
+      return false;
+    }
+    setComposerRestoreRequest({
+      requestId: nextComposerRestoreRequestIdRef.current++,
+      sessionId: entry.sessionId, workspaceKey, inputKind: entry.inputKind,
+      text: entry.text, attachments: refs, config: entry.config,
+      durableQueueRecovery: true, recoveryQueueItemId: entry.queueItemId,
+    });
+    return true;
+  }, [attachmentPut, intl, workspaceKey]);
+
+  const handleRestoreQueueRecovery = useCallback((entry: PiQueueEditRecovery) => {
+    if (queueEditOperationRef.current || !sessionId || entry.sessionId !== sessionId) return;
+    const operation = { queueItemId: entry.queueItemId, sessionId, workspaceKey };
+    queueEditOperationRef.current = operation;
+    setQueueEditOperation(operation);
+    void restoreQueueRecoveryToComposer(entry).then(staged => {
+      if (!staged) clearQueueEditOperation();
+    }).catch(error => {
+      logger.warn("[v4-pane] Pi queued image recovery failed", error);
+      toast(intl.formatMessage({ id: "chat.queue.editRestoreFailed" }));
+      clearQueueEditOperation();
+    });
+  }, [clearQueueEditOperation, intl, restoreQueueRecoveryToComposer, sessionId, workspaceKey]);
+
+  const handleDiscardQueueRecovery = useCallback((entry: PiQueueEditRecovery) => {
+    if (!sessionId || entry.sessionId !== sessionId) return;
+    if (queueEditOperationRef.current ||
+      !canDiscardPiQueueEditRecovery(composerDraftStateRef.current)) {
+      toast(intl.formatMessage({ id: "chat.queue.recoveryDiscardDraftConflict" }));
+      return;
+    }
+    void discardPiQueueEditRecovery({ storage: window.localStorage, workspaceKey, sessionId,
+      queueItemId: entry.queueItemId }).then(() => {
+      if (activeQueueRecoveryRef.current?.queueItemId === entry.queueItemId) {
+        activeQueueRecoveryRef.current = null;
+      }
+      setQueueRecoveryVersion(value => value + 1);
+    }).catch(error => {
+      logger.warn("[v4-pane] Pi queued edit recovery discard failed", error);
+      toast(intl.formatMessage({ id: "chat.queue.editRestoreFailed" }));
+    });
+  }, [intl, sessionId, workspaceKey]);
+
   const handleEditQueueItem = useCallback(
     async (queueItemId: string): Promise<void> => {
       const current = snapshotRef.current;
@@ -3177,6 +3446,27 @@ export function SessionPane({
       queueEditOperationRef.current = operation;
       setQueueEditOperation(operation);
       try {
+        // A Pi queue item is the only dispatch fact. This separate profile copy
+        // is solely crash recovery and must be durable before the Pi delete.
+        const recovery = await preparePiQueueEditRecovery({
+          storage: window.localStorage, workspaceKey, sessionId,
+          target: restoreTarget,
+          readImage: async (attachment, attachmentIndex) => {
+            const image = await attachmentRead({ sessionId, ref: attachment.ref,
+              queueItemId, attachmentIndex, mediaType: attachment.mime });
+            if (!("bytes" in image)) throw new Error("Pi queued image bytes unavailable");
+            return image;
+          },
+        });
+        setQueueRecoveryVersion(value => value + 1);
+        if (decidePiQueueEditRestore("accepted", recovery, composerBindingRef.current,
+          composerDraftStateRef.current.hasContent || composerDraftStateRef.current.busy) !== "restore") {
+          // Another window may remove the Pi item during this copy. Keep the
+          // durable image even though this pane never sent a delete command.
+          toast(intl.formatMessage({ id: "chat.queue.recoveryConflict" }));
+          clearQueueEditOperation();
+          return;
+        }
         const ack = await dispatchCommand(
           "deleteQueueItem",
           { queueItemId },
@@ -3184,43 +3474,35 @@ export function SessionPane({
           restoreTarget.baseRevision,
         );
         if (!shouldRestoreQueuedComposerFromAck(ack.status)) {
+          // Stale/noop/rejected may mean another window already removed this
+          // item. Pi's new snapshot, not this ACK, decides what is still queued.
+          await settlePiQueueEditDelete({ storage: window.localStorage, workspaceKey,
+            sessionId, queueItemId, status: ack.status });
+          setQueueRecoveryVersion(value => value + 1);
           logger.warn(`[v4-pane] queue 撤回编辑被拒绝: ${ack.status} ${ack.reasonCode ?? ""}`);
-          toast(intl.formatMessage({ id: "chat.queue.editRestoreFailed" }));
+          toast(intl.formatMessage({ id: "chat.queue.recoveryRetainedAfterReject" }));
           clearQueueEditOperation();
           return;
+        }
+        try {
+          await settlePiQueueEditDelete({ storage: window.localStorage, workspaceKey,
+            sessionId, queueItemId, status: ack.status });
+          setQueueRecoveryVersion(value => value + 1);
+        } catch (error) {
+          // Pi has already removed the item. The prepared backup remains valid
+          // even if its local state marker cannot be updated.
+          logger.warn("[v4-pane] Pi queue delete accepted; recovery marker update failed", error);
         }
         pendingCommandRegistry.settle(sessionId, restoreTarget.sourceCommandId);
-        const currentBinding = composerBindingRef.current;
-        if (
-          currentBinding.sessionId !== sessionId ||
-          currentBinding.workspaceKey !== workspaceKey
-        ) {
-          // delete ACK 异步返回时 pane 可能已切 task；旧实现若直接 setText，
-          // 会把原 session 的 queue payload 写进新 task。权威删除保留，但本地恢复必须放弃。
-          logger.warn("[v4-pane] queue 撤回编辑未恢复：ACK 返回前 composer 已切换", {
-            queueItemId,
-            sessionId,
-            workspaceKey,
-          });
-          clearQueueEditOperation();
-          return;
-        }
-        setComposerRestoreRequest({
-          requestId: nextComposerRestoreRequestIdRef.current++,
-          sessionId,
-          workspaceKey,
-          inputKind: restoreTarget.inputKind,
-          text: restoreTarget.text,
-          attachments: restoreTarget.attachments,
-          config: restoreTarget.config,
-        });
+        if (!(await restoreQueueRecoveryToComposer(recovery))) clearQueueEditOperation();
       } catch (error) {
         logger.warn("[v4-pane] queue 撤回编辑命令失败", error);
         toast(intl.formatMessage({ id: "chat.queue.editRestoreFailed" }));
         clearQueueEditOperation();
       }
     },
-    [clearQueueEditOperation, dispatchCommand, intl, sessionId, workspaceKey],
+    [attachmentRead, clearQueueEditOperation, dispatchCommand, intl,
+      restoreQueueRecoveryToComposer, sessionId, workspaceKey],
   );
 
   const handleSendQueuedNow = useCallback(
@@ -3259,20 +3541,18 @@ export function SessionPane({
     [dispatchCommand, sessionId],
   );
 
-  const handleResumeQueue = useCallback(async () => {
-    const current = snapshotRef.current;
-    if (!sessionId || !current || current.queue.autoDrain || current.queue.items.length === 0) {
-      return;
-    }
-    const ack = await dispatchCommand(
-      "setAutoDrain",
-      { autoDrain: true },
-      sessionId,
-      current.revision,
-    );
-    if (ack.status !== "accepted" && ack.status !== "noop") {
-      logger.warn(`[v4-pane] 恢复暂停队列被拒绝: ${ack.status} ${ack.reasonCode ?? ""}`);
-    }
+  const handleResumeQueue = useCallback(async (): Promise<PiQueueResumeResult> => {
+    if (!sessionId) return "changed";
+    const result = await resumeUnchangedPiQueue({
+      targetSessionId: sessionId,
+      getCurrent: () => ({ sessionId: activeSessionIdRef.current,
+        generation: activeSessionGenerationRef.current.generation,
+        snapshot: snapshotRef.current }),
+      dispatch: baseRevision => dispatchCommand("setAutoDrain", { autoDrain: true },
+        sessionId, baseRevision),
+    });
+    if (result !== "accepted") logger.warn(`[v4-pane] 恢复暂停队列未确认: ${result}`);
+    return result;
   }, [dispatchCommand, sessionId]);
 
   // 配置面 CAS 命令的 stale 重试。模型→思考深度→模式连续操作时，前一条命令的
@@ -3425,6 +3705,33 @@ export function SessionPane({
     [draftConfigRef, handleDraftSelectModel],
   );
 
+  const handleCycleModel = useCallback(() => {
+    const targetSessionId = sessionId ?? pendingFirstInputSessionId ?? prewarmBindingRef.current?.sessionId;
+    if (!targetSessionId) {
+      toast(intl.formatMessage({ id: "chat.toolbar.model.cycleUnavailable" }));
+      return;
+    }
+    void configCommandBarrier.enqueue(async () => {
+      const ack = await dispatchConfigCas("cycleModelConfig", {}, { targetSessionId });
+      if (ack?.status === "accepted" && ack.result?.type === "cycleModelConfig") {
+        // Pi's cycle_model response is authoritative for both the next model and
+        // its effective thinking level; keep the next submission in sync.
+        if (activeSessionIdRef.current === targetSessionId) {
+          handleDraftSelectModel(ack.result.provider, ack.result.model);
+          handleDraftSelectThought(ack.result.thinkingLevel);
+        }
+      } else if (ack?.status === "noop" && ack.reasonCode === "pi.singleCycleModel") {
+        toast(intl.formatMessage({ id: "chat.toolbar.model.cycleSingle" }));
+      } else {
+        toast(intl.formatMessage({ id: "chat.toolbar.model.cycleFailed" }));
+      }
+    }).catch((error) => {
+      logger.warn("[v4-pane] Pi model cycle failed", error);
+      toast(intl.formatMessage({ id: "chat.toolbar.model.cycleFailed" }));
+    });
+  }, [configCommandBarrier, dispatchConfigCas, handleDraftSelectModel,
+    handleDraftSelectThought, intl, pendingFirstInputSessionId, sessionId]);
+
   const handleSelectThought = useCallback(
     (thought: string, _modelContext: { provider: string; model: string }) => {
       handleDraftSelectThought(thought);
@@ -3549,10 +3856,11 @@ export function SessionPane({
   const handleStop = useCallback(
     (source: "button" | "escape") => {
       const current = snapshotRef.current;
-      if (!sessionId || !current?.control.canStop) {
+      const targetSessionId = sessionId ?? pendingFirstInputSessionId ?? prewarmBindingRef.current?.sessionId;
+      if (!targetSessionId || current?.sessionId !== targetSessionId || !current.control.canStop) {
         logger.lifecycle.info("[v4-pane] stop 命令被跳过（无可停执行）", {
           source,
-          sessionId: sessionId ?? "",
+          sessionId: targetSessionId ?? "",
         });
         return;
       }
@@ -3561,18 +3869,24 @@ export function SessionPane({
       )?.foregroundExecutionId;
       logger.lifecycle.info("[v4-pane] stop 命令发出", {
         source,
-        sessionId,
+        sessionId: targetSessionId,
         foregroundExecutionId: foregroundExecutionId ?? "",
       });
       void dispatchCommand(
         "stop",
         foregroundExecutionId ? { expectedForegroundExecutionId: foregroundExecutionId } : {},
-        sessionId,
-      ).catch((error) => {
+        targetSessionId,
+      ).then((ack) => {
+        logger.lifecycle.info("[v4-pane] stop 命令结果", {
+          sessionId: targetSessionId,
+          status: ack.status,
+          reasonCode: ack.reasonCode ?? "",
+        });
+      }).catch((error) => {
         logger.lifecycle.warn(`[v4-pane] stop 失败: ${String(error)}`);
       });
     },
-    [dispatchCommand, sessionId],
+    [dispatchCommand, pendingFirstInputSessionId, sessionId],
   );
 
   const handlePauseGoal = useCallback(() => {
@@ -3696,13 +4010,14 @@ export function SessionPane({
   // 滚动恢复必须使用与 sessionId 匹配的 lease projection。切换 session 的 render 与
   // passive effect 不在同一时刻，旧 lease 的 rows 若提前交给 timeline，会让新记忆按旧
   // 内容高度 clamp，后续目标 rows 到达时也无法区分这次临时落点。
-  const timelineSnapshot =
-    !isDraft && (lease === null || sessionLeaseReady) && snapshot?.sessionId === sessionId
-      ? snapshot
+  const activeSnapshot =
+    !isDraft && (lease === null || sessionLeaseReady)
+      ? currentSessionSnapshot(sessionId, snapshot)
       : null;
+  const timelineSnapshot = activeSnapshot;
   const shareHandoverContext =
-    snapshot?.sharedContextImport && "contextId" in snapshot.sharedContextImport
-      ? snapshot.sharedContextImport
+    activeSnapshot?.sharedContextImport && "contextId" in activeSnapshot.sharedContextImport
+      ? activeSnapshot.sharedContextImport
       : null;
   // 导入的分享对话：读取落盘的公开 rows 用于会话顶部的只读块。
   // 分享页可能过期或未上线，所以只读本地副本，不回源。
@@ -3807,7 +4122,7 @@ export function SessionPane({
   const initialDraftConfigForDiagnostics = isDraft ? resolveInitialDraftConfig() : undefined;
   // CLI V4 projection 是 running/count/manifest 的唯一权威；renderer 不再在 spawn
   // 事件后另发查询拼接第二份状态，避免并发 child 的 in-flight refresh 丢更新。
-  const subagents = snapshot?.subagents ?? EMPTY_SUBAGENT_PROJECTION;
+  const subagents = activeSnapshot?.subagents ?? EMPTY_SUBAGENT_PROJECTION;
   useEffect(() => {
     if (!sessionId || subagents.revision === 0 || !onSyncSubagentSessionTabs) return;
     onSyncSubagentSessionTabs({
@@ -3836,22 +4151,23 @@ export function SessionPane({
         gitSummary,
         gitDirtyFileCount,
         gitWorktreeChangeSummary,
-        goal: selectionSideChat ? null : (snapshot?.goal ?? null),
-        sessionPlans: state.sessionPlans,
-        plan: snapshot?.plan ?? null,
-        backgroundWorks: snapshot?.backgroundWorks ?? [],
+        goal: selectionSideChat ? null : (activeSnapshot?.goal ?? null),
+        sessionPlans: activeSnapshot ? state.sessionPlans : [],
+        plan: activeSnapshot?.plan ?? null,
+        backgroundWorks: activeSnapshot?.backgroundWorks ?? [],
         runningSubagents: subagents.running,
-        workflowRuns: snapshot?.workflowRuns?.runs ?? [],
+        workflowRuns: activeSnapshot?.workflowRuns?.runs ?? [],
       }),
     [
       isOfficeMode,
       gitDirtyFileCount,
       gitSummary,
       gitWorktreeChangeSummary,
-      snapshot?.backgroundWorks,
-      snapshot?.goal,
-      snapshot?.plan,
-      snapshot?.workflowRuns,
+      activeSnapshot?.backgroundWorks,
+      activeSnapshot?.goal,
+      activeSnapshot?.plan,
+      activeSnapshot?.workflowRuns,
+      activeSnapshot,
       state.sessionPlans,
       selectionSideChat,
       subagents.running,
@@ -3955,6 +4271,7 @@ export function SessionPane({
     mcpUnavailableNotice,
   });
   const composerError =
+    draftPersistenceError ??
     draftModelReadinessError ??
     sendSubmissionError ??
     (quotaBanner.takesOverError ? null : projectedComposerError);
@@ -3962,6 +4279,7 @@ export function SessionPane({
     setSendSubmissionError(null);
   }, [sessionId]);
   const handleDismissComposerError = useCallback(() => {
+    if (draftPersistenceError) return;
     if (draftModelReadinessError) {
       dismissDraftModelReadinessError();
       return;
@@ -3979,6 +4297,7 @@ export function SessionPane({
   }, [
     controlLastErrorKey,
     dismissDraftModelReadinessError,
+    draftPersistenceError,
     draftModelReadinessError,
     sendSubmissionError,
   ]);
@@ -4396,6 +4715,7 @@ export function SessionPane({
       workspaceIdentity={workspaceIdentity}
       remoteSessionId={remoteSessionId ?? undefined}
       modelSelectionView={modelSelectionView}
+      piModelCatalog={piModelCatalog}
       modelSelectionState={modelSelectionRead.state}
       modelSelectionReload={modelSelectionRead.reload}
       attachmentSessionId={effectiveSessionId}
@@ -4410,8 +4730,10 @@ export function SessionPane({
       onDraftStateChange={handleComposerDraftStateChange}
       composerRestoreRequest={composerRestoreRequest}
       onComposerRestoreApplied={handleComposerRestoreApplied}
+      onComposerRestoreDeferred={handleComposerRestoreDeferred}
       onStop={handleStopFromButton}
       onSelectModel={handleSelectModel}
+      onCycleModel={handleCycleModel}
       onSelectThought={handleSelectThought}
       onSwitchMode={handleSwitchMode}
       onOpenRunningBackgroundWorks={
@@ -4434,7 +4756,7 @@ export function SessionPane({
       onDropTargetControllerChange={handleDropTargetControllerChange}
     />
   );
-  const pendingGuideProjection = snapshot ? projectPendingGuideQueue(snapshot.queue) : null;
+  const pendingGuideProjection = activeSnapshot ? projectPendingGuideQueue(activeSnapshot.queue) : null;
   const conversationBottomDockContent = readOnly ? null : shareActive && sessionId ? (
     shareInSelectionStage ? (
       <ConversationShareSelectionDock
@@ -4516,42 +4838,67 @@ export function SessionPane({
           onDismiss={handleDismissPendingRecovery}
         />
       ) : null}
-      {sessionId && snapshot?.workspaceHookAdmission ? (
+      {sessionId && queueRecoveryStorageError ? (
+        <div role="alert" className="mb-3 rounded-xl border border-border bg-surface px-3 py-2 text-ui-base">
+          {intl.formatMessage({ id: "chat.queue.recoveryStorageError" })}
+        </div>
+      ) : null}
+      {sessionId && activeSnapshot && !readOnly ? (
+        <PiQueueEditRecoveryBanner
+          entries={queueEditRecoveries.filter(entry => entry.sessionId === sessionId)}
+          queuedItemIds={new Set(activeSnapshot.queue.items.map(item => item.queueItemId))}
+          busyQueueItemId={queueEditOperation?.queueItemId ?? null}
+          onRestore={handleRestoreQueueRecovery}
+          onDiscard={handleDiscardQueueRecovery}
+        />
+      ) : null}
+      {sessionId && activeSnapshot?.workspaceHookAdmission ? (
         <WorkspaceHookPendingBanner
           sessionId={sessionId}
           workspacePath={workspacePath}
           workspaceIdentity={workspaceIdentity}
-          admission={snapshot.workspaceHookAdmission}
+          admission={activeSnapshot.workspaceHookAdmission}
         />
       ) : null}
-      {sessionId && snapshot ? (
+      {sessionId && activeSnapshot ? (
         <ConversationQueuePanel
-          key="conversation-queue"
-          queue={pendingGuideProjection?.visibleQueue ?? snapshot.queue}
-          onDeleteItem={handleDeleteQueueItem}
-          onEditItem={handleEditQueueItem}
+          key={`conversation-queue:${sessionId}`}
+          queue={pendingGuideProjection?.controlQueue ?? activeSnapshot.queue}
+          onDeleteItem={activeSnapshot.availability.queueEdit.allowed ? handleDeleteQueueItem : undefined}
+          onEditItem={activeSnapshot.availability.queueEdit.allowed ? handleEditQueueItem : undefined}
           pendingEditQueueItemId={
             queueEditActiveForCurrentComposer ? queueEditOperation.queueItemId : null
           }
-          onSendNow={handleSendQueuedNow}
-          onMoveItem={handleReorderQueueItem}
-          onResume={handleResumeQueue}
+          onSendNow={activeSnapshot.availability.sendQueuedNow.allowed ? handleSendQueuedNow : undefined}
+          onMoveItem={activeSnapshot.availability.queueEdit.allowed ? handleReorderQueueItem : undefined}
+          onResume={activeSnapshot.availability.queueEdit.allowed ? handleResumeQueue : undefined}
+          readOnlyNotice={!activeSnapshot.availability.queueEdit.allowed &&
+            activeSnapshot.availability.queueEdit.reasonCode === "pi.queueEditRequiresLosslessAttachmentRecovery"
+            ? intl.formatMessage({ id: activeSnapshot.queue.autoDrain
+              ? "chat.queue.piReadOnlyActive" : "chat.queue.piReadOnlyStopped" }) : undefined}
         />
       ) : null}
       {/* v4 权限/问答等待态只是 runtime 的阻塞交互，必须和 composer
           共享 timeline bottom dock；渲染在 SessionPane 外层会脱离主列宽度并挤占下半屏。 */}
-      {sessionId && snapshot ? (
+      {effectiveSessionId && snapshot && (sessionId || snapshot.pendingInteractions.length > 0) ? (
         <V4InteractionDialogs
           key="conversation-interactions"
-          sessionId={sessionId}
+          sessionId={effectiveSessionId}
           workspacePath={workspacePath}
           workspaceIdentity={workspaceIdentity}
           remoteSessionId={remoteSessionId ?? undefined}
           provider={provider}
           snapshot={snapshot}
+          onStop={handleStopFromButton}
         />
       ) : null}
+      {sessionId && activeSnapshot ? <PiExtensionUiPanel key={`pi-extension-above:${sessionId}`}
+        state={activeSnapshot.piExtensionUi} placement="aboveEditor"
+        onApplyEditorText={!readOnly ? restorePiTreeEditor : undefined} /> : null}
+      <ComposerDraftDamageBanner workspacePath={workspacePath} workspaceIdentity={workspaceIdentity} />
       {composerNode}
+      {sessionId && activeSnapshot ? <PiExtensionUiPanel key={`pi-extension-below:${sessionId}`}
+        state={activeSnapshot.piExtensionUi} placement="belowEditor" /> : null}
       {/* 办公模式显示主动任务推荐；编程模式保留原有小型场景入口。 */}
       {isDraft && (!isOfficeMode || sharedSettings?.proactiveSuggestionsEnabled === true) ? (
         <ConversationDraftSuggestedPromptsContainer
@@ -4612,11 +4959,52 @@ export function SessionPane({
         </div>
       ) : null}
       <ConversationHeader
-        title={snapshot?.meta.title ?? ""}
+        title={activeSnapshot?.meta.title ?? ""}
         onSplitRight={onSplitRight}
         onSplitDown={onSplitDown}
         onClosePane={onClosePane}
         workspaceBadge={workspaceBadge}
+        piTreeTrigger={isDesktop && !remoteSessionId && !readOnly ? <>
+          {!sessionId ? (
+            <button type="button" data-testid="pi-temporary-session-toggle"
+              aria-pressed={temporaryDraftSelected}
+              title={intl.formatMessage({ id: "pi.session.temporaryHint" })}
+              className="pointer-events-auto rounded-md border border-border bg-popover px-2 py-1 text-ui-xs text-foreground hover:bg-surface-hover"
+              onClick={() => setTemporaryDraftChoice({ key: temporaryDraftKey,
+                selected: !temporaryDraftSelected })}>
+              {temporaryDraftSelected ? intl.formatMessage({ id: "pi.session.temporarySelected" })
+                : intl.formatMessage({ id: "pi.session.temporaryAction" })}
+            </button>
+          ) : null}
+          {sessionId && activeSnapshot?.meta.temporary ? (
+            <span data-testid="pi-temporary-session-indicator" role="status"
+              title={intl.formatMessage({ id: "pi.session.temporaryHint" })}
+              className="rounded-md border border-border px-2 py-1 text-ui-xs text-foreground-subtle">
+              {intl.formatMessage({ id: "pi.session.temporarySelected" })}
+            </span>
+          ) : null}
+          {sessionId ? <>
+          <PiShellDialog sessionId={sessionId} workspacePath={workspacePath}
+            workspaceIdentity={workspaceIdentity}
+            onStop={targetSessionId => {
+              if (targetSessionId === sessionId) handleStopFromButton();
+            }} />
+          <PiLlamaRouterDialog sessionId={sessionId} workspacePath={workspacePath}
+            workspaceIdentity={workspaceIdentity} remoteSessionId={remoteSessionId}
+            onModelsChanged={refreshPiModelCatalog} />
+          <PiResourcesDialog sessionId={sessionId} workspacePath={workspacePath}
+            workspaceIdentity={workspaceIdentity} />
+          {activeSnapshot && !activeSnapshot.meta.temporary ? <PiSessionTransferDialog sessionId={sessionId} workspacePath={workspacePath}
+            workspaceIdentity={workspaceIdentity} beforeSwitch={beforePiTreeNavigate}
+            onImported={onSessionCreated} /> : null}
+          <PiTreeDialog sessionId={sessionId} workspacePath={workspacePath}
+            workspaceIdentity={workspaceIdentity} remoteSessionId={remoteSessionId}
+            beforeNavigate={beforePiTreeNavigate} onRestoredText={restorePiTreeEditor}
+            onBranch={handlePiBranch} onRetry={handlePiRetryEntry} />
+          <PiContextDialog sessionId={sessionId} workspacePath={workspacePath}
+            workspaceIdentity={workspaceIdentity} />
+          </> : null}
+        </> : undefined}
       />
 
       <div
@@ -4647,12 +5035,12 @@ export function SessionPane({
             gitWorktreeReviewSourceId={gitWorktreeReviewSourceId}
             gitWorktreeChangeSummary={gitWorktreeChangeSummary}
             activeTaskChangeSummary={activeTaskChangeSummary}
-            goal={selectionSideChat ? null : (snapshot?.goal ?? null)}
-            sessionPlans={state.sessionPlans}
-            plan={snapshot?.plan ?? null}
-            backgroundWorks={snapshot?.backgroundWorks ?? []}
+            goal={selectionSideChat ? null : (activeSnapshot?.goal ?? null)}
+            sessionPlans={activeSnapshot ? state.sessionPlans : []}
+            plan={activeSnapshot?.plan ?? null}
+            backgroundWorks={activeSnapshot?.backgroundWorks ?? []}
             runningSubagents={subagents.running}
-            workflowRuns={snapshot?.workflowRuns?.runs ?? []}
+            workflowRuns={activeSnapshot?.workflowRuns?.runs ?? []}
             endedSubagentCount={subagents.endedTotal}
             rootSessionId={rootSessionId ?? sessionId ?? undefined}
             parentSessionId={sessionId ?? undefined}
@@ -4668,12 +5056,12 @@ export function SessionPane({
             onRefreshGit={onRefreshGit}
             onOpenGitReview={onOpenGitReview}
             onPauseGoal={
-              !readOnly && !selectionSideChat && snapshot?.availability.pauseGoal.allowed
+              !readOnly && !selectionSideChat && activeSnapshot?.availability.pauseGoal.allowed
                 ? handlePauseGoal
                 : undefined
             }
             onResumeGoal={
-              !readOnly && !selectionSideChat && snapshot?.availability.resumeGoal.allowed
+              !readOnly && !selectionSideChat && activeSnapshot?.availability.resumeGoal.allowed
                 ? handleResumeGoal
                 : undefined
             }
@@ -4763,8 +5151,9 @@ export function SessionPane({
               })}
               headerSlot={
                 // unsupportedRowCount 也要开这个门：整份副本的行都被本 build 跳过时
-                // rows 为空，但只读块必须留下来显示「需要更新 ZCode」，不能整块消失。
-                importedShare &&
+                // rows 为空，但只读块必须留下来显示产品版本提示，不能整块消失。
+                activeSnapshot && importedShare && importedShareContextId !== null &&
+                importedShare.contextId === importedShareContextId &&
                 (importedShare.rows.length > 0 || importedShare.unsupportedRowCount > 0) ? (
                   <ConversationShareImportNotice
                     rows={importedShare.rows}
@@ -4802,7 +5191,7 @@ export function SessionPane({
               }
               searchResultHighlightRequest={isDraft ? null : searchResultHighlightRequest}
               onSearchResultHighlightDone={onSearchResultHighlightDone}
-              sessionPhase={isDraft ? undefined : snapshot?.control.phase}
+              sessionPhase={isDraft ? undefined : activeSnapshot?.control.phase}
               shareSelection={
                 shareActive && shareInSelectionStage && shareDraft?.view === "timeline" && sessionId
                   ? {

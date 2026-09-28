@@ -69,6 +69,7 @@ export interface ChatComposerPasteEvent {
 
 export interface LexicalChatInputHandle {
   clear: () => void;
+  clearForOptimisticSubmit: () => void;
   focus: () => void;
   getEditorState: () => EditorState;
   getMarkdown: () => string;
@@ -185,7 +186,9 @@ function getEditorMarkdown(editorState: EditorState): string {
   return text;
 }
 
-function replaceEditorText(editor: LexicalEditor, text: string) {
+const OPTIMISTIC_SUBMIT_CLEAR_TAG = "optimistic-submit-clear";
+
+function replaceEditorText(editor: LexicalEditor, text: string, tag = PROGRAMMATIC_UPDATE_TAG) {
   editor.update(
     () => {
       const root = $getRoot();
@@ -202,7 +205,7 @@ function replaceEditorText(editor: LexicalEditor, text: string) {
 
       root.getLastChild()?.selectEnd();
     },
-    { tag: PROGRAMMATIC_UPDATE_TAG },
+    tag === OPTIMISTIC_SUBMIT_CLEAR_TAG ? { tag, discrete: true } : { tag },
   );
 }
 
@@ -319,8 +322,8 @@ function replaceEditorStateJson(editor: LexicalEditor, editorStateJson: string) 
   editor.setEditorState(editorState, { tag: PROGRAMMATIC_UPDATE_TAG });
 }
 
-function resetEditor(editor: LexicalEditor) {
-  replaceEditorText(editor, "");
+function resetEditor(editor: LexicalEditor, tag = PROGRAMMATIC_UPDATE_TAG) {
+  replaceEditorText(editor, "", tag);
 }
 
 function replaceEditorWithSkillMention(
@@ -864,6 +867,13 @@ function TextContentPlugin({
           return;
         }
 
+        // ConversationComposer already records its optimistic empty state synchronously.
+        // This Lexical update may arrive after it freezes the cleanup revision;
+        // reporting it as a fresh edit would suppress restoration on a rejected send.
+        if (tags.has(OPTIMISTIC_SUBMIT_CLEAR_TAG)) {
+          return;
+        }
+
         onChange(nextText);
 
         const lagMs = performance.now() - startedAt;
@@ -1269,6 +1279,7 @@ function EditorApiPlugin({
 
     editorApiRef.current = {
       clear: () => resetEditor(editor),
+      clearForOptimisticSubmit: () => resetEditor(editor, OPTIMISTIC_SUBMIT_CLEAR_TAG),
       focus: () => editor.focus(),
       getEditorState: () => editor.getEditorState(),
       getMarkdown: () => getEditorMarkdown(editor.getEditorState()),

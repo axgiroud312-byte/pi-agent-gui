@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
-import { renderIssueBody, validatePlan, validateRemoteIssue } from './check-delivery-plan.mjs';
+import { ghJsonWithRetry, renderIssueBody, validatePlan, validateRemoteIssue } from './check-delivery-plan.mjs';
 
 const scope = JSON.parse(await readFile(new URL('../docs/delivery/scope.json', import.meta.url), 'utf8'));
 const tickets = JSON.parse(await readFile(new URL('../docs/delivery/tickets.json', import.meta.url), 'utf8'));
@@ -36,4 +36,20 @@ test('retirement is never accepted as feature completion', () => {
   validateRemoteIssue(scope, ticket, tickets, issue);
   issue.labels.push({ name: 'ready-for-agent' });
   assert.throws(() => validateRemoteIssue(scope, ticket, tickets, issue), /still ready/);
+});
+test('GitHub transport EOF is retried, while a permanent API error is not hidden', () => {
+  let calls = 0;
+  const oneTransientFailure = () => {
+    calls += 1;
+    if (calls === 1) throw Object.assign(new Error('GitHub EOF'), { stderr: 'Get GitHub: EOF' });
+    return '[{"number":1}]';
+  };
+  assert.deepEqual(ghJsonWithRetry(['api', 'example'], oneTransientFailure), [{ number: 1 }]);
+  assert.equal(calls, 2);
+  calls = 0;
+  assert.throws(() => ghJsonWithRetry(['api', 'example'], () => {
+    calls += 1;
+    throw new Error('HTTP 401');
+  }), /401/);
+  assert.equal(calls, 1);
 });

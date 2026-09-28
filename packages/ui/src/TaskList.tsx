@@ -13,7 +13,6 @@ import { useTabStore } from "@/store/TabStoreProvider.js";
 import { MemoTaskItem, TaskListItemContextMenuContent } from "@/TaskListItem.js";
 import { TaskListLoadingHint } from "@/TaskListLoadingHint.js";
 import { TaskRenameDialog } from "@/TaskRenameDialog.js";
-import { buildTaskWorkspaceKey } from "@/lib/taskQueryCache.js";
 import { compareZCodeTaskListItems } from "@/lib/taskListOrdering.js";
 import { logger } from "@/logger.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
@@ -46,6 +45,7 @@ export const TaskList = memo(function TaskList({
   onSetTaskPinned,
   onArchiveTask,
   onSetTaskUnread,
+  onDeletePiSession,
   readOnlyReason,
 }: {
   workspacePath: string;
@@ -67,6 +67,7 @@ export const TaskList = memo(function TaskList({
   onSetTaskPinned: (taskId: string, pinned: boolean) => Promise<ZCodeTaskMeta | null>;
   onArchiveTask: (taskId: string) => Promise<ZCodeTaskMeta | null>;
   onSetTaskUnread: (taskId: string, unread: boolean) => Promise<ZCodeTaskMeta | null>;
+  onDeletePiSession?: (taskId: string) => Promise<void>;
   readOnlyReason?: string;
 }) {
   const { intl } = useZCodeIntl();
@@ -247,7 +248,8 @@ export const TaskList = memo(function TaskList({
           workspaceIdentity,
           message: error instanceof Error ? error.message : String(error),
         });
-        throw error;
+        toast(intl.formatMessage({ id: "taskList.renameFailed" }));
+        return;
       }
       logger.info("[TaskList] rename submit onRenameTask resolved", {
         taskId,
@@ -460,6 +462,7 @@ export const TaskList = memo(function TaskList({
                   onStartRenameTask={handleStartRenameTask}
                   onArchiveTask={handleArchiveTask}
                   onMarkTaskAsUnread={handleMarkTaskAsUnread}
+                  onDeletePiSession={onDeletePiSession ? (taskId) => { void onDeletePiSession(taskId); } : undefined}
                   disableTaskActions={Boolean(readOnlyReason)}
                   disabledReason={readOnlyReason}
                 />
