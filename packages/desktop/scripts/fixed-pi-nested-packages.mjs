@@ -185,6 +185,44 @@ export function resolveRootMinimatchNestedPackagePlan({ workspaceRoot, readPacka
   return plan;
 }
 
+/**
+ * Keep a root runtime package's physically nested dependency when the archive
+ * root contains another version of the same dependency. Electron Builder can
+ * flatten the owner while dropping that nested directory, which leaves every
+ * package manifest present but changes the CommonJS API that the owner loads.
+ */
+export function resolveRuntimeNestedPackagePlan({
+  runtimeModules,
+  readPackagedManifest,
+  excludedOwnerPackageNames = [],
+}) {
+  const excludedOwners = new Set(excludedOwnerPackageNames);
+  const sourcePackages = [];
+  const toCopy = [];
+  for (const { moduleName: ownerPackageName, sourceModulePath } of runtimeModules) {
+    if (!sourceModulePath || excludedOwners.has(ownerPackageName)) continue;
+    const ownerManifest = readPackageManifest(sourceModulePath);
+    if (ownerManifest.name !== ownerPackageName) {
+      throw new Error(`Runtime nested owner source mismatch: ${sourceModulePath}`);
+    }
+    for (const entry of collectSourceNestedPackages(sourceModulePath, ownerPackageName)) {
+      sourcePackages.push(entry);
+      const nested = readPackagedManifest(join(
+        "node_modules",
+        ownerPackageName,
+        "node_modules",
+        entry.moduleName,
+        "package.json",
+      ));
+      const root = readPackagedManifest(join("node_modules", entry.moduleName, "package.json"));
+      const correctNested = nested?.name === entry.moduleName && nested.version === entry.version;
+      const correctRootFallback = !nested && root?.name === entry.moduleName && root.version === entry.version;
+      if (!correctNested && !correctRootFallback) toCopy.push(entry);
+    }
+  }
+  return { sourcePackages, toCopy };
+}
+
 /** Copy the source package's real nested dependency directories into its archive staging path. */
 export function copyFixedPiNestedPackages({ stagingDir, entries }) {
   const stagingRoot = resolve(stagingDir);
@@ -192,7 +230,7 @@ export function copyFixedPiNestedPackages({ stagingDir, entries }) {
     const target = resolve(stagingRoot, "node_modules", ownerPackageName, "node_modules", moduleName);
     const targetRelative = relative(stagingRoot, target);
     if (!targetRelative || targetRelative.startsWith(`..${sep}`) || targetRelative === ".." || isAbsolute(targetRelative)) {
-      throw new Error(`Pi nested package target escapes staging: ${target}`);
+      throw new Error(`Nested runtime package target escapes staging: ${target}`);
     }
     rmSync(target, { recursive: true, force: true });
     mkdirSync(dirname(target), { recursive: true });

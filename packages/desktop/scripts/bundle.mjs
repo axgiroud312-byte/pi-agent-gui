@@ -26,6 +26,7 @@ import {
   resolveFixedPiFamilyNestedPackagePlan,
   resolvePiAiProxyAgentBasePlan,
   resolveRootMinimatchNestedPackagePlan,
+  resolveRuntimeNestedPackagePlan,
 } from "./fixed-pi-nested-packages.mjs";
 import { resolveDesktopProductIdentity } from "./desktop-product-identity.mjs";
 import {
@@ -735,7 +736,21 @@ function verifyPackagedRuntimeDependencies(os, arch) {
     workspaceRoot,
     readPackagedManifest,
   });
-  const missingNestedModules = [...nestedPiPlan.toCopy, ...rootMinimatchPlan.toCopy, ...proxyAgentBasePlan.toCopy];
+  const runtimeNestedPlan = resolveRuntimeNestedPackagePlan({
+    runtimeModules,
+    readPackagedManifest,
+    excludedOwnerPackageNames: [
+      ...FIXED_PI_NESTED_PACKAGE_OWNERS,
+      CHORD_PACKAGE_NAME,
+      "minimatch",
+    ],
+  });
+  const missingNestedModules = [
+    ...nestedPiPlan.toCopy,
+    ...rootMinimatchPlan.toCopy,
+    ...proxyAgentBasePlan.toCopy,
+    ...runtimeNestedPlan.toCopy,
+  ];
   if (missingNestedModules.length > 0) {
     throw new Error(`打包产物缺少嵌套运行时依赖或版本不符: ${missingNestedModules.map(entry => `${entry.ownerPackageName}/${entry.moduleName}@${entry.version}`).join(", ")}: ${appAsarPath}`);
   }

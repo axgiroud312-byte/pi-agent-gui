@@ -20,6 +20,7 @@ import {
   resolvePiAiProxyAgentBasePlan,
   resolveRootMinimatchNestedPackagePlan,
   resolveRootRuntimePackageRepairs,
+  resolveRuntimeNestedPackagePlan,
 } from "./scripts/fixed-pi-nested-packages.mjs";
 import {
   resolvePackagedNodePtyPrebuildPath,
@@ -378,6 +379,17 @@ function resolveMissingRuntimeModules(appAsarPath) {
     workspaceRoot,
     readPackagedManifest,
   });
+  const runtimeNestedPlan = resolveRuntimeNestedPackagePlan({
+    runtimeModules,
+    readPackagedManifest,
+    // These owners have dedicated target/version policies below. In particular,
+    // copying Chord's whole nested tree would reintroduce every platform binary.
+    excludedOwnerPackageNames: [
+      ...FIXED_PI_NESTED_PACKAGE_OWNERS,
+      CHORD_PACKAGE_NAME,
+      "minimatch",
+    ],
+  });
   const resolvableRuntimeModules = filterChordEsbuildFromRootRuntimeModules(runtimeModules).filter((entry) => {
     if (!entry.sourceModulePath) {
       // 不同平台/安装布局下，部分运行时依赖可能被裁剪或未落到本次打包工作区。
@@ -399,7 +411,12 @@ function resolveMissingRuntimeModules(appAsarPath) {
   });
   return {
     missingRootModules,
-    nestedModulesToCopy: [...nestedPiPlan.toCopy, ...rootMinimatchPlan.toCopy, ...proxyAgentBasePlan.toCopy],
+    nestedModulesToCopy: [
+      ...nestedPiPlan.toCopy,
+      ...rootMinimatchPlan.toCopy,
+      ...proxyAgentBasePlan.toCopy,
+      ...runtimeNestedPlan.toCopy,
+    ],
     chordEsbuildPlan,
   };
 }
