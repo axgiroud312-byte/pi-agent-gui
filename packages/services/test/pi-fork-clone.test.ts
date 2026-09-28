@@ -290,9 +290,15 @@ test("native fork and clone use real Pi entries and preserve source JSONL", { ti
     assert.equal(users.length, 3);
     const range = await service.conversationRowsRangeV4({ workspacePath, sessionId: sourceId, limit: 100 });
     assert.equal(await readFile(sourceView.sessionFile, "utf8"), original);
+    assert(range.atRevision > 0, "the three settled Pi turns must have advanced the tree revision");
+    // The projection may advance after this read when Pi's final records arrive.
+    // A future revision could then become current and no longer be stale.
+    const staleRevision = range.atRevision - 1;
     const stale = await service.sendConversationCommandV4(command(sourceId, "forkPiEntry",
-      { entryId: users[1]!.id }, range.atRevision + 1, range.atLogEpoch) as never);
+      { entryId: users[1]!.id }, staleRevision, range.atLogEpoch) as never);
     assert.equal(stale.status, "stale", "a stale tree must not fork a different Pi entry");
+    assert((stale.revisionAtDecision ?? -1) > staleRevision,
+      "the branch decision must compare against a newer authoritative projection");
     const unknown = await service.sendConversationCommandV4(command(sourceId, "forkPiEntry",
       { entryId: "not-an-active-user-entry" }, range.atRevision, range.atLogEpoch) as never);
     assert.equal(unknown.status, "failed", "an unavailable entry must fail before the Pi fork command");
