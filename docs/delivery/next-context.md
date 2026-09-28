@@ -10,6 +10,16 @@
 - 不得因用户暂缓验收而伪造 #34 或后续 Issue 的人工通过、关闭 Issue、合并 Draft PR 或正式发布。
 - 缺少在线账号、OAuth 人工回调、真实 llama.cpp/GGUF 或安装权限时，明确记录待最终验收项，但继续所有不依赖这些条件的开发。
 
+## 2026-09-28 14:15 c2accc3 打包根因闭环，进入最终精确 HEAD 重建
+
+- `issue-34-native-pi-rpc` 当前已推送 HEAD `c2accc3`。`74d392f` 修复运行时嵌套依赖版本折叠，`db213dd` 将打包资源根传给 utility host，`3b4fe27` 强制包内 GUI 从源码树外启动，`c2accc3` 让 NSIS 直接执行有界 PowerShell/CIM 进程查询并对异常 fail closed。用户看到的 `brace-expansion` 缺包、后续 `proper-lockfile`/`signal-exit` 错接、从中性 cwd 找不到 packaged Agent、NSIS exit 2 四个根因均已分别复现、写合同并修复；旧 `11f06ff2` 坏包禁止使用。
+- 最终源码门禁在 `c2accc3` 通过：固定 Pi 0.87.0 顺序全集 `D:/Temp/pi-main-sequential-c2accc3-20260928.log` **265/265 PASS、exit 0**；typecheck PASS；lint 0 error/69 个既有 warning；delivery 本地校验、7 项测试、`--github` PASS；打包合同 24 PASS/1 个显式归档参数 skip，Host/Pi 打包合同 6/6。
+- 全量构建 `D:/Temp/pi-agent-gui-final-c2accc3-20260928/` 通过。NSIS SHA-256 `FC48352FDB3902B7DE0FA7249F1238E7576D7615B869B7D0E010A46D1B189C45`；unpacked exe `C6E4D9054230C6DCBCD8A965842BF49C2C8E6157C79A12240B52DFCF1DD440AF`；app.asar `BC041959DF8D9E415FAB493DA6CB5E6C959A93251B9DB3118885F7B21152E2E2`，元数据 3.14.1/`c2accc35`/固定 Pi 0.87.0。中性 cwd 包内完整 GUI 报告 `D:/Temp/pi-final-unpacked-c2accc3-neutral-20260928/pi-native-gui-report.json` 通过 11 次受控请求、图片原字节冷恢复、文本/图片/工具/Stop、预览编辑、两会话/草稿/布局/历史恢复；三轮均正常退出、无强杀/残留/页面错误/越界文件访问。
+- 与最终安装器修正相同的隔离预打包逻辑已实际完成受控 3.14.0→3.14.1，exit 0，installed GUI 完整 smoke 通过；注册卸载器退出 0、安装根和注册项移除，外部 home/Pi profile 155 个文件前后完全一致。升级日志 `D:/Temp/pi-agent-gui-process-fixed-upgrade-20260928.log`，外部数据比较 `D:/Temp/pi-agent-gui-final-profile-uninstall-compare-20260928.json`。此前误用 installer `/?` 导致的系统级 `D:/pi/Pi Agent IDE Preview` 已恢复为原 3.14.0 并核验；受控 HKCU 基线亦恢复。不要再用 `/?` 探测 NSIS。
+- 工作树一度出现根 `package.json` 被包内桌面清单覆盖，已查明为 `asar extract-file package.json` 默认写当前目录的探针副作用，只恢复该单文件后工作树重新只剩受保护未跟踪 `%SystemDrive%/`、`用`、`packages/desktop/dist-pi-incremental/`；`stash@{0}` 未动。
+- 下一步连续完成：提交并推送本轮 `coverage.md`、`next-context.md`、`native-ui-parity.md`，冻结最终文档 HEAD；在全新 `D:/Temp/pi-agent-gui-final-user-preview-20260928/` 从该精确 HEAD 全量构建，再跑中性 cwd 完整包内 GUI、custom 扩展、16 对原生 parity、静态元数据；恢复受控 3.14.0 后用该精确 installer 覆盖升级、installed GUI、卸载与外部 profile 比较。最终结果写 `D:/Temp/pi-agent-gui-final-validation-20260928.json`，再更新 #27/#28/#34 与 Draft PR #39，Issue 保持 OPEN、PR 保持 Draft，等待一次用户统一验收。
+- 仍不能由工程自动化代签：现场 OAuth 登录/登出、真实 llama.cpp+GGUF、物理中文 IME、实际 GitHub Gist 和用户视觉/体验确认。已有 OAuth 凭据的真实在线 `openai-codex/gpt-5.5` 推理已独立通过，不能冒充现场登录；router fixture 不能冒充真实 GGUF。
+
 ## 2026-09-28 11:20 主树整合后的打包断点
 
 - 当前源码提交包括 `eb68918` 的 Chord `esbuild` 私有 0.28.2 API/目标 binary 配对及固定 Pi packaged 子进程物理侧车路径、`9ce8702` 的 #25 custom 图文冷恢复 GUI 测试、`a1b63da` 的包内 Chord 扩展试验模式、`bc7e2de` 的 #4 暂停队列 stale 有界恢复。主树 package 11/11（另一个需要显式归档参数的真运行测试在隔离工作树 1/1）、Pi 子进程 env 合同 4/4、typecheck/lint 正在收口；以最新命令结果为准。旧包 `11f06ff2` 仍坏，未重包。

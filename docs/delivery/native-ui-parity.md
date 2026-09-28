@@ -6,6 +6,8 @@
 
 基线：`zai-org/ZCode@872ad960de7ec172591f7e1952f7849229f94521`。**原版和产品底座已真实运行，26对截图及操作见[本轮验收](issue-32-acceptance.md)；用户于2026-09-23确认实际界面，#33已关闭，见[确认记录](native-ui-confirmation.md)。** 以下标准继续用于后续Pi适配复验。
 
+> 2026-09-28 最终包前复验：`db213dd` 的中性 cwd 包内 custom 扩展和 16 对固定原版/产品状态矩阵全部通过，页面错误为零；证据目录分别为 `D:/Temp/pi-final-extension-db213dd-neutral-20260928/` 与 `D:/Temp/pi-final-native-parity-db213dd-neutral-20260928/`。随后 `c2accc3` 只改安装器进程查询，未改渲染界面；它的全新 unpacked 又从中性 cwd 跑完整主 GUI，报告 `D:/Temp/pi-final-unpacked-c2accc3-neutral-20260928/pi-native-gui-report.json`，未发送图片冷恢复、选择/粘贴/拖入、Stop、文件预览编辑、两会话/布局/历史恢复和三轮清洁退出均通过。文档提交后的精确最终包仍要重复矩阵；物理中文 IME、现场动态内容与用户视觉/体验确认继续保留为人工验收，不能由截图或自动化代签。
+
 ## 操作方法
 
 1. 在独立数据目录实际启动原版 ZCode；记录源码提交、构建命令、运行平台、主题、缩放、字体、数据规模及执行环境。账户、模型和运行记录属于哪个应用必须明确。
