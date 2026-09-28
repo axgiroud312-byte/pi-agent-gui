@@ -246,6 +246,7 @@ import {
 import { useSlashCommands } from "@/hooks/useSlashCommands.js";
 import { useV4Conversation } from "@/v4/V4ConversationContext.js";
 import { useConversationProjection } from "@/v4/useConversationProjection.js";
+import { currentSessionSnapshot } from "@/v4/currentSessionSnapshot.js";
 import { usePendingCommandRecovery } from "@/v4/usePendingCommandRecovery.js";
 import { useV4SessionQuotaBanner } from "@/v4/useV4SessionQuotaBanner.js";
 import { resolveMcpUnavailableNotice } from "@/v4/mcpUnavailableBannerNotice.js";
@@ -4003,13 +4004,14 @@ export function SessionPane({
   // 滚动恢复必须使用与 sessionId 匹配的 lease projection。切换 session 的 render 与
   // passive effect 不在同一时刻，旧 lease 的 rows 若提前交给 timeline，会让新记忆按旧
   // 内容高度 clamp，后续目标 rows 到达时也无法区分这次临时落点。
-  const timelineSnapshot =
-    !isDraft && (lease === null || sessionLeaseReady) && snapshot?.sessionId === sessionId
-      ? snapshot
+  const activeSnapshot =
+    !isDraft && (lease === null || sessionLeaseReady)
+      ? currentSessionSnapshot(sessionId, snapshot)
       : null;
+  const timelineSnapshot = activeSnapshot;
   const shareHandoverContext =
-    snapshot?.sharedContextImport && "contextId" in snapshot.sharedContextImport
-      ? snapshot.sharedContextImport
+    activeSnapshot?.sharedContextImport && "contextId" in activeSnapshot.sharedContextImport
+      ? activeSnapshot.sharedContextImport
       : null;
   // 导入的分享对话：读取落盘的公开 rows 用于会话顶部的只读块。
   // 分享页可能过期或未上线，所以只读本地副本，不回源。
@@ -4114,7 +4116,7 @@ export function SessionPane({
   const initialDraftConfigForDiagnostics = isDraft ? resolveInitialDraftConfig() : undefined;
   // CLI V4 projection 是 running/count/manifest 的唯一权威；renderer 不再在 spawn
   // 事件后另发查询拼接第二份状态，避免并发 child 的 in-flight refresh 丢更新。
-  const subagents = snapshot?.subagents ?? EMPTY_SUBAGENT_PROJECTION;
+  const subagents = activeSnapshot?.subagents ?? EMPTY_SUBAGENT_PROJECTION;
   useEffect(() => {
     if (!sessionId || subagents.revision === 0 || !onSyncSubagentSessionTabs) return;
     onSyncSubagentSessionTabs({
@@ -4143,22 +4145,23 @@ export function SessionPane({
         gitSummary,
         gitDirtyFileCount,
         gitWorktreeChangeSummary,
-        goal: selectionSideChat ? null : (snapshot?.goal ?? null),
-        sessionPlans: state.sessionPlans,
-        plan: snapshot?.plan ?? null,
-        backgroundWorks: snapshot?.backgroundWorks ?? [],
+        goal: selectionSideChat ? null : (activeSnapshot?.goal ?? null),
+        sessionPlans: activeSnapshot ? state.sessionPlans : [],
+        plan: activeSnapshot?.plan ?? null,
+        backgroundWorks: activeSnapshot?.backgroundWorks ?? [],
         runningSubagents: subagents.running,
-        workflowRuns: snapshot?.workflowRuns?.runs ?? [],
+        workflowRuns: activeSnapshot?.workflowRuns?.runs ?? [],
       }),
     [
       isOfficeMode,
       gitDirtyFileCount,
       gitSummary,
       gitWorktreeChangeSummary,
-      snapshot?.backgroundWorks,
-      snapshot?.goal,
-      snapshot?.plan,
-      snapshot?.workflowRuns,
+      activeSnapshot?.backgroundWorks,
+      activeSnapshot?.goal,
+      activeSnapshot?.plan,
+      activeSnapshot?.workflowRuns,
+      activeSnapshot,
       state.sessionPlans,
       selectionSideChat,
       subagents.running,
@@ -4747,7 +4750,7 @@ export function SessionPane({
       onDropTargetControllerChange={handleDropTargetControllerChange}
     />
   );
-  const pendingGuideProjection = snapshot ? projectPendingGuideQueue(snapshot.queue) : null;
+  const pendingGuideProjection = activeSnapshot ? projectPendingGuideQueue(activeSnapshot.queue) : null;
   const conversationBottomDockContent = readOnly ? null : shareActive && sessionId ? (
     shareInSelectionStage ? (
       <ConversationShareSelectionDock
@@ -4834,38 +4837,38 @@ export function SessionPane({
           {intl.formatMessage({ id: "chat.queue.recoveryStorageError" })}
         </div>
       ) : null}
-      {sessionId && snapshot && !readOnly ? (
+      {sessionId && activeSnapshot && !readOnly ? (
         <PiQueueEditRecoveryBanner
           entries={queueEditRecoveries.filter(entry => entry.sessionId === sessionId)}
-          queuedItemIds={new Set(snapshot.queue.items.map(item => item.queueItemId))}
+          queuedItemIds={new Set(activeSnapshot.queue.items.map(item => item.queueItemId))}
           busyQueueItemId={queueEditOperation?.queueItemId ?? null}
           onRestore={handleRestoreQueueRecovery}
           onDiscard={handleDiscardQueueRecovery}
         />
       ) : null}
-      {sessionId && snapshot?.workspaceHookAdmission ? (
+      {sessionId && activeSnapshot?.workspaceHookAdmission ? (
         <WorkspaceHookPendingBanner
           sessionId={sessionId}
           workspacePath={workspacePath}
           workspaceIdentity={workspaceIdentity}
-          admission={snapshot.workspaceHookAdmission}
+          admission={activeSnapshot.workspaceHookAdmission}
         />
       ) : null}
-      {sessionId && snapshot ? (
+      {sessionId && activeSnapshot ? (
         <ConversationQueuePanel
-          key="conversation-queue"
-          queue={pendingGuideProjection?.controlQueue ?? snapshot.queue}
-          onDeleteItem={snapshot.availability.queueEdit.allowed ? handleDeleteQueueItem : undefined}
-          onEditItem={snapshot.availability.queueEdit.allowed ? handleEditQueueItem : undefined}
+          key={`conversation-queue:${sessionId}`}
+          queue={pendingGuideProjection?.controlQueue ?? activeSnapshot.queue}
+          onDeleteItem={activeSnapshot.availability.queueEdit.allowed ? handleDeleteQueueItem : undefined}
+          onEditItem={activeSnapshot.availability.queueEdit.allowed ? handleEditQueueItem : undefined}
           pendingEditQueueItemId={
             queueEditActiveForCurrentComposer ? queueEditOperation.queueItemId : null
           }
-          onSendNow={snapshot.availability.sendQueuedNow.allowed ? handleSendQueuedNow : undefined}
-          onMoveItem={snapshot.availability.queueEdit.allowed ? handleReorderQueueItem : undefined}
-          onResume={snapshot.availability.queueEdit.allowed ? handleResumeQueue : undefined}
-          readOnlyNotice={!snapshot.availability.queueEdit.allowed &&
-            snapshot.availability.queueEdit.reasonCode === "pi.queueEditRequiresLosslessAttachmentRecovery"
-            ? intl.formatMessage({ id: snapshot.queue.autoDrain
+          onSendNow={activeSnapshot.availability.sendQueuedNow.allowed ? handleSendQueuedNow : undefined}
+          onMoveItem={activeSnapshot.availability.queueEdit.allowed ? handleReorderQueueItem : undefined}
+          onResume={activeSnapshot.availability.queueEdit.allowed ? handleResumeQueue : undefined}
+          readOnlyNotice={!activeSnapshot.availability.queueEdit.allowed &&
+            activeSnapshot.availability.queueEdit.reasonCode === "pi.queueEditRequiresLosslessAttachmentRecovery"
+            ? intl.formatMessage({ id: activeSnapshot.queue.autoDrain
               ? "chat.queue.piReadOnlyActive" : "chat.queue.piReadOnlyStopped" }) : undefined}
         />
       ) : null}
@@ -4883,11 +4886,13 @@ export function SessionPane({
           onStop={handleStopFromButton}
         />
       ) : null}
-      {sessionId && snapshot ? <PiExtensionUiPanel state={snapshot.piExtensionUi} placement="aboveEditor"
+      {sessionId && activeSnapshot ? <PiExtensionUiPanel key={`pi-extension-above:${sessionId}`}
+        state={activeSnapshot.piExtensionUi} placement="aboveEditor"
         onApplyEditorText={!readOnly ? restorePiTreeEditor : undefined} /> : null}
       <ComposerDraftDamageBanner workspacePath={workspacePath} workspaceIdentity={workspaceIdentity} />
       {composerNode}
-      {sessionId && snapshot ? <PiExtensionUiPanel state={snapshot.piExtensionUi} placement="belowEditor" /> : null}
+      {sessionId && activeSnapshot ? <PiExtensionUiPanel key={`pi-extension-below:${sessionId}`}
+        state={activeSnapshot.piExtensionUi} placement="belowEditor" /> : null}
       {/* 办公模式显示主动任务推荐；编程模式保留原有小型场景入口。 */}
       {isDraft && (!isOfficeMode || sharedSettings?.proactiveSuggestionsEnabled === true) ? (
         <ConversationDraftSuggestedPromptsContainer
@@ -4948,7 +4953,7 @@ export function SessionPane({
         </div>
       ) : null}
       <ConversationHeader
-        title={snapshot?.meta.title ?? ""}
+        title={activeSnapshot?.meta.title ?? ""}
         onSplitRight={onSplitRight}
         onSplitDown={onSplitDown}
         onClosePane={onClosePane}
@@ -4965,7 +4970,7 @@ export function SessionPane({
                 : intl.formatMessage({ id: "pi.session.temporaryAction" })}
             </button>
           ) : null}
-          {sessionId && snapshot?.meta.temporary ? (
+          {sessionId && activeSnapshot?.meta.temporary ? (
             <span data-testid="pi-temporary-session-indicator" role="status"
               title={intl.formatMessage({ id: "pi.session.temporaryHint" })}
               className="rounded-md border border-border px-2 py-1 text-ui-xs text-foreground-subtle">
@@ -4983,7 +4988,7 @@ export function SessionPane({
             onModelsChanged={refreshPiModelCatalog} />
           <PiResourcesDialog sessionId={sessionId} workspacePath={workspacePath}
             workspaceIdentity={workspaceIdentity} />
-          {!snapshot?.meta.temporary ? <PiSessionTransferDialog sessionId={sessionId} workspacePath={workspacePath}
+          {activeSnapshot && !activeSnapshot.meta.temporary ? <PiSessionTransferDialog sessionId={sessionId} workspacePath={workspacePath}
             workspaceIdentity={workspaceIdentity} beforeSwitch={beforePiTreeNavigate}
             onImported={onSessionCreated} /> : null}
           <PiTreeDialog sessionId={sessionId} workspacePath={workspacePath}
@@ -5024,12 +5029,12 @@ export function SessionPane({
             gitWorktreeReviewSourceId={gitWorktreeReviewSourceId}
             gitWorktreeChangeSummary={gitWorktreeChangeSummary}
             activeTaskChangeSummary={activeTaskChangeSummary}
-            goal={selectionSideChat ? null : (snapshot?.goal ?? null)}
-            sessionPlans={state.sessionPlans}
-            plan={snapshot?.plan ?? null}
-            backgroundWorks={snapshot?.backgroundWorks ?? []}
+            goal={selectionSideChat ? null : (activeSnapshot?.goal ?? null)}
+            sessionPlans={activeSnapshot ? state.sessionPlans : []}
+            plan={activeSnapshot?.plan ?? null}
+            backgroundWorks={activeSnapshot?.backgroundWorks ?? []}
             runningSubagents={subagents.running}
-            workflowRuns={snapshot?.workflowRuns?.runs ?? []}
+            workflowRuns={activeSnapshot?.workflowRuns?.runs ?? []}
             endedSubagentCount={subagents.endedTotal}
             rootSessionId={rootSessionId ?? sessionId ?? undefined}
             parentSessionId={sessionId ?? undefined}
@@ -5045,12 +5050,12 @@ export function SessionPane({
             onRefreshGit={onRefreshGit}
             onOpenGitReview={onOpenGitReview}
             onPauseGoal={
-              !readOnly && !selectionSideChat && snapshot?.availability.pauseGoal.allowed
+              !readOnly && !selectionSideChat && activeSnapshot?.availability.pauseGoal.allowed
                 ? handlePauseGoal
                 : undefined
             }
             onResumeGoal={
-              !readOnly && !selectionSideChat && snapshot?.availability.resumeGoal.allowed
+              !readOnly && !selectionSideChat && activeSnapshot?.availability.resumeGoal.allowed
                 ? handleResumeGoal
                 : undefined
             }
@@ -5141,7 +5146,8 @@ export function SessionPane({
               headerSlot={
                 // unsupportedRowCount 也要开这个门：整份副本的行都被本 build 跳过时
                 // rows 为空，但只读块必须留下来显示产品版本提示，不能整块消失。
-                importedShare &&
+                activeSnapshot && importedShare && importedShareContextId !== null &&
+                importedShare.contextId === importedShareContextId &&
                 (importedShare.rows.length > 0 || importedShare.unsupportedRowCount > 0) ? (
                   <ConversationShareImportNotice
                     rows={importedShare.rows}
@@ -5179,7 +5185,7 @@ export function SessionPane({
               }
               searchResultHighlightRequest={isDraft ? null : searchResultHighlightRequest}
               onSearchResultHighlightDone={onSearchResultHighlightDone}
-              sessionPhase={isDraft ? undefined : snapshot?.control.phase}
+              sessionPhase={isDraft ? undefined : activeSnapshot?.control.phase}
               shareSelection={
                 shareActive && shareInSelectionStage && shareDraft?.view === "timeline" && sessionId
                   ? {
