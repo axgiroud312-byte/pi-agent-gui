@@ -273,18 +273,18 @@ try {
   }
   const readFileChip = restoredToolCard.getByRole('button', { name: 'README.md', exact: true });
   report.readFileChipClickable = await readFileChip.isVisible();
+  const readmePane = reopenedPage.getByTestId('preview-pane').filter({ visible: true }).first();
   if (report.readFileChipClickable) {
     await readFileChip.click();
-    await reopenedPage.getByText('NATIVE_PARITY_PREVIEW', { exact: false }).first()
+    const previewMarker = readmePane.getByText('Preview marker: NATIVE_PARITY_PREVIEW', { exact: true });
+    await previewMarker
       .waitFor({ timeout: 5000 }).catch(() => {});
-    report.readPreviewMarkerVisible = await reopenedPage.getByText('NATIVE_PARITY_PREVIEW', { exact: false })
-      .first().isVisible();
+    report.readPreviewMarkerVisible = await previewMarker.isVisible();
     report.readPreviewText = (await reopenedPage.locator('body').innerText()).slice(-1800);
     await reopenedPage.screenshot({ path: join(f.output, 'pi-native-read-preview.png') });
   }
   assert(report.readFileChipClickable && report.readPreviewMarkerVisible,
     'Native Read card must open the same workspace file that Pi executed');
-  const readmePane = reopenedPage.getByTestId('preview-pane').filter({ visible: true }).first();
   const readmePath = join(f.workspace, 'README.md');
   const originalReadme = await readFile(readmePath, 'utf8');
   const editedReadme = `${originalReadme}\nPI_EDITOR_DRAFT_中文\n`;
