@@ -31,6 +31,7 @@ if (packagedExecutable) {
   delete f.env.NODE_OPTIONS;
 }
 const launchArgs = packagedExecutable ? [] : [fileURLToPath(new URL('./native-smoke/bootstrap.cjs', import.meta.url)), '--lang=zh-CN'];
+const launchCwd = packagedExecutable ? f.sandbox : f.root;
 const pickedImagePath = join(f.workspace, 'root-unsent.png');
 if (!packagedExecutable) {
   await writeFile(pickedImagePath, unsentImage);
@@ -46,7 +47,7 @@ const report = { at: new Date().toISOString(), workspace: f.workspace, pageError
   endpoint: model.url, api: 'openai-completions', inference: 'isolated deterministic loopback fixture, NOT an online provider',
   tools: 'real pinned Pi 0.87.0 subprocess executes read against the isolated workspace' } };
 try {
-  app = await f.playwright._electron.launch({ executablePath: f.electronPath, args: launchArgs, cwd: f.root, env: f.env, timeout: 60_000 });
+  app = await f.playwright._electron.launch({ executablePath: f.electronPath, args: launchArgs, cwd: launchCwd, env: f.env, timeout: 60_000 });
   app.process().stdout?.on('data', chunk => logs.push(String(chunk)));
   app.process().stderr?.on('data', chunk => logs.push(String(chunk)));
   const page = await app.firstWindow();
@@ -204,7 +205,7 @@ try {
   report.firstCleanup = await closeOwned(app, f);
   assertCleanExit(report.firstCleanup, logs, 'First');
   app = await f.playwright._electron.launch({ executablePath: f.electronPath,
-    args: launchArgs, cwd: f.root, env: f.env, timeout: 60_000 });
+    args: launchArgs, cwd: launchCwd, env: f.env, timeout: 60_000 });
   app.process().stdout?.on('data', chunk => logs.push(String(chunk)));
   app.process().stderr?.on('data', chunk => logs.push(String(chunk)));
   const reopenedPage = await app.firstWindow();
@@ -454,7 +455,7 @@ try {
   report.fileEditor.restartCleanup = report.secondCleanup;
   assertCleanExit(report.secondCleanup, logs, 'Second');
   app = await f.playwright._electron.launch({ executablePath: f.electronPath,
-    args: launchArgs, cwd: f.root, env: f.env, timeout: 60_000 });
+    args: launchArgs, cwd: launchCwd, env: f.env, timeout: 60_000 });
   app.process().stdout?.on('data', chunk => logs.push(String(chunk)));
   app.process().stderr?.on('data', chunk => logs.push(String(chunk)));
   const rootReopenedPage = await app.firstWindow();
@@ -484,12 +485,24 @@ try {
   if (!await restoredDraftCard.isVisible()) {
     await restoredDraftTurn.locator('[data-testid^="chat-assistant-history-trigger"]').first().click();
   }
+  await restoredDraftCard.waitFor();
   const restoredDraftPane = rootReopenedPage.getByTestId('preview-pane').filter({ visible: true }).first();
-  if (!await restoredDraftPane.isVisible() ||
-    !await restoredDraftPane.getByText('README.md', { exact: true }).first().isVisible()) {
-    await restoredDraftCard.getByRole('button', { name: 'README.md', exact: true }).click();
+  const restoredDraftButton = restoredDraftCard.getByRole('button', { name: 'README.md', exact: true });
+  const restoredDraftEditorButton = restoredDraftPane.getByRole('button', { name: '编辑文件' });
+  report.fileEditor.restartPreview = { attempts: 0, tabsBefore: await rootReopenedPage
+    .locator('[data-side-pane-tab-id]').allTextContents() };
+  for (let attempt = 1; attempt <= 2 && !await restoredDraftEditorButton.isVisible(); attempt++) {
+    report.fileEditor.restartPreview.attempts = attempt;
+    await restoredDraftButton.click();
+    await restoredDraftPane.getByText('README.md', { exact: true }).first()
+      .waitFor({ timeout: 5000 }).catch(() => {});
+    await restoredDraftEditorButton.waitFor({ timeout: 5000 }).catch(() => {});
   }
-  await restoredDraftPane.getByRole('button', { name: '编辑文件' }).click();
+  report.fileEditor.restartPreview.tabsAfter = await rootReopenedPage
+    .locator('[data-side-pane-tab-id]').allTextContents();
+  assert(await restoredDraftEditorButton.isVisible(),
+    'The restored README tool card must reopen its visible native preview');
+  await restoredDraftEditorButton.click();
   assert.equal(await restoredDraftPane.getByRole('textbox', { name: '文件内容' }).inputValue(), restartDraft);
   assert.equal(await readFile(readmePath, 'utf8'), editedReadme);
   assert.equal(model.requests.length, requestsAfterRootImage);
@@ -538,7 +551,7 @@ try {
     report.thirdCleanup = await closeOwned(app, f);
     assertCleanExit(report.thirdCleanup, logs, 'Third');
     app = await f.playwright._electron.launch({ executablePath: f.electronPath,
-      args: launchArgs, cwd: f.root, env: f.env, timeout: 60_000 });
+      args: launchArgs, cwd: launchCwd, env: f.env, timeout: 60_000 });
     app.process().stdout?.on('data', chunk => logs.push(String(chunk)));
     app.process().stderr?.on('data', chunk => logs.push(String(chunk)));
     const projectPage = await app.firstWindow();

@@ -21,6 +21,7 @@ if (packagedExecutable) {
 }
 const launchArgs = packagedExecutable ? []
   : [fileURLToPath(new URL('./native-smoke/bootstrap.cjs', import.meta.url)), '--lang=zh-CN'];
+const launchCwd = packagedExecutable ? f.sandbox : f.root;
 const model = await startPiModel();
 const report = { at: new Date().toISOString(), piVersion: '0.87.0', phases: [], pageErrors: [],
   boundary: `${packagedExecutable ? 'packaged' : 'source'} native Electron GUI -> Host -> fixed Pi RPC extension -> Pi JSONL; deterministic loopback model is available but unused` };
@@ -30,7 +31,7 @@ async function openHistory(phase, sessionId, sendCommand) {
   const logs = [];
   app = await f.playwright._electron.launch({ executablePath: f.electronPath,
     args: launchArgs,
-    cwd: f.root, env: f.env, timeout: 60_000 });
+    cwd: launchCwd, env: f.env, timeout: 60_000 });
   app.process().stdout?.on('data', chunk => logs.push(String(chunk)));
   app.process().stderr?.on('data', chunk => logs.push(String(chunk)));
   const page = await app.firstWindow();
