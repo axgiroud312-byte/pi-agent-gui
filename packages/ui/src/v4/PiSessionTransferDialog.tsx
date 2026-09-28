@@ -1,13 +1,27 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Download, RefreshCw } from "lucide-react";
 import type { IServiceAccessor } from "@zcode/services";
 import { Button } from "@/components/ui/button.js";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog.js";
 import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 import { useServices } from "@/hooks/useServices.js";
+import { PiSessionDialogGuard, type PiSessionDialogTicket } from "@/v4/piSessionDialogGuard.js";
 
 type Preview = Awaited<ReturnType<IServiceAccessor["zcodeAgentService"]["readPiSessionTransfer"]>>;
 type SharePreview = Awaited<ReturnType<IServiceAccessor["zcodeAgentService"]["preparePiSessionShare"]>>;
+type TransferTarget = Parameters<IServiceAccessor["zcodeAgentService"]["readPiSessionTransfer"]>[0];
+interface TransferUiState {
+  scope: number;
+  open: boolean;
+  preview: Preview | null;
+  busy: boolean;
+  error: string | null;
+  notice: string | null;
+  share: { target: TransferTarget; value: SharePreview } | null;
+  shareConfirmed: boolean;
+}
+const emptyState = (scope: number): TransferUiState => ({ scope, open: false, preview: null,
+  busy: false, error: null, notice: null, share: null, shareConfirmed: false });
 
 export function PiSessionTransferDialog({ sessionId, workspacePath, workspaceIdentity,
   beforeSwitch, onImported }: {
@@ -19,102 +33,151 @@ export function PiSessionTransferDialog({ sessionId, workspacePath, workspaceIde
 }) {
   const { zcodeAgentService } = useServices();
   const platform = useOptionalPlatform();
-  const [open, setOpen] = useState(false);
-  const [preview, setPreview] = useState<Preview | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [sharePreview, setSharePreview] = useState<SharePreview | null>(null);
-  const [shareConfirmed, setShareConfirmed] = useState(false);
+  const [state, setState] = useState<TransferUiState>(() => emptyState(0));
+  const guard = useRef(new PiSessionDialogGuard()).current;
   const target = useMemo(() => ({ workspacePath, sessionId,
     ...(workspaceIdentity ? { workspaceIdentity } : {}) }),
   [workspacePath, sessionId, workspaceIdentity]);
+  const targetKey = JSON.stringify([workspacePath, sessionId, workspaceIdentity]);
+  const scope = guard.syncContext(targetKey);
+  const { open, preview, busy, error, notice, share, shareConfirmed } =
+    state.scope === scope ? state : emptyState(scope);
+  const sharePreview = share?.value ?? null;
+
+  const write = useCallback((ticket: PiSessionDialogTicket,
+    update: (current: TransferUiState) => TransferUiState) => {
+    if (!guard.isCurrent(ticket)) return;
+    setState(current => guard.isCurrent(ticket)
+      ? update(current.scope === ticket.scope ? current : emptyState(ticket.scope)) : current);
+  }, [guard]);
 
   const refresh = useCallback(async () => {
-    setBusy(true); setError(null);
-    try { setPreview(await zcodeAgentService.readPiSessionTransfer(target)); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
-    finally { setBusy(false); }
-  }, [target, zcodeAgentService]);
+    const actionTarget = { ...target };
+    const ticket = guard.begin(targetKey);
+    write(ticket, current => ({ ...current, busy: true, preview: null, error: null,
+      share: null, shareConfirmed: false }));
+    try {
+      const next = await zcodeAgentService.readPiSessionTransfer(actionTarget);
+      write(ticket, current => ({ ...current, preview: next }));
+    } catch (cause) {
+      write(ticket, current => ({ ...current,
+        error: cause instanceof Error ? cause.message : String(cause) }));
+    } finally { write(ticket, current => ({ ...current, busy: false })); }
+  }, [guard, target, targetKey, write, zcodeAgentService]);
   useEffect(() => { if (open) void refresh(); }, [open, refresh]);
-  useEffect(() => {
-    setPreview(null); setSharePreview(null); setShareConfirmed(false);
-    setError(null); setNotice(null);
-  }, [sessionId]);
+  // The saved preview carries its source target. Cleanup must never send an A
+  // token to the currently rendered B session after a navigation.
   useEffect(() => () => {
-    if (sharePreview) void zcodeAgentService.discardPiSessionShare({ ...target, token: sharePreview.token });
-  }, [sharePreview, target, zcodeAgentService]);
+    if (share) void zcodeAgentService.discardPiSessionShare({
+      ...share.target, token: share.value.token });
+  }, [share, zcodeAgentService]);
 
   const exportSession = async (format: "html" | "jsonl") => {
     if (!platform || !preview || busy) return;
-    setError(null); setNotice(null);
+    const actionTarget = { ...target };
+    const revision = preview.revision;
+    const ticket = guard.begin(targetKey);
+    write(ticket, current => ({ ...current, busy: true, error: null, notice: null }));
     try {
       const directory = await platform.selectDirectory();
-      if (!directory) return;
-      setBusy(true);
-      const result = await zcodeAgentService.exportPiSession({ ...target, expectedRevision: preview.revision,
+      if (!directory || !guard.isCurrent(ticket)) return;
+      const result = await zcodeAgentService.exportPiSession({ ...actionTarget, expectedRevision: revision,
         directory, format });
-      setNotice(`已由 Pi ${format === "html" ? "渲染 HTML" : "复制原始 JSONL"}：${result.path}`);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
-    finally { setBusy(false); }
+      write(ticket, current => ({ ...current,
+        notice: `已由 Pi ${format === "html" ? "渲染 HTML" : "复制原始 JSONL"}：${result.path}` }));
+    } catch (cause) {
+      write(ticket, current => ({ ...current,
+        error: cause instanceof Error ? cause.message : String(cause) }));
+    } finally { write(ticket, current => ({ ...current, busy: false })); }
   };
 
   const importSession = async () => {
     if (!platform || !onImported || busy) return;
-    setError(null); setNotice(null);
+    const actionTarget = { ...target };
+    const ticket = guard.begin(targetKey);
+    write(ticket, current => ({ ...current, busy: true, error: null, notice: null }));
     try {
       const sourcePath = await platform.selectFile();
-      if (!sourcePath) return;
+      if (!sourcePath || !guard.isCurrent(ticket)) return;
       beforeSwitch();
-      setBusy(true);
-      const imported = await zcodeAgentService.importPiSession({ workspacePath,
-        ...(workspaceIdentity ? { workspaceIdentity } : {}), sourcePath });
-      setSharePreview(null); setShareConfirmed(false);
-      onImported(imported.sessionId);
-      setOpen(false);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
-    finally { setBusy(false); }
+      const imported = await zcodeAgentService.importPiSession({
+        workspacePath: actionTarget.workspacePath,
+        ...(actionTarget.workspaceIdentity ? { workspaceIdentity: actionTarget.workspaceIdentity } : {}),
+        sourcePath });
+      if (guard.isCurrent(ticket)) {
+        write(ticket, current => ({ ...current, share: null, shareConfirmed: false, open: false }));
+        onImported(imported.sessionId);
+      }
+    } catch (cause) {
+      write(ticket, current => ({ ...current,
+        error: cause instanceof Error ? cause.message : String(cause) }));
+    } finally { write(ticket, current => ({ ...current, busy: false })); }
   };
 
   const copyLast = async () => {
     if (!preview?.lastAssistantText || busy) return;
-    try { await navigator.clipboard.writeText(preview.lastAssistantText); setNotice("已复制 Pi 最近一条助手回复。"); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
+    const text = preview.lastAssistantText;
+    const ticket = guard.begin(targetKey);
+    try {
+      await navigator.clipboard.writeText(text);
+      write(ticket, current => ({ ...current, notice: "已复制 Pi 最近一条助手回复。" }));
+    } catch (cause) {
+      write(ticket, current => ({ ...current,
+        error: cause instanceof Error ? cause.message : String(cause) }));
+    }
   };
 
   const prepareShare = async () => {
     if (!preview || busy) return;
-    setBusy(true); setError(null); setNotice(null); setSharePreview(null); setShareConfirmed(false);
-    try { setSharePreview(await zcodeAgentService.preparePiSessionShare({ ...target,
-      expectedRevision: preview.revision })); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
-    finally { setBusy(false); }
+    const actionTarget = { ...target };
+    const revision = preview.revision;
+    const ticket = guard.begin(targetKey);
+    write(ticket, current => ({ ...current, busy: true, error: null, notice: null,
+      share: null, shareConfirmed: false }));
+    try {
+      const next = await zcodeAgentService.preparePiSessionShare({ ...actionTarget,
+        expectedRevision: revision });
+      if (guard.isCurrent(ticket)) {
+        write(ticket, current => ({ ...current, share: { target: actionTarget, value: next } }));
+      } else {
+        await zcodeAgentService.discardPiSessionShare({ ...actionTarget, token: next.token });
+      }
+    } catch (cause) {
+      write(ticket, current => ({ ...current,
+        error: cause instanceof Error ? cause.message : String(cause) }));
+    } finally { write(ticket, current => ({ ...current, busy: false })); }
   };
 
   const publishShare = async () => {
-    if (!sharePreview || !shareConfirmed || busy) return;
-    setBusy(true); setError(null);
+    if (!share || !shareConfirmed || busy) return;
+    const actionShare = share;
+    const ticket = guard.begin(targetKey);
+    write(ticket, current => ({ ...current, busy: true, error: null }));
     try {
-      const result = await zcodeAgentService.publishPiSessionShare({ ...target,
-        token: sharePreview.token, confirmed: true });
-      setSharePreview(null); setShareConfirmed(false);
-      setNotice(`已创建秘密链接（持链接者可访问）：${result.viewerUrl}；Gist：${result.gistUrl}`);
+      const result = await zcodeAgentService.publishPiSessionShare({ ...actionShare.target,
+        token: actionShare.value.token, confirmed: true });
+      write(ticket, current => ({ ...current, share: null, shareConfirmed: false,
+        notice: `已创建秘密链接（持链接者可访问）：${result.viewerUrl}；Gist：${result.gistUrl}` }));
     } catch (cause) {
-      setSharePreview(null); setShareConfirmed(false);
-      setError(cause instanceof Error ? cause.message : String(cause));
-    } finally { setBusy(false); }
+      write(ticket, current => ({ ...current, share: null, shareConfirmed: false,
+        error: cause instanceof Error ? cause.message : String(cause) }));
+    } finally { write(ticket, current => ({ ...current, busy: false })); }
   };
 
   const setDialogOpen = (next: boolean) => {
     if (!next && busy) return;
-    if (!next) { setSharePreview(null); setShareConfirmed(false); }
-    setOpen(next);
+    if (!next) {
+      guard.invalidate();
+      setState(emptyState(scope));
+    } else {
+      setState(current => ({ ...(current.scope === scope ? current : emptyState(scope)), open: true }));
+    }
   };
 
   return <>
     <Button type="button" variant="outline" size="icon-md" title="Pi 导入与导出" aria-label="Pi 导入与导出"
       className="pointer-events-auto bg-[var(--color-popover)] shadow-md" data-testid="pi-transfer-open"
-      onClick={() => setOpen(true)}><Download className="size-4" /></Button>
+      onClick={() => setDialogOpen(true)}><Download className="size-4" /></Button>
     <Dialog open={open} onOpenChange={setDialogOpen}>
       <DialogContent data-testid="pi-transfer-dialog" className="max-h-[85vh] max-w-[min(36rem,calc(100vw-2rem))] overflow-auto">
         <DialogHeader>
@@ -156,7 +219,10 @@ export function PiSessionTransferDialog({ sessionId, workspacePath, workspaceIde
             <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-all text-xs">{sharePreview.html}</pre>
           </details>
           <label className="flex items-start gap-2">
-            <input type="checkbox" checked={shareConfirmed} onChange={event => setShareConfirmed(event.target.checked)}
+            <input type="checkbox" checked={shareConfirmed} onChange={event => setState(current => ({
+              ...(current.scope === scope ? current : emptyState(scope)),
+              shareConfirmed: event.target.checked,
+            }))}
               data-testid="pi-share-confirm-checkbox" />
             <span>我已检查上述实际外发内容，确认创建持链接者可访问的秘密 Gist。</span>
           </label>
