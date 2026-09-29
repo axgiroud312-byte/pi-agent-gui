@@ -7,6 +7,7 @@ import { fixture } from './native-smoke/fixture.mjs';
 import { closeOwned, assertCleanExit } from './native-smoke/cleanup.mjs';
 import { startPiModel } from './native-smoke/pi-model.mjs';
 import { isolatePiPackage } from './native-smoke/pi-package.mjs';
+import { resizeNativeWindow } from './native-smoke/evidence.mjs';
 
 const f = await fixture();
 await isolatePiPackage(f);
@@ -112,6 +113,22 @@ try {
   await page.getByRole('menuitem', { name: '管理模型', exact: true }).click();
   await settings.waitFor();
   report.stages.manageModelsSamePage = true;
+  report.visualStates = [];
+  for (const size of [{ width: 1280, height: 800 }, { width: 1920, height: 1080 }]) {
+    await resizeNativeWindow(app, page, size);
+    for (const theme of ['浅色', '深色']) {
+      await page.getByRole('button', { name: '外观', exact: true }).click();
+      await page.getByTestId('settings-page').getByRole('combobox').first().click();
+      await page.getByRole('option', { name: theme, exact: true }).click();
+      await page.getByRole('button', { name: '模型设置', exact: true }).click();
+      await settings.getByRole('heading', { name: 'unified-fixture', exact: true }).waitFor();
+      const dark = theme === '深色';
+      await page.waitForFunction(value => document.documentElement.classList.contains('dark') === value, dark);
+      const file = `${size.width}x${size.height}-${dark ? 'dark' : 'light'}-model-settings.png`;
+      await page.screenshot({ path: join(f.output, file) });
+      report.visualStates.push({ ...size, dark, file });
+    }
+  }
   assert.deepEqual(report.pageErrors, []);
 } catch (error) {
   report.error = String(error.stack || error).split(secret).join('[redacted]');

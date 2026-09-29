@@ -1,10 +1,12 @@
-# 当前入口：PR #42 已合并，#43 统一模型设置验证中
+# 当前入口：#43 统一模型设置已交付试用，等待用户确认
 
 ## 2026-09-29 #43 当前工作
 
 - 用户授权先合并 PR #42，再开始统一模型设置。#42 已 merge 到 main：`d4285e69e3b2566d71ff426042185cefb48c0558`；本地 main 已同步，#41 完成状态保持。
 - 当前分支 `issue-43-unified-model-settings`，Issue [#43](https://github.com/axgiroud312-byte/pi-agent-gui/issues/43)。统一页、新 Pi models.json 编辑与同页认证已实现；新增合同、类型/lint/架构、源码真实 GUI 配置→认证→回复及既有认证/高级设置 GUI 回归通过。
-- 详情与来源：[统一模型设置报告](unified-model-settings-20260929.md)。接下来做一次完整 Pi 回归、精确提交打包与包内统一设置验证，然后交付用户试用；不自动合并新 PR 或关闭 #43。
+- 详情与来源：[统一模型设置报告](unified-model-settings-20260929.md)。完整 Pi 回归 271/271 PASS，类型/lint/架构通过。产品提交 `dabbed5e2ca23a5252e72abb28dc0660b1adc97a`，包内 3.14.1 / `dabbed5e` / Pi 0.87.0；包内配置→登录→目录→回复、外部冲突、参数保留、管理模型同入口和 4 个尺寸/主题状态已通过。报告 `C:/Users/niilo/AppData/Local/Temp/opencode/pi-issue43-packaged-final/pi-model-settings-gui-report.json`，0 页面错误/强杀/残留。不要重复已通过全集或构建，除非新改动/问题要求。
+- 试用包 `D:/Temp/pi-agent-gui-model-settings-dabbed5-20260929/`，启动器 `Launch-Model-Settings.cmd`；同目录 manifest 保存哈希。新版已打开到 OpenAI Codex 的模型页，并识别 CLIProxyAPI 扩展提供商；主 PID 52436 / CDP 57795（启动时）。独立桌面 profile `.pi-agent-ide-model-settings-preview`，使用用户原 `.pi/agent`；没有在用户 profile 发测试消息或改模型/认证配置。
+- #43 保持 OPEN，PR #44 Draft，等待本轮用户体验确认；后续只改报告/截图脚本不改变产品包。本次没有新安装器或 Release，不自动合并 PR 或关闭 #43。
 - 保留以下旧包、用户窗口及无关工作树改动；源码 GUI 固定调试端口会争用，GUI 验证应串行。
 
 ## 2026-09-29 #41 已验收增量（历史交付）
