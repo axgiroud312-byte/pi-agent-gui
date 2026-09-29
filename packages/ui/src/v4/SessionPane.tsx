@@ -1219,7 +1219,9 @@ export function SessionPane({
   // auth refresh can finish while that layer is open, after an earlier read
   // projected an empty Pi catalog. Re-read the same Pi child on return even
   // if the settings notification was missed while the pane was inactive.
-  }, [focused, piCatalogKey, refreshPiModelCatalog, snapshot?.config.provider, snapshot?.config.model]);
+  // A new task can read the static catalog before its prewarmed Pi child is
+  // ready. Its workspace-config snapshot announces extension models later.
+  }, [focused, piCatalogKey, refreshPiModelCatalog, snapshot?.config.provider, snapshot?.config.model, workspaceConfigOptions]);
   useEffect(() => {
     if (!piCatalogKey) return;
     const refresh = () => { void refreshPiModelCatalog().catch(error => {

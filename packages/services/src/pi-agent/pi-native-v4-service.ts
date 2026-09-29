@@ -1660,7 +1660,18 @@ export class PiNativeV4Service implements V4Methods {
 
   async readPiModelCatalog(params: ZCodeAgentWorkspaceTarget & { sessionId?: string }): Promise<ZCodeConfigOption> {
     this.assertWorkspaceOpen(params);
-    if (!params.sessionId) return this.authFor(params).modelCatalog();
+    if (!params.sessionId) {
+      const workspaceKey = resolveWorkspaceKey(params);
+      // Native new tasks already prewarm Pi. Read that child's extension-owned
+      // catalog rather than constructing a static SDK catalog that omits it.
+      const record = [...this.sessions.values()].find(candidate => {
+        if (candidate.workspaceKey !== workspaceKey) return false;
+        const active = this.supervisor.getSession(candidate.view.sessionId);
+        return active !== undefined && active.pid === candidate.view.pid && active.sessionFile === candidate.view.sessionFile;
+      });
+      if (record) return this.piModelOption(record);
+      return this.authFor(params).modelCatalog();
+    }
     await this.loadSession(params, params.sessionId);
     return this.piModelOption(this.recordFor(params, params.sessionId));
   }
