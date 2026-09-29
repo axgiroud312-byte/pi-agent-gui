@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { PI_AUTH_CATALOG_CHANGED_EVENT } from "@/lib/piAuthCatalogEvent.js";
+import { PiModelConfigEditor } from "./PiModelConfigEditor.js";
 
 type AuthView = Awaited<ReturnType<IZCodeAgentService["readPiAuth"]>>;
 type AuthAction = Parameters<IZCodeAgentService["startPiAuth"]>[0]["action"];
@@ -11,10 +12,15 @@ type AuthMethod = NonNullable<Parameters<IZCodeAgentService["startPiAuth"]>[0]["
 const READ_ERROR = "无法读取本地 Pi 认证状态，请检查 Pi 配置后重试。";
 
 /** Pi-specific content inside the original native model-provider Settings tab. */
-export function PiAuthSection({ service, workspacePath }: { service: IZCodeAgentService; workspacePath: string }) {
+export function PiAuthSection({ service, workspacePath, initialProviderId }: {
+  service: IZCodeAgentService; workspacePath: string; initialProviderId?: string;
+}) {
   const platform = usePlatform();
   const [view, setView] = useState<AuthView | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(initialProviderId ?? null);
+  const [adding, setAdding] = useState(false);
+  const [configStatus, setConfigStatus] = useState("");
+  const [catalog, setCatalog] = useState<Awaited<ReturnType<IZCodeAgentService["readPiModelCatalog"]>> | null>(null);
   const [filter, setFilter] = useState("");
   const [answer, setAnswer] = useState("");
   const [busy, setBusy] = useState(false);
@@ -24,6 +30,7 @@ export function PiAuthSection({ service, workspacePath }: { service: IZCodeAgent
   useEffect(() => {
     if (!workspacePath) return;
     let live = true;
+    let timer: ReturnType<typeof setTimeout>;
     const read = async () => {
       try {
         const next = await service.readPiAuth({ workspacePath });
@@ -35,16 +42,20 @@ export function PiAuthSection({ service, workspacePath }: { service: IZCodeAgent
           if (lastCatalogSignature.current !== null && signature !== lastCatalogSignature.current) {
             window.dispatchEvent(new Event(PI_AUTH_CATALOG_CHANGED_EVENT));
           }
+          if (signature !== lastCatalogSignature.current) {
+            try { const models = await service.readPiModelCatalog({ workspacePath }); if (live) setCatalog(models); }
+            catch { if (live) setCatalog(null); }
+          }
+          if (!live) return;
           lastCatalogSignature.current = signature;
           setView(next);
           setError(current => current === READ_ERROR ? "" : current);
         }
       } catch {
         if (live) setError(READ_ERROR);
-      }
+      } finally { if (live) timer = setTimeout(() => { void read(); }, 1000); }
     };
     void read();
-    const timer = setInterval(() => { void read(); }, 500);
     return () => { live = false; clearInterval(timer); };
   }, [service, workspacePath]);
 
@@ -55,7 +66,8 @@ export function PiAuthSection({ service, workspacePath }: { service: IZCodeAgent
   const runtimeCatalogIncomplete = view?.runtimeCatalogStatus === "busy" ||
     view?.runtimeCatalogStatus === "unavailable" || Boolean(view?.runtimeCatalogTruncated);
   const providers = useMemo(() => (view?.providers ?? []).filter(provider =>
-    `${provider.name} ${provider.id}`.toLowerCase().includes(filter.toLowerCase())), [filter, view]);
+    `${provider.name} ${provider.id}`.toLowerCase().includes(filter.toLowerCase()))
+    .sort((a, b) => Number(b.configured) - Number(a.configured) || a.name.localeCompare(b.name)), [filter, view]);
 
   const perform = useCallback(async (task: () => Promise<unknown>) => {
     setBusy(true);
@@ -93,8 +105,8 @@ export function PiAuthSection({ service, workspacePath }: { service: IZCodeAgent
   return <div className="space-y-4" data-testid="pi-auth-section">
     <div className="flex items-start justify-between gap-3">
       <div>
-        <h2 className="text-ui-lg font-medium">Pi 提供商与认证</h2>
-        <p className="text-ui-sm text-foreground-subtle">管理固定 Pi 0.87.0 使用的本地凭据。保存或解析成功不代表在线模型推理已通过。</p>
+        <h2 className="text-ui-lg font-medium">模型与提供商</h2>
+        <p className="text-ui-sm text-foreground-subtle">聊天与 Pi CLI 共用这份模型配置。选择提供商，管理登录和自定义模型。</p>
         {view ? <p className="text-ui-xs text-foreground-subtle">配置位置：{view.agentDir}</p> : null}
         {view?.catalogError ? <p role="alert" className="text-ui-sm text-destructive">
           Pi 模型目录或认证状态存在错误，部分提供商可能未载入。检查本地 Pi 配置后点击“刷新目录”。
@@ -110,15 +122,20 @@ export function PiAuthSection({ service, workspacePath }: { service: IZCodeAgent
           当前 Pi 会话注册的扩展 provider 超过 256 个；目录不完整，认证操作暂不可用。
         </p> : null}
       </div>
+      <div className="flex shrink-0 gap-2">
+      <Button variant="outline" disabled={busy || running} onClick={() => setAdding(true)}>添加提供商</Button>
       <Button variant="outline" disabled={!view || busy || running}
         onClick={() => { if (view) void perform(async () => {
           await service.refreshPiAuth({ workspacePath, generation: view.generation });
           // Pi session model synchronization has completed. A polling read can
           // observe the local catalog earlier, so notify the composer here too.
           window.dispatchEvent(new Event(PI_AUTH_CATALOG_CHANGED_EVENT));
+          setCatalog(await service.readPiModelCatalog({ workspacePath }));
         }); }}>刷新目录</Button>
+      </div>
     </div>
     {error ? <p role="alert" className="text-ui-sm text-destructive">{error}</p> : null}
+    {configStatus ? <p role="status" className="text-ui-sm text-foreground-subtle">{configStatus}</p> : null}
     {!view ? <p className="text-ui-sm text-foreground-subtle">正在读取 Pi provider…</p> :
       <div className="grid min-h-[32rem] grid-cols-[minmax(12rem,14rem)_minmax(0,1fr)] overflow-hidden rounded-xl border border-border bg-card">
         <div className="min-w-0 border-r border-border p-3">
@@ -128,13 +145,16 @@ export function PiAuthSection({ service, workspacePath }: { service: IZCodeAgent
             {providers.map(provider => <Button key={provider.id} type="button"
               variant={provider.id === selected?.id ? "secondary" : "ghost"}
               className="h-auto w-full justify-start whitespace-normal text-left"
-              onClick={() => { setSelectedId(provider.id); setAnswer(""); }}>
+              onClick={() => { setSelectedId(provider.id); setAnswer(""); setAdding(false); }}>
               <span className="min-w-0"><span className="block truncate">{provider.name}</span>
                 <span className="block truncate text-ui-xs text-foreground-subtle">{provider.id}</span></span>
             </Button>)}
           </div>
         </div>
-        {selected ? <div className="min-w-0 space-y-4 p-4 sm:p-6">
+        {adding ? <div className="min-w-0 p-4 sm:p-6">
+          <PiModelConfigEditor key="new-provider" service={service} workspacePath={workspacePath} providerId={null}
+            onSaved={(id, notice) => { setSelectedId(id); setAdding(false); setConfigStatus(notice); lastCatalogSignature.current = null; }} />
+        </div> : selected ? <div className="min-w-0 space-y-4 p-4 sm:p-6">
           <div>
             <h3 className="text-ui-lg font-medium">{selected.name}</h3>
             <p className="text-ui-sm text-foreground-subtle">{selected.configured ? "已配置" : "未配置"} · 来源：{selected.source ?? "无"} · 保存类型：{selected.storedType ?? "无"} · 模型：{selected.modelCount}</p>
@@ -182,6 +202,15 @@ export function PiAuthSection({ service, workspacePath }: { service: IZCodeAgent
             </div>)}
             {running ? <Button type="button" variant="ghost" disabled={busy} onClick={cancel}>取消认证</Button> : null}
           </div> : null}
+          <div className="flex max-h-48 flex-col gap-2 overflow-auto" data-testid="pi-provider-model-list">
+            <h4 className="text-ui-base font-medium">聊天可选模型</h4>
+            {(catalog?.options ?? []).filter(model => model.modelProviderId === selected.id).map(model =>
+              <p key={model.value} className="text-ui-sm">{model.name} <span className="text-foreground-subtle">{model.value}</span></p>)}
+            {!(catalog?.options ?? []).some(model => model.modelProviderId === selected.id) ?
+              <p className="text-ui-sm text-foreground-subtle">暂无可选模型；配置模型并完成认证后刷新目录。</p> : null}
+          </div>
+          {!selected.runtimeOnly ? <PiModelConfigEditor key={selected.id} service={service} workspacePath={workspacePath}
+            providerId={selected.id} onSaved={() => { lastCatalogSignature.current = null; }} /> : null}
         </div> : <div className="p-6 text-ui-sm text-foreground-subtle">没有可用 Pi 提供商。</div>}
       </div>}
   </div>;

@@ -21,7 +21,7 @@ function formattedDocument(snapshot: Snapshot, scope: Scope): string {
   return document.exists ? document.text : "{}\n";
 }
 
-/** Scoped view of Pi's own settings.json files; existing native provider controls remain separate. */
+/** Advanced view of Pi's own settings.json, within the unified model settings surface. */
 export function PiSettingsSection({ workspacePath }: { workspacePath: string }) {
   const { zcodeAgentService, settingService } = useServices();
   const [loaded, setLoaded] = useState<{ workspacePath: string; snapshot: Snapshot } | null>(null);

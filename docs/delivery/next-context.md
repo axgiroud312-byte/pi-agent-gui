@@ -1,6 +1,13 @@
-# 当前入口：#41 用户验收通过，PR #42 待合并
+# 当前入口：PR #42 已合并，#43 统一模型设置验证中
 
-## 2026-09-29 #41 当前增量
+## 2026-09-29 #43 当前工作
+
+- 用户授权先合并 PR #42，再开始统一模型设置。#42 已 merge 到 main：`d4285e69e3b2566d71ff426042185cefb48c0558`；本地 main 已同步，#41 完成状态保持。
+- 当前分支 `issue-43-unified-model-settings`，Issue [#43](https://github.com/axgiroud312-byte/pi-agent-gui/issues/43)。统一页、新 Pi models.json 编辑与同页认证已实现；新增合同、类型/lint/架构、源码真实 GUI 配置→认证→回复及既有认证/高级设置 GUI 回归通过。
+- 详情与来源：[统一模型设置报告](unified-model-settings-20260929.md)。接下来做一次完整 Pi 回归、精确提交打包与包内统一设置验证，然后交付用户试用；不自动合并新 PR 或关闭 #43。
+- 保留以下旧包、用户窗口及无关工作树改动；源码 GUI 固定调试端口会争用，GUI 验证应串行。
+
+## 2026-09-29 #41 已验收增量（历史交付）
 
 - 用户报告 Pi TUI 可用而桌面连接失败，要求失败直接显示在对话；随后授权停止重复独立 OpenCode 后台并继续交付。独立 PID 26568 已停止，OpenChamber PID 14448 保留。
 - 当前分支 `issue-41-pi-network-errors`；`f4045a0` 修复 Pi 代理继承和对话内模型错误，`422d166` 补新任务读取同工作区已预热 Pi 的扩展模型，以及预热完成后的目录刷新。用户于 2026-09-29 明确确认：**“ok，这个任务算是完成了”**。Issue [#41](https://github.com/axgiroud312-byte/pi-agent-gui/issues/41) 按 completed 关闭，PR [#42](https://github.com/axgiroud312-byte/pi-agent-gui/pull/42) 移出 Draft、保持待合并；本次没有合并或清理分支。

@@ -74,6 +74,7 @@ try {
   await page.getByTestId('composer-workspace-trigger').filter({ hasText: 'parity-workspace' }).waitFor();
   await page.getByTestId('sidebar').getByTestId('task-settings-button').click();
   await page.getByRole('button', { name: '模型设置', exact: true }).click();
+  await page.getByText('高级 Pi 设置（用户 / 项目）', { exact: true }).click();
   const settings = page.getByTestId('pi-settings-section');
   await settings.waitFor();
   const editor = settings.getByTestId('pi-settings-json');
@@ -142,19 +143,8 @@ try {
   report.globalOnlyProjectOverrideIgnored = true;
   await page.screenshot({ path: join(f.output, 'pi-settings-sources.png') });
   // The same native Host also starts and observes the pinned Pi RPC process.
-  if (!await page.getByRole('button', { name: '创建自定义供应商', exact: true }).isVisible()) {
-    await page.getByRole('button', { name: '模型设置', exact: true }).click();
-    await page.getByTestId('model-provider-add-provider-button').click();
-  }
-  await page.getByRole('button', { name: '创建自定义供应商', exact: true }).click();
-  await page.getByTestId('model-provider-base-url-input').fill(model.url);
-  await page.getByTestId('model-provider-api-key-input').fill('fixture-not-a-secret');
-  await page.getByTestId('model-provider-api-format-trigger').click();
-  await page.getByRole('option', { name: /Chat Completions/ }).click();
-  await page.getByTestId('model-provider-add-model-button').click();
-  await page.getByPlaceholder('模型 ID', { exact: true }).fill('pi-native-test');
-  await page.getByRole('dialog').getByRole('button', { name: '保存', exact: true }).click();
-  await page.getByRole('dialog').waitFor({ state: 'hidden' });
+  // Pi models.json was configured in the isolated fixture; the desktop no
+  // longer needs a duplicate provider in the old ZCode configuration store.
   await page.getByTestId('settings-back-button').click();
   await page.getByTestId('settings-page').waitFor({ state: 'hidden' });
   await page.getByTestId('chat-model-select-trigger').click();

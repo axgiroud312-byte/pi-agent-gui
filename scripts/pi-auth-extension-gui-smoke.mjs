@@ -60,21 +60,8 @@ try {
   await page.getByTestId('composer-workspace-trigger').filter({ hasText: 'parity-workspace' }).waitFor();
   await page.getByTestId('v4-composer-input').waitFor();
   await page.getByTestId('sidebar').getByTestId('task-settings-button').click();
-  if (!await page.getByRole('button', { name: '创建自定义供应商', exact: true }).isVisible()) {
-    await page.getByRole('button', { name: '模型设置', exact: true }).click();
-    await page.getByTestId('model-provider-add-provider-button').click();
-  }
-  await page.getByRole('button', { name: '创建自定义供应商', exact: true }).click();
-  await page.getByTestId('model-provider-base-url-input').fill(model.url);
-  await page.getByTestId('model-provider-api-key-input').fill('fixture-not-a-secret');
-  await page.getByTestId('model-provider-api-format-trigger').click();
-  await page.getByRole('option', { name: /Chat Completions/ }).click();
-  await page.getByTestId('model-provider-add-model-button').click();
-  await page.getByPlaceholder('模型 ID', { exact: true }).fill('pi-native-test');
-  await page.getByRole('dialog').getByRole('button', { name: '保存', exact: true }).click();
-  await page.getByRole('dialog').waitFor({ state: 'hidden' });
-  assert(JSON.stringify(JSON.parse(await readFile(join(f.home, '.zcode', 'v2', 'provider_config.json'), 'utf8')))
-    .includes('new-provider'));
+  await page.getByRole('button', { name: '模型设置', exact: true }).click();
+  await page.getByTestId('pi-model-settings-section').waitFor();
   await page.getByTestId('settings-back-button').click();
   await page.getByTestId('settings-page').waitFor({ state: 'hidden' });
   await page.getByTestId('chat-model-select-trigger').click();
@@ -89,10 +76,9 @@ try {
   assert(model.requests.some(request => request.scenario === 'PI_TEXT'));
 
   await page.getByTestId('sidebar').getByTestId('task-settings-button').click();
-  if (!await page.getByRole('button', { name: 'Pi 认证', exact: true }).isVisible()) {
+  if (!await page.getByTestId('pi-auth-section').isVisible()) {
     await page.getByRole('button', { name: '模型设置', exact: true }).click();
   }
-  await page.getByRole('button', { name: 'Pi 认证', exact: true }).click();
   const auth = page.getByTestId('pi-auth-section');
   await auth.waitFor();
   await auth.getByRole('button', { name: /Fixture runtime OAuth/ }).click();
