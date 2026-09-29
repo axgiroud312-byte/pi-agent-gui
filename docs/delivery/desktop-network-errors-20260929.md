@@ -70,15 +70,19 @@
 - 已打开实际新版窗口（主进程 PID 31372），通过其独立 CDP 窗口确认已选 `cliproxyapi/GPT 6.0 Luna`；未在用户真实 profile 发送测试请求。截图 `pi-issue41-user-preview-ready.png`。
 - 启动入口使用独立桌面 profile `%USERPROFILE%/.pi-agent-ide-network-fix-preview`，读取原 Pi profile `%USERPROFILE%/.pi/agent`；未提供代理环境时沿用本机已验证的 `http://127.0.0.1:7897`，已有显式代理值优先。这是本机预览启动设置，不宣称实现系统代理/PAC 自动发现。
 
+### 用户验收：通过
+
+2026-09-29，用户在新版打开并交付后明确回复：**“ok，这个任务算是完成了”**。验收对象为上述 `422d1666` Windows 预览包；本任务按完成关闭 Issue #41。PR #42 移出 Draft、保留待合并，本次不改变包内源码或已有验证结果。
+
 ### 诊断边界
 
 - 用户 TUI 默认 `cliproxyapi/gpt-6-luna`，本机配置指向 `http://127.0.0.1:8317`；失败桌面会话选择的是 `openai-codex/gpt-6-luna`，不能视为同一个渠道。
 - 两次隔离 `openai-codex/gpt-6-luna` 在线检查停在模型菜单中无该项，未发送请求；第二次工具执行中断，清理记录有 1 个强制退出。它们不计为通过。已有 GPT-5.5 在线成功不能代替 Luna 或 CLIProxyAPI 验收。
 - 原始失败进程环境没有现场抓取，因此已证实的是可复现的代理传递缺陷与修复后的连接成功，不能仅凭 `fetch failed` 排除所有其他网络因素。
-- 最终包技术验证和实际打开已完成；本轮仍等待用户对新版体验确认，Issue #41 和 PR #42 保持 OPEN / Draft。
+- 最终包技术验证、实际打开和本任务用户验收已完成；此前未验证的独立 provider/安装器边界仍按本报告记录。
 - CLIProxyAPI 探索中出现过静态菜单无目录、把模型 ID 当可见名称（实际为 `GPT 6.0 Luna`）、误导航到可销毁预热会话和未选模型就提交等失败。这些结果不算通过；最终源码采用正常新任务选择模型再发送，真实成功路径以上一表为准。
 
-源码修复提交 `f4045a0`、扩展模型入口 `422d166`，分支 `issue-41-pi-network-errors`，Draft PR [#42](https://github.com/axgiroud312-byte/pi-agent-gui/pull/42)。本轮已自行审查网络白名单/显式值优先、Pi 消息事实/稳定行 ID、冷恢复、重试校正及非模型错误保留；增量核对同工作区/活跃 PID 与文件身份、无重复扩展执行、React 请求序号与作用域保护。当前无可调用的 `/code-review` 技能，不把自审称为独立审查。
+源码修复提交 `f4045a0`、扩展模型入口 `422d166`，分支 `issue-41-pi-network-errors`，PR [#42](https://github.com/axgiroud312-byte/pi-agent-gui/pull/42)。本轮已自行审查网络白名单/显式值优先、Pi 消息事实/稳定行 ID、冷恢复、重试校正及非模型错误保留；增量核对同工作区/活跃 PID 与文件身份、无重复扩展执行、React 请求序号与作用域保护。当前无可调用的 `/code-review` 技能，不把自审称为独立审查。
 
 ### 工具执行中断与恢复
 
