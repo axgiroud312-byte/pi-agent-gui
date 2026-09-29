@@ -161,6 +161,9 @@ export const assistantTextRowSchema = z.object({
   assistantResponseId: z.string().min(1).optional(),
   text: z.string(),
   state: z.enum(["streaming", "complete", "interrupted", "failed"]),
+  // Pi can finish with an error and no text content. Keep the failure in its
+  // own conversation row without presenting it as generated assistant text.
+  error: z.object({ code: z.string(), message: z.string() }).optional(),
   model: z.string().optional(),
   feedback: z.enum(["like", "dislike"]).optional(),
 });

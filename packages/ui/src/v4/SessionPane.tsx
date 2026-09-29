@@ -130,6 +130,7 @@ import { PiTreeDialog } from "@/v4/PiTreeDialog.js";
 import { PiContextDialog } from "@/v4/PiContextDialog.js";
 import { PiSessionTransferDialog } from "@/v4/PiSessionTransferDialog.js";
 import { PiExtensionUiPanel } from "@/v4/PiExtensionUiPanel.js";
+import { hasInlinePiModelError } from "@/v4/piInlineModelError.js";
 import { PiLlamaRouterDialog } from "@/v4/PiLlamaRouterDialog.js";
 import { extractPiModelCatalog } from "@/v4/composer/piModelCatalog.js";
 import { PI_AUTH_CATALOG_CHANGED_EVENT } from "@/lib/piAuthCatalogEvent.js";
@@ -4247,6 +4248,7 @@ export function SessionPane({
       ? "auto"
       : "inline";
   const controlLastError = snapshot?.control.lastError ?? null;
+  const modelErrorInTimeline = hasInlinePiModelError(controlLastError, snapshot?.rows.window ?? []);
   const controlLastErrorKey = controlLastError
     ? createSessionErrorKey(snapshot?.sessionId ?? sessionId, controlLastError)
     : null;
@@ -4274,7 +4276,7 @@ export function SessionPane({
     draftPersistenceError ??
     draftModelReadinessError ??
     sendSubmissionError ??
-    (quotaBanner.takesOverError ? null : projectedComposerError);
+    (quotaBanner.takesOverError || modelErrorInTimeline ? null : projectedComposerError);
   useEffect(() => {
     setSendSubmissionError(null);
   }, [sessionId]);
@@ -5095,7 +5097,7 @@ export function SessionPane({
           />
         ) : null}
 
-        {readOnly && controlLastError ? (
+        {readOnly && controlLastError && !modelErrorInTimeline ? (
           <div
             role="alert"
             data-testid="v4-subagent-readonly-error"
