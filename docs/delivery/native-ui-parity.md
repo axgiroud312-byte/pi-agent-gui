@@ -42,6 +42,14 @@
 
 默认布局、组件、打开方式、操作顺序和反馈保留原版。确有 Pi 特有需求时，优先复用已有菜单、详情、设置或 Side Pane；原生工具没有通用审批时，不制造一个“授权成功”流程。功能缺失不得以差异登记绕过 #1。
 
+## #41 连接与模型错误进入对话（2026-09-29）
+
+用户明确要求连接失败直接显示在对话。沿用原生 `RowShell`、`Alert`、时间线与输入框，将固定 Pi 的模型失败投影到对应轮次；详情默认折叠，冷恢复可见。同一当前轮错误不再重复显示于 composer；其它错误仍保留原反馈路径。
+
+本机证据根 `C:/Users/niilo/AppData/Local/Temp/opencode/`：旧 Pi 包 `pi-issue41-old-package-red/failure.png` 只显示输入区 `Connection error.`；修复源码 `pi-issue41-gui-b/connection-error-inline.png` 与 `connection-error-restored.png` 显示对话错误及恢复，`connection-recovered.png` 证实恢复后可续发。旧 Pi 包不是原版独立对照；本项错误位置变化为用户明确批准的差异，不宣称与原版位置相同。包内结果见 [专项报告](desktop-network-errors-20260929.md)；本轮视觉试用待用户确认。
+
+最终 `422d1666` 包的同一路径已通过，截图目录 `pi-issue41-final-422d166-network`。原生模型菜单仍保留布局与选择操作；新任务目录补读同工作区已预热 Pi 的扩展模型，目录到达后刷新；`pi-issue41-final-422d166-cliproxy/cliproxy-online-reply.png` 验证新任务正常选择 CLIProxyAPI Luna 并真实回复。新版已打开供用户确认。
+
 ## #6 Pi 会话树入口（增量，视觉待验）
 
 | ID | 原生入口/行为 | Pi 产品行为 | 必要性 / 状态 |
