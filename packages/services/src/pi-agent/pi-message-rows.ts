@@ -70,7 +70,7 @@ export class PiMessageRows {
     this.tools.clear();
     this.rowIds.clear();
     for (const [key, id] of Object.entries(rowIds)) {
-      if (/^\d+:(turn|user|custom|bash|unknownRole|text:\d+|thinking:\d+|tool:\d+|unknown:\d+)$/u.test(key) &&
+      if (/^\d+:(turn|user|custom|bash|error|unknownRole|text:\d+|thinking:\d+|tool:\d+|unknown:\d+)$/u.test(key) &&
         Number.isSafeInteger(id) && id > 0) this.rowIds.set(key, id);
     }
     this.sourceByMessageIndex.clear();
@@ -397,6 +397,14 @@ export class PiMessageRows {
               customType: "pi.unknown-assistant-content",
               parts: [{ type: "unknown", value: piUnknownMessageStructure(rawPart) }] });
           }
+        }
+        if (message.stopReason === "error") {
+          const rowId = this.rowId(`${messageIndex}:error`);
+          rows.push({ kind: "assistantText", rowId, turnId, createdAt: at, createdAtSeq: rowId,
+            text: "", state: "failed", error: { code: "pi.modelError",
+              message: typeof message.errorMessage === "string" && message.errorMessage.trim()
+                ? message.errorMessage : "Pi model request failed" },
+            ...(typeof message.model === "string" ? { model: message.model } : {}) });
         }
       } else if (message.role === "toolResult" && typeof message.toolCallId === "string") {
         const tool = this.tools.get(message.toolCallId) ?? { status: "running" as const };

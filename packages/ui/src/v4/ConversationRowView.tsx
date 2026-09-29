@@ -126,6 +126,7 @@ import { ConversationHookDetailsAction } from "@/v4/ConversationHookDetailsActio
 import { formatModelChangeLabel } from "@/v4/composer/modelTriggerDisplay.js";
 import { formatMessageTimeLabel } from "@/v4/messageTimeLabel.js";
 import { parseConversationShareContext } from "@/lib/conversationShareContext.js";
+import { PiModelErrorRow } from "@/v4/PiModelErrorRow.js";
 
 function RowShell({
   rowId,
@@ -2179,6 +2180,9 @@ function ConversationRowViewImpl({
         />
       );
     case "assistantText":
+      if (row.error?.code === "pi.modelError") {
+        return <RowShell rowId={row.rowId}><PiModelErrorRow row={row} /></RowShell>;
+      }
       return (
         <AssistantTextRowView
           row={row}

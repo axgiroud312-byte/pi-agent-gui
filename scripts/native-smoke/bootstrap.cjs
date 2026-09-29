@@ -5,7 +5,7 @@ const { pathToFileURL } = require('node:url');
 const allowed = new Set(['PATH', 'SYSTEMROOT', 'WINDIR', 'PATHEXT', 'COMSPEC', 'TEMP', 'TMP',
   'HOME', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'NODE_OPTIONS',
   'PI_CODING_AGENT_DIR', 'PI_CODING_AGENT_SESSION_DIR', 'PI_PACKAGE_DIR', 'PI_OFFLINE',
-  'LLAMA_BASE_URL', 'LLAMA_API_KEY']);
+  'LLAMA_BASE_URL', 'LLAMA_API_KEY', 'HTTP_PROXY', 'HTTPS_PROXY', 'NO_PROXY']);
 for (const key of Object.keys(process.env)) {
   if (!allowed.has(key.toUpperCase()) && !key.startsWith('NATIVE_SMOKE_') && !key.startsWith('ZCODE_')) delete process.env[key];
 }

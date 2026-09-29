@@ -5637,6 +5637,11 @@ const enUS: Record<string, string> = {
 
   // Modes
   "pi.mode.directTools": "Pi tools run directly",
+  "pi.error.connectionTitle": "Could not connect to the model",
+  "pi.error.connectionHelp": "The model service could not be reached. Check your network or proxy settings, then send your message again.",
+  "pi.error.modelTitle": "Model request failed",
+  "pi.error.modelHelp": "The request did not complete. Check the error details, model configuration or sign-in status, then try again.",
+  "pi.error.details": "Error details",
   "pi.mode.noApproval": "Pi may edit files and run commands without asking before each change. Per-action approval is not available.",
   "pi.session.temporaryAction": "Temporary session",
   "pi.session.temporarySelected": "Temporary · history unsaved",

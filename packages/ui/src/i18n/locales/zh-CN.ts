@@ -5412,6 +5412,11 @@ const zhCN: Record<string, string> = {
 
   // 模式
   "pi.mode.directTools": "Pi 工具直接执行",
+  "pi.error.connectionTitle": "模型连接失败",
+  "pi.error.connectionHelp": "未能连接到模型服务。请检查网络或代理设置后重新发送消息。",
+  "pi.error.modelTitle": "模型请求失败",
+  "pi.error.modelHelp": "本次请求未完成。请查看错误详情，检查模型配置或登录状态后重试。",
+  "pi.error.details": "查看错误详情",
   "pi.mode.noApproval": "Pi 可直接修改文件和运行命令，不会在每次变更前征求批准；当前不支持逐项审批。",
   "pi.session.temporaryAction": "临时会话",
   "pi.session.temporarySelected": "临时 · 历史不落盘",

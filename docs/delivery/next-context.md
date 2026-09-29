@@ -1,4 +1,16 @@
-# 当前入口：main 已统一，等待剩余真实外部条件
+# 当前入口：#41 用户验收通过，PR #42 待合并
+
+## 2026-09-29 #41 当前增量
+
+- 用户报告 Pi TUI 可用而桌面连接失败，要求失败直接显示在对话；随后授权停止重复独立 OpenCode 后台并继续交付。独立 PID 26568 已停止，OpenChamber PID 14448 保留。
+- 当前分支 `issue-41-pi-network-errors`；`f4045a0` 修复 Pi 代理继承和对话内模型错误，`422d166` 补新任务读取同工作区已预热 Pi 的扩展模型，以及预热完成后的目录刷新。用户于 2026-09-29 明确确认：**“ok，这个任务算是完成了”**。Issue [#41](https://github.com/axgiroud312-byte/pi-agent-gui/issues/41) 按 completed 关闭，PR [#42](https://github.com/axgiroud312-byte/pi-agent-gui/pull/42) 移出 Draft、保持待合并；本次没有合并或清理分支。
+- `f4045a06` 包的断网/恢复、对话详情/冷恢复及真实 Codex GPT-5.5 已过。最终源码的真实 `cliproxyapi/gpt-6-luna` GUI 已过，新任务正常选择模型，Pi JSONL 确认渠道/模型；不是仅 RPC 冒烟。最新类型、lint、架构及 4 项 auth 服务合同已过。
+- 最终源码包 `D:/Temp/pi-agent-gui-network-fix-422d166-20260929/` 已构建并通过 network、Codex、CLIProxyAPI 三组真实包内 GUI；全量 Pi 顺序回归 268/268 PASS、0 fail/cancel/skip。包内 3.14.1 / `422d1666` / Pi 0.87.0 与源码对应，哈希和报告路径保存于同目录 `artifact-manifest.json`。
+- 已用 `Launch-Network-Fix.cmd` 打开新版并选好 `cliproxyapi/GPT 6.0 Luna`，启动时主进程 PID 31372；独立桌面 profile 为 `%USERPROFILE%/.pi-agent-ide-network-fix-preview`，使用原 Pi profile，Agent 未在用户真实 profile 发送测试消息。本任务已获用户完成确认；不要再次运行已通过的构建/全集，除非有新修改或新问题。
+- 专项证据：[desktop-network-errors-20260929.md](desktop-network-errors-20260929.md)。更早中断包 `pi-agent-gui-network-fix-20260929` 不交付；`pi-agent-gui-network-fix-final-20260929` 仅含前一阶段 `f4045a06`，不含扩展目录修复。
+- 未相关的 `.agents/skills/agent-browser/` 已跟踪删除、`%SystemDrive%/`、`用`、`packages/desktop/dist-pi-incremental/` 继续保留；用户正在运行的旧 Pi 窗口和原 profile 不清理。新版本用独立桌面预览 profile、用户原 Pi profile 和已验证本机代理打开。
+
+## 2026-09-28 main 基线（以下为历史）
 
 更新时间：2026-09-28。开始前读取 [产品目标](../product-goal.md)、[ADR 0001](../adr/0001-native-zcode-base.md)、[Pi-first 范围](pi-first-scope.md)、[完整开发计划](full-development.md)、[任务账本](tickets.json)、[复用清单](reuse-inventory.md) 和 [本次预览证据](pi-capability-preview-2026-09-27.md)，再核对 GitHub 最新 Issue/PR 与本地 Git 状态。
 

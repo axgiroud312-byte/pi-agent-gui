@@ -1,6 +1,7 @@
 /* eslint-disable max-lines -- One supervisor owns Pi startup, events and teardown for the same leased runtime. */
 import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
+import { restorePiNetworkEnvironment } from "./pi-network-environment.js";
 import { realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
@@ -61,7 +62,7 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
   }
 
   private async launchEnvironment(): Promise<NodeJS.ProcessEnv> {
-    const env = { ...process.env, ...this.options.env };
+    const env = restorePiNetworkEnvironment({ ...process.env, ...this.options.env });
     const preferences = await this.options.launchPreferences?.();
     if (preferences?.offline === "offline") env.PI_OFFLINE = "1";
     else if (preferences?.offline === "online") delete env.PI_OFFLINE;

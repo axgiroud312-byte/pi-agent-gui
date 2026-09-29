@@ -24,6 +24,11 @@ test("auth view reads runtime extension providers from the same Pi RPC child wit
 import { appendFileSync } from "node:fs";
 export default function (pi) {
   appendFileSync(${JSON.stringify(marker)}, "loaded\\n");
+  pi.registerProvider("fixture-extension-ready", {
+    baseUrl: "http://127.0.0.1:1/v1", api: "openai-completions", apiKey: "fixture-only",
+    models: [{ id: "extension-model", name: "Extension model", input: ["text"],
+      contextWindow: 4096, maxTokens: 256 }]
+  });
   pi.registerProvider("fixture-extension-oauth", {
     name: "Fixture extension OAuth", baseUrl: "http://127.0.0.1:1/v1",
     api: "openai-completions", models: [{ id: "fixture-model", name: "Fixture model",
@@ -73,6 +78,14 @@ export default function (pi) {
       const sessionId = created.result.sessionId;
       const processId = supervisor.getSession(sessionId)?.pid;
       const factoryRuns = await readFile(marker, "utf8");
+      const newTaskCatalog = await service.readPiModelCatalog(target);
+      assert(newTaskCatalog.options?.some(model => model.value === "fixture-extension-ready/extension-model"),
+        "a new task must see extension models from its workspace's already running Pi child");
+      const otherWorkspace = join(root, "other-workspace");
+      await mkdir(otherWorkspace);
+      const otherCatalog = await service.readPiModelCatalog({ workspacePath: otherWorkspace });
+      assert(!otherCatalog.options?.some(model => model.value === "fixture-extension-ready/extension-model"),
+        "a runtime extension catalog must not leak into another workspace");
       const first = await service.readPiAuth(target);
       const extension = first.providers.find(item => item.id === "fixture-extension-oauth");
       assert.equal(extension?.runtimeOnly, true);

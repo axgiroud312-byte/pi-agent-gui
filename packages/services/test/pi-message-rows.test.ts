@@ -7,6 +7,30 @@ import { conversationDeltaSchema, conversationRowSchema } from "@zcode/shared/zc
 import { PiMessageRows } from "../src/pi-agent/pi-message-rows.js";
 import { buildConversationSharePublicProjection } from "../src/conversation-share/conversationSharePublicProjection.js";
 
+test("empty model failures appear in their conversation turn, survive restart, and reconcile after recovery", () => {
+  const user = { role: "user", content: "hello", timestamp: 1000 };
+  const failed = { role: "assistant", content: [], timestamp: 2000, model: "test-model",
+    stopReason: "error", errorMessage: "fetch failed" };
+  const projection = new PiMessageRows();
+  for (const message of [user, failed]) {
+    projection.apply({ type: "message_start", message });
+    projection.apply({ type: "message_end", message });
+  }
+  const rows = projection.getRows();
+  const failure = rows.find(row => row.kind === "assistantText" && row.state === "failed");
+  assert(failure && failure.kind === "assistantText", "an empty failed reply must not disappear");
+  assert.equal(failure.text, "", "an error must not masquerade as generated assistant text");
+  assert.deepEqual((failure as unknown as { error: unknown }).error,
+    { code: "pi.modelError", message: "fetch failed" });
+  assert.equal(failure.turnId, rows.find(row => row.kind === "userInput")?.turnId);
+  conversationRowSchema.parse(failure);
+  const restored = new PiMessageRows().restore([user, failed], [], projection.getRowIds());
+  assert.deepEqual(restored.find(row => row.rowId === failure.rowId), failure);
+  projection.reconcile([user, { ...failed, content: [{ type: "text", text: "recovered" }],
+    stopReason: "stop", errorMessage: undefined }]);
+  assert(!projection.getRows().some(row => row.kind === "assistantText" && row.state === "failed"));
+});
+
 test("Pi stream and final history produce native text/tool rows with cumulative output replacement", () => {
   const projection = new PiMessageRows();
   const user = { role: "user", content: "检查文件", timestamp: 1000 };
