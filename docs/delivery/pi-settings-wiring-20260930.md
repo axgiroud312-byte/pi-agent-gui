@@ -36,6 +36,8 @@ Parent: #1；本轮在 #43 / 当前分支继续实施，关联 #10、#12。不�
 
 常用表单覆盖默认提供商/模型/thinking、传输/超时、自动压缩、Agent 与 provider 重试、双队列方式、缓存预热、图片、Shell、历史目录、Skill 命令、项目信任及遥测/分析。只编辑已知叶子；未知字段与嵌套字段保留。`httpProxy`、`cacheWarming`、`defaultProjectTrust` 按固定 Pi 标为仅用户设置，项目作用域禁用；异常原始值要求在 JSON 修复，不以默认值覆盖。原始 JSON 仍可管理其余 Pi 设置；CLI TUI 专属项不冒称影响 GUI。
 
+网络优先级遵循固定 Pi：`applyHttpProxySettings` 只在 `HTTP_PROXY` / `HTTPS_PROXY` 未定义时采用用户 `httpProxy`。已有显式环境代理优先；本轮试用启动器不再硬编码本机代理地址，避免覆盖前端保存值。验证用隔离环境确认了没有继承代理时真实请求经过 GUI 保存的代理。
+
 ## 来源
 
 沿用固定 `zai-org/ZCode@872ad960de7ec172591f7e1952f7849229f94521` 原生设置 / 组件（Apache-2.0）；Pi `@earendil-works/pi-coding-agent@0.87.0` 的公开 SettingsManager、ModelRuntime、资源 / 扩展 API（MIT）。本轮复用本工程已验证的 Pi 设置和资源实现；不复制旧原型 UI，不改用户真实 profile。
@@ -55,6 +57,10 @@ Parent: #1；本轮在 #43 / 当前分支继续实施，关联 #10、#12。不�
 | 高级设置回归 | `node scripts/pi-settings-gui-smoke.mjs --output <.../pi-settings-wiring-settings-regression-20260930>`：保存、无效 Pi 值拒绝、外部冲突、信任与嵌套来源、global-only 项目覆盖、启动选项与固定 Pi RPC PASS。 |
 | 认证 / 扩展回归 | `node scripts/pi-auth-extension-gui-smoke.mjs --output <.../pi-settings-wiring-auth-regression-20260930>`：保存/登出、秘密不回传、坏目录恢复、扩展提供商不重跑 factory、实际扩展交互 PASS；不是在线 OAuth。 |
 | 资源回归 | `node scripts/pi-resources-gui-smoke.mjs --output <.../pi-settings-wiring-resources-regression-20260930-b>`：模板编辑/启停、本地包安装/过滤/移除、离线/固定版本更新解释和两会话隔离 PASS。 |
+| 精确源码 unpacked 构建 | 冻结产品提交 `8dadc89e4cb0baed71a857920352bd6a5e09b904`；`ZCODE_ENV=production`、`ZCODE_PREVIEW_IDENTITY=1`、`ZCODE_DESKTOP_DIST_DIR=D:/Temp/pi-agent-gui-settings-wiring-8dadc89e-20260930`；在 `packages/desktop` 执行 `pnpm build:no-runtime-assets`、`pnpm exec electron-builder --win --x64 --dir --config electron-builder.config.js` PASS。`pi-settings-wiring-build-package-20260930.log` / `pi-settings-wiring-package-20260930.log`；afterPack 补齐并验证固定版本运行依赖、native 资源和 source map 清理。 |
+| 包内设置接线 | 设置 `NATIVE_PI_PACKAGED_EXE` 为新 exe，串行执行 `node scripts/pi-settings-wiring-gui-smoke.mjs --output <.../pi-settings-wiring-packaged-20260930>` PASS。全部接线场景、实际代理推理、资源重载、模板请求、侧栏旧自动化拒绝、尺寸/主题及项目字段保护通过；两次清洁退出。 |
+| 包内统一模型 | 同一 exe，`node scripts/pi-model-settings-gui-smoke.mjs --output <.../pi-settings-wiring-model-packaged-20260930>` PASS：7 个流程检查及 4 个尺寸/主题状态；清洁退出。 |
+| 包内元数据与试用启动 | 用 `@electron/asar.extractFile` 只读验证包内 `out/metadata/build-meta.json` / `package.json` / 固定 Pi 清单：3.14.1 / `8dadc89e` / Pi 0.87.0。测试后、实际试用启动后 exe / asar / 启动器哈希不变。真实启动器已打开常规 Pi 表单，原 `settings.json` / `models.json` / `auth.json` 启动前后 SHA-256 一致，未发推理消息。 |
 
 上列成功 GUI 均 0 page errors、正常退出、0 强杀/残留。首次资源回归沿用早期旧 provider 按钮，失败于准备步骤；脚本改用已经配置的真正 Pi profile 后通过。UI 全集首次在根目录未指定 UI tsconfig，8 个文件的 `@/` 别名解析失败；正确配置后全部通过。一次截图脚本同时找到聊天/设置两个资源区域，限定设置页后通过。这些失败与修正保留原报告，不以失败运行充当通过证据。
 
@@ -62,5 +68,14 @@ Parent: #1；本轮在 #43 / 当前分支继续实施，关联 #10、#12。不�
 
 - 自审覆盖：所有可达设置分区与侧栏入口、旧引导/推荐、真实文件与环境输入、global-only 和信任规则、未知值保留、异步读取作用域与编辑保护、资源所选会话/代次、保存与生效提示。
 - 没有可用 `/code-review` 技能，本轮记录为自审，不冒称独立审查。侧栏自动化红测见 `pi-settings-wiring-sidebar-red-20260930`；补充修正后的 `pi-settings-wiring-audit-final-20260930` 已全绿，0 页面错误 / 强杀 / 残留。
-- 新预览尚在收尾构建；2026-09-29 的 `dabbed5e` 旧模型设置包不包含本轮变更。#43 OPEN / PR #44 Draft 保持，未 merge、关闭 Issue 或创建 Release。
+- 已交付新 unpacked 预览，详见下方；2026-09-29 的 `dabbed5e` 旧模型设置包不包含本轮变更。#43 OPEN / PR #44 Draft 保持，未 merge、关闭 Issue 或创建 Release。
 - 受控本地 provider、代理与已有/合成凭据不代替现场 OAuth 登录/登出；真实 GitHub Gist、真实 llama.cpp + GGUF、物理 IME 与用户体验确认仍是独立边界。
+
+## 本轮交付
+
+- 产品提交 **`8dadc89e4cb0baed71a857920352bd6a5e09b904`** 已推送；此后的收尾提交只更新文档，不改变包内产品。包内构建时间 `2026-09-30T15:57:58.682Z`，桌面 3.14.1、Pi 0.87.0。
+- 新版目录：`D:/Temp/pi-agent-gui-settings-wiring-8dadc89e-20260930/`。双击 **`Launch-Pi-Settings.cmd`**；同目录 `README-试用.md` 提供三个入口和生效说明。无新安装器、安装替换或 Release。
+- `artifact-manifest.json` 保存产品提交、包内元数据、exe / asar / 启动器 SHA-256、通过的报告路径、检查结果和实际试用窗口。`artifact-static-check.json` 是只读静态检查；读取归档不使用会覆盖工作目录文件的 `asar extract-file` CLI。
+- 包内设置 / 展开表单 / 资源 12 个状态与模型 4 个状态已在四张 `packaged-*-review-matrix.png` 中目视复查；原始截图仍在两份 packaged 证据目录。窄窗口经原生滚动访问，导航、两栏、表单、长路径截断正常。源码对应的 12 个完整尺寸截图也已复查。截图和自动化不能代替用户体验确认。
+- 新窗口已打开 **常规 → Pi 设置 → 常用 Pi 配置**，启动时主 PID `69604` / CDP `54872`，留给用户试用；旧窗口未结束。独立桌面目录 `C:/Users/niilo/.pi-agent-ide-settings-wiring-preview`，Pi 仍使用原 `C:/Users/niilo/.pi/agent`。只跳过桌面引导并打开页面；三份原 Pi 配置哈希不变，未发测试消息或写配置。正常预热可创建该新工作区自己的空 Pi 历史，不宣称整个 profile 没有任何运行写入。
+- 试用窗口与配置不变的记录：`user-launch.json`、`original-pi-config-before-launch.json`；截图 `user-pi-settings.png`。启动器不硬编码 HTTP(S) 代理，保持 Pi 原生环境优先级。
