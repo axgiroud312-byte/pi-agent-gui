@@ -47,10 +47,11 @@ function packageUpdateLabel(state: ResourceView["resources"]["packages"][number]
   }
 }
 
-export function PiResourcesDialog({ sessionId, workspacePath, workspaceIdentity }: {
+export function PiResourcesDialog({ sessionId, workspacePath, workspaceIdentity, embedded = false }: {
   sessionId: string;
   workspacePath: string;
   workspaceIdentity?: string;
+  embedded?: boolean;
 }) {
   const { zcodeAgentService } = useServices();
   const [open, setOpen] = useState(false);
@@ -92,9 +93,9 @@ export function PiResourcesDialog({ sessionId, workspacePath, workspaceIdentity 
   }, [guard, target, targetKey, write, zcodeAgentService]);
 
   useEffect(() => {
-    if (open) void refresh();
+    if (open || embedded) void refresh();
     return () => guard.invalidate();
-  }, [guard, open, refresh]);
+  }, [guard, open, embedded, refresh]);
 
   const act = async (intent: Record<string, unknown>,
     onSuccess?: (next: ResourceView, ticket: PiSessionDialogTicket) => void): Promise<void> => {
@@ -159,17 +160,14 @@ export function PiResourcesDialog({ sessionId, workspacePath, workspaceIdentity 
     setOpen(next);
   };
 
-  return <>
-    <Button type="button" variant="outline" size="icon-md" title="Pi 资源" aria-label="Pi 资源"
-      className="pointer-events-auto bg-[var(--color-popover)] shadow-md"
-      data-testid="pi-resources-open" onClick={() => setOpen(true)}><BookOpen className="size-4" /></Button>
-    <Dialog open={open} onOpenChange={changeOpen}>
-      <DialogContent data-testid="pi-resources-dialog" data-generation={view?.info.generation ?? ""}
-        className="max-h-[90vh] max-w-[min(62rem,calc(100vw-2rem))] overflow-hidden">
-        <DialogHeader>
+  const content = <>
+        {embedded ? <div className="flex flex-col gap-1">
+          <h3 className="font-semibold">Pi 资源</h3>
+          <p className="text-sm text-muted-foreground">当前 Pi 会话的真实 Skills、命令、上下文和扩展包。保存后由 Pi 重载；不会写入旧 ZCode 插件配置。</p>
+        </div> : <DialogHeader>
           <DialogTitle>Pi 资源</DialogTitle>
           <DialogDescription>当前会话的真实命令、Skill、上下文及扩展包。保存或管理包后由 Pi 重载；旧历史上下文不会被改写。</DialogDescription>
-        </DialogHeader>
+        </DialogHeader>}
         <div className="flex items-center gap-2 text-xs text-foreground-subtle">
           <span>Pi {view?.info.piVersion ?? "…"} · {view?.resources.projectTrusted ? "项目已信任" : "项目未信任"}</span>
           <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void refresh()}>
@@ -306,7 +304,16 @@ export function PiResourcesDialog({ sessionId, workspacePath, workspaceIdentity 
             </div>
           </section>
         </div>
-      </DialogContent>
+  </>;
+  if (embedded) return <section data-testid="pi-resource-settings" data-generation={view?.info.generation ?? ""}
+    className="flex flex-col gap-4">{content}</section>;
+  return <>
+    <Button type="button" variant="outline" size="icon-md" title="Pi 资源" aria-label="Pi 资源"
+      className="pointer-events-auto bg-[var(--color-popover)] shadow-md"
+      data-testid="pi-resources-open" onClick={() => setOpen(true)}><BookOpen className="size-4" /></Button>
+    <Dialog open={open} onOpenChange={changeOpen}>
+      <DialogContent data-testid="pi-resources-dialog" data-generation={view?.info.generation ?? ""}
+        className="max-h-[90vh] max-w-[min(62rem,calc(100vw-2rem))] overflow-hidden">{content}</DialogContent>
     </Dialog>
   </>;
 }

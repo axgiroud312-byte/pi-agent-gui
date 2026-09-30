@@ -56,6 +56,9 @@ import {
 import { buildUsageEntitlementCacheKey } from "@/lib/usageEntitlementCache.js";
 import { ModelProviderSection } from "@/settings/ModelProviderSection.js";
 import { PiModelSettingsSection } from "@/settings/PiModelSettingsSection.js";
+import { PiSettingsSection } from "@/settings/PiSettingsSection.js";
+import { PiResourcesSettingsSection, PiUnsupportedSettingsSection } from "@/settings/PiResourcesSettingsSection.js";
+import { piSettingsRoute } from "@/settings/piSettingsRouting.js";
 import { useCodingPlanUpgradeDialog } from "@/settings/CodingPlanUpgradeDialogProvider.js";
 import { useEnterpriseCodingPlanProducts } from "@/settings/model-provider-section/useEnterpriseCodingPlanProducts.js";
 import { UsageStatsSection, type UsageStatsSectionTab } from "@/settings/UsageStatsSection.js";
@@ -1652,8 +1655,19 @@ export function SettingsPage({
                         ) : null}
                       </div>
                       <div className="space-y-8">
-                        {activeSection === "general" ? (
+                        {isDesktop && piSettingsRoute(activeSection) === "resources" ? (
+                          <ServiceProvider services={localHostServices}>
+                            <PiResourcesSettingsSection workspacePath={activeWorkspacePath ?? captionWorkspacePath ?? ""} />
+                          </ServiceProvider>
+                        ) : isDesktop && piSettingsRoute(activeSection) === "unsupported" ? (
+                          <PiUnsupportedSettingsSection />
+                        ) : activeSection === "general" ? (
+                          <>
+                          {isDesktop ? <ServiceProvider services={localHostServices}>
+                            <PiSettingsSection workspacePath={activeWorkspacePath ?? captionWorkspacePath ?? ""} />
+                          </ServiceProvider> : null}
                           <GeneralSectionContent
+                            piRuntime={Boolean(isDesktop)}
                             localePreference={localePreference}
                             interfaceMode={interfaceMode}
                             setInterfaceMode={setInterfaceMode}
@@ -1782,6 +1796,7 @@ export function SettingsPage({
                               })
                             }
                           />
+                          </>
                         ) : activeSection === "appearance" ? (
                           <AppearanceSectionContent
                             codePreviewSettings={codePreviewSettings}
@@ -1934,6 +1949,7 @@ export function SettingsPage({
                           />
                         ) : activeSection === "browser" ? (
                           <BrowserSettingsSection
+                            piRuntime={Boolean(isDesktop)}
                             isDesktop={Boolean(isDesktop)}
                             isWindowsDesktop={isWindowsDesktop}
                             workspacePath={activeWorkspacePath}

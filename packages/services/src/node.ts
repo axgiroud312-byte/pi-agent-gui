@@ -2095,7 +2095,8 @@ export function createLocalServices(options: {
           // into inherited network access for a newly spawned Pi process.
           const settings = await readStrictSettings();
           return { offline: settings.piOfflineMode ?? "inherit",
-            versionCheck: settings.piVersionCheckMode ?? "inherit" };
+            versionCheck: settings.piVersionCheckMode ?? "inherit",
+            noProxy: settings.httpProxyNoProxy, caCertPath: settings.httpProxyCaCertPath };
         },
         ...(options.piControlExtensionPath ? { rpcArgs: ["--extension", options.piControlExtensionPath] } : {}) }))
     : createZCodeAgentService({

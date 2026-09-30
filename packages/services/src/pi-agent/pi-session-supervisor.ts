@@ -68,6 +68,13 @@ export class PiSessionSupervisor extends EventEmitter<SupervisorEvents> {
     else if (preferences?.offline === "online") delete env.PI_OFFLINE;
     if (preferences?.versionCheck === "skip") env.PI_SKIP_VERSION_CHECK = "1";
     else if (preferences?.versionCheck === "check") delete env.PI_SKIP_VERSION_CHECK;
+    // Pinned Pi reads these genuine Node / HTTP environment inputs, not
+    // settings.json keys. Resolve the desktop Host choices at each spawn.
+    if (preferences?.noProxy !== undefined) {
+      env.NO_PROXY = preferences.noProxy;
+      env.no_proxy = preferences.noProxy;
+    }
+    if (preferences?.caCertPath !== undefined) env.NODE_EXTRA_CA_CERTS = preferences.caCertPath;
     return env;
   }
 

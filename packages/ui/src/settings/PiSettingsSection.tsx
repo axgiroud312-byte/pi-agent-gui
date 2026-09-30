@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button.js";
 import { useServices } from "@/hooks/useServices.js";
 import { PiSettingsReadGuard, type PiSettingsEditorScope } from "./piSettingsReadGuard.js";
 import { buildPiSettingsSourceRows } from "./piSettingsSourceRows.js";
+import { PiRuntimeSettingsForm } from "./PiRuntimeSettingsForm.js";
 
 type Snapshot = Awaited<ReturnType<ReturnType<typeof useServices>["zcodeAgentService"]["readPiSettings"]>>;
 type Scope = PiSettingsEditorScope;
@@ -21,13 +22,14 @@ function formattedDocument(snapshot: Snapshot, scope: Scope): string {
   return document.exists ? document.text : "{}\n";
 }
 
-/** Advanced view of Pi's own settings.json, within the unified model settings surface. */
+/** One draft for native forms and Pi's own settings.json, shared by both settings entrances. */
 export function PiSettingsSection({ workspacePath }: { workspacePath: string }) {
   const { zcodeAgentService, settingService } = useServices();
   const [loaded, setLoaded] = useState<{ workspacePath: string; snapshot: Snapshot } | null>(null);
   const [scope, setScope] = useState<Scope>("user");
   const [text, setText] = useState("");
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [launchSaving, setLaunchSaving] = useState(false);
@@ -45,6 +47,7 @@ export function PiSettingsSection({ workspacePath }: { workspacePath: string }) 
     const ticket = guard.begin(workspacePath, nextScope);
     setLoading(true);
     setError("");
+    setNotice("");
     try {
       const [result, appSettings] = await Promise.all([
         zcodeAgentService.readPiSettings({ workspacePath }), settingService.get(),
@@ -72,6 +75,7 @@ export function PiSettingsSection({ workspacePath }: { workspacePath: string }) 
     setScope(nextScope);
     if (snapshot) setText(formattedDocument(snapshot, nextScope));
     setError("");
+    setNotice("");
   };
   const save = async () => {
     if (!snapshot || !document || !dirty) return;
@@ -79,12 +83,14 @@ export function PiSettingsSection({ workspacePath }: { workspacePath: string }) 
     setSaving(true);
     setLoading(false);
     setError("");
+    setNotice("");
     try {
       const result = await zcodeAgentService.savePiSettings({ workspacePath, scope,
         expectedRevision: document.revision, text });
       if (!guard.isCurrent(ticket)) return;
       setLoaded({ workspacePath, snapshot: result });
       setText(formattedDocument(result, scope));
+      setNotice("已写入 Pi 实际配置。新启动的 Pi 会话读取这些设置；已运行会话不会被自动重启。");
     } catch (cause) {
       if (guard.isLatestRead(ticket)) setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -98,6 +104,7 @@ export function PiSettingsSection({ workspacePath }: { workspacePath: string }) 
     const ticket = guard.begin(workspacePath, scope);
     setLaunchSaving(true);
     setError("");
+    setNotice("");
     try {
       await settingService.update(patch);
       const [result, appSettings] = await Promise.all([
@@ -108,6 +115,7 @@ export function PiSettingsSection({ workspacePath }: { workspacePath: string }) 
       setText(formattedDocument(result, scope));
       setLaunchPrefs({ offline: appSettings.piOfflineMode ?? "inherit",
         versionCheck: appSettings.piVersionCheckMode ?? "inherit" });
+      setNotice("Pi 启动选项已保存，将传给新 Pi 子进程；已运行会话不改变。");
     } catch (cause) {
       if (guard.isLatestRead(ticket)) setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -173,13 +181,18 @@ export function PiSettingsSection({ workspacePath }: { workspacePath: string }) 
                 </p>
               ) : null}
               <p className="break-all text-xs text-muted-foreground">新会话历史目录：{snapshot.sessionDirectory}</p>
+              <PiRuntimeSettingsForm text={text} scope={scope}
+                disabled={loading || saving || launchSaving || Boolean(document?.error)} onError={setError}
+                onChange={next => { guard.markEdited(); setText(next); setError(""); setNotice(""); }} />
               {document?.error ? <p role="alert" className="text-sm text-destructive">
                 原文件{document.error}。请先在外部修复；本页不会覆盖坏配置。
               </p> : null}
               <label className="block space-y-2 text-sm font-medium" htmlFor="pi-settings-json">
                 <span>{scope === "user" ? "用户 settings.json" : "项目 .pi/settings.json"}</span>
                 <textarea id="pi-settings-json" data-testid="pi-settings-json" spellCheck={false} value={text}
-                  disabled={saving || launchSaving} onChange={(event) => { guard.markEdited(); setText(event.target.value); }} rows={12}
+                  disabled={saving || launchSaving} onChange={(event) => {
+                    guard.markEdited(); setText(event.target.value); setError(""); setNotice("");
+                  }} rows={12}
                   className="w-full rounded-md border border-border bg-background p-3 font-mono text-xs leading-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
               </label>
               <Button type="button" disabled={!dirty || saving || launchSaving || Boolean(document?.error)} onClick={() => { void save(); }}>
@@ -202,6 +215,7 @@ export function PiSettingsSection({ workspacePath }: { workspacePath: string }) 
             </>
           ) : null}
           {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
+          {notice && !dirty ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
         </>
       )}
     </section>

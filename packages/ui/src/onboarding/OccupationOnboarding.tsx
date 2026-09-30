@@ -33,12 +33,14 @@ async function appendOnboardingRecord(
 }
 
 export function OccupationOnboarding({
+  piRuntime = false,
   children,
   showWindowControls = false,
   showChildrenWhileLoading = false,
   isMacDesktop,
   isWindowsDesktop,
 }: {
+  piRuntime?: boolean;
   children: ReactNode;
   /** Windows/Linux 自绘窗控：引导全屏覆盖主界面（含标题栏），需在此补最小化/最大化/关闭。 */
   showWindowControls?: boolean;
@@ -224,15 +226,15 @@ export function OccupationOnboarding({
         // settings 侧保持既有语义：跳过落保守默认值（职业 other / 偏好关），
         // "跳过也算答案"的区分度只体现在 onboarding-record.json 里。
         onboardingOccupation: occupation ?? "other",
-        memoryEnabled: skip ? false : memory,
-        proactiveSuggestionsEnabled: !skip && mode === "office" && suggestions,
+        ...(!piRuntime ? { memoryEnabled: skip ? false : memory,
+          proactiveSuggestionsEnabled: !skip && mode === "office" && suggestions } : {}),
       });
       reportEnd();
       // 保存成功就是本次引导的终点；本地记录失败不应留下可再次上报的引导页面。
       setStep(0);
       setDismissed(true);
       setRequested(false);
-      if (!skip && migration) requestOnboardingDialog("migration");
+      if (!piRuntime && !skip && migration) requestOnboardingDialog("migration");
       logger.info("[occupation-onboarding] 偏好保存完成", { interfaceMode: mode });
       if (onboardingRecord) {
         try {
@@ -243,8 +245,8 @@ export function OccupationOnboarding({
           await appendOnboardingRecord(onboardingRecord, platform.getDeviceId(), {
             occupation,
             interfaceMode: mode,
-            memoryEnabled: skip ? null : memory,
-            proactiveSuggestionsEnabled: skip ? null : mode === "office" && suggestions,
+            memoryEnabled: piRuntime || skip ? null : memory,
+            proactiveSuggestionsEnabled: piRuntime || skip ? null : mode === "office" && suggestions,
             completedAt: new Date().toISOString(),
           });
           markOnboarded();
@@ -319,8 +321,9 @@ export function OccupationOnboarding({
                     />
                   ) : preferences ? (
                     <div className="mt-8 space-y-3">
+                      {piRuntime ? <p className="text-ui-base text-foreground-subtle">Pi 的模型、认证、Skills 与上下文请在工作台设置中配置。这里不启用旧 Agent 的 Memory、主动建议或配置迁移。</p> : null}
                       {(["suggestions", "memory", "migration"] as const)
-                        .filter((key) => key !== "suggestions" || mode === "office")
+                        .filter((key) => !piRuntime && (key !== "suggestions" || mode === "office"))
                         .map((key) => (
                           <label
                             key={key}

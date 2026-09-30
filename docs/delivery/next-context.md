@@ -1,6 +1,16 @@
-# 当前入口：#43 统一模型设置已交付试用，等待用户确认
+# 当前入口：#43 前端配置真实接入 Pi
 
-## 2026-09-29 #43 当前工作
+## 2026-09-30 #43 配置接线增量
+
+- 用户新要求“我希望所有在前端配置的，你都能实际接入 pi 实际的配置接口”，不是对旧试用包的确认；继续 `issue-43-unified-model-settings`，#43 OPEN / PR #44 Draft，不自动 merge、关闭或正式发布。
+- 常规 / 高级 Pi 设置同一真实作用域文件与草稿；原生常用表单、global-only 保护、未知字段保留；代理使用 Pi `httpProxy`，No Proxy / CA 实际传新 Pi 子进程环境。技能 / 命令 / 插件 / 记忆与侧栏插件市场统一到真实 Pi 资源桥；显示所选已有会话，只重载它，不另启 Agent。
+- 禁止旧 MCP、子 Agent、Hook、迁移、自动化（包括侧栏）可写控件；旧 browser-use 开关、插件迁移引导与草稿插件推荐停用。真正桌面显示 / 快捷键 / 窗口 / 内置终端选项保留并与 Pi 配置区分。
+- [实现与证据](pi-settings-wiring-20260930.md)、[原生差异](native-ui-parity.md#43-前端配置真实接入-pi2026-09-30)。固定 Pi 服务 272/272、最终 UI 111/111、typecheck / lint（0 errors / 69 既有 warnings）/ architecture（0 violations）/ diff PASS。最新源码构建及 `pi-settings-wiring-audit-final-20260930` 完整 GUI PASS；模型、高级设置、认证/扩展、资源回归 PASS。证据均在 `C:/Users/niilo/AppData/Local/Temp/opencode/`，成功 GUI 无页面错误 / 强杀 / 残留。
+- 新 unpacked 预览正在冻结源码和构建；不要把下方 `dabbed5e` 的旧包当成本次新版本。交付后在此补精确产品提交、启动器、manifest 与包内 GUI 结果。GUI 固定调试端口必须串行。
+- 保护用户旧窗口与原 Pi profile；不清理 `.agents/skills/agent-browser/` 删除、`%SystemDrive%/`、`用`、`packages/desktop/dist-pi-incremental/` 和自动产生的 `.serena/`。测试只用隔离 profile，不在用户真实 profile 发测试消息或改配置。
+- 现场 OAuth 登录/登出、真实 Gist、真实 llama.cpp + GGUF 与用户体验确认保持独立未验证边界。
+
+## 2026-09-29 #43 统一模型页历史交付
 
 - 用户授权先合并 PR #42，再开始统一模型设置。#42 已 merge 到 main：`d4285e69e3b2566d71ff426042185cefb48c0558`；本地 main 已同步，#41 完成状态保持。
 - 当前分支 `issue-43-unified-model-settings`，Issue [#43](https://github.com/axgiroud312-byte/pi-agent-gui/issues/43)。统一页、新 Pi models.json 编辑与同页认证已实现；新增合同、类型/lint/架构、源码真实 GUI 配置→认证→回复及既有认证/高级设置 GUI 回归通过。
