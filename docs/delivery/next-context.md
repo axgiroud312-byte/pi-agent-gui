@@ -1,6 +1,26 @@
-# 当前入口：#41 用户验收通过，PR #42 待合并
+# 当前入口：#43 前端配置真实接入 Pi，已交付新版试用
 
-## 2026-09-29 #41 当前增量
+## 2026-09-30 #43 配置接线增量
+
+- 用户新要求“我希望所有在前端配置的，你都能实际接入 pi 实际的配置接口”，不是对旧试用包的确认；继续 `issue-43-unified-model-settings`，#43 OPEN / PR #44 Draft，不自动 merge、关闭或正式发布。
+- 常规 / 高级 Pi 设置同一真实作用域文件与草稿；原生常用表单、global-only 保护、未知字段保留；代理使用 Pi `httpProxy`，No Proxy / CA 实际传新 Pi 子进程环境。技能 / 命令 / 插件 / 记忆与侧栏插件市场统一到真实 Pi 资源桥；显示所选已有会话，只重载它，不另启 Agent。
+- 禁止旧 MCP、子 Agent、Hook、迁移、自动化（包括侧栏）可写控件；旧 browser-use 开关、插件迁移引导与草稿插件推荐停用。真正桌面显示 / 快捷键 / 窗口 / 内置终端选项保留并与 Pi 配置区分。
+- [实现与证据](pi-settings-wiring-20260930.md)、[原生差异](native-ui-parity.md#43-前端配置真实接入-pi2026-09-30)。固定 Pi 服务 272/272、最终 UI 111/111、typecheck / lint（0 errors / 69 既有 warnings）/ architecture（0 violations）/ diff PASS。最新源码构建及 `pi-settings-wiring-audit-final-20260930` 完整 GUI PASS；模型、高级设置、认证/扩展、资源回归 PASS。证据均在 `C:/Users/niilo/AppData/Local/Temp/opencode/`，成功 GUI 无页面错误 / 强杀 / 残留。
+- 新产品提交 `8dadc89e4cb0baed71a857920352bd6a5e09b904` 已推送；之后仅更新文档。新 unpacked `D:/Temp/pi-agent-gui-settings-wiring-8dadc89e-20260930/Launch-Pi-Settings.cmd`，包内 3.14.1 / `8dadc89e` / Pi 0.87.0。完整包内配置接线、统一模型 7 个流程及 16 个尺寸/主题状态通过，0 页面错误 / 强杀 / 残留；证据 `pi-settings-wiring-packaged-20260930`、`pi-settings-wiring-model-packaged-20260930`，同目录 manifest 保存哈希。不要重复已通过构建 / 全集，除非有新改动或缺陷；GUI 固定调试端口必须串行。
+- 新版已通过真实启动器打开常规 Pi 表单，独立桌面 profile `.pi-agent-ide-settings-wiring-preview` / 用户原 `.pi/agent`，主 PID 69604 / CDP 54872（启动时）。只跳过桌面引导和查看页面，未发消息或写 Pi 配置；三份配置前后哈希一致。启动器不强制代理，Pi 显式环境 HTTP(S)_PROXY 优先于 settings.json 的 httpProxy；没有环境值时使用 GUI 保存值。
+- 保护用户旧窗口与原 Pi profile；不清理 `.agents/skills/agent-browser/` 删除、`%SystemDrive%/`、`用`、`packages/desktop/dist-pi-incremental/` 和自动产生的 `.serena/`。测试只用隔离 profile，不在用户真实 profile 发测试消息或改配置。
+- 现场 OAuth 登录/登出、真实 Gist、真实 llama.cpp + GGUF 与用户体验确认保持独立未验证边界。
+
+## 2026-09-29 #43 统一模型页历史交付
+
+- 用户授权先合并 PR #42，再开始统一模型设置。#42 已 merge 到 main：`d4285e69e3b2566d71ff426042185cefb48c0558`；本地 main 已同步，#41 完成状态保持。
+- 当前分支 `issue-43-unified-model-settings`，Issue [#43](https://github.com/axgiroud312-byte/pi-agent-gui/issues/43)。统一页、新 Pi models.json 编辑与同页认证已实现；新增合同、类型/lint/架构、源码真实 GUI 配置→认证→回复及既有认证/高级设置 GUI 回归通过。
+- 详情与来源：[统一模型设置报告](unified-model-settings-20260929.md)。完整 Pi 回归 271/271 PASS，类型/lint/架构通过。产品提交 `dabbed5e2ca23a5252e72abb28dc0660b1adc97a`，包内 3.14.1 / `dabbed5e` / Pi 0.87.0；包内配置→登录→目录→回复、外部冲突、参数保留、管理模型同入口和 4 个尺寸/主题状态已通过。报告 `C:/Users/niilo/AppData/Local/Temp/opencode/pi-issue43-packaged-final/pi-model-settings-gui-report.json`，0 页面错误/强杀/残留。不要重复已通过全集或构建，除非新改动/问题要求。
+- 试用包 `D:/Temp/pi-agent-gui-model-settings-dabbed5-20260929/`，启动器 `Launch-Model-Settings.cmd`；同目录 manifest 保存哈希。新版已打开到 OpenAI Codex 的模型页，并识别 CLIProxyAPI 扩展提供商；主 PID 52436 / CDP 57795（启动时）。独立桌面 profile `.pi-agent-ide-model-settings-preview`，使用用户原 `.pi/agent`；没有在用户 profile 发测试消息或改模型/认证配置。
+- #43 保持 OPEN，PR #44 Draft，等待本轮用户体验确认；后续只改报告/截图脚本不改变产品包。本次没有新安装器或 Release，不自动合并 PR 或关闭 #43。
+- 保留以下旧包、用户窗口及无关工作树改动；源码 GUI 固定调试端口会争用，GUI 验证应串行。
+
+## 2026-09-29 #41 已验收增量（历史交付）
 
 - 用户报告 Pi TUI 可用而桌面连接失败，要求失败直接显示在对话；随后授权停止重复独立 OpenCode 后台并继续交付。独立 PID 26568 已停止，OpenChamber PID 14448 保留。
 - 当前分支 `issue-41-pi-network-errors`；`f4045a0` 修复 Pi 代理继承和对话内模型错误，`422d166` 补新任务读取同工作区已预热 Pi 的扩展模型，以及预热完成后的目录刷新。用户于 2026-09-29 明确确认：**“ok，这个任务算是完成了”**。Issue [#41](https://github.com/axgiroud312-byte/pi-agent-gui/issues/41) 按 completed 关闭，PR [#42](https://github.com/axgiroud312-byte/pi-agent-gui/pull/42) 移出 Draft、保持待合并；本次没有合并或清理分支。

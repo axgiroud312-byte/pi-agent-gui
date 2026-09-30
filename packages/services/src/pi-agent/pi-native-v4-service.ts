@@ -74,6 +74,7 @@ import { PI_CONTROL_LIFECYCLE_PREFIX, piControlView, type PiControlAction,
 import { assertPiContextPagination, projectPiContextPage,
   type PiContextPage, type PiContextSection } from "./pi-context-inspection.js";
 import { PiQueueMediaStore } from "./pi-queue-media-store.js";
+import { readPiModelConfig, savePiModelConfig } from "./pi-model-config.js";
 import { readPiSettingsDocuments, savePiSettingsDocument,
   type PiSettingsScope, type PiSettingsSnapshot } from "./pi-settings-documents.js";
 import type { PiQueueCatalogV1 } from "./pi-queue-compat.js";
@@ -532,6 +533,20 @@ export class PiNativeV4Service implements V4Methods {
       // tell the user deletion failed and encourage a retry against new data.
       console.warn("[pi-agent] deleted session lease cleanup failed");
     }
+  }
+
+  async readPiModelConfig(params: ZCodeAgentWorkspaceTarget): Promise<import("./pi-model-config.js").PiModelConfigView> {
+    return readPiModelConfig(this.authFor(params).agentDir);
+  }
+
+  async savePiModelConfig(params: ZCodeAgentWorkspaceTarget & import("./pi-model-config.js").PiModelConfigChange) {
+    const manager = this.authFor(params);
+    const config = await savePiModelConfig(manager.agentDir, params);
+    let synchronized = false;
+    try { await manager.refresh(); synchronized = true; }
+    catch { /* Bytes committed; a busy or unavailable session must not turn this into a failed save. */ }
+    for (const key of this.authRuntimeCatalogs.keys()) this.invalidateAuthRuntimeCatalog(key);
+    return { config, synchronized };
   }
 
   async readPiSettings(params: ZCodeAgentWorkspaceTarget): Promise<PiSettingsSnapshot> {

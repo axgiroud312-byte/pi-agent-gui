@@ -55,8 +55,10 @@ import {
 } from "@/lib/accountProviderAccess.js";
 import { buildUsageEntitlementCacheKey } from "@/lib/usageEntitlementCache.js";
 import { ModelProviderSection } from "@/settings/ModelProviderSection.js";
+import { PiModelSettingsSection } from "@/settings/PiModelSettingsSection.js";
 import { PiSettingsSection } from "@/settings/PiSettingsSection.js";
-import { PiAuthSection } from "@/settings/PiAuthSection.js";
+import { PiResourcesSettingsSection, PiUnsupportedSettingsSection } from "@/settings/PiResourcesSettingsSection.js";
+import { piSettingsRoute } from "@/settings/piSettingsRouting.js";
 import { useCodingPlanUpgradeDialog } from "@/settings/CodingPlanUpgradeDialogProvider.js";
 import { useEnterpriseCodingPlanProducts } from "@/settings/model-provider-section/useEnterpriseCodingPlanProducts.js";
 import { UsageStatsSection, type UsageStatsSectionTab } from "@/settings/UsageStatsSection.js";
@@ -320,7 +322,6 @@ export function SettingsPage({
     writeLastSettingsSectionPreference(visibleInitialSection);
     return visibleInitialSection;
   });
-  const [modelProviderTab, setModelProviderTab] = useState<"models" | "piAuth">("models");
   const [pluginTab, setPluginTab] = useState(() => consumePendingSettingsPluginTab());
   const [pluginNavigationOrigin, setPluginNavigationOrigin] = useState(() =>
     consumePendingSettingsPluginOrigin(),
@@ -1654,8 +1655,19 @@ export function SettingsPage({
                         ) : null}
                       </div>
                       <div className="space-y-8">
-                        {activeSection === "general" ? (
+                        {isDesktop && piSettingsRoute(activeSection) === "resources" ? (
+                          <ServiceProvider services={localHostServices}>
+                            <PiResourcesSettingsSection workspacePath={activeWorkspacePath ?? captionWorkspacePath ?? ""} />
+                          </ServiceProvider>
+                        ) : isDesktop && piSettingsRoute(activeSection) === "unsupported" ? (
+                          <PiUnsupportedSettingsSection />
+                        ) : activeSection === "general" ? (
+                          <>
+                          {isDesktop ? <ServiceProvider services={localHostServices}>
+                            <PiSettingsSection workspacePath={activeWorkspacePath ?? captionWorkspacePath ?? ""} />
+                          </ServiceProvider> : null}
                           <GeneralSectionContent
+                            piRuntime={Boolean(isDesktop)}
                             localePreference={localePreference}
                             interfaceMode={interfaceMode}
                             setInterfaceMode={setInterfaceMode}
@@ -1784,6 +1796,7 @@ export function SettingsPage({
                               })
                             }
                           />
+                          </>
                         ) : activeSection === "appearance" ? (
                           <AppearanceSectionContent
                             codePreviewSettings={codePreviewSettings}
@@ -1812,17 +1825,13 @@ export function SettingsPage({
                         ) : activeSection === "modelProvider" ? (
                           <ServiceProvider services={localHostServices}>
                             <div className="space-y-4">
-                              {isDesktop ? <div className="flex gap-2" role="group" aria-label="模型设置类别">
-                                <Button type="button" variant={modelProviderTab === "models" ? "secondary" : "ghost"}
-                                  onClick={() => setModelProviderTab("models")}>模型配置</Button>
-                                <Button type="button" variant={modelProviderTab === "piAuth" ? "secondary" : "ghost"}
-                                  onClick={() => setModelProviderTab("piAuth")}>Pi 认证</Button>
-                              </div> : null}
-                              {isDesktop && modelProviderTab === "piAuth" ?
-                                <PiAuthSection service={localHostServices.zcodeAgentService}
+                              {isDesktop ?
+                                <PiModelSettingsSection
+                                  key={`${activeWorkspacePath ?? captionWorkspacePath}:${settingsSectionNavigationVersion}`}
+                                  service={localHostServices.zcodeAgentService}
+                                  initialProviderId={pendingModelProviderTarget?.providerId}
                                   workspacePath={activeWorkspacePath ?? captionWorkspacePath ?? ""} /> :
                                 <>
-                                  {isDesktop ? <PiSettingsSection workspacePath={activeWorkspacePath ?? captionWorkspacePath ?? ""} /> : null}
                                   {/* 模型配置属于本机全局事实源；激活远端 workspace 时也不能注入远端 Host。 */}
                                   <ModelProviderSection
                                     workspacePath={activeWorkspacePath ?? captionWorkspacePath ?? ""}
@@ -1940,6 +1949,7 @@ export function SettingsPage({
                           />
                         ) : activeSection === "browser" ? (
                           <BrowserSettingsSection
+                            piRuntime={Boolean(isDesktop)}
                             isDesktop={Boolean(isDesktop)}
                             isWindowsDesktop={isWindowsDesktop}
                             workspacePath={activeWorkspacePath}

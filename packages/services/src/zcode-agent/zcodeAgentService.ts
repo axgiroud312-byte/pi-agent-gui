@@ -3327,6 +3327,8 @@ export function createZCodeAgentService(
     async publishPiSessionShare() { throw new Error("Pi session sharing is unavailable in this runtime"); },
     async discardPiSessionShare() { throw new Error("Pi session sharing is unavailable in this runtime"); },
     async readPiSettings() { throw new Error("Pi settings are unavailable in this runtime"); },
+    async readPiModelConfig() { throw new Error("Pi model configuration is unavailable in this runtime"); },
+    async savePiModelConfig() { throw new Error("Pi model configuration is unavailable in this runtime"); },
     async savePiSettings() { throw new Error("Pi settings are unavailable in this runtime"); },
     async readPiAuth() { throw new Error("Pi authentication is unavailable in this runtime"); },
     async refreshPiAuth() { throw new Error("Pi authentication is unavailable in this runtime"); },

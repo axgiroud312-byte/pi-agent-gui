@@ -46,6 +46,7 @@ import type {
 } from "@/settings/saved-workflows/SavedWorkflowsSection.js";
 import { AutomationsMainBreadcrumbFrame } from "@/settings/AutomationsMainBreadcrumbFrame.js";
 import { PluginStorePage } from "@/settings/PluginStorePage.js";
+import { PiResourcesSettingsSection, PiUnsupportedSettingsSection } from "@/settings/PiResourcesSettingsSection.js";
 import { TaskFindDialog } from "@/quickpick/TaskFindDialog.js";
 import { WorkspaceHeader } from "@/WorkspaceHeader.js";
 import { WorkspaceSidebar, type SidebarFileTreeOpenRequest } from "@/WorkspaceSidebar.js";
@@ -1770,7 +1771,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                                 className="min-h-full"
                               >
                                 <div className="mx-auto flex w-full max-w-5xl flex-col px-4 py-4 md:px-6 md:py-6">
-                                  <AutomationsSection
+                                  {isDesktop ? <PiUnsupportedSettingsSection /> : <AutomationsSection
                                     workspacePath={workspaceAbsPath}
                                     workspaceIdentity={workspaceIdentity}
                                     onCreateViaChat={handleCreateAutomationInChat}
@@ -1791,7 +1792,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                                         workspaceIdentity,
                                       )
                                     }
-                                  />
+                                  />}
                                 </div>
                               </ScopedErrorBoundary>
                             </div>
@@ -1810,13 +1811,13 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                           >
                             <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
                               <div className="mx-auto flex w-full max-w-4xl flex-col px-4 py-4 md:px-6 md:py-6">
-                                <PluginStorePage
+                                {isDesktop ? <PiResourcesSettingsSection workspacePath={workspaceAbsPath} /> : <PluginStorePage
                                   key={`plugin-store:${pluginStoreOpenVersion}`}
                                   workspacePath={workspaceAbsPath}
                                   workspaceIdentity={workspaceIdentity}
                                   onCreateTask={handleCreateTaskInChat}
                                   onManageInstalled={handleManageInstalledPlugins}
-                                />
+                                />}
                               </div>
                             </div>
                           </AutomationsMainBreadcrumbFrame>

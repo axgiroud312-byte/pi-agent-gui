@@ -30,6 +30,7 @@ import { formatImportSummary } from "./browserImportSummary.js";
 const OFFICIAL_BROWSER_USE_PLUGIN_ID = "browser-use@zcode-plugins-official";
 
 interface BrowserSettingsSectionProps {
+  piRuntime?: boolean;
   isDesktop: boolean;
   isWindowsDesktop?: boolean;
   workspacePath?: string | null;
@@ -72,6 +73,7 @@ function BrowserOperationButton({
 }
 
 export function BrowserSettingsSection({
+  piRuntime = false,
   isDesktop,
   isWindowsDesktop = false,
   workspacePath,
@@ -110,13 +112,13 @@ export function BrowserSettingsSection({
     typeof platform.clearEmbeddedBrowserData === "function";
 
   useEffect(() => {
-    if (!workspacePath) return;
+    if (!workspacePath || piRuntime) return;
     void initializePlugins({
       workspacePath,
       workspaceIdentity,
       pluginService: pluginManagementService,
     });
-  }, [initializePlugins, pluginManagementService, workspaceIdentity, workspacePath]);
+  }, [initializePlugins, pluginManagementService, workspaceIdentity, workspacePath, piRuntime]);
 
   const refreshAfterPluginChange = useCallback(async () => {
     await invalidateDeferredDraftSessionForSkillChange({
@@ -244,7 +246,7 @@ export function BrowserSettingsSection({
 
   return (
     <div className="space-y-5">
-      <section className="space-y-3">
+      {piRuntime ? <p className="text-sm text-muted-foreground">这里仅管理桌面内置浏览器的数据与证书策略，不启用 Pi 浏览器工具。Pi 浏览器能力需由兼容扩展提供；旧 browser-use 插件开关不会写入 Pi。</p> : <section className="space-y-3">
         <SettingsGroupCard>
           <SettingsRow
             label={intl.formatMessage({ id: "settings.browser.control.title" })}
@@ -296,7 +298,7 @@ export function BrowserSettingsSection({
             />
           ) : null}
         </SettingsGroupCard>
-      </section>
+      </section>}
 
       {/* 证书策略只在桌面端有内置浏览器时可配；改动由 main 在启动时装到 Session，需重启生效。 */}
       {isDesktop ? (

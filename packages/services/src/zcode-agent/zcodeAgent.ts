@@ -584,6 +584,9 @@ export interface IZCodeAgentService {
     text: string;
   }): Promise<import("../pi-agent/pi-settings-documents.js").PiSettingsSnapshot>;
   /** Fixed Pi 0.87 ModelRuntime management; inference remains in the owned RPC session. */
+  readPiModelConfig(params: ZCodeAgentWorkspaceTarget): Promise<import("../pi-agent/pi-model-config.js").PiModelConfigView>;
+  savePiModelConfig(params: ZCodeAgentWorkspaceTarget & import("../pi-agent/pi-model-config.js").PiModelConfigChange):
+    Promise<{ config: import("../pi-agent/pi-model-config.js").PiModelConfigView; synchronized: boolean }>;
   readPiAuth(params: ZCodeAgentWorkspaceTarget): Promise<import("../pi-agent/pi-auth-manager.js").PiAuthView>;
   refreshPiAuth(params: ZCodeAgentWorkspaceTarget & { generation: string }): Promise<import("../pi-agent/pi-auth-manager.js").PiAuthView>;
   startPiAuth(params: ZCodeAgentWorkspaceTarget & { generation: string; providerId: string;

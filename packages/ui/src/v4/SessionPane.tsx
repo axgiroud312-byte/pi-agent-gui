@@ -4904,7 +4904,7 @@ export function SessionPane({
       {sessionId && activeSnapshot ? <PiExtensionUiPanel key={`pi-extension-below:${sessionId}`}
         state={activeSnapshot.piExtensionUi} placement="belowEditor" /> : null}
       {/* 办公模式显示主动任务推荐；编程模式保留原有小型场景入口。 */}
-      {isDraft && (!isOfficeMode || sharedSettings?.proactiveSuggestionsEnabled === true) ? (
+      {!isDesktop && isDraft && (!isOfficeMode || sharedSettings?.proactiveSuggestionsEnabled === true) ? (
         <ConversationDraftSuggestedPromptsContainer
           className={isOfficeMode ? "mt-4" : "mt-6"}
           proactive={isOfficeMode}

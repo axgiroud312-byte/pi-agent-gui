@@ -1009,6 +1009,7 @@ function RootInner({
       {remoteConnectionDialog}
       {directoryBrowserDialog}
       <OccupationOnboarding
+        piRuntime={Boolean(isDesktop)}
         showWindowControls={Boolean(isWindowsDesktop || (isDesktop && !isMacDesktop))}
         showChildrenWhileLoading={!workspaceShellPath && isSettingsTabActive}
         isMacDesktop={isMacDesktop}
@@ -1073,11 +1074,11 @@ function RootInner({
           resetKeys={[workspaceShellIdentity?.trim() || workspaceShellPath]}
           variant="silent"
         >
-          <OnboardingDialog
+          {!isDesktop ? <OnboardingDialog
             workspacePath={workspaceShellPath || undefined}
             workspaceIdentity={workspaceShellIdentity}
             isDesktop={isDesktop}
-          />
+          /> : null}
         </ScopedErrorBoundary>
       </OccupationOnboarding>
     </RootShell>

@@ -47,6 +47,7 @@ const TASK_AUTO_ARCHIVE_DAY_OPTIONS = [3, 7, 14, 30] as const;
 const ZCODE_INTERACTION_BEHAVIOR_OPTIONS: readonly ZCodeInteractionBehavior[] = ["queue", "guide"];
 
 export function GeneralSectionContent({
+  piRuntime = false,
   localePreference,
   interfaceMode = "coding",
   setInterfaceMode = () => {},
@@ -109,6 +110,7 @@ export function GeneralSectionContent({
   onModelIoFullRetentionEnabledChange = async () => {},
   onOpenOnboardingDialog,
 }: {
+  piRuntime?: boolean;
   localePreference: LocalePreference;
   interfaceMode?: InterfaceMode;
   setInterfaceMode?: (mode: InterfaceMode) => void;
@@ -279,6 +281,7 @@ export function GeneralSectionContent({
 
   return (
     <div className="space-y-4">
+      {piRuntime ? <p className="text-sm text-muted-foreground">以下是桌面显示、窗口和内置终端偏好，不是 Pi 引擎配置。Pi 模型、网络、工具 Shell、历史目录等使用上方真实 Pi 设置。</p> : null}
       <SettingsGroupCard>
         <SettingsRow
           label={intl.formatMessage({ id: "settings.locale" })}
@@ -348,7 +351,7 @@ export function GeneralSectionContent({
             </Select>
           }
         />
-        {hasServices ? <ProactiveSuggestionsSetting /> : null}
+        {hasServices && !piRuntime ? <ProactiveSuggestionsSetting /> : null}
       </SettingsGroupCard>
 
       <SettingsGroupCard>
@@ -399,7 +402,7 @@ export function GeneralSectionContent({
         {showIntegratedTerminalShell ? (
           <SettingsRow
             label={intl.formatMessage({ id: "settings.integratedTerminalShell" })}
-            description={intl.formatMessage({
+            description={piRuntime ? "仅设置桌面内置终端；不会改变 Pi bash 工具。Pi 工具使用上方真实设置中的 shellPath。" : intl.formatMessage({
               id: "settings.integratedTerminalShellDescription",
             })}
             control={
@@ -426,7 +429,7 @@ export function GeneralSectionContent({
             }
           />
         ) : null}
-        <SettingsRow
+        {!piRuntime ? <SettingsRow
           label={intl.formatMessage({
             id: "settings.nativeSearchEnhancements",
           })}
@@ -445,11 +448,12 @@ export function GeneralSectionContent({
               }}
             />
           }
-        />
+        /> : null}
       </SettingsGroupCard>
 
       <SettingsGroupCard>
-        <SettingsRow
+        {piRuntime ? <p className="px-4 pt-3 text-xs text-muted-foreground">Pi 代理地址在上方 Pi 设置中保存。下面两项是实际传给新 Pi 子进程的 NO_PROXY / NODE_EXTRA_CA_CERTS；已运行会话需重新打开才生效。</p> : null}
+        {!piRuntime ? <SettingsRow
           label={intl.formatMessage({ id: "settings.httpProxy" })}
           description={intl.formatMessage({ id: "settings.httpProxyDescription" })}
           control={
@@ -480,11 +484,11 @@ export function GeneralSectionContent({
               className="max-w-[520px] font-mono"
             />
           }
-        />
+        /> : null}
         {/* No Proxy 与 HTTP 代理共同决定同一出口策略，必须贴在代理地址下面。*/}
         <SettingsRow
           label={intl.formatMessage({ id: "settings.httpProxyNoProxy" })}
-          description={intl.formatMessage({
+          description={piRuntime ? "新 Pi 子进程使用的代理绕过规则，以英文逗号分隔；留空遵循宿主环境。" : intl.formatMessage({
             id: "settings.httpProxyNoProxyDescription",
           })}
           control={
@@ -501,6 +505,8 @@ export function GeneralSectionContent({
             <Input
               size="lg"
               value={localHttpProxyNoProxy}
+              data-testid={piRuntime ? "pi-launch-no-proxy" : undefined}
+              aria-label={piRuntime ? "Pi 代理绕过列表" : undefined}
               placeholder={intl.formatMessage({
                 id: "settings.httpProxyNoProxyPlaceholder",
               })}
@@ -519,7 +525,7 @@ export function GeneralSectionContent({
         {/* 自定义 CA 属于 HTTP 代理的同一网络出口策略，必须跟代理输入放在同一卡片里。*/}
         <SettingsRow
           label={intl.formatMessage({ id: "settings.httpProxyCaCertPath" })}
-          description={intl.formatMessage({
+          description={piRuntime ? "PEM 根证书文件路径，通过 NODE_EXTRA_CA_CERTS 传给新 Pi 子进程；留空遵循宿主环境。" : intl.formatMessage({
             id: "settings.httpProxyCaCertPathDescription",
           })}
           control={
@@ -536,6 +542,8 @@ export function GeneralSectionContent({
             <Input
               size="lg"
               value={localHttpProxyCaCertPath}
+              data-testid={piRuntime ? "pi-launch-ca-cert" : undefined}
+              aria-label={piRuntime ? "Pi 自定义 CA 证书路径" : undefined}
               placeholder={intl.formatMessage({
                 id: "settings.httpProxyCaCertPathPlaceholder",
               })}
@@ -698,7 +706,7 @@ export function GeneralSectionContent({
             </Select>
           }
         />
-        <SettingsRow
+        {!piRuntime ? <SettingsRow
           label={intl.formatMessage({
             id: "settings.askUserQuestionAutoResolution",
           })}
@@ -717,8 +725,8 @@ export function GeneralSectionContent({
               }}
             />
           }
-        />
-        <SettingsRow
+        /> : null}
+        {!piRuntime ? <SettingsRow
           label={intl.formatMessage({ id: "settings.modelIoFullRetention" })}
           description={intl.formatMessage({
             id: "settings.modelIoFullRetentionDescription",
@@ -732,7 +740,7 @@ export function GeneralSectionContent({
               }}
             />
           }
-        />
+        /> : null}
         <SettingsRow
           label={intl.formatMessage({ id: "settings.messageStreamShowReasoning" })}
           description={intl.formatMessage({
@@ -810,7 +818,7 @@ export function GeneralSectionContent({
         />
       </SettingsGroupCard>
 
-      <SettingsGroupCard>
+      {!piRuntime ? <SettingsGroupCard>
         <SettingsRow
           label={intl.formatMessage({ id: "settings.taskAutoArchive" })}
           description={intl.formatMessage({
@@ -853,9 +861,9 @@ export function GeneralSectionContent({
             </Select>
           }
         />
-      </SettingsGroupCard>
+      </SettingsGroupCard> : null}
 
-      <SettingsGroupCard>
+      {!piRuntime ? <SettingsGroupCard>
         <SettingsRow
           label={intl.formatMessage({ id: "settings.dataBaseDir" })}
           description={intl.formatMessage({
@@ -870,7 +878,7 @@ export function GeneralSectionContent({
             />
           }
         />
-      </SettingsGroupCard>
+      </SettingsGroupCard> : null}
 
       <SettingsGroupCard>
         <SettingsRow

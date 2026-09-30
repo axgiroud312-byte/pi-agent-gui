@@ -46,22 +46,8 @@ try {
   await page.getByRole('menuitem', { name: '打开文件夹', exact: true }).click();
   await page.getByTestId('composer-workspace-trigger').filter({ hasText: 'parity-workspace' }).waitFor();
   await page.getByTestId('v4-composer-input').waitFor();
-  await page.getByTestId('sidebar').getByTestId('task-settings-button').click();
-  if (!await page.getByRole('button', { name: '创建自定义供应商', exact: true }).isVisible()) {
-    await page.getByRole('button', { name: '模型设置', exact: true }).click();
-    await page.getByTestId('model-provider-add-provider-button').click();
-  }
-  await page.getByRole('button', { name: '创建自定义供应商', exact: true }).click();
-  await page.getByTestId('model-provider-base-url-input').fill(model.url);
-  await page.getByTestId('model-provider-api-key-input').fill('fixture-not-a-secret');
-  await page.getByTestId('model-provider-api-format-trigger').click();
-  await page.getByRole('option', { name: /Chat Completions/ }).click();
-  await page.getByTestId('model-provider-add-model-button').click();
-  await page.getByPlaceholder('模型 ID', { exact: true }).fill('pi-native-test');
-  await page.getByRole('dialog').getByRole('button', { name: '保存', exact: true }).click();
-  await page.getByRole('dialog').waitFor({ state: 'hidden' });
-  await page.getByTestId('settings-back-button').click();
-  await page.getByTestId('settings-page').waitFor({ state: 'hidden' });
+  // configurePiProfile already populated the real Pi models.json. Resource
+  // regression must not recreate a disconnected legacy ZCode provider.
   await page.getByTestId('chat-model-select-trigger').click();
   await page.getByTestId('chat-model-select-search').fill('pi-native-test');
   await page.getByRole('menuitemradio', { name: /pi-native-test/ }).first().click();

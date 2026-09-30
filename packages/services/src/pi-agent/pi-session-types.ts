@@ -45,6 +45,8 @@ export interface PiSessionSupervisorOptions {
   launchPreferences?: () => Promise<{
     offline: "inherit" | "offline" | "online";
     versionCheck: "inherit" | "skip" | "check";
+    noProxy?: string;
+    caCertPath?: string;
   }>;
   clientFactory?: (options: ConstructorParameters<typeof PiRpcClient>[0]) => PiRpcClient;
 }

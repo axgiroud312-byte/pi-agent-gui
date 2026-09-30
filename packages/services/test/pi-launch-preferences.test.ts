@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join, resolve, sep } from 'node:path';
 import { test } from 'node:test';
+import { rootCertificates } from 'node:tls';
 import { fileURLToPath } from 'node:url';
 import { appSettingsPatchSchema, appSettingsSchema } from '@zcode/shared';
 import { PiSessionSupervisor } from '../src/pi-agent/pi-session-supervisor.js';
@@ -31,6 +32,21 @@ test('explicit online and check choices remove inherited Pi env flags', async ()
   }
 });
 
+test('desktop No Proxy and CA settings reach Pi rather than only the old Agent spawn path', async () => {
+  const supervisor = new PiSessionSupervisor({
+    piEntry: fileURLToPath(import.meta.resolve('@earendil-works/pi-coding-agent/rpc-entry')),
+    env: { NO_PROXY: 'inherited.invalid', no_proxy: 'inherited.invalid', NODE_EXTRA_CA_CERTS: 'inherited.pem' },
+    launchPreferences: async () => ({ offline: 'inherit', versionCheck: 'inherit',
+      noProxy: 'localhost,127.0.0.1', caCertPath: 'C:/certificates/pi.pem' }),
+  });
+  try {
+    const { env } = await supervisor.settingsEnvironment();
+    assert.equal(env.NO_PROXY, 'localhost,127.0.0.1');
+    assert.equal(env.no_proxy, 'localhost,127.0.0.1');
+    assert.equal(env.NODE_EXTRA_CA_CERTS, 'C:/certificates/pi.pem');
+  } finally { await supervisor.dispose(); }
+});
+
 test('a new desktop session passes selected offline and update flags to the same fixed Pi child',
   { timeout: 40_000 }, async () => {
     const root = await mkdtemp(join(tmpdir(), 'pi-launch-preferences-'));
@@ -43,10 +59,12 @@ test('a new desktop session passes selected offline and update flags to the same
       env: { PI_CODING_AGENT_DIR: profile, PI_OFFLINE: '0', PI_SKIP_VERSION_CHECK: '0',
         PI_SETTINGS_PROBE_FILE: observedFile },
       rpcArgs: ['--no-skills', '--no-prompt-templates', '--no-context-files'],
-      launchPreferences: async () => ({ offline: 'offline', versionCheck: 'skip' }),
+      launchPreferences: async () => ({ offline: 'offline', versionCheck: 'skip',
+        noProxy: 'localhost,127.0.0.1', caCertPath: join(root, 'extra-ca.pem') }),
     } as ConstructorParameters<typeof PiSessionSupervisor>[0]);
     try {
       await Promise.all([workspace, join(profile, 'extensions')].map(path => mkdir(path, { recursive: true })));
+      await writeFile(join(root, 'extra-ca.pem'), rootCertificates[0] ?? '');
       await writeFile(join(profile, 'settings.json'), JSON.stringify({
         enableInstallTelemetry: false, extensions: [extension],
       }));
@@ -55,15 +73,18 @@ export default function (pi) {
   pi.on('session_start', () => writeFileSync(process.env.PI_SETTINGS_PROBE_FILE,
     JSON.stringify({ offline: process.env.PI_OFFLINE,
       skipVersionCheck: process.env.PI_SKIP_VERSION_CHECK,
+      noProxy: process.env.NO_PROXY, caCertPath: process.env.NODE_EXTRA_CA_CERTS,
       cwd: process.cwd() })));
 }\n`);
       const created = await supervisor.createSession(workspace);
       assert.equal(created.workspacePath, workspace);
       const observed = JSON.parse(await readFile(observedFile, 'utf8')) as {
-        offline: string; skipVersionCheck: string; cwd: string;
+        offline: string; skipVersionCheck: string; cwd: string; noProxy: string; caCertPath: string;
       };
       assert.equal(observed.offline, '1');
       assert.equal(observed.skipVersionCheck, '1');
+      assert.equal(observed.noProxy, 'localhost,127.0.0.1');
+      assert.equal(observed.caCertPath, join(root, 'extra-ca.pem'));
       assert.equal(resolve(observed.cwd), resolve(workspace));
     } finally {
       await supervisor.dispose();
